@@ -390,6 +390,7 @@ async function updateTabContent(type, data, id = null, format = null) {
             // the stored technical answer carries them through toggles and re-renders (stream-pane.js, 2026-10-03)
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
             if (type === 'answer' && typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
+            if (window.ArchitectUI) finalContent = window.ArchitectUI.dressAnswer(finalContent);      // the part "Against the brief", as a card
             
             // Add the content to the DOM
             content += '<div class="markdown-content content-body">' + finalContent + '</div>';
@@ -420,8 +421,9 @@ async function updateTabContent(type, data, id = null, format = null) {
             
             break;
         }
-        case 'comparison':
-            content = String(data == null ? '' : data);          // a routine's run against the run before (routines.js builds it)
+        case 'comparison':                                       // a routine's run against the run before (routines.js builds it)
+        case 'brief':                                            // the brief a run was started with (architect.js builds it)
+            content = String(data == null ? '' : data);
             break;
         case 'code_exec_results': {
             // the reproduction script's printed output, verbatim, in the app's code block
@@ -1150,6 +1152,7 @@ function handleSimplifiedSummaryToggle() {
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
             // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
             if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
+            if (window.ArchitectUI) finalContent = window.ArchitectUI.dressAnswer(finalContent);
             
             answerContent.innerHTML = finalContent;
             currentData.summaryViewMode = 'simplified';

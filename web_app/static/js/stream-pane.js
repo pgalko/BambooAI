@@ -21,7 +21,7 @@
 //   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
-//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded}}
+//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, brief, reaches:{lines, refused, counts, sandbox, recorded}}
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -188,7 +188,7 @@
         },
         runEnd(r) {
             const rep = r.replay_status === 'reproduced' ? 'ok' : (r.replay_status ? 'warn' : '');
-            const links = ['Answer', 'Simplified', 'Investigation'].concat(r.plots ? ['Plots (' + r.plots + ')'] : []).map(l =>
+            const links = ['Answer'].concat(r.brief ? ['Brief'] : [], ['Simplified', 'Investigation'], r.plots ? ['Plots (' + r.plots + ')'] : []).map(l =>      // Brief: the run was started with one
                 '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
             // the code map's way in (2026-10-20): on the links line, a button (the four links are counted) with a slight
             // border so it stands out, for an answered chain that ran code; the chain id rides in the markup, so a
@@ -285,6 +285,7 @@
         s.insertAdjacentHTML('beforeend', html);
     }
 
+    window.paneAppend = append;          // a row of the page's own in the stream (architect.js: the framing, folded above its run)
     window.paneIds = function (d) {
         const p = ensure(); if (!p) return;
         const slot = p.querySelector('.sp-ids-slot');

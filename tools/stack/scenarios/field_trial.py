@@ -8,6 +8,11 @@ for the first question (Deep, six turns): inspect, search, a cell that fails on 
 column name (rolled back), the adjusted comparison with a plot-level bootstrap, a figure,
 the report. A follow-up ("and regime C?") reuses the warm kernel in two turns. Any other
 question gets a short generic two-turn answer, so the stack can be driven interactively.
+
+A run with a brief (docs/ARCHITECT_DESIGN.md §2.11) is scripted by the brief, whatever the question's words: the analyst
+computes what the brief fixes - regime C against A within soil, on plot means - and its report says how the result stands
+against what the brief expects, with a line for each Also check. A brief that fixes a measure the data does not have
+(protein) makes it stop and ask; the person's answer naming yield lets the next run go ahead.
 """
 import json
 import os
@@ -42,6 +47,10 @@ Regime B plots were sown a week later than regime A on the same soils.
 """
 DOC_QUESTION = "What do the field notes say about the wet season?"
 
+# the Architect (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief filled by hand, then run
+BRIEF_QUESTION = "Is regime C worth switching to from regime A?"
+BRIEF_ANSWER = "Use yield instead."                # the person's answer when the analyst asks about a measure the data lacks
+
 
 def make_dataset(path, seed=20260909):
     rng = np.random.default_rng(seed)
@@ -72,8 +81,25 @@ def _turn(user):
 
 
 def _question(user):
-    m = re.search(r"QUESTION:\n(.*?)\n\nYOUR NOTE", user, re.S)
+    m = re.search(r"QUESTION:\n(.*?)\n\n(?:BRIEF \(|YOUR NOTE)", user, re.S)      # a run with a brief carries it under the question
     return (m.group(1) if m else "").strip()
+
+
+def _brief(user):
+    """The BRIEF block of the prompt (analyst/brief.py render()), read back: the one-line parts by their labels, the
+    person's own Also check lines, what is fixed."""
+    m = re.search(r"^BRIEF \([^\n]*\n(.*?)(?:\n\n|\Z)", user, re.S | re.M)
+    block = m.group(1) if m else ""
+    one = lambda label: (re.search(rf"^{label}: (.*)$", block, re.M) or [None, ""])[1].strip()
+    also = re.search(r"^Also check:\n((?:- .*\n?)+)", block, re.M)
+    return {"decision": one("Decision"), "expects": one("What they expect to see"), "would_change": one("What would change their mind"),
+            "also": [ln[2:].strip() for ln in (also.group(1).splitlines() if also else []) if not ln.rstrip().endswith("[always]")],
+            "fixed": dict(re.findall(r"^- (comparison|measure|period): (.*)$", block, re.M))}
+
+
+def _first_number(text, default):
+    m = re.search(r"\d+(?:\.\d+)?", text or "")
+    return float(m.group(0)) if m else default
 
 
 def _grab(user, key, cast=float):
@@ -170,6 +196,34 @@ rng_c = np.random.default_rng(11)
 boots_c = np.array([adj_diff(plot_means, a='A', b='C', rng=rng_c) for _ in range(500)])
 lo_c, hi_c = np.percentile(boots_c, [2.5, 97.5])
 print(f"ADJ_DIFF_C={est_c:.3f} CI_LO_C={lo_c:.3f} CI_HI_C={hi_c:.3f} N_PLOTS_C={int((plot_means.regime == 'C').sum())}")"""
+
+CELL_BRIEF = """# What the brief fixes: regime C against regime A within soil type, on plot means of yield_t_ha; uncertainty by bootstrap
+# over PLOTS. Also checked: whether rainfall differed between the two regimes' plots.
+plot_means = df.groupby(['plot_id', 'regime', 'soil'], as_index=False)[['yield_t_ha', 'rainfall_mm']].mean()
+
+def adj_diff(pm, a='A', b='B', rng=None):
+    total, weight = 0.0, 0
+    for soil, g in pm.groupby('soil'):
+        ga, gb = g[g.regime == a]['yield_t_ha'], g[g.regime == b]['yield_t_ha']
+        if rng is not None:
+            ga = ga.sample(len(ga), replace=True, random_state=rng)
+            gb = gb.sample(len(gb), replace=True, random_state=rng)
+        n = min(len(ga), len(gb))
+        if n:
+            total += n * (gb.mean() - ga.mean()); weight += n
+    return total / weight
+
+rng_b = np.random.default_rng(11)
+est_b = adj_diff(plot_means, a='A', b='C')
+boots_b = np.array([adj_diff(plot_means, a='A', b='C', rng=rng_b) for _ in range(500)])
+lo_b, hi_b = np.percentile(boots_b, [2.5, 97.5])
+rain = plot_means.groupby('regime')['rainfall_mm'].mean()
+print(f"BRIEF_DIFF={est_b:.3f} BRIEF_LO={lo_b:.3f} BRIEF_HI={hi_b:.3f}")
+print(f"RAIN_C={rain['C']:.1f} RAIN_A={rain['A']:.1f}")
+RESULT('yield, regime C vs A within soil type, plot means', est_b, lo_b, hi_b, 't/ha', 'C higher')"""
+
+CELL_BRIEF_COLUMNS = """# The brief fixes the measure: which columns does the data have for it?
+print(df.dtypes.to_string())"""
 
 CELL_GENERIC = """# A first look at the columns the question names
 print(df.describe(include='all').round(3).to_string())"""
@@ -299,6 +353,8 @@ class Scenario:
         q = _question(user)
         turn, of = _turn(user)
         forced = "STOP:" in user or "Write REPORT now" in user
+        if "\nBRIEF (" in user:
+            return self.briefed(user, q, turn, forced)
         if q == QUESTIONS[0]:
             # turn 1 inspects; turn 2 the search (a turn, as every exchange is without documents -, 2026-10-03);
             # turn 3, with the digest in the prompt, the cell that fails; turn 4 the corrected cell; turn 5 a figure cell,
@@ -335,6 +391,53 @@ class Scenario:
             return self.report_generic(user, q)
         return _cell("A question outside the scripted story: one look at the data, then a short answer.",
                      _note(q, plan="describe, then report"), CELL_GENERIC)
+
+    # ------------------------------------------------------------ a run with a brief (the Architect)
+    def briefed(self, user, q, turn, forced):
+        b = _brief(user)
+        measure = b["fixed"].get("measure", "")
+        # the measure the brief fixes is not in the data - unless the person's answer to that question, which stands where
+        # the two differ, names the one to use
+        answered = "BRIEF (agreed before your question" in user and "yield" in q.lower()
+        if "protein" in measure.lower() and not answered:
+            if turn == 1 and not forced:
+                return _cell("The brief fixes the measure as protein content. First, the columns the data has.",
+                             _note(q, plan="look for the measure the brief fixes", names="df"), CELL_BRIEF_COLUMNS)
+            return _action("No column records protein, so the measure the brief fixes cannot be computed, and nothing else is put in its place.",
+                           _note(q, doubts="the fixed measure is not in the data", plan="ask the person"),
+                           "ASK The brief fixes the measure as protein content, and the data records none: its columns are plot_id, regime, soil, season, "
+                           "rainfall_mm and yield_t_ha. The comparison the brief fixes can be made on yield_t_ha. Shall I use yield?")
+        if forced or "BRIEF_DIFF=" in user:
+            return self.report_brief(user, q, b)
+        return _cell("The brief fixes the comparison and the measure: regime C against A within soil type, on plot means of yield. One cell computes it, with the rainfall of the two regimes' plots for the check the brief names.",
+                     _note(q, held="soil type (stratified), as the brief fixes", plan="the fixed comparison; then report against the brief", names="df, plot_means, adj_diff, est_b"), CELL_BRIEF)
+
+    def report_brief(self, user, q, b):
+        d, lo, hi = (_grab(user, k) for k in ("BRIEF_DIFF", "BRIEF_LO", "BRIEF_HI"))
+        rain_c, rain_a = _grab(user, "RAIN_C"), _grab(user, "RAIN_A")
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        if d is None:
+            return _report("The comparison did not print.", _note(q, plan="report"), "## Not established\n\nThe cell did not print the comparison the brief fixes; nothing can be reported.")
+        # a part the brief gives as "not said" has no line, as the contract says
+        said = lambda part: b[part] if b[part] and b[part] != "not said" else ""
+        want, under = _first_number(said("expects"), 0.3), _first_number(said("would_change"), 0.1)
+        expected = "met" if lo >= want else ("not met" if hi < want else "cannot tell")
+        changed = "seen" if hi < under else ("not seen" if lo >= under else "cannot tell")
+        verdicts = ((f"- Expected: {expected} - the gap is {d:.3f} t/ha, interval {lo:.3f} to {hi:.3f} [cell {cell}]\n" if said("expects") else "")
+                    + (f"- Would change their mind: {changed}\n" if said("would_change") else ""))
+        title = "Regime C is above regime A on like-for-like soil" if lo > 0 else "Regime C is not distinguishable from regime A on like-for-like soil"
+        rivals = "".join(f"- {r.rstrip('.')}: mean rainfall was {rain_c:.1f} mm on the C plots and {rain_a:.1f} mm on the A plots [cell {cell}]\n" for r in b["also"])
+        body = (f"## {title}\n\nOn plot means within soil type, regime C yields {d:.3f} t/ha against regime A (95% interval {lo:.3f} to {hi:.3f}) [cell {cell}]."
+                + (f" For the decision - {said('decision').rstrip('.')} - " + ("the gap is real; whether it is large enough is for the person to judge." if lo > 0 else "this trial gives no reason to switch.") if said("decision") else "") + "\n\n"
+                "## Against the brief\n\n" + verdicts + rivals +
+                f"- chance: the interval {'excludes' if lo > 0 or hi < 0 else 'includes'} zero [cell {cell}]\n"
+                "- measurement error: cannot tell - the data does not say how yield was measured\n"
+                "- how the cases compared came to be chosen: the regimes were not assigned at random; soil type is held fixed, nothing else\n\n"
+                "## Did not fit\n\n- Nothing.\n\n"
+                f"## How it was established\n\nPlot means first, then C minus A within each soil type, weighted by the plots compared; a 500-draw bootstrap over plots [cell {cell}].")
+        return _report("The cell printed the comparison the brief fixes and the rainfall of both regimes; the report says how the result stands against the brief.",
+                       _note(q, est=f"C-A {d:.3f} t/ha [{lo:.3f}, {hi:.3f}]", held="soil type (stratified), as the brief fixes", plan="report", names="df, plot_means, adj_diff, est_b"), body)
 
     def t_inspect(self, q):
         return _cell("The question is a between-regime contrast, and 'once soil type is taken into account' says the soil "
@@ -523,6 +626,9 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
     # ------------------------------------------------------------ rewrite
     def rewrite(self, user):
         v = self.vals
+        kept = re.search(r"## Against the brief\n.*?## Did not fit\n\n.*?(?=\n\n## |\Z)", user, re.S)
+        if kept:                                    # a run with a brief: the two parts stay under their headings, as the task asks
+            return "## What was found\nOn like-for-like soil the two regimes were compared on what each plot yielded on average.\n\n" + kept.group(0)
         if "ADJ_DIFF" in v and v.get("ADJ_DIFF") is not None:
             return (f"## What was found\nOn like-for-like soil, plots under regime B produced about {v['ADJ_DIFF']:.2f} tonnes per hectare "
                     f"more than plots under regime A. A plausible range for that gain runs from {v['CI_LO']:.2f} to "

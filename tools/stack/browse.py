@@ -232,6 +232,62 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
+    # the Architect (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief written by hand, the
+    # analysis started from it, the report against the brief, the thread map
+    brief_question = getattr(mod, "BRIEF_QUESTION", None)
+    if brief_question and p.query_selector("#architectSwitch"):
+        def write(path, text, keep=True):
+            n = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
+            p.click(f'#content-brief .ar-line[data-path="{path}"] [data-ar="edit"]')
+            p.fill("#content-brief .ar-input", text)
+            if keep:
+                p.keyboard.press("Enter")
+                p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=n, timeout=15000)
+        p.click("#architectSwitch")
+        p.fill("#queryInput", brief_question)
+        p.wait_for_timeout(200)
+        w.shot("architect_composer")
+        p.click("#submitQuery")
+        p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+        p.wait_for_timeout(400)
+        w.shot("architect_brief_empty")
+        for path, text in (("decision", "Switch the clay plots to regime C next season, or keep A."), ("thinks", "C does better than A."),
+                           ("rests_on.+", "The C plots looked greener last season."), ("expects", "C yields at least 0.3 t/ha more than A."),
+                           ("also_check.+", "Rainfall differed between the C and A plots."), ("fixed.comparison", "regime C against regime A, within soil type")):
+            write(path, text)
+        write("fixed.measure", "yield_t_ha, plot means", keep=False)
+        p.wait_for_timeout(300)
+        w.shot("architect_brief_typing")
+        p.keyboard.press("Enter")
+        p.wait_for_function("() => !document.querySelector('#content-brief .editing')", timeout=15000)
+        p.hover('#content-brief .ar-line[data-path="rests_on.0"]')
+        p.wait_for_timeout(300)
+        w.shot("architect_brief")
+        p.click('#content-brief [data-ar="step"][data-step="-1"]')
+        p.wait_for_timeout(300)
+        w.shot("architect_brief_older_version")
+        p.click('#content-brief [data-ar="step"][data-step="1"]')
+        p.click("#railMapButton")
+        p.wait_for_timeout(900)
+        w.shot("architect_map_not_run")
+        p.click("#workflowMapModal .workflow-close")
+        p.wait_for_timeout(300)
+        p.click('#content-brief [data-ar="start"]')
+        w.wait_text(".sp-done", "Run complete", 180000)
+        p.wait_for_timeout(1200)
+        w.js("activateTab('answer')")
+        p.wait_for_timeout(500)
+        w.shot("architect_answer")
+        w.js("activateTab('brief')")
+        p.wait_for_timeout(400)
+        w.shot("architect_brief_after_run")
+        p.click("#railMapButton")
+        p.wait_for_timeout(900)
+        w.shot("architect_map")
+        p.click("#workflowMapModal .workflow-close")
+        p.wait_for_timeout(300)
+        p.click("#architectSwitch")
+
 
 def main():
     ap = argparse.ArgumentParser()

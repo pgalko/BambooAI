@@ -1187,9 +1187,49 @@ class BambooAI:
             self._pane('pane_lookup', kind='lost', query='', peek=(ev.get("text") or "malformed turn")[:160], sources=[])
 
     # ---------------------------------------------------------- the entry
+    # ------------------------------------------------------------- framing (docs/ARCHITECT_DESIGN.md §2.6, §2.9)
+    def _thread_notebook(self, thread_id):
+        """The thread's notebook without taking the instance to that thread: the one in hand when it is this thread's,
+        read from the store otherwise."""
+        if self.notebook is not None and self.notebook.thread_id == str(thread_id):
+            return self.notebook
+        return self.store.load(thread_id)
+
+    def open_framing(self, question, thread_id=None, chain_id=None):
+        """A run on the record before any analysis: the question, where it attaches, and the first version of its
+        brief. A follow-up to a run that had a brief starts from that brief. No model is called. Returns the ids the
+        page keeps and the framing."""
+        from analyst import brief as briefs
+        thread_id = thread_id if thread_id is not None else utils.next_thread_id()
+        nb = self._thread_notebook(thread_id)
+        parent = str(chain_id) if chain_id is not None and str(chain_id) in nb.runs else None
+        run_id = utils.next_chain_id()
+        run = nb.new_run(question, parent, run_id=str(run_id))
+        run.status = "framing"
+        before = {k: v for k, v in (nb.runs[parent].brief if parent else {}).items() if k not in ("version", "question", "carried_from")}
+        run.framing = briefs.version({}, {**before, "question": question}, changed=["from the last brief"] if before else [])
+        self.store.save(nb)
+        return {"thread_id": thread_id, "chain_id": run_id, "parent_chain_id": chain_id if parent is not None else None, "framing": run.framing}
+
+    def save_brief(self, thread_id, run_id, brief, changed=None, question=None):
+        """One more version of a framing run's brief, as the person left it; the question follows when they changed
+        it. Returns the framing, or None when the run is not one being framed."""
+        from analyst import brief as briefs
+        nb = self._thread_notebook(thread_id)
+        run = nb.runs.get(str(run_id))
+        if run is None or run.status != "framing":
+            return None
+        if question and str(question).strip():
+            run.question = str(question).strip()
+        run.framing = briefs.version(run.framing, {**(brief if isinstance(brief, dict) else {}), "question": run.question}, changed=changed)
+        self.store.save(nb)
+        return run.framing
+
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
-                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None, brief=None):
+                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None, brief=None,
+                          run_id=None):
         # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
+        # run_id: the framing run the brief was written in (open_framing); the analysis continues it, under its id
         self.kill_signal = False
         self._stop_event.clear()
 
@@ -1213,7 +1253,19 @@ class BambooAI:
         self._sync_documents()                       # the thread's documents into the kernel's folder
         parent = str(chain_id) if chain_id is not None and str(chain_id) in self.notebook.runs else None
         parent_for_ui = chain_id if parent is not None else None      # the browser's own value, same type
-        self.chain_id = utils.next_chain_id()
+        framed = self.notebook.runs.get(str(run_id)) if run_id is not None else None
+        if run_id is not None and (framed is None or framed.status != "framing"):
+            # started before (a second tab): not run again, and no run takes its place without the brief
+            self.output_manager.display_error("This brief can no longer be started: its analysis has started.", chain_id=run_id)
+            return None
+        if framed is not None:
+            from analyst import brief as briefs
+            self.chain_id = int(run_id) if str(run_id).isdigit() else run_id      # the analysis of a framed run keeps the run's id
+            brief = brief or briefs.latest(framed.framing)                         # ... and runs under the brief as last kept
+            parent = framed.parent                                                 # ... and attaches where the framing run did
+            parent_for_ui = int(parent) if parent and parent.isdigit() else parent
+        else:
+            self.chain_id = utils.next_chain_id()
 
         if question is None and self.webui:
             question = self.output_manager.get_user_input()
@@ -1320,6 +1372,7 @@ class BambooAI:
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),
                    replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
+                   brief=bool(run.brief),                          # the closing card links to the Brief tab
                    reaches=reach_mod.summary(run))                 # the reach report: what the cells touched outside the data (2026-10-28)
         if run.status == "asked":
             asked = next((t.text for t in reversed(run.turns) if t.kind == "ask"), "")

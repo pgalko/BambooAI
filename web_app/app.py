@@ -53,6 +53,7 @@ from documents_routes import documents_bp
 from routines_routes import routines_bp
 from codebook_routes import codebook_bp
 from code_map_routes import code_map_bp
+from architect_routes import architect_bp
 
 # Logs
 from logger_config import setup_logging, get_logger
@@ -235,6 +236,7 @@ app.register_blueprint(documents_bp)
 app.register_blueprint(routines_bp)
 app.register_blueprint(codebook_bp)
 app.register_blueprint(code_map_bp)
+app.register_blueprint(architect_bp)
 
 # Initialize authentication
 init_auth(app)
@@ -1293,6 +1295,7 @@ def query():
     image = request.json.get('image')
     branching_cv = request.json.get('branching_cv')
     synthesis = request.json.get('synthesis', False)
+    run_id = request.json.get('run_id')      # the framing run this analysis continues (architect_routes.py): it runs under that run's brief
 
     # NEW: Auto-explore parameters
     auto_explore = request.json.get('auto_explore', False)
@@ -1331,6 +1334,7 @@ def query():
             synthesis=synthesis,
             mode=mode,
             ideas=branching_cv,
+            run_id=run_id,
         )
 
     thread = threading.Thread(target=run_bamboo_ai)

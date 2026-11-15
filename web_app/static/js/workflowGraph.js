@@ -303,9 +303,19 @@ window.WorkflowGraph = (function () {
             chainSpan.textContent = 'Chain: ' + nd.chainId;
             div.appendChild(chainSpan);
 
+            // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Architect, or a brief not yet run
+            var made = window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';
+            if (made) {
+                var madeSpan = document.createElement('span');
+                madeSpan.className = 'wf-node-made';
+                madeSpan.textContent = made;
+                div.appendChild(madeSpan);
+                if (made === 'not run') div.classList.add('wf-node--notrun');
+            }
+
             // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
             // the chain, the drawer closes, the map opens
-            if (resp && resp.chain_id) {
+            if (resp && resp.chain_id && made !== 'not run') {
                 var eye = document.createElement('button');
                 eye.className = 'wf-node-map';
                 eye.type = 'button';

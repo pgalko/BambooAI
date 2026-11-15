@@ -29,6 +29,7 @@ MARKS = ("holds", "does not hold", "cannot be checked")
 FIXED = ("comparison", "measure", "period")
 SAVED = ("when", "question", "passage", "data", "period", "thread", "run")
 TEXT_CHARS = 600                 # one line of a brief, at most
+QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
 MAX = {"rests_on": 6, "also_check": 4, "saved": 6, "set_aside": 8}      # bounds on what a prompt carries, not the design's counts
 LEFT = "left to you"             # a part of what is fixed that the person did not fix: the analyst chooses it
 UNSAID = "not said"              # a part of the frame the person did not state
@@ -39,6 +40,13 @@ SEEN = ("not seen", "cannot tell", "seen")
 
 def _text(value) -> str:
     return re.sub(r"\s+", " ", str(value)).strip()[:TEXT_CHARS] if isinstance(value, (str, int, float)) and not isinstance(value, bool) else ""
+
+
+def _question(value) -> str:
+    """The question as the person typed it: its lines kept, runs of spaces folded, bounded as a question is."""
+    if not isinstance(value, str):
+        return ""
+    return "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in value.strip().splitlines())[:QUESTION_CHARS]
 
 
 def normalise(brief) -> dict:
@@ -78,9 +86,33 @@ def normalise(brief) -> dict:
         return {}
     version = brief.get("version")
     out["version"] = int(version) if isinstance(version, int) and not isinstance(version, bool) and version > 0 else 1
-    if _text(brief.get("question")):
-        out["question"] = _text(brief.get("question"))
+    if _question(brief.get("question")):
+        out["question"] = _question(brief.get("question"))
     return out
+
+
+def working(brief) -> dict:
+    """The brief while it is being written: in its known shape, without a version number; one that so far holds only
+    the question keeps it."""
+    out = {k: v for k, v in normalise(brief).items() if k != "version"}
+    if not out and isinstance(brief, dict) and _question(brief.get("question")):
+        out = {"question": _question(brief.get("question"))}
+    return out
+
+
+def version(framing: dict, brief, by: str = "person", changed=None) -> dict:
+    """A version added to a run's framing: the brief as it stands, who made the change and which parts it touched.
+    Returns the framing with the new version; every earlier one stays."""
+    versions = list((framing or {}).get("versions") or [])
+    entry = {"n": len(versions) + 1, "by": by if by in ("person", "architect") else "person",
+             "changed": [str(c)[:60] for c in (changed or []) if isinstance(c, str)][:12], "brief": working(brief)}
+    return {**(framing or {}), "versions": versions + [entry]}
+
+
+def latest(framing: dict) -> dict:
+    """The brief of a framing's last version, numbered with it; {} when there is none."""
+    versions = (framing or {}).get("versions") or []
+    return {**versions[-1].get("brief", {}), "version": versions[-1].get("n", len(versions))} if versions and versions[-1].get("brief") else {}
 
 
 def carried(parent) -> dict:
@@ -165,14 +197,15 @@ def _verdict(items: list, label: str, words: tuple) -> tuple:
 
 
 def outcome(report: str) -> dict:
-    """What a report says against its brief: whether it says it at all (stated), the verdict on what was expected
-    (met, not met, cannot tell) and on what would change the person's mind (seen, not seen, cannot tell), the
-    other lines of the part (the checks), and what did not fit."""
+    """What a report says against its brief: whether it has the part at all (stated), the verdict on what was expected
+    (met, not met, cannot tell) and on what would change the person's mind (seen, not seen, cannot tell) - each ''
+    where the report gives none, as for a part the brief left unsaid - the other lines of the part (the checks), and
+    what did not fit."""
     against, misfit = _section(report, "Against the brief"), _section(report, "Did not fit")
     items = _items(against)
     expected, line_e = _verdict(items, r"expected|expectation", VERDICTS)
     changed, line_c = _verdict(items, r"(?:what )?would change their mind", SEEN)
-    return {"stated": against is not None and bool(expected),
+    return {"stated": against is not None,
             "expected": expected, "would_change": changed,
             "checks": [x for x in items if x not in (line_e, line_c)],
             "did_not_fit": [x for x in _items(misfit) if not re.fullmatch(r"(?i)(nothing|none)\W*", x)]}

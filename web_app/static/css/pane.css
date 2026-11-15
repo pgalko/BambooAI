@@ -105,4 +105,7 @@
 #streamOutput .sp-telemetry { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
 #streamOutput .sp-telemetry > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-tertiary); }
 #streamOutput .sp-telemetry pre { margin: 6px 0 0; padding: 8px 10px; background: var(--code-bg); border: 1px solid var(--border-color); border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.4; color: var(--text-secondary); white-space: pre-wrap; }
-
+/* ---- the Architect in the left pane (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the coach's question as a card; once the analysis starts, the framing is one folded row above the run ---- */
+#streamOutput .ar-msg { margin-left: 10px; padding: 7px 12px 8px; border: 1px solid var(--border-color); border-radius: 6px; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
+#streamOutput .ar-msg .who { display: block; margin-bottom: 2px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
+#streamOutput .ar-fold .ar-msg { margin: 8px 10px; background: var(--bg-primary); }

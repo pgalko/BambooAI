@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field, fields, asdict
@@ -148,7 +149,7 @@ class Run:
     title: str = ""                 # the report's title (2026-10-17): its first line, a statement of what was found, for the Answer tab and the export
     replay_status: str = ""         # reproduced | differed | failed | (empty = not run)
     replay_script: str = ""
-    status: str = "running"         # running | answered | asked | stopped | failed
+    status: str = "running"         # running | answered | asked | stopped | failed | framing (the brief is being written; no analysis yet)
     created: float = field(default_factory=_now)
     data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
     mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code map's header)
@@ -156,6 +157,7 @@ class Run:
     sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
+    framing: dict = field(default_factory=dict)   # the brief's versions, each kept: {versions: [{n, by, changed, brief}]} (docs/ARCHITECT_DESIGN.md §2.6); {} for a run not framed
 
     @property
     def note(self) -> str:
@@ -534,6 +536,7 @@ class NotebookStore:
     def __init__(self, storage_dir: str):
         self.dir = os.path.join(storage_dir, "threads")
         self.ledger_path = os.path.join(storage_dir, "usage_ledger.jsonl")
+        self._writing = threading.Lock()         # one writer at a time: a brief is changed by a request while a chain of its thread runs (2026-11-15)
         os.makedirs(self.dir, exist_ok=True)
 
     def record(self, nb: "Notebook", run: Run) -> None:
@@ -574,6 +577,7 @@ class NotebookStore:
     def save(self, nb: Notebook) -> None:
         f = self._file(nb.thread_id)
         tmp = f + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(nb.to_dict(), fh, indent=1, ensure_ascii=False)
-        os.replace(tmp, f)
+        with self._writing:
+            with open(tmp, "w", encoding="utf-8") as fh:
+                json.dump(nb.to_dict(), fh, indent=1, ensure_ascii=False)
+            os.replace(tmp, f)

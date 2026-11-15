@@ -1594,4 +1594,76 @@ except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("the brief through the instance: the checks ran", False, traceback.format_exc()[-600:])
 
+# the framing run (2.8, docs/ARCHITECT_DESIGN.md §2.6, §2.9): a question asked with the Architect on opens a run on the record before
+# any analysis - no model is called; each change to its brief is kept as a version; the analysis continues that run under its id
+try:
+    import architect_routes as AR
+    import types as _tps
+    _app_was = sys.modules.get("app"); sys.modules["app"] = _tps.SimpleNamespace(get_bamboo_ai=lambda sid: BAMBOO)      # the route asks the app for the instance
+    _wa = Flask("ta"); _wa.secret_key = "t"; _wa.register_blueprint(AR.architect_bp); _wac = _wa.test_client()
+    with _wac.session_transaction() as _sess: _sess["session_id"] = "s1"
+    _keep_script, _keep_i = state["script"], state["i"]
+    while not q.empty(): q.get()
+    _n2 = len(state["calls"])
+    _opj = _wac.post("/architect/open", json={"question": "Is B above A here?", "thread_id": "1077", "chain_id": _prun.id}).get_json()
+    _frun = BAMBOO.notebook.runs.get(str(_opj.get("chain_id")))
+    _ffile = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"]
+    check("/architect/open: a run on the record before any analysis - status framing, attached where the question was asked, the first version of its brief holding the question; no model is called; a request without a question is refused",
+          _frun is not None and _frun.status == "framing" and _frun.parent == _prun.id and _frun.question == "Is B above A here?" and _opj["thread_id"] == "1077" and _opj["parent_chain_id"] == _prun.id
+          and _frun.framing == {"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Is B above A here?"}}]} and _opj["framing"] == _frun.framing
+          and _ffile[_frun.id]["status"] == "framing" and len(state["calls"]) == _n2 and q.empty()
+          and _wac.post("/architect/open", json={"question": "  ", "thread_id": "1077"}).status_code == 400, (_opj, _frun.framing if _frun else None))
+    _s1 = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _opj["chain_id"], "changed": ["decision", "expects"],
+                                              "brief": {"question": "Is B above A here?", "decision": "which arm to keep", "expects": "B above A", "junk": 1}})
+    _s2 = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _opj["chain_id"], "changed": ["question", "fixed.measure"],
+                                              "brief": {"question": "Is B above A, on x?", "decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}}})
+    check("/architect/brief: each change is one more version - who made it, the parts it touched, the brief in its known shape - and every earlier version stays; a changed question becomes the run's; still no model call; a request without a brief is refused",
+          _s1.status_code == 200 and _s2.status_code == 200 and [v["n"] for v in _frun.framing["versions"]] == [1, 2, 3] and _frun.framing["versions"][1] == {"n": 2, "by": "person", "changed": ["decision", "expects"],
+                                                                                                                 "brief": {"decision": "which arm to keep", "expects": "B above A", "question": "Is B above A here?"}}
+          and _frun.framing["versions"][2]["brief"]["fixed"] == {"measure": "x"} and _frun.question == "Is B above A, on x?" and _s2.get_json()["framing"] == _frun.framing
+          and len(state["calls"]) == _n2 and _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _opj["chain_id"]}).status_code == 400, _frun.framing)
+    state.update(i=0, script=_BRIEFED); BAMBOO.output_manager.add_user_input(_frun.question)
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=_brun.id, mode="deep", run_id=_opj["chain_id"])      # the request names another parent: the record's stands
+    _fev = []
+    while not q.empty(): _fev.append(json.loads(q.get()))
+    _fid = next((e for e in _fev if e.get("type") == "id"), {})
+    _fprompt = next((u for a, u in state["calls"][_n2:] if "TASK: turn 1" in u), "")
+    _fend = next((e for e in _fev if e.get("type") == "pane_run_end"), {})
+    check("the analysis of a framed run: the same run, under its id - the page is told that id and where it attaches, which is where the framing run did whatever the request says - with the brief as last kept, numbered with its version; the versions stay on the run; the closing card is told there is a brief",
+          BAMBOO.notebook.runs[str(_opj["chain_id"])] is _frun and str(BAMBOO.chain_id) == str(_opj["chain_id"]) and _frun.status == "answered" and _frun.parent == _prun.id
+          and str(_fid.get("chain_id")) == str(_opj["chain_id"]) and str(_fid.get("parent_chain_id")) == str(_prun.id)
+          and _frun.brief == {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "question": "Is B above A, on x?", "version": 3}
+          and "QUESTION:\nIs B above A, on x?\n\nBRIEF (agreed with the person before this run):\nDecision: which arm to keep\n" in _fprompt and len(_frun.framing["versions"]) == 3
+          and _frun.brief_outcome.get("expected") == "met" and _fend.get("brief") is True, (_frun.status, _frun.brief, _fid, _fprompt[:200]))
+    _n3, _runs3 = len(state["calls"]), len(BAMBOO.notebook.runs)
+    BAMBOO.output_manager.add_user_input(_frun.question)
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=_prun.id, mode="deep", run_id=_opj["chain_id"])
+    _again = []
+    while not q.empty(): _again.append(json.loads(q.get()))
+    check("a brief is started once: a second start is refused in plain words - no model call, no new run, the first run untouched",
+          any("can no longer be started" in str(e.get("error", "")) for e in _again) and len(state["calls"]) == _n3 and len(BAMBOO.notebook.runs) == _runs3 and _frun.status == "answered", _again[:3])
+    _late = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _opj["chain_id"], "brief": {"decision": "too late"}})
+    _op2 = _wac.post("/architect/open", json={"question": "And on the other half?", "thread_id": "1077", "chain_id": _opj["chain_id"]}).get_json()
+    _frun2 = BAMBOO.notebook.runs[str(_op2["chain_id"])]
+    _longq = "Is B above A here?\nWhat I saw: B led in 3 of 4.\n" + "z" * 800
+    _op4 = _wac.post("/architect/open", json={"question": _longq, "thread_id": "1077", "chain_id": _prun.id}).get_json()
+    _v4 = _op4["framing"]["versions"][0]["brief"]
+    _s4 = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _op4["chain_id"], "changed": ["decision"], "brief": {**_v4, "decision": "which arm to keep"}}).get_json()
+    _run4 = BAMBOO.notebook.runs[str(_op4["chain_id"])]
+    check("a long question of several lines is kept whole: on the run, in the brief's versions the page shows and sends back, and after a change to another part",
+          _v4 == {"question": _longq} and _run4.question == _longq and _s4["framing"]["versions"][1]["brief"] == {"decision": "which arm to keep", "question": _longq} and len(_longq) > 800, (_v4, _run4.question[:80]))
+    _op3 = _wac.post("/architect/open", json={"question": "Something else, elsewhere"}).get_json()
+    _other = json.load(open(os.path.join(work, "storage", "u1", "threads", f"{_op3['thread_id']}.json"), encoding="utf-8"))["runs"]
+    check("framing, the edges: a brief whose analysis has started can no longer be changed; a follow-up to a run that had a brief starts from that brief, and says so; a question with no thread opens one - on its record, without moving the instance off the thread it is on",
+          _late.status_code == 409 and len(_frun.framing["versions"]) == 3
+          and _frun2.status == "framing" and _frun2.parent == _frun.id and _frun2.framing["versions"][0] == {"n": 1, "by": "person", "changed": ["from the last brief"],
+              "brief": {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "question": "And on the other half?"}}
+          and str(_op3["thread_id"]) != "1077" and _op3["parent_chain_id"] is None and _other[str(_op3["chain_id"])]["status"] == "framing" and BAMBOO.notebook.thread_id == "1077",
+          (_late.status_code, _frun2.framing, _op3))
+    state["script"], state["i"] = _keep_script, _keep_i
+    sys.modules["app"] = _app_was
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("the framing run through the routes and the instance: the checks ran", False, traceback.format_exc()[-900:])
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

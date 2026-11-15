@@ -1726,6 +1726,9 @@ check("brief: without one the contract and the reviewer's prompt are what they w
       and _cb.index("- the answer: the estimate") < _cb.index("- against the brief, under the heading `## Against the brief`") < _cb.index("- what did not fit, under the heading `## Did not fit`") < _cb.index("- the conditions it depends on")
       and "- the person's question, verbatim\n- BRIEF: what the person fixed" in reviewer_text(False, brief=True)
       and not any("{" + p in t for p in ("BRIEF", "REVIEWS", "DOCUMENTS", "READ_ROW", "WORDS", "LENSES") for t in (_cb, contract(True, 8, context=True, brief=True), reviewer_text(True, brief=True))))
+check("brief: the report's part names its verdict words - met, not met, cannot tell; seen, not seen, cannot tell - and a check that could not be made is written with the same words (the page marks the line)",
+      all(w in " ".join(BRIEF_PARTS.split()) for w in ("a line `Expected:` with `met`, `not met` or `cannot tell` and the number that says so", "a line `Would change their mind:` with `seen`, `not seen` or `cannot tell`",
+                                                       "then one line for each Also check line, with what it showed - or `cannot tell` and why.")))
 check("brief: the contract's section says the five things the analyst does with it - the decision is what the answer is for, what is fixed is what is computed, what it rests on is a frame and not evidence, every Also check line is tested, and where the data cannot give what is fixed it asks",
       all(s in CONTRACT_BRIEF for s in ("The decision is what the answer is for", "What is fixed - the comparison, the measure, the period - is what you compute", "A part marked \"left to you\"\n  is yours to choose",
                                         "is the person's frame, not evidence", "Every line under Also check is tested", "put nothing else in its place: ASK, saying what is missing and what the data would\n  allow")))
@@ -1748,6 +1751,26 @@ _big = briefs.normalise({"rests_on": [f"line {i}" for i in range(20)], "also_che
 check("brief.normalise: bounded - a line at most 600 characters, six lines to rest on and four to check also; a version that is no count is 1; nothing that frames the question is no brief (a bare question, an empty dict, a string)",
       len(_big["decision"]) == 600 and len(_big["rests_on"]) == 6 and len(_big["also_check"]) == 4 and _big["version"] == 1
       and briefs.normalise({"question": "only a question"}) == {} and briefs.normalise({}) == {} and briefs.normalise("a string") == {} and briefs.normalise({"fixed": {"junk": 1}, "rests_on": [" "]}) == {}, _big)
+_long_q = "Did  it work?\n   What I saw:\t3 of 4.\n" + "x" * 700
+check("brief: the question is the person's words, not a line of the brief - its lines kept, runs of spaces folded, bounded at 4,000 characters; so a brief's versions hold it whole (0296: cut at 600, a change to any part cut the run's question)",
+      briefs.normalise({"decision": "d", "question": _long_q})["question"] == "Did it work?\nWhat I saw: 3 of 4.\n" + "x" * 700
+      and briefs.working({"question": _long_q}) == {"question": "Did it work?\nWhat I saw: 3 of 4.\n" + "x" * 700}
+      and len(briefs.normalise({"decision": "d", "question": "y" * 5000})["question"]) == briefs.QUESTION_CHARS == 4000
+      and briefs.version({}, {"question": _long_q})["versions"][0]["brief"]["question"].count("\n") == 2 and "question" not in briefs.normalise({"decision": "d", "question": 7}))
+# the thread record has one writer at a time (0296): a brief is changed by a request while a chain of its thread runs
+import threading as _thr
+_cs = NotebookStore(tempfile.mkdtemp()); _cn = Notebook("tc"); _cr = _cn.new_run("q"); _cr.report = "x" * 400000
+_cerr = []
+def _csave():
+    try:
+        for _ in range(25): _cs.save(_cn)
+    except Exception as exc:                                  # noqa: BLE001
+        _cerr.append(repr(exc))
+_cts = [_thr.Thread(target=_csave) for _ in range(8)]
+for _t in _cts: _t.start()
+for _t in _cts: _t.join()
+check("the thread record has one writer at a time: saves from several threads at once leave the file whole, and none fails",
+      not _cerr and _cs.load("tc").runs[_cr.id].report == _cr.report, _cerr[:2])
 _block = briefs.render(_b)
 check("brief.render: the BRIEF block as the analyst reads it - every part on its line, each line it rests on with what it is worth (checked and what the check found, cannot be checked, an earlier result as a claim to test, the person's word), "
       "the three standing checks after the person's, a part that was not fixed left to the analyst, the saved analyses as claims, what was set aside",
@@ -1786,10 +1809,11 @@ _o = briefs.outcome(_rep)
 check("brief.outcome: what the report says against the brief - the verdict on what was expected ('not met' is not read as 'met'), on what would change the person's mind, the other lines as the checks, what did not fit; each part ends at the next heading",
       _o == {"stated": True, "expected": "not met", "would_change": "seen", "checks": ["The season: the same change in both [cell 4].", "Chance: the interval includes zero."],
              "did_not_fit": ["The smaller one came first [cell 4].", "A second thing."]}, _o)
-check("brief.outcome: the verdict words each read - met, cannot tell; not seen; a part that says Nothing holds nothing; a report without the part, or with no verdict in it, has not stated it; a CHECK line under the part is not one of its lines",
+check("brief.outcome: the verdict words each read - met, cannot tell; not seen; a part that says Nothing holds nothing; a report without the part has not stated it, one whose part gives no verdict has - with the verdict empty; a CHECK line under the part is not one of its lines",
       briefs.outcome("## Against the brief\nExpected: met, as said\nWould change their mind: not seen\n## Did not fit\nNothing.\n") == {"stated": True, "expected": "met", "would_change": "not seen", "checks": [], "did_not_fit": []}
       and briefs.outcome("### against the brief:\n- Expectation - cannot tell: no data for it\n")["expected"] == "cannot tell"
-      and briefs.outcome("# t\n\n## Answer\nmet\n")["stated"] is False and briefs.outcome("## Against the brief\n- The season: nothing.\n")["stated"] is False
+      and briefs.outcome("# t\n\n## Answer\nmet\n")["stated"] is False
+      and briefs.outcome("## Against the brief\n- The season: nothing.\n") == {"stated": True, "expected": "", "would_change": "", "checks": ["The season: nothing."], "did_not_fit": []}
       and briefs.outcome("## Did not fit\n- One thing.\n\n> CHECK: 1 number(s) in this report were not printed by any cell (7.7).")["did_not_fit"] == ["One thing."])
 # a scripted run under the brief, over a real kernel
 _bdf = pd.DataFrame({"part": np.repeat(["before", "after"], 30), "y": np.r_[np.full(30, 100.0), np.full(30, 101.2)]})
@@ -1862,6 +1886,22 @@ finally:
     kb.cleanup()
 check("brief: a report that does not say how the result stands against the brief carries a line saying so, and the outcome is not stated",
       ru.report.rstrip().endswith("> " + BRIEF_UNANSWERED) and ru.brief_outcome["stated"] is False and ru.brief_outcome["expected"] == "", ru.report[-200:])
+# a brief written by hand has parts left empty (0296): a part not said asks for no line, and its absence is no fault
+_PART = "REPORT\n# A title\n\n## Answer\nDone.\n\n## Against the brief\n- chance: fine.\n\n## Did not fit\nNothing."
+def _part_run(brief, report=_PART):
+    k = PersistentKernel(df=_bdf)
+    try:
+        return Session(k, Notebook("tp"), _brief_llm([_bact(report)]), data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=4, dollars=1.0), brief=brief)
+    finally:
+        k.cleanup()
+_rn, _re = _part_run({"decision": "keep it or not"}), _part_run({"decision": "keep it or not", "expects": "a rise"})
+_rm = _part_run({"decision": "keep it or not"}, "REPORT\n# A title\n\n## Answer\nNo part for the brief here.")
+check("brief: a part the person left unsaid asks for no verdict line - the contract says so in the block's own word - and a report without that line is answered; where they said what they expect, a part with no verdict on it is not; "
+      "a report with no part at all is not, whatever the brief left unsaid",
+      'A part the brief gives as "' + briefs.UNSAID + '" has no line' in BRIEF_PARTS and "What they expect to see: " + briefs.UNSAID in briefs.render(briefs.normalise({"decision": "d"}))
+      and BRIEF_UNANSWERED not in _rn.report and _rn.brief_outcome == {"stated": True, "expected": "", "would_change": "", "checks": ["chance: fine."], "did_not_fit": []}
+      and _re.report.rstrip().endswith("> " + BRIEF_UNANSWERED) and _re.brief_outcome["stated"] is True and _re.brief_outcome["expected"] == ""
+      and _rm.report.rstrip().endswith("> " + BRIEF_UNANSWERED) and _rm.brief_outcome["stated"] is False, (_rn.report[-160:], _re.report[-160:], _rm.report[-160:]))
 # the reviewer reads the brief (Adaptive)
 _rvb = {"system": [], "user": []}
 def _rvb_llm(system, user, **h):

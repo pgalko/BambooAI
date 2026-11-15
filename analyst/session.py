@@ -40,9 +40,10 @@ CONTRACT_CONTEXT = open(os.path.join(_HERE, "contract_context.md"), encoding="ut
 CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
 # the brief's section and its two parts of the report ride only when the run has a brief (docs/ARCHITECT_DESIGN.md §2.5)
 CONTRACT_BRIEF = open(os.path.join(_HERE, "contract_brief.md"), encoding="utf-8").read()
-BRIEF_PARTS = ("- against the brief, under the heading `## Against the brief`: a line `Expected:` with `met`, `not met` or\n"
-               "  `cannot tell` and the number that says so; a line `Would change their mind:` with `seen`, `not seen` or\n"
-               "  `cannot tell`; then one line for each Also check line, with what it showed\n"
+BRIEF_PARTS = ("- against the brief, under the heading `## Against the brief`: for what the person expects to see, a line\n"
+               "  `Expected:` with `met`, `not met` or `cannot tell` and the number that says so; for what would change their\n"
+               "  mind, a line `Would change their mind:` with `seen`, `not seen` or `cannot tell`; then one line for each Also\n"
+               "  check line, with what it showed - or `cannot tell` and why. A part the brief gives as \"not said\" has no line\n"
                "- what did not fit, under the heading `## Did not fit`: each result the person's frame does not explain, one\n"
                "  to a line - or `Nothing.`\n")
 _REVIEWER_TEMPLATE = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
@@ -933,7 +934,12 @@ class Session:
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
             run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "",
             brief: Optional[dict] = None) -> Run:
-        run = self.nb.new_run(question, parent, run_id=run_id)
+        framed = self.nb.runs.get(str(run_id)) if run_id else None
+        if framed is not None and framed.status == "framing":
+            run = framed                                  # the brief was written in this run: its analysis is the same run (one box on the map)
+            run.question, run.status = question, "running"
+        else:
+            run = self.nb.new_run(question, parent, run_id=run_id)
         # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in
         run.brief = briefs.normalise(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
         run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
@@ -1213,7 +1219,9 @@ class Session:
         check_b = ""
         if run.brief:
             run.brief_outcome = briefs.outcome(report_text)
-            check_b = "" if run.brief_outcome["stated"] else BRIEF_UNANSWERED
+            # unanswered: the part is missing, or the person said what they expect and the report gives no verdict on it
+            answered = run.brief_outcome["stated"] and (run.brief_outcome["expected"] or not run.brief.get("expects"))
+            check_b = "" if answered else BRIEF_UNANSWERED
         run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})

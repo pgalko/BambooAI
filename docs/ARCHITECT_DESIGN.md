@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.8 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295)
+# The Architect and memory from saved analyses — design v0.9 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296)
 
 Release 2.8 does three things.
 
@@ -226,17 +226,70 @@ answer stands where the two differ. A brief sent with the answer replaces it.
 
 **The report.** Two parts under fixed headings, after the answer. `## Against the brief`: a line `Expected:` with
 met, not met or cannot tell and the number that says so; a line `Would change their mind:` with seen, not seen or
-cannot tell; then a line for each Also check line. `## Did not fit`: one result to a line, or Nothing. The engine
-reads them back (`outcome()`) onto the run (`Run.brief_outcome`): the two verdicts, the checks, what did not fit. A
-report that does not say how the result stands against the brief gets a line saying so. A number the brief states
-is the coach's own, so the report may repeat it without being marked unverified. The plain-language version is asked
-to keep both parts under their headings.
+cannot tell; then a line for each Also check line, with what it showed - or cannot tell and why. A part of the brief
+the coach left unsaid has no line (0296: a brief written by hand has empty parts). `## Did not fit`: one result to a
+line, or Nothing. The engine reads them back (`outcome()`) onto the run (`Run.brief_outcome`): whether the part is
+there, the two verdicts, the checks, what did not fit. A report gets a line saying it does not say how the result
+stands against the brief when the part is missing, or when the coach said what they expect and no verdict is given.
+A number the brief states is the coach's own, so the report may repeat it without being marked unverified. The
+plain-language version is asked to keep both parts under their headings.
 
 **The reviewer** (Adaptive) reads the BRIEF block under the question, and its prompt says the analyst is held to the
 brief: it judges the analysis against it and recommends no test that replaces what it fixes.
 
-**The way in.** `Session.run(..., brief=...)` and `BambooAI.pd_agent_converse(..., brief=...)`. The web route and
-the page follow in 0296.
+**The way in.** `Session.run(..., brief=...)` and `BambooAI.pd_agent_converse(..., brief=...)`. The web routes and
+the page: §2.11.
+
+### 2.11 The brief on the page — built (0296, 2026-11-15)
+
+The coach writes the brief by hand. No model takes part yet: the Architect starts talking in 0297.
+
+**The switch.** A button named Architect beside the mode control (`#architectSwitch`; the page's side is
+`architect.js`). It stays as set for the browser session. It applies to a question typed in the composer and sent
+from it. A next question, a question about a plot or a selection, and Synthesise run as before.
+
+**A framing run.** A question sent with the switch on opens a run on the thread's record before any analysis
+(`POST /architect/open`, `BambooAI.open_framing`): status `framing`, attached where the question was asked, with the
+first version of its brief (`Run.framing`). A follow-up to a run that had a brief starts from that brief, and says
+so. No model is called. The page shows the run as a chain of its own: the question in the left pane under
+"Architect · brief v1", and one tab, Brief. While it is on screen the composer is held ("Fill the brief, then Start
+analysis") and nothing else starts from it. A brief not yet run is not saved with its thread.
+
+**The Brief tab.** The question as the title. A stepper through the versions, with who made the one shown. Then the
+parts in the brief's order: Decision, What you think, It rests on, You expect (with "You would change your mind
+if"), Also check, Fixed before the run (Compare, Measure, Period). A part not said reads "not said yet"; a fixed
+part reads "left to the Analyst". The three standing checks are one line marked "always". A line shows its mark and
+the fact beside it when it was checked, and who brought it in when that was not the coach.
+
+**Changing in place (§2.6).** A pencil on each line, a cross on a line of a list, "+ Add" under a list: at most four
+lines under It rests on and two under Also check, the counts of §2.2. Enter or the tick keeps; Escape or the cross
+cancels. Each change kept is one more version (`POST /architect/brief`, `BambooAI.save_brief`), marked as the
+coach's, with the part it touched; the changed line carries a bar in that version. A changed line is the coach's own
+and loses its mark. A fact from a lookup and a passage of a saved analysis have no pencil. An older version is read,
+not changed. The question is changed like any line, and is kept whole: its lines, up to 4,000 characters, where a
+line of the brief is one line of at most 600.
+
+**Start analysis.** At the foot of the last version. The analysis continues the framing run (`/query` with
+`run_id`): the same run on the record, the same chain on the page, one box on the map. It runs under the brief as
+last kept, numbered with its version, and attaches where the framing run did. A brief is started once. On the page
+the framing folds to one row above the run, the Brief tab stays to be read, and the closing card links to it. The
+tab's markup carries the versions, so a saved or restored chain still steps through them.
+
+**The report on the page.** The part *Against the brief* is shown as a card in the answer (`dressAnswer`): a row for
+what was expected and a row for what would change the coach's mind, each with its verdict, then a row for each
+check. A check line that says "cannot tell" is marked. A part the card cannot hold whole, such as a table, is left
+as the report wrote it. *Did not fit* stays the report's own section. The plain-language version and the export
+show the same card.
+
+**The thread map.** A tag on the box's top edge says how its question was made: *Architect*, or *not run* for a
+brief whose analysis was never started. A box that was not run is dashed and has no code map.
+
+**Stop and ask, on the page.** The Analyst's question ends the run, as before. The coach's answer typed with the
+switch on opens a brief that starts from the last one, to be changed before the analysis continues. With the switch
+off the answer runs at once under the brief as it was (§2.10).
+
+Not in this patch: the Data tab beside a brief not yet run (it returns when the analysis starts), and ticks on
+proposals. A brief that carries saved analyses or lines set aside shows them as stored.
 
 ## 3. Memory from saved analyses
 
@@ -362,7 +415,7 @@ repository and the dev box only.
 |---|---|---|
 | 0294 | The old memory goes (§5). Save as favourite is one click. | built |
 | 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit* (§2.10). | built |
-| 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand. | |
+| 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand (§2.11). | built |
 | 0297 | The Architect talks: it fills the brief from the question and asks for what is missing. | |
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. | |
 | 0299 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |

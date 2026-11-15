@@ -949,7 +949,8 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
   // the save itself (query-processing.js), with the page's other parts faked: what is sent, the marks, the message, the pill
   const saving = qp.slice(qp.indexOf('//  SAVING'), qp.indexOf('//  POPUP SYSTEM'));
   const stored = [{ chain_id: 'c1', thread_id: 't1', queryText: 'first', contentOutput: 'A', streamOutput: 'a' }, { chain_id: 'c2', thread_id: 't1', parentChainId: 'c1', queryText: 'second', contentOutput: 'B', streamOutput: 'b' },
-                  { chain_id: 'x9', thread_id: 't2', queryText: 'another thread' }];
+                  { chain_id: 'x9', thread_id: 't2', queryText: 'another thread' },
+                  { chain_id: 'c3', thread_id: 't1', parentChainId: 'c2', queryText: 'a brief not yet run', status: 'framing', framing: { versions: [] } }];
   const onPage = stored.map(r => Object.assign({}, r));
   const server = { held: ['c1'], answer: null, urls: [], posted: [], labelWhileSaving: null };
   const said = [], later = v => new Promise(done => setTimeout(() => done(v), 3));     // the server answers a moment later, as a real one does
@@ -975,9 +976,9 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
     && onPage[1].bookmark_type === 'individual' && onPage[0].bookmark_type === 'trajectory' && !onPage[2].bookmark_type, [server.urls, sent, said, onPage.map(r => r.bookmark_type)]);
   server.held = []; server.posted = []; server.urls = [];
   const whole = await save.saveToFavourites('all');
-  check('the whole thread (the map\'s Save trajectory): every chain of the thread is sent alongside, none of another thread; a chain picked before keeps its mark on the page; the page says so',
+  check('the whole thread (the map\'s Save trajectory): every chain of the thread is sent alongside, none of another thread, and not a brief that was never run; a chain picked before keeps its mark on the page; the page says so',
     whole === true && server.posted.length === 1 && server.posted[0].trajectory.map(c => c.chain_id + ':' + c.bookmark_type).join(',') === 'c1:trajectory,c2:trajectory'
-    && onPage[1].bookmark_type === 'individual' && said[1] === 'Saved the whole thread', [server.posted, said]);
+    && onPage[1].bookmark_type === 'individual' && !onPage[3].bookmark_type && said[1] === 'Saved the whole thread', [server.posted, said]);
   server.answer = { ok: false, status: 500, json: () => Promise.resolve({ error: 'disk full' }) };
   const failed = await save.saveToFavourites('c1');
   server.answer = { ok: true, status: 200, json: () => Promise.resolve({ saved_count: 0, errors: ['chain c1 was not written'] }) };
@@ -994,9 +995,11 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
   const hiddenRunning = savePill.style.display === 'none' && !savePill.classList.contains('saved');
   delete env.responses[1].status; env.responses[1].chain_id = null; env.responses[1].bookmark_type = null; save.updateSaveButton();
   const hiddenNoId = savePill.style.display === 'none';
-  env.responses[1].chain_id = 'c2'; save.updateSaveButton();
-  check('the Save pill: hidden on a running chain and on one with no id, shown on a finished one - unsaved, so its tooltip offers the save',
-    hiddenRunning && hiddenNoId && savePill.style.display === 'block' && !savePill.classList.contains('saved') && savePill.getAttribute('data-tip') === 'Save this chain', [hiddenRunning, hiddenNoId, savePill.style.display]);
+  env.responses[1].chain_id = 'c2'; env.responses[1].status = 'framing'; save.updateSaveButton();
+  const hiddenBrief = savePill.style.display === 'none';
+  delete env.responses[1].status; save.updateSaveButton();
+  check('the Save pill: hidden on a running chain, on a brief not yet run and on a chain with no id, shown on a finished one - unsaved, so its tooltip offers the save',
+    hiddenRunning && hiddenNoId && hiddenBrief && savePill.style.display === 'block' && !savePill.classList.contains('saved') && savePill.getAttribute('data-tip') === 'Save this chain', [hiddenRunning, hiddenNoId, hiddenBrief, savePill.style.display]);
   finish();
 })();
 

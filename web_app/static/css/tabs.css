@@ -211,3 +211,57 @@
 .diagram-container .mermaid-view .mermaid { max-width: 100%; }
 .diagram-container .mermaid-view svg { max-width: 100%; height: auto; }
 .size-error-notice { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: var(--fs-meta); color: var(--text-tertiary); }
+/* ---- the Brief tab (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15; architect.js builds it): the question, the brief's versions and its parts; a line is changed where it stands ---- */
+#content-brief { padding-bottom: 0; }
+#content-brief .ar-brief { max-width: 78ch; padding-bottom: 18px; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
+#content-brief .ar-brief h1 { margin: 0 0 6px; font-size: 18px; font-weight: 600; line-height: 1.3; white-space: pre-wrap; }
+#content-brief .ar-brief h3 { margin: 15px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
+#content-brief .ar-ver { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 12px; color: var(--text-tertiary); }
+#content-brief .ar-ver .step { display: inline-flex; align-items: center; border: 1px solid var(--border-color); border-radius: 6px; line-height: 20px; }
+#content-brief .ar-ver .step b { padding: 0 2px; font-weight: 600; color: var(--text-primary); }
+#content-brief .ar-ver .step button { width: 20px; height: 20px; padding: 0; border: none; background: none; font: inherit; color: var(--text-secondary); cursor: pointer; }
+#content-brief .ar-ver .step button:hover { color: var(--text-primary); }
+#content-brief .ar-ver .step button:disabled { color: var(--text-quaternary); cursor: default; }
+#content-brief .ar-line { position: relative; display: flex; align-items: baseline; gap: 9px; padding: 2px 0; }
+#content-brief .ar-line .tx { min-width: 0; overflow-wrap: anywhere; }
+#content-brief .ar-line .tx.open { font-style: italic; color: var(--text-quaternary); }
+#content-brief .ar-line .tx.add { font-size: 12px; color: var(--text-quaternary); }
+#content-brief .ar-line .tx[data-ar] { cursor: pointer; }
+#content-brief .ar-line .tx[data-ar]:hover { color: var(--text-secondary); }
+#content-brief .ar-line .tx[data-ar]:focus-visible { outline: 1px solid var(--chip-model-border); outline-offset: 2px; border-radius: 3px; }
+#content-brief .ar-line .pre { font-size: 12px; color: var(--text-tertiary); white-space: nowrap; }
+#content-brief .ar-line .fact { display: block; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--text-tertiary); }
+#content-brief .ar-line .fact.no { color: var(--c-fail); }
+#content-brief .ar-line .mk { flex-shrink: 0; width: 14px; text-align: center; font-size: 13px; font-weight: 700; }
+#content-brief .ar-line .mk.ok { color: var(--c-model); }
+#content-brief .ar-line .mk.no { color: var(--c-fail); }
+#content-brief .ar-line .mk.q { color: var(--c-kernel); }
+#content-brief .ar-line .src { flex-shrink: 0; margin-left: auto; padding: 0 7px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 10.5px; line-height: 16px; color: var(--text-tertiary); white-space: nowrap; }
+#content-brief .ar-line .src.ar { border-color: var(--chip-model-border); color: var(--c-model); }
+#content-brief .ar-line .src.mem { border-color: var(--chip-lookup-border); color: var(--c-lookup); }
+#content-brief .ar-line .pen, #content-brief .ar-line .drop { flex-shrink: 0; align-self: center; display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 0 -3px; padding: 0; border: none; border-radius: 4px; background: none; color: var(--text-quaternary); cursor: pointer; opacity: 0; }
+#content-brief .ar-line:hover .pen, #content-brief .ar-line:hover .drop, #content-brief .ar-line .pen:focus-visible, #content-brief .ar-line .drop:focus-visible { opacity: 1; }
+#content-brief .ar-line .pen:hover, #content-brief .ar-line .drop:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#content-brief .ar-line .pen svg, #content-brief .ar-line .drop svg { width: 12px; height: 12px; fill: currentColor; }
+@media (hover: none) { #content-brief .ar-line .pen, #content-brief .ar-line .drop { opacity: .7; } }      /* no hover on a touch screen: the pencils stay in view */
+#content-brief .ar-line.changed::before { content: ''; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--c-kernel); }   /* changed in the version shown */
+#content-brief .ar-grid { display: grid; grid-template-columns: 84px 1fr; align-items: baseline; gap: 0 12px; }
+#content-brief .ar-grid .k { color: var(--text-tertiary); }
+#content-brief .ar-edit { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13.5px; font-weight: 400; }
+#content-brief .ar-input { flex: 1; min-width: 0; box-sizing: border-box; min-height: 26px; margin: 0; padding: 3px 8px; border: 1px solid var(--c-model); border-radius: 5px; background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 13.5px; line-height: 1.4; resize: none; overflow: hidden; outline: none; }
+#content-brief .ar-edit .ok, #content-brief .ar-edit .no { flex-shrink: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 5px; background: none; cursor: pointer; }
+#content-brief .ar-edit .ok { color: var(--c-model); }
+#content-brief .ar-edit .no { color: var(--text-tertiary); }
+#content-brief .ar-edit .ok:hover, #content-brief .ar-edit .no:hover { background: var(--bg-tertiary); }
+#content-brief .ar-edit svg { width: 14px; height: 14px; fill: currentColor; }
+#content-brief .ar-foot { position: sticky; bottom: 0; display: flex; align-items: center; margin: 14px 0 -18px; padding: 11px 0 13px; border-top: 1px solid var(--border-color); background: var(--bg-primary); }
+/* the report's part "Against the brief" as a card of verdicts (architect.js dressAnswer, 2026-11-15): what was expected, what would change the coach's mind, the checks */
+#content-answer .ar-against { display: grid; grid-template-columns: max-content 1fr max-content; align-items: baseline; gap: 4px 12px; margin: 14px 0; padding: 9px 14px 11px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13.5px; line-height: 1.5; }
+#content-answer .ar-against .label { grid-column: 1 / -1; margin-bottom: 1px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); }
+#content-answer .ar-against .r { display: contents; }
+#content-answer .ar-against .k { color: var(--text-tertiary); }
+#content-answer .ar-against .t { min-width: 0; overflow-wrap: anywhere; }
+#content-answer .ar-against .v:not(:empty) { padding: 0 8px; border: 1px solid var(--border-color); border-radius: 9px; font-size: 10.5px; line-height: 17px; white-space: nowrap; }
+#content-answer .ar-against .v.ok { border-color: var(--chip-model-border); color: var(--c-model); }
+#content-answer .ar-against .v.no { border-color: var(--chip-fail-border); color: var(--c-fail); }
+#content-answer .ar-against .v.q { border-color: var(--chip-kernel-border); color: var(--c-kernel); }

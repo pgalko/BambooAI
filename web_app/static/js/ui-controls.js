@@ -410,6 +410,8 @@ function updateNavigationButtons() {
     if (window.CodeMapUI && typeof window.CodeMapUI.onChain === 'function') {
         window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id);
     }
+    // a brief not yet run holds the composer while it is on screen (2026-11-15)
+    if (window.ArchitectUI) window.ArchitectUI.onChain(responses[currentResponseIndex]);
 }
 
 //--------------------
@@ -586,7 +588,7 @@ function initializeKeyboardShortcuts() {
             if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                 e.preventDefault();
                 if (typeof handleQuerySubmit === 'function') {
-                    handleQuerySubmit();
+                    handleQuerySubmit({ typed: true });
                 }
             }
         });

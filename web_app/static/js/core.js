@@ -316,6 +316,11 @@ function continueAppInitialization() {
         window.CodeMapUI.initialize();
     }
 
+    // The Architect (docs/ARCHITECT_DESIGN.md §2.8): the switch beside the mode control, the Brief tab's clicks
+    if (typeof window.ArchitectUI !== 'undefined' && typeof window.ArchitectUI.initialize === 'function') {
+        window.ArchitectUI.initialize();
+    }
+
     // Initialize Labels Manager
     if (typeof window.LabelsManager !== 'undefined' && typeof window.LabelsManager.initialize === 'function') {
         window.LabelsManager.initialize();

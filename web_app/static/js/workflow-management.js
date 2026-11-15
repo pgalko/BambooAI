@@ -135,14 +135,28 @@ function activateTabInView(type) {
     try { if (typeof activateTab === 'function') activateTab(type); } finally { liveState.forceView = false; }
 }
 
-function beginLiveChain() {
+// `framed`: the chain whose brief is being started (architect.js) - its analysis runs in that same chain, so the question
+// stays one box on the map
+function beginLiveChain(framed) {
     liveState.running = true; liveState.away = false; liveState.holders = null;
-    liveState.parent = lastActiveChainId;
-    responses.push({ status: 'running', chain_id: currentData.chain_id || null, thread_id: currentData.thread_id || null, parentChainId: lastActiveChainId,
-                     queryText: currentData.queryText || 'No query', tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null, reportHead: null });
-    liveState.index = responses.length - 1;
+    if (framed) {
+        framed.status = 'running';
+        liveState.parent = framed.parentChainId;
+        liveState.index = responses.indexOf(framed);
+    } else {
+        liveState.parent = lastActiveChainId;
+        responses.push({ status: 'running', chain_id: currentData.chain_id || null, thread_id: currentData.thread_id || null, parentChainId: lastActiveChainId,
+                         queryText: currentData.queryText || 'No query', tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null, reportHead: null });
+        liveState.index = responses.length - 1;
+    }
     currentResponseIndex = liveState.index;
     if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
+}
+
+// the server did not start a brief's analysis: nothing is live, and the chain is a brief again
+function revertLiveChain(framed) {
+    framed.status = 'framing';
+    liveState.running = false; liveState.away = false; liveState.holders = null; liveState.data = null; liveState.tasks = null;
 }
 
 function _moveChildren(from, to) { while (from.firstChild) to.appendChild(from.firstChild); }
@@ -304,6 +318,7 @@ function loadResponseContent(response) {
 
     // Reattach all event listeners lost during innerHTML restore
     reattachRestoredListeners();
+    if (window.ArchitectUI) window.ArchitectUI.restore(response);   // a brief not yet run is drawn from its versions
 }
 
 

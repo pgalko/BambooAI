@@ -254,19 +254,31 @@ const quietRep = Array.from(pane2.querySelectorAll('.sp-done')).pop().querySelec
 check('a run that reached nothing: one quiet line with the sandbox as its hover; a run from an executor without the record shows nothing', quietRep && quietRep.classList.contains('quiet') && quietRep.textContent === 'No reaches outside the data' && quietRep.getAttribute('title').startsWith('Sandbox: appuser')
       && (w.paneRunStart({mode:'Quick', of:5, dollars:1}), w.paneRunEnd({status:'answered', turns:2, of:5, cells:1, failed:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[], chain_id:'3', reaches:{lines:[], refused:[], counts:{lines:0, refused:0}, sandbox:'', recorded:false}}), !Array.from(pane2.querySelectorAll('.sp-done')).pop().querySelector('.reaches')), quietRep && quietRep.outerHTML);
 
-let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});
-const doneCards = pane.querySelectorAll('.sp-done'); const lastDone = doneCards[doneCards.length - 1];
+const doneCards = pane2.querySelectorAll('.sp-done'); const lastDone = doneCards[doneCards.length - 1];
 check('closing card: seconds are rounded before the split into minutes and seconds', lastDone.querySelector('.grid').textContent.includes('4 min 0 s') && !lastDone.querySelector('.grid').textContent.includes('60 s'), lastDone.querySelector('.grid').textContent);
 // the peek is the step the analyst took, not its account of the last output (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:13, of:15, seat:'Analyst', model:'m'});
 w.paneTurnEnd({turn:13, kind:'cell', thinking:'Cell 6 printed the venue table. Now I fit the within-athlete regression, clustered by session.', note:'- Names: df', code:'print(1)', elapsed:1, cost:0.001});
-const peek13 = Array.from(pane.querySelectorAll('.sp-turn')).pop().querySelector('summary .peek');
+const peek13 = Array.from(pane2.querySelectorAll('.sp-turn')).pop().querySelector('summary .peek');
 check('peek: a two-sentence THINKING shows the step (its second sentence), not what the last output showed', peek13 && peek13.textContent.startsWith('Now I fit the within-athlete regression'), peek13 && peek13.textContent);
 // a stored note with bold markers around a heading: the grid shows the heading plain
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:12, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:12, kind:'cell', thinking:'t', note:'- **Best estimate so far:** 7.4%\n- Names: df', code:'print(1)', elapsed:1, cost:0.001});
-const boldRow = Array.from(pane.querySelectorAll('.sp-note b')).map(b => b.textContent);
+const boldRow = Array.from(pane2.querySelectorAll('.sp-note b')).map(b => b.textContent);
 check('note grid: bold markers around a heading in a stored note are not shown', boldRow.includes('Best estimate so far') && !boldRow.some(t => t.includes('*')), boldRow);
+// a run started with a brief (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the closing card links to the Brief tab; the page's own row above the run
+const linksOf = r => { const d = doc.createElement('div'); d.innerHTML = w.__paneBuild.runEnd(Object.assign({ status: 'answered', turns: 2, of: 15, cells: 1, cost: 0.1, seconds: 9 }, r)); return d.querySelectorAll('.links a').map(a => a.textContent).join('|'); };
+check('closing card: a run started with a brief links to the Brief tab, after Answer; without one the links are as they were',
+  linksOf({ brief: true, plots: 2 }) === 'Answer →|Brief →|Simplified →|Investigation →|Plots (2) →' && linksOf({ plots: 2 }) === 'Answer →|Simplified →|Investigation →|Plots (2) →' && linksOf({ brief: false }) === 'Answer →|Simplified →|Investigation →');
+pane2.innerHTML = '';
+w.paneAppend('<details class="sp-turn ar-fold"><summary>Architect</summary></details>');
+w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m'});
+check('a row of the page\'s own (the framing, folded): it makes the pane\'s strip, ids line and stream when the pane is empty and goes first in the stream; the run\'s strip and cards follow it',
+  pane2.elements.map(e => e.className).join() === 'sp-strip,sp-ids-slot,sp-stream' && pane2.querySelector('.sp-stream').elements.map(e => e.className).join('|') === 'sp-turn ar-fold|sp-turn live'
+  && pane2.querySelector('.sp-strip .mode').textContent === 'Deep', pane2.innerHTML.slice(0, 400));
 
+// every check above is printed and counted here (2026-11-15: the loop sat above the last checks, which then counted as passed whatever they found;
+// three of them read the first pane after the second had taken its place)
+let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

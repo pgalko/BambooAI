@@ -28,17 +28,18 @@ function initializeMainQuerySubmission() {
     const submitQueryButton = document.getElementById('submitQuery');
     
     if (submitQueryButton) {
-        submitQueryButton.addEventListener('click', handleQuerySubmit);
+        submitQueryButton.addEventListener('click', () => handleQuerySubmit({ typed: true }));
     } else {
         console.warn('Submit query button not found');
     }
 }
 
+// options.typed: the composer's own send; options.framed: the chain whose brief is being started (architect.js)
 function handleQuerySubmit(options = {}) {
-    const { branching_cv, synthesis, image } = options;
+    const { branching_cv, synthesis, image, typed, framed } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
-    const query = queryInput.value.trim();
+    const query = framed ? String(framed.queryText || '').trim() : queryInput.value.trim();
     
     // If normal query is running, clicking submit = stop
     if (queryRunning && !autoExploreRunning) {
@@ -54,6 +55,20 @@ function handleQuerySubmit(options = {}) {
     
     if (!query && !branching_cv && !synthesis) {
         return;
+    }
+
+    if (window.ArchitectUI && !framed) {
+        // a brief not yet run is on screen: only its own analysis starts from it
+        if (window.ArchitectUI.framingInView()) {
+            answerTabSynthesis = false;
+            showSystemMessage('This brief has not been run: start its analysis, or open another chain');
+            return;
+        }
+        // a typed question with the Architect on is framed first: its brief opens, and nothing runs until Start analysis
+        if (typed && window.ArchitectUI.isOn()) {
+            window.ArchitectUI.open(query);
+            return;
+        }
     }
 
     // Set running state
@@ -86,7 +101,8 @@ function handleQuerySubmit(options = {}) {
     if (typeof clearAllTabs === 'function') {
         clearAllTabs();
     }
-    if (typeof beginLiveChain === 'function') beginLiveChain();   // the running chain is navigable from now on (2026-09-09)
+    if (typeof beginLiveChain === 'function') beginLiveChain(framed);   // the running chain is navigable from now on (2026-09-09)
+    if (framed) window.ArchitectUI.started(framed);
 
     // Clear and reset input (only if not synthesis)
     if (!synthesis) {
@@ -97,7 +113,7 @@ function handleQuerySubmit(options = {}) {
     // Prepare request
     const requestBody = {
         query: query || null,
-        chain_id: currentData.chain_id,
+        chain_id: framed ? framed.parentChainId : currentData.chain_id,
         thread_id: currentData.thread_id,
         mode: (typeof currentMode !== 'undefined' ? currentMode : 'deep'),
         auto_explore: autoExploreEnabled,
@@ -111,6 +127,9 @@ function handleQuerySubmit(options = {}) {
     if (branching_cv) requestBody.branching_cv = branching_cv;
     if (synthesis) requestBody.synthesis = true;
     if (image) requestBody.image = image;
+    if (framed) requestBody.run_id = framed.chain_id;   // the analysis continues the run its brief was written in
+
+    let streaming = false;      // the server has started the run
 
     window.authService.fetch('/query', {
         method: 'POST',
@@ -129,7 +148,7 @@ function handleQuerySubmit(options = {}) {
                 reason: errorData.reason
             };
             showQueryLimitModal(errorData.message, details);
-            queryInput.value = query;
+            if (!framed) queryInput.value = query;
 
             // Reset state
             queryRunning = false;
@@ -138,6 +157,7 @@ function handleQuerySubmit(options = {}) {
             } else {
                 setQueryRunning(false);
             }
+            if (framed) window.ArchitectUI.notStarted(framed);      // the chain is a brief again
             return;
         }
         
@@ -145,6 +165,7 @@ function handleQuerySubmit(options = {}) {
             throw new Error('Network response was not ok');
         }
         
+        streaming = true;
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
 
@@ -180,7 +201,7 @@ function handleQuerySubmit(options = {}) {
     })
     .catch(error => {
         console.error('Error:', error);
-        streamOutputDiv.innerHTML += `<div class="error">Error: ${error.message}</div>`;
+        if (!framed || streaming) streamOutputDiv.innerHTML += `<div class="error">Error: ${error.message}</div>`;
 
         // Reset state
         queryRunning = false;
@@ -189,6 +210,7 @@ function handleQuerySubmit(options = {}) {
         } else {
             setQueryRunning(false);
         }
+        if (framed && !streaming) window.ArchitectUI.notStarted(framed, error.message);      // the server did not start it: a brief again
     });
 }
 
@@ -366,7 +388,7 @@ async function storeFavourites(target, quiet) {
         // every chain of this thread, in the order they were made
         const threadResponses = [];
         (Array.isArray(allResponses) ? allResponses : []).forEach((resp, idx) => {
-            if (resp && threadId && resp.thread_id === threadId) {
+            if (resp && threadId && resp.thread_id === threadId && resp.status !== 'framing') {      // a brief not yet run is not an analysis
                 threadResponses.push({ resp, idx });
             }
         });
@@ -486,8 +508,8 @@ function updateSaveButton() {
     const currentResponse = responses[currentResponseIndex];
 
     // the pill shows on any finished chain in view (2026-10-10, routines): saved or not, since its menu offers Save as
-    // routine beside Save as favourite; a running chain, or none, hides it. A saved chain marks the pill .saved.
-    const finished = currentResponse && currentResponse.status !== 'running' && (currentResponse.bookmark_type || currentResponse.chain_id);
+    // routine beside Save as favourite; a running chain, a brief not yet run, or none, hides it. A saved chain marks the pill .saved.
+    const finished = currentResponse && currentResponse.status !== 'running' && currentResponse.status !== 'framing' && (currentResponse.bookmark_type || currentResponse.chain_id);
     if (!finished) {
         saveButton.style.display = 'none';
         saveButton.classList.remove('saved');

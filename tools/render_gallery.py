@@ -8,6 +8,7 @@ import argparse, json, os, sys, importlib.util
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location('rp', os.path.join(HERE, 'render_page.py')); rp = importlib.util.module_from_spec(spec); spec.loader.exec_module(rp)
 FILL = open(os.path.join(HERE, 'fixtures', 'fill_page.js')).read() if os.path.exists(os.path.join(HERE, 'fixtures', 'fill_page.js')) else ''
+ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # the Architect's states (2026-11-15): an invented brief and a report against it
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
 STATES = {
     'page_answer': "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a);",
@@ -26,6 +27,8 @@ STATES = {
     'dlg_endura': "document.getElementById('enduraModal').style.display='flex'; document.getElementById('enduraRaceSelect').innerHTML='<option>Spring classic 2026</option>';",
     'dlg_intervals_cfg': "document.getElementById('intervalsConfigModal').style.display='flex';",
     'dlg_codebook': "CodebookUI.open();",
+    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # a brief written by hand, one line open (docs/ARCHITECT_DESIGN.md §2.11)
+    'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
 }
 
 def render_all(out, light=False):
