@@ -232,9 +232,9 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
-    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.13): a question typed with the switch on, the conversation that fills
-    # its brief, the check of what it rests on against the data, a line changed by hand, the analysis started from it, the
-    # report against the brief, the thread map
+    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14): a question typed with the switch on, the conversation that fills
+    # its brief, the check of what it rests on against the data, the explanation it proposes and the coach ticks, a line
+    # changed by hand, the analysis started from it, the report against the brief, the thread map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):
@@ -272,6 +272,11 @@ def story(w, mod, dataset, questions):
         p.click("#streamOutput .ar-choice")                  # Keep it
         said(6)
         w.shot("architect_ready")
+        versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
+        p.click('#content-brief .ar-line[data-path="also_check.0"] .tick')      # what the Architect proposed, accepted
+        p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
+        p.wait_for_timeout(300)
+        w.shot("architect_ticked")
         write("also_check.+", "Rainfall differed between the C and A plots.")
         write("fixed.comparison", "regime C against regime A, within soil type")
         write("fixed.measure", "yield_t_ha, plot means", keep=False)

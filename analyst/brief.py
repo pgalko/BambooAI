@@ -10,16 +10,17 @@ prompt says so.
      "rests_on": [{"text": "...", "source": "person", "mark": "", "note": ""}],     what the frame rests on
      "expects": "...",           what they expect to see
      "would_change": "...",      what would change their mind
-     "also_check": [{"text": "...", "shows": "..."}],                               other explanations, and what each would show
+     "also_check": [{"text": "...", "shows": "...", "source": "architect", "accepted": false}],     other explanations, and what each would show
      "fixed": {"comparison": "...", "measure": "...", "period": "..."},             fixed before the run
      "saved": [{"when": "...", "question": "...", "passage": "...", "data": "...", "period": "..."}],
      "set_aside": ["..."]}       considered and dropped
 
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
-nothing checked it. normalise() brings what a caller sends into this shape, render() writes the BRIEF block of the
-prompt, and outcome() reads back what a report says against the brief. While a brief is being written it is kept as
-versions on its run (version(), latest()); write() takes in what a reply of the Architect's names, and mark() the
-marks it gives after its lookups.
+nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
+person's own carries neither. normalise() brings what a caller sends into this shape, agreed() is the brief as the
+analyst receives it, render() writes the BRIEF block of the prompt, and outcome() reads back what a report says
+against the brief. While a brief is being written it is kept as versions on its run (version(), latest()); write()
+takes in what a reply of the Architect's names, and mark() the marks it gives after its lookups.
 """
 from __future__ import annotations
 
@@ -74,7 +75,8 @@ def normalise(brief) -> dict:
     for r in brief.get("also_check") if isinstance(brief.get("also_check"), list) else []:
         r = r if isinstance(r, dict) else {"text": r}
         if _text(r.get("text")):
-            rivals.append({"text": _text(r.get("text")), **({"shows": _text(r.get("shows"))} if _text(r.get("shows")) else {})})
+            rivals.append({"text": _text(r.get("text")), **({"shows": _text(r.get("shows"))} if _text(r.get("shows")) else {}),
+                           **({"source": "architect", "accepted": r.get("accepted") is True} if r.get("source") == "architect" else {})})
     fixed = {k: _text(v) for k, v in (brief.get("fixed") if isinstance(brief.get("fixed"), dict) else {}).items() if k in FIXED and _text(v)}
     saved = []
     for s in brief.get("saved") if isinstance(brief.get("saved"), list) else []:
@@ -92,6 +94,14 @@ def normalise(brief) -> dict:
     if _question(brief.get("question")):
         out["question"] = _question(brief.get("question"))
     return out
+
+
+def agreed(brief) -> dict:
+    """The brief as the analyst receives it: in its known shape, without what the Architect proposed and the person
+    did not accept."""
+    brief = brief if isinstance(brief, dict) else {}
+    lines = brief.get("also_check") if isinstance(brief.get("also_check"), list) else []
+    return normalise({**brief, "also_check": [r for r in lines if not (isinstance(r, dict) and r.get("source") == "architect" and r.get("accepted") is not True)]})
 
 
 def working(brief) -> dict:
@@ -119,9 +129,10 @@ def write(brief, parts) -> tuple:
     """The brief with what a reply of the Architect names written in (analyst/architect.py). A text part is a
     string, and "" empties it. The two lists take lines: a line given under `drop` is taken out of either, when it is
     there word for word; a line given under a list's own name is added to it when it is not there yet, as a line of
-    the person's, up to the design's counts. A line the reply does not name stays as it is, with its source and its
-    mark. What is fixed is given part by part. Nothing else of the brief is touched. Returns the brief and the parts
-    that changed, as the page names them."""
+    the person's, up to the design's counts. A line given under `propose` is added to the other explanations as the
+    Architect's own, with what it would show, not accepted: only the person accepts it. A line the reply does not
+    name stays as it is, with its source and its mark. What is fixed is given part by part. Nothing else of the
+    brief is touched. Returns the brief and the parts that changed, as the page names them."""
     out = working(brief)
     parts = parts if isinstance(parts, dict) else {}
     changed = []
@@ -130,14 +141,17 @@ def write(brief, parts) -> tuple:
             out[key] = _text(parts[key])
             changed.append(key)
     gone = {_text(x) for x in (parts.get("drop") if isinstance(parts.get("drop"), list) else [])}
-    for key, line in (("rests_on", lambda t: {"text": t, "source": "person", "mark": ""}), ("also_check", lambda t: {"text": t})):
+    proposed = lambda t, item: {"text": t, "shows": item.get("shows"), "source": "architect", "accepted": False}
+    for key, given, line in (("rests_on", "rests_on", lambda t, item: {"text": t, "source": "person", "mark": ""}),
+                             ("also_check", "also_check", lambda t, item: {"text": t}), ("also_check", "propose", proposed)):
         now = [a for a in out.get(key, []) if a["text"] not in gone]
         if len(now) != len(out.get(key, [])):
             changed.append(key)
-        for item in parts.get(key) if isinstance(parts.get(key), list) else []:
-            text = _text(item.get("text") if isinstance(item, dict) else item)
+        for item in parts.get(given) if isinstance(parts.get(given), list) else []:
+            item = item if isinstance(item, dict) else {"text": item}
+            text = _text(item.get("text"))
             if text and text not in [a["text"] for a in now] and len(now) < COUNTS[key]:
-                now.append(line(text))
+                now.append(line(text, item))
                 changed.append(f"{key}.{len(now) - 1}")
         out[key] = now
     fixed = dict(out.get("fixed", {}))
@@ -219,7 +233,7 @@ def render(brief: dict) -> str:
     lines.append(f"What they expect to see: {brief.get('expects') or UNSAID}")
     lines.append(f"What would change their mind: {brief.get('would_change') or UNSAID}")
     lines.append("Also check:")
-    lines += [f"- {r['text']}" + (f": it would show {r['shows']}" if r.get("shows") else "") for r in brief.get("also_check", [])]
+    lines += [f"- {r['text'].rstrip('.')}: it would show {r['shows']}" if r.get("shows") else f"- {r['text']}" for r in brief.get("also_check", [])]
     lines += [f"- {x} [always]" for x in ALWAYS]
     fixed = brief.get("fixed", {})
     lines.append("Fixed before the run:")

@@ -1784,6 +1784,22 @@ try:
     check("the host's lookups never fail the exchange: an executor that cannot be reached, or a script that did not run, refuses each lookup in words",
           _down == _failed13 == [{"refused": "the data could not be reached"}] * 2 and BAMBOO._architect_look(_one)[0] == {"value": len(BAMBOO.df)}, (_down, _failed13))
     BAMBOO.auxiliary_datasets = _aux_was
+    # ---- another explanation (0299, §2.14): what the Architect proposes enters the brief as its own; the coach's tick accepts it
+    from analyst import brief as _bf
+    _timing = {"text": "The arms were filled at different times", "shows": "the gap follows the time", "source": "architect", "accepted": False}
+    state["architect"] = [json.dumps({"say": "The brief is ready.", "propose": [{"text": _timing["text"], "shows": _timing["shows"], "column": "arm"}, {"text": "The weather turned", "column": "weather"}]})]
+    _st14, _ln14 = _say({"thread_id": "1077", "chain_id": _c6, "text": "Keep it"})
+    _v14 = _run6.framing["versions"][-1]
+    _before14 = _bf.agreed(_bf.latest(_run6.framing))
+    _b14 = copy.deepcopy(_v14["brief"]); _b14["also_check"][0]["accepted"] = True
+    _s14 = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _c6, "brief": _b14, "changed": ["also_check.0"]})
+    _after14 = _bf.agreed(_bf.latest(_run6.framing))
+    check("/architect/say, a reply that proposes: the explanation that names a column of the loaded data enters the brief as the Architect's own, not accepted - the one that names none of its columns does not - "
+          "and the analyst would not receive it; the coach's tick, sent as the page sends it, is one more version of theirs, and then the analyst would",
+          _st14 == 200 and _v14["brief"]["also_check"] == [_timing] and _v14["changed"] == ["also_check.0"] and _run6.framing.get("proposed") == 1 and "also_check" not in _before14
+          and _s14.status_code == 200 and (_run6.framing["versions"][-1]["by"], _run6.framing["versions"][-1]["changed"]) == ("person", ["also_check.0"])
+          and _after14["also_check"] == [{**_timing, "accepted": True}] and "- The arms were filled at different times: it would show the gap follows the time\n" in _bf.render(_after14)
+          and _run6.status == "framing", (_v14, _before14.get("also_check"), _after14.get("also_check")))
     # another thread: the instance follows the conversation there
     state["architect"] = ['{"say": "What will you do differently depending on the answer?"}']
     _st10, _ln10 = _say({"thread_id": _op3["thread_id"], "chain_id": _op3["chain_id"]})

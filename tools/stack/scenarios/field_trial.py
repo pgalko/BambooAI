@@ -65,6 +65,10 @@ ARCHITECT_LOOKS = (("rain", {"op": "total", "column": "rainfall_mm", "by": "regi
 ARCHITECT_UNRECORDED = "nothing loaded records it"
 ARCHITECT_KEEP = ["Keep it", "Change it"]
 ARCHITECT_NOW = "What do you think is going on now, and what makes you think so?"
+# another explanation (docs/ARCHITECT_DESIGN.md §2.14): what the scripted Architect proposes with its marks, from a column the
+# data has, and what it adds to its last message while the proposal is unticked
+ARCHITECT_PROPOSES = {"text": "The C plots sit on other soil than the A plots", "shows": "the gap narrows within a soil type", "column": "soil"}
+ARCHITECT_TICK = " What I proposed under Also check can be ticked."
 
 
 def make_dataset(path, seed=20260909):
@@ -247,8 +251,9 @@ est_b = adj_diff(plot_means, a='A', b='C')
 boots_b = np.array([adj_diff(plot_means, a='A', b='C', rng=rng_b) for _ in range(500)])
 lo_b, hi_b = np.percentile(boots_b, [2.5, 97.5])
 rain = plot_means.groupby('regime')['rainfall_mm'].mean()
+raw = plot_means.groupby('regime')['yield_t_ha'].mean()
 print(f"BRIEF_DIFF={est_b:.3f} BRIEF_LO={lo_b:.3f} BRIEF_HI={hi_b:.3f}")
-print(f"RAIN_C={rain['C']:.1f} RAIN_A={rain['A']:.1f}")
+print(f"RAIN_C={rain['C']:.1f} RAIN_A={rain['A']:.1f} RAW_DIFF={raw['C'] - raw['A']:.3f}")
 RESULT('yield, regime C vs A within soil type, plot means', est_b, lo_b, hi_b, 't/ha', 'C higher')"""
 
 CELL_BRIEF_COLUMNS = """# The brief fixes the measure: which columns does the data have for it?
@@ -329,7 +334,9 @@ class Scenario:
         two choices where the question names two courses. When nothing is left to ask it checks the lines the brief
         rests on that show no mark: a lookup for each line a word of which it knows (ARCHITECT_LOOKS), then - the
         results before it - a mark for each, and where a line does not hold the question whether to keep the view or
-        change it. With every line marked it says the brief is ready."""
+        change it. With the marks it proposes another explanation, from a column the data has (ARCHITECT_PROPOSES).
+        With every line marked it says the brief is ready - and, while its proposal is unticked, that it can be
+        ticked."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(")
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
@@ -384,7 +391,11 @@ class Scenario:
             marks.append({"line": text, "mark": "holds" if holds else "does not hold", "lookup": k})
             if not holds:
                 failed.append(f"{text.rstrip('.')} ({fact.split(': ', 1)[-1]})")
-        reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY}
+        proposes = bool(marks) and ARCHITECT_PROPOSES["text"] not in user and re.search(r"^soil: ", user, re.M) is not None
+        unticked = proposes or f"- {ARCHITECT_PROPOSES['text']} [proposed by you, not accepted]" in user
+        reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY + (ARCHITECT_TICK if unticked else "")}
+        if proposes:
+            reply["propose"] = [ARCHITECT_PROPOSES]
         if failed:
             reply.update(say=f"{'One line does' if len(failed) == 1 else 'Some lines do'} not hold: {'; '.join(failed)}. Keep what you think, or change it?", choices=ARCHITECT_KEEP)
         return json.dumps(reply)
@@ -515,7 +526,7 @@ class Scenario:
 
     def report_brief(self, user, q, b):
         d, lo, hi = (_grab(user, k) for k in ("BRIEF_DIFF", "BRIEF_LO", "BRIEF_HI"))
-        rain_c, rain_a = _grab(user, "RAIN_C"), _grab(user, "RAIN_A")
+        rain_c, rain_a, raw = _grab(user, "RAIN_C"), _grab(user, "RAIN_A"), _grab(user, "RAW_DIFF")
         nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
         cell = max(nos) if nos else 1
         if d is None:
@@ -528,7 +539,9 @@ class Scenario:
         verdicts = ((f"- Expected: {expected} - the gap is {d:.3f} t/ha, interval {lo:.3f} to {hi:.3f} [cell {cell}]\n" if said("expects") else "")
                     + (f"- Would change their mind: {changed}\n" if said("would_change") else ""))
         title = "Regime C is above regime A on like-for-like soil" if lo > 0 else "Regime C is not distinguishable from regime A on like-for-like soil"
-        rivals = "".join(f"- {r.rstrip('.')}: mean rainfall was {rain_c:.1f} mm on the C plots and {rain_a:.1f} mm on the A plots [cell {cell}]\n" for r in b["also"])
+        # a line for each Also check: the one about soil by the gap with and without soil held fixed, any other by the rainfall
+        rivals = "".join(f"- {r.split(': it would show')[0].rstrip('.')}: " + (f"the gap is {raw:.3f} t/ha across all plots and {d:.3f} within soil type [cell {cell}]\n" if "soil" in r and raw is not None
+                         else f"mean rainfall was {rain_c:.1f} mm on the C plots and {rain_a:.1f} mm on the A plots [cell {cell}]\n") for r in b["also"])
         body = (f"## {title}\n\nOn plot means within soil type, regime C yields {d:.3f} t/ha against regime A (95% interval {lo:.3f} to {hi:.3f}) [cell {cell}]."
                 + (f" For the decision - {said('decision').rstrip('.')} - " + ("the gap is real; whether it is large enough is for the person to judge." if lo > 0 else "this trial gives no reason to switch.") if said("decision") else "") + "\n\n"
                 "## Against the brief\n\n" + verdicts + rivals +

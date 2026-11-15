@@ -1,6 +1,7 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.13): the Architect's first
+// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.14): the Architect's first
 // question, its reply awaited, a brief after the conversation with a line being changed by hand, what the brief rests on
-// checked against the data, and a report against a brief. An invented field trial, as the stack's scenario has it.
+// checked against the data with an explanation proposed, and a report against a brief. An invented field trial, as the
+// stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const BRIEF = { question: Q, decision: 'Switch the clay plots to regime C next season, or keep A.', thinks: 'C does better than A.',
@@ -23,8 +24,9 @@ window.galleryArchitect = (function () {
   const lines = marked => [[RAIN, 'does not hold', RAIN_FACT], [SAME, 'holds', SAME_FACT], [GREEN, 'cannot be checked', 'nothing loaded records it']]
     .map(l => marked ? { text: l[0], source: 'person', mark: l[1], note: l[2] } : { text: l[0], source: 'person', mark: '' });
   const ASKED = { question: Q, decision: BRIEF.decision, thinks: BRIEF.thinks, expects: BRIEF.expects, fixed: { comparison: 'regime C against regime A' } };
+  const ITS = { text: 'The C plots sit on other soil than the A plots', shows: 'the gap narrows within a soil type', source: 'architect', accepted: false };      // what it proposes, unticked
   const checked = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: Object.assign({}, ASKED, { rests_on: lines(false) }) },
-                               { n: 4, by: 'architect', why: 'check', changed: ['rests_on.0', 'rests_on.1', 'rests_on.2'], brief: Object.assign({}, ASKED, { rests_on: lines(true) }) }],
+                               { n: 4, by: 'architect', why: 'check', changed: ['also_check.0', 'rests_on.0', 'rests_on.1', 'rests_on.2'], brief: Object.assign({}, ASKED, { rests_on: lines(true), also_check: [ITS] }) }],
                     turns: [you('C does better than A because the C plots got the most rain.'), said('What do you expect to see?', { v: 2, call: 3 }), you('C yields at least 0.3 t/ha more than A.'),
                             said('Checking this against the data.', { v: 3, call: 4 }),
                             { who: 'check', found: [{ k: 1, about: RAIN, fact: RAIN_FACT, ran: true }, { k: 2, about: SAME, fact: SAME_FACT, ran: true }], secs: 1.8 },
@@ -48,7 +50,7 @@ window.galleryArchitect = (function () {
       show(framing);
       document.querySelector('#content-brief .ar-line[data-path="expects"] .pen').click();
     },
-    checked() { show(checked); },      // what the brief rests on, checked: the round's row in the conversation, the marks with their facts, keep or change
+    checked() { show(checked); },      // what the brief rests on, checked: the round's row, the marks with their facts, keep or change; an explanation proposed, to tick
     answer() {       // the report's part against the brief, as the card in the answer
       document.querySelector('#content-answer .markdown-content').innerHTML = ArchitectUI.dressAnswer(REPORT);
       activateTab('answer');

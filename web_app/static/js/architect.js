@@ -1,12 +1,12 @@
-// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11-§2.13; 2026-11-15). A
+// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11-§2.14; 2026-11-16). A
 // question typed with the switch on is framed before it is analysed: the server opens a framing run on the thread's
 // record (POST /architect/open) and the page shows it as a chain of its own, the conversation in the left pane and
 // its brief on a Brief tab. The Architect fills the brief from the question and asks for what is missing, one
 // exchange a call (POST /architect/say, a stream); while such a chain is on screen the composer is the conversation's
 // input. Where a reply had the data looked up, the round is a row of the conversation and the Architect goes on at
-// once, with the marks. The coach also changes the brief where it stands; every change kept is one more version,
-// stored by the server (POST /architect/brief). Start analysis continues the same chain (/query with run_id), so the
-// question is one box on the thread map.
+// once, with the marks. The coach also changes the brief where it stands, and ticks what the Architect proposed;
+// every change kept is one more version, stored by the server (POST /architect/brief). Start analysis continues the
+// same chain (/query with run_id), so the question is one box on the thread map.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
@@ -16,14 +16,14 @@
 // of verdicts. The page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
-//                        dressAnswer, mark, apply, build }
+//                        dressAnswer, mark, apply, tick, build }
 
 (function () {
     'use strict';
 
     const WORDS = {
         answer: 'Answer, or say what to change', replying: 'The Architect is replying', reading: 'reading…',
-        unsaid: 'not said yet', unsaidKept: 'not said', left: 'left to the Analyst', add: '+ Add',
+        unsaid: 'not said yet', unsaidKept: 'not said', left: 'left to the Analyst', add: '+ Add', tick: 'Have the analysis test it',
         standing: 'Chance, measurement error, how the cases were chosen',
         would: 'You would change your mind if:',
         why: { question: 'from your question', last: 'from the last brief', person: 'changed by you',
@@ -71,7 +71,7 @@
     // ------------------------------------------------------------ the brief with one line changed (pure)
     // Returns {brief, changed, removed} - the brief as it would stand, the parts the change touched, the index of a line
     // left out - or null when nothing would change. An empty text clears a part or leaves a line out; a line the coach
-    // changes is their own and loses its mark until it is checked again (§2.6).
+    // changes is their own: it loses its mark until it is checked again (§2.6), and a proposal of the Architect's its box.
     function apply(brief, path, text) {
         const part = String(path).split('.')[0], at = String(path).split('.')[1];
         const b = JSON.parse(JSON.stringify(brief || {}));
@@ -101,6 +101,15 @@
         }
         if (SINGLE.indexOf(part) < 0 || (part === 'question' ? !t || b.question === t : clean(b[part]) === t)) return null;
         if (t) b[part] = t; else delete b[part];
+        return { brief: b, changed: [path] };
+    }
+
+    // the brief with a proposal of the Architect's accepted, or no longer (pure): {brief, changed}, or null for any other line
+    function tick(brief, path) {
+        const b = JSON.parse(JSON.stringify(brief || {}));
+        const line = String(path).split('.')[0] === 'also_check' ? (b.also_check || [])[Number(String(path).split('.')[1])] : null;
+        if (!line || line.source !== 'architect') return null;
+        line.accepted = !line.accepted;
         return { brief: b, changed: [path] };
     }
 
@@ -155,11 +164,14 @@
     // ------------------------------------------------------------ builders (pure: return HTML)
     const build = {
         // one line of the brief: its text, or what an empty part reads; a pencil where the coach can change it, a cross
-        // where they can leave it out. o: {empty, pre, list, source, mark, note, shows, locked}
+        // where they can leave it out; a box to tick on what the Architect proposed. o: {empty, pre, list, source,
+        // mark, note, shows, locked, tick}
         line(c, path, text, o) {
             o = o || {};
             const can = c.edit && !(text && o.locked);
-            const mark = MARK[o.mark] ? '<span class="mk ' + MARK[o.mark][0] + '" title="' + esc(o.mark) + '">' + MARK[o.mark][1] + '</span>' : '';
+            const mark = MARK[o.mark] ? '<span class="mk ' + MARK[o.mark][0] + '" title="' + esc(o.mark) + '">' + MARK[o.mark][1] + '</span>'
+                : o.tick == null ? '' : '<button type="button" class="tick' + (o.tick ? ' on' : '') + '" role="checkbox" aria-checked="' + !!o.tick + '" title="' + WORDS.tick + '"' +
+                    (c.edit ? ' data-ar="tick"' : ' disabled') + '>' + (o.tick ? ICON.ok : '') + '</button>';
             const under = [o.note ? '<span class="fact' + (o.mark === 'does not hold' ? ' no' : '') + '">' + esc(o.note) + '</span>' : '',
                            o.shows ? '<span class="fact">' + esc(o.shows) + '</span>' : ''].join('');
             const body = text ? '<span class="tx">' + esc(text) + under + '</span>'
@@ -202,7 +214,7 @@
                 '<h3>It rests on</h3>' + build.lines(c, 'rests_on', b.rests_on, x => ({ source: x.source, mark: x.mark, note: x.note })) +
                 '<h3>You expect</h3>' + build.line(c, 'expects', b.expects) + build.line(c, 'would_change', b.would_change, { pre: WORDS.would }) +
                 '<h3>Also check</h3><div class="ar-line"><span class="tx">' + WORDS.standing + '</span><span class="src">always</span></div>' +
-                    build.lines(c, 'also_check', b.also_check, x => ({ shows: x.shows })) +
+                    build.lines(c, 'also_check', b.also_check, x => ({ shows: x.shows, source: x.source, tick: x.source === 'architect' ? !!x.accepted : null })) +
                 '<h3>Fixed before the run</h3><div class="ar-grid">' + FIXED.map(f => '<span class="k">' + f[1] + '</span>' + build.line(c, 'fixed.' + f[0], fixed[f[0]], { empty: WORDS.left })).join('') + '</div>' +
                 (saved ? '<h3>From saved analyses</h3>' + saved : '') +
                 (aside ? '<h3>Set aside</h3>' + aside : '') +
@@ -443,9 +455,10 @@
         const input = line.querySelector('.ar-input');
         return change(root, line.getAttribute('data-path'), input.value != null ? input.value : input.textContent);
     }
-    function change(root, path, text) {
+    // one change kept as a version: a line's text (apply), or a proposal ticked (tick)
+    function change(root, path, text, how) {
         const entry = entryOf(root);
-        const out = entry ? apply(versionAt(entry.framing).brief, path, text) : null;
+        const out = entry ? (how || apply)(versionAt(entry.framing).brief, path, text) : null;
         if (!out) { redraw(root); return Promise.resolve({}); }                // nothing changed: the line as it was
         busy = true;
         return post('/architect/brief', { thread_id: entry.thread_id, chain_id: entry.chain_id, brief: out.brief, changed: out.changed }).then(res => {
@@ -456,9 +469,10 @@
             return { part: path.split('.')[0], removed: out.removed };
         }).catch(() => { say(WORDS.notKept + ': ' + WORDS.unreachable + '.'); return false; }).then(result => { busy = false; return result; });
     }
-    function leaveOut(root, path) {
-        if (root.querySelector('.ar-line.editing')) keepThen(root, path, (again, at) => change(again, at, ''));
-        else change(root, path, '');
+    // a cross or a box clicked: the line being typed elsewhere is kept first
+    function keptFirst(root, path, text, how) {
+        if (root.querySelector('.ar-line.editing')) keepThen(root, path, (again, at) => change(again, at, text, how));
+        else change(root, path, text, how);
     }
     function start(root) {
         const entry = entryOf(root);
@@ -490,7 +504,8 @@
         if (busy) return;
         const line = hit.closest('.ar-line');
         if (act === 'edit') edit(root, line);
-        else if (act === 'drop') leaveOut(root, line.getAttribute('data-path'));
+        else if (act === 'drop') keptFirst(root, line.getAttribute('data-path'), '');
+        else if (act === 'tick') keptFirst(root, line.getAttribute('data-path'), null, tick);
         else if (act === 'keep') keep(root);
         else if (act === 'cancel') redraw(root);
         else if (act === 'start') start(root);
@@ -519,5 +534,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, build };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, build };
 })();

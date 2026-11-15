@@ -1964,7 +1964,7 @@ def _unreadable(text):
     except arch.Unreadable as exc:
         return str(exc)
     return None
-_none = {"lookups": [], "marks": []}
+_none = {"lookups": [], "marks": [], "propose": []}
 _asks = arch.parse(json.dumps({"say": "Checking.", "lookups": [{"op": "count"}, "count", 3, {"op": "x"}, {}, {}, {}, {}], "marks": [{"line": "l", "mark": "holds"}, "no"]}))
 check("architect.parse: the reply's JSON object, bare or fenced, with words around it: the parts it writes, its message on one line, its choices cleaned - none twice, none empty, four at most; a reply without "
       "a brief writes nothing. The lookups it asks for and the marks it gives come through as given - the lookups six at most - and a reply without them has none",
@@ -2063,12 +2063,14 @@ _atexts = {"the Architect's instructions": arch.SYSTEM}
 for _path in ("analyst/architect.py", "analyst/lookup.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _atexts[f"{_path} string {_k}"] = _t
-check("the Architect's instructions: who it is, every part of the brief under the name its reply uses, the reply's form, the three things a lookup does and the three marks; and the standing rules hold for its "
-      "texts - none of the tested tasks' vocabulary, no section named for thinking or reasoning - in the instructions and in every string of analyst/architect.py and analyst/lookup.py, whose words reach it",
+check("the Architect's instructions: who it is, every part of the brief under the name its reply uses, the reply's form, the three things a lookup does, the three marks and what a proposal holds; and the "
+      "standing rules hold for its texts - none of the tested tasks' vocabulary, no section named for thinking or reasoning - in the instructions and in every string of analyst/architect.py and "
+      "analyst/lookup.py, whose words reach it",
       arch.SYSTEM.startswith("You are the Architect.") and all(f"`{k}`" in arch.SYSTEM for k in ("decision", "thinks", "rests_on", "expects", "would_change", "also_check", "fixed", "comparison", "measure", "period", "brief", "drop", "say", "choices",
-                                                                                                  "lookups", "marks", "count", "list", "total", "where", "by", "data", "holds", "does not hold", "cannot be checked"))
+                                                                                                  "lookups", "marks", "count", "list", "total", "where", "by", "data", "holds", "does not hold", "cannot be checked", "propose"))
+      and '{"text": "<the explanation, one line>", "shows": "<what the analysis would find if it were so>", "column": "<the column of DATA that tells>"}' in arch.SYSTEM and "two lines at most" in arch.SYSTEM
       and all(f'"{op}"' in arch.SYSTEM for op in lookup.OPS + lookup.EVERY + briefs.MARKS) and "six at most" in arch.SYSTEM and lookup.MAX_LOOKUPS == 6 and "forty groups at most" in arch.SYSTEM and lookup.MAX_GROUPS == 40
-      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 6000
+      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 7000
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", arch.SYSTEM),
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}, len(arch.SYSTEM)))
@@ -2339,6 +2341,78 @@ check("the planted cases: a question with a false premise - a stage that was not
       "that does not hold and the numbers the data gave beside it, in the brief the analyst will receive",
       [(status, lines) for status, lines, _ in _cases] == [("framing", [{"text": premise, "source": "person", "mark": "does not hold", "note": fact}]) for _, premise, _, fact in _planted]
       and all(f"- {premise} [checked against the data: does not hold - {fact}]" in block for (_, premise, _, fact), (_, _, block) in zip(_planted, _cases)), _cases)
+
+# ---- other explanations (0299, docs/ARCHITECT_DESIGN.md §2.14): what the Architect proposes enters the brief as its own, not accepted, and only what
+# the person accepts reaches the analyst
+_its = {"text": "The two arms differ in size", "shows": "the gap narrows with size held fixed", "source": "architect", "accepted": False}
+_pb = {"question": "Is B above A?", "thinks": "B is better.", "also_check": [{"text": "the season"}, _its]}
+_pn = briefs.normalise({**_pb, "also_check": [{"text": "the season", "accepted": True, "source": "person"}, {**_its, "accepted": "yes"}, {"text": "taken", "source": "architect", "accepted": True, "junk": 1}]})
+check("brief.normalise: an explanation the Architect proposed says so and whether the person accepted it - accepted only where that is said outright; one of the person's own carries neither word",
+      _pn["also_check"] == [{"text": "the season"}, {**_its, "accepted": False}, {"text": "taken", "source": "architect", "accepted": True}], _pn["also_check"])
+_taken = {**_its, "accepted": True}
+_ag = briefs.agreed({**_pb, "also_check": [_its, _taken | {"text": "Another one."}]})
+check("brief.agreed: the brief as the analyst receives it - in its known shape, without what the Architect proposed and the person did not accept; what was accepted stays, and reads in the BRIEF block as "
+      "any line with what it would show; a brief that holds nothing else is no brief; the brief passed in is not altered",
+      _ag["also_check"] == [{**_taken, "text": "Another one."}] and _ag["thinks"] == "B is better." and briefs.agreed(_pb)["also_check"] == [{"text": "the season"}]
+      and "Also check:\n- Another one: it would show the gap narrows with size held fixed\n- chance [always]" in briefs.render(_ag) and "The two arms differ in size" not in briefs.render(_ag)
+      and briefs.agreed({"question": "q", "also_check": [_its]}) == {} and briefs.agreed(None) == {} and briefs.agreed({"question": "q", "also_check": "x"}) == {}
+      and _pb["also_check"] == [{"text": "the season"}, _its], (_ag, briefs.render(_ag)[-300:]))
+_pw, _pc = briefs.write({"question": "q", "also_check": [{"text": "the season"}]},
+                        {"propose": [{"text": " The two arms  differ in size ", "shows": " the gap narrows\nwith size held fixed ", "column": "size"}, {"text": "a third"}], "also_check": ["the season"]})
+_pw2, _pc2 = briefs.write({"question": "q"}, {"propose": ["Only words", {"shows": "no text"}, {"text": "Only words"}, {"text": "A second", "shows": 7}, {"text": "A third"}], "also_check": ["theirs"]})
+_pw3, _pc3 = briefs.write({"question": "q", "also_check": [_taken]}, {"drop": ["The two arms differ in size"], "propose": [{"text": "Something else"}]})
+check("brief.write, what the Architect proposes: a line under propose joins the other explanations as the Architect's own, with what it would show, not accepted, and is named as changed by its place; the "
+      "list holds two lines in all, the person's included, and a line already there is not added again. A proposal can be taken out by name like any line; a reply never accepts one",
+      _pw["also_check"] == [{"text": "the season"}, _its] and _pc == ["also_check.1"]
+      and _pw2["also_check"] == [{"text": "theirs"}, {"text": "Only words", "source": "architect", "accepted": False}] and _pc2 == ["also_check.0", "also_check.1"]
+      and _pw3["also_check"] == [{"text": "Something else", "source": "architect", "accepted": False}] and _pc3 == ["also_check", "also_check.0"]
+      and briefs.write({"question": "q", "also_check": [_its]}, {"propose": [{**_its, "accepted": True}]})[1] == [] and briefs.write({"question": "q"}, {"propose": {"text": "x"}})[1] == [], (_pw, _pc, _pw2, _pc2, _pw3, _pc3))
+check("architect.parse and block: what a reply proposes comes through as given, and a reply without it has none; in the BRIEF block a line the Architect proposed says so, and whether the person accepted it",
+      arch.parse(json.dumps({"say": "Ready.", "propose": [{"text": "x", "column": "c"}, "y"]}))["propose"] == [{"text": "x", "column": "c"}, "y"] and arch.parse('{"say": "x", "propose": {"text": "x"}}')["propose"] == []
+      and "also_check:\n- the season\n- The two arms differ in size [proposed by you, not accepted]\n- Another one. [proposed by you, accepted]\nfixed.comparison"
+          in arch.block({"question": "q", "also_check": [{"text": "the season"}, _its, {**_taken, "text": "Another one."}]}), arch.block(_pb))
+_qn = Notebook("q"); _qr = _qn.new_run("Is B above A?"); _qr.status = "framing"; _qr.framing = briefs.version({}, {"question": _qr.question})
+_qdata = "`df`: 6 rows\nsize: numeric(n=6)\nsize_class: categorical\nseason: categorical(n=6)"
+_qllm, _qseen = _arch_llm([json.dumps({"say": "The brief is ready.", "brief": {"propose": [{"text": "Slipped in with the brief", "column": "size"}]},
+                                       "propose": [{"text": "No column named"}, {"text": "A column the data lacks", "column": "weather"}, {"text": "Part of a name", "column": "class"}, "only words",
+                                                   {"text": "The two arms differ in size", "shows": "the gap narrows with size held fixed", "column": " size "}]}),
+                           json.dumps({"say": "Ready.", "propose": [{"text": "The seasons differ", "column": "season"}, {"text": "A third", "column": "size"}]}),
+                           json.dumps({"say": "Ready.", "propose": [{"text": "A fourth", "column": "size"}]})])
+_q1 = arch.exchange(_qllm, _qn, _qr, None, data=_qdata)
+_qr.framing = _q1
+_q2 = arch.exchange(_qllm, _qn, _qr, "go on", data=_qdata)
+_qr.framing = {**_q2, "versions": _q2["versions"] + [{"n": 4, "by": "person", "changed": ["also_check"], "brief": {"question": _qr.question}}]}      # the person left both out
+_q3 = arch.exchange(_qllm, _qn, _qr, "and now?", data=_qdata)
+_q4 = arch.exchange(_arch_llm([json.dumps({"say": "Ready.", "propose": [{"text": "The two arms differ in size", "column": "size"}]})])[0], _xn, _xr, "anything else?", data="")
+_q5 = arch.exchange(_arch_llm([json.dumps({"say": "Ready.", "brief": {"also_check": ["what the person named"]}})])[0], _xn, _xr, "also check what I named", data=_qdata)
+check("architect.exchange, what a reply proposes: it enters the brief only where it names a column the data's description has, whole - not a word of the reply's own, not a part of a column's name - and never "
+      "from inside the reply's brief; the version names the line. A brief takes two proposals in all: what the person left out is not proposed again and again; without a description of the data nothing is "
+      "proposed, and a line the person named is not counted as one",
+      briefs.latest(_q1)["also_check"] == [_its] and _q1["versions"][-1]["changed"] == ["also_check.0"] and _q1["versions"][-1]["why"] == "question" and _q1["proposed"] == 1
+      and briefs.latest(_q2)["also_check"] == [_its, {"text": "The seasons differ", "source": "architect", "accepted": False}] and _q2["proposed"] == 2 and _q2["versions"][-1]["changed"] == ["also_check.1"]
+      and len(_q3["versions"]) == 4 and "also_check" not in briefs.latest(_q3) and _q3["proposed"] == 2
+      and "also_check" not in briefs.latest(_q4) and "proposed" not in _q4
+      and briefs.latest(_q5)["also_check"] == [{"text": "what the person named"}] and "proposed" not in _q5, (briefs.latest(_q1), _q2.get("proposed"), briefs.latest(_q3), _q4.get("proposed"), _q5.get("proposed")))
+# the analyst receives what was agreed
+_sdf = pd.DataFrame({"part": ["a", "a", "b", "b"], "y": [1.0, 2.0, 3.0, 4.0]})
+_snote = "- Question as understood: q\n- Best estimate so far: none yet\n- Held fixed: nothing yet\n- Open doubts: none\n- Plan: one cell, then report\n- Names: df"
+_sact = lambda a: "###STEP###\ns.\n###NOTE###\n" + _snote + "\n###ACTION###\n" + a
+_sseen = []
+def _sllm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    _sseen.append(user)
+    return (_sact("REPORT\n# T\n\n## Answer\nDone [cell 1].\n\n## Against the brief\n- The seasons differ: no [cell 1].\n\n## Did not fit\nNothing.") if len(_sseen) > 1
+            else _sact("```python\nprint(df.groupby('part')['y'].mean().to_dict())\n```")), {"cost": 0.001}
+_sk = PersistentKernel(df=_sdf); _sn = Notebook("s")
+try:
+    _srun = Session(_sk, _sn, _sllm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf)).run(
+        "Is b above a?", budget=Budget(turns=6, dollars=1.0), brief={"question": "Is b above a?", "thinks": "b is above a.", "also_check": [_its, {"text": "The seasons differ.", "shows": "the same gap in each", "source": "architect", "accepted": True}]})
+finally:
+    _sk.cleanup()
+check("a run under a brief with proposals: the analyst is given only what the person accepted - in its prompt, with what it would show, and on the run's own brief; the proposal left unticked is nowhere",
+      _srun.status == "answered" and _srun.brief["also_check"] == [{"text": "The seasons differ.", "shows": "the same gap in each", "source": "architect", "accepted": True}]
+      and "Also check:\n- The seasons differ: it would show the same gap in each\n- chance [always]" in _sseen[0] and all("The two arms differ in size" not in u for u in _sseen), (_srun.status, _srun.brief, _sseen[0][:600] if _sseen else None))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

@@ -236,6 +236,10 @@
 #content-brief .ar-line .mk.ok { color: var(--c-model); }
 #content-brief .ar-line .mk.no { color: var(--c-fail); }
 #content-brief .ar-line .mk.q { color: var(--c-kernel); }
+#content-brief .ar-line .tick { flex-shrink: 0; position: relative; top: 2px; display: inline-grid; place-items: center; width: 14px; height: 14px; padding: 0; border: 1px solid var(--text-quaternary); border-radius: 3px; background: none; color: var(--bg-primary); cursor: pointer; }   /* a proposal of the Architect's: in the brief once ticked */
+#content-brief .ar-line .tick.on { border-color: var(--c-model); background: var(--c-model); }
+#content-brief .ar-line .tick svg { width: 11px; height: 11px; fill: currentColor; }
+#content-brief .ar-line .tick:disabled { cursor: default; }
 #content-brief .ar-line .src { flex-shrink: 0; margin-left: auto; padding: 0 7px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 10.5px; line-height: 16px; color: var(--text-tertiary); white-space: nowrap; }
 #content-brief .ar-line .src.ar { border-color: var(--chip-model-border); color: var(--c-model); }
 #content-brief .ar-line .src.mem { border-color: var(--chip-lookup-border); color: var(--c-lookup); }

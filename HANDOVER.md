@@ -130,6 +130,23 @@
   rule 8 sends there before the brief is said to be ready. *Not there:* what the Architect brings in on its own (0299); a mark on what
   is fixed; a round is not shown while it runs (it takes a second or two). The stack's scripted Architect looks up
   by a word of the line (`ARCHITECT_LOOKS`) and judges the planted lines (`_holds`). Not run against a live model.
+  **0299 (2026-11-16): other explanations, to tick** (the design's §2.14). *The brief.* A line under `also_check`
+  that the Architect proposed is `{text, shows, source: "architect", accepted}`; the coach's own lines carry neither
+  word (`normalise`). `brief.agreed()` is the brief as the Analyst receives it - without what was proposed and not
+  accepted - and `Session.run` takes the run's brief through it, so `run.brief`, the BRIEF block and a follow-up's
+  first version never hold an unticked line. `brief.write()` takes the reply's `propose` after the person's own
+  `also_check` lines, as the Architect's, not accepted, within `COUNTS` (two lines in all). *The exchange.*
+  `architect.parse` passes `propose` through; `exchange()` lets a proposal in only where `_grounded()` finds its
+  `column` in the data's description as a whole name, and only `PROPOSALS` (2) in a brief, counted in
+  `framing["proposed"]`; a `propose` inside the reply's `brief` part is overridden. `block()` shows the Architect's
+  lines as "[proposed by you, accepted | not accepted]". *The instructions* gained "Proposing another explanation";
+  rule 1 names it as its one exception. *The page.* `ArchitectUI.tick(brief, path)` toggles `accepted` on such a
+  line; `build.line` draws its box (`button.tick`, live only in the version that stands), `change(root, path, text,
+  how)` keeps a tick as it keeps a line's text, `keptFirst()` keeps a line being typed before a cross or a box.
+  `apply()` already made an edited line the coach's own. Styles in `tabs.css`. The stack's scripted Architect
+  proposes one explanation with its marks, from the `soil` column (`ARCHITECT_PROPOSES`), and says it can be ticked
+  while it is not (`ARCHITECT_TICK`); the scripted Analyst answers it from the gap with and without soil held fixed.
+  *Not there:* a fact from the data as a line of its own; proposals for what is fixed. Not run against a live model.
 - **Published.** 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -206,8 +223,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (295/238/31/28/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 62/7/50/72/24/174/14/25/4/15/67/41/88 JS; 2,064 on 2026-11-15; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (169 hosted on 2026-11-15; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (301/239/31/28/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 62/7/50/72/24/174/14/25/4/15/67/41/92 JS; 2,075 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (170 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.

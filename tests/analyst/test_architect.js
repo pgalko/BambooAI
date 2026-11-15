@@ -75,6 +75,18 @@ const dropped = A.apply(BASE, 'rests_on.1', '');
 check('a fact from a lookup cannot be changed, only left out (§2.6); a line left out names the list and its index; the last line out removes the list',
   A.apply(BASE, 'rests_on.1', 'another count') === null && dropped.brief.rests_on.length === 1 && dropped.removed === 1 && same(dropped.changed, ['rests_on'])
   && !('also_check' in A.apply(BASE, 'also_check.0', '').brief) && A.apply(BASE, 'rests_on.7', 'x') === null, dropped);
+const ITS = { text: 'the arms differ in size', shows: 'the gap narrows with size held fixed', source: 'architect', accepted: false };
+const WITH = Object.assign({}, BASE, { also_check: [BASE.also_check[0], ITS] }), withBefore = JSON.stringify(WITH);
+check('a proposal of the Architect\'s is accepted with a tick, and no longer with another: the line named as changed, nothing else touched; only such a line can be ticked - not the coach\'s own, not a line of '
+  + 'another part, not one that is not there; the input is never altered',
+  same(A.tick(WITH, 'also_check.1'), { brief: Object.assign({}, WITH, { also_check: [BASE.also_check[0], Object.assign({}, ITS, { accepted: true })] }), changed: ['also_check.1'] })
+  && A.tick(A.tick(WITH, 'also_check.1').brief, 'also_check.1').brief.also_check[1].accepted === false
+  && A.tick(WITH, 'also_check.0') === null && A.tick(WITH, 'also_check.2') === null && A.tick({ rests_on: [{ text: 'x', source: 'architect' }] }, 'rests_on.0') === null
+  && A.tick({}, 'also_check.0') === null && A.tick(null, 'also_check.0') === null
+  && JSON.stringify(WITH) === withBefore, A.tick(WITH, 'also_check.1'));
+check('a proposal the coach rewrites is their own line: no longer the Architect\'s, with nothing to tick and nothing it would show; left out, it goes like any line',
+  same(A.apply(WITH, 'also_check.1', 'the arms differ in age').brief.also_check[1], { text: 'the arms differ in age' }) && same(A.apply(WITH, 'also_check.1', '').brief.also_check, [BASE.also_check[0]])
+  && A.apply(WITH, 'also_check.+', 'a third') === null);
 check('what is fixed: a part set or cleared by its name; the last one cleared removes the group',
   same(A.apply(BASE, 'fixed.period', 'the first half').brief.fixed, { measure: 'x', period: 'the first half' }) && same(A.apply(BASE, 'fixed.period', 'the first half').changed, ['fixed.period'])
   && !('fixed' in A.apply(BASE, 'fixed.measure', '').brief) && A.apply(BASE, 'fixed.measure', ' x ') === null);
@@ -122,6 +134,20 @@ check('the lists at the design\'s counts take no more lines; a saved analysis an
   && root3.querySelectorAll('h3').map(h => h.textContent).slice(-2).join('|') === 'From saved analyses|Set aside'
   && root3.querySelector('.src.mem').textContent === 'saved analysis' && root3.querySelector('.src.mem').parent.querySelector('.tx').textContent === '2026-02-20 · Was B above A before?B led by 3.'
   && root3.elements.slice(-2)[0].textContent === 'the weather' && !root3.elements.slice(-2)[0].querySelector('[data-ar]'), t3.innerHTML);
+const FP = { versions: [F1.versions[0], { n: 2, by: 'architect', why: 'check', changed: ['also_check.1'], brief: Object.assign({}, FULL, { also_check: [BASE.also_check[0], ITS] }) },
+                        { n: 3, by: 'person', changed: ['also_check.1'], brief: Object.assign({}, FULL, { also_check: [BASE.also_check[0], Object.assign({}, ITS, { accepted: true })] }) }] };
+const proposed = lineOf(el(b.brief(FP, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief'), 'also_check.1');
+const accepted = lineOf(el(b.brief(FP, { chain: 71, state: 'framing' })).querySelector('.ar-brief'), 'also_check.1'), mineToo = lineOf(el(b.brief(FP, { chain: 71, state: 'framing' })).querySelector('.ar-brief'), 'also_check.0');
+const acceptedRun = lineOf(el(b.brief(FP, { chain: 71, state: 'run' })).querySelector('.ar-brief'), 'also_check.1');
+check('what the Architect proposed has a box to tick, its mark as the one who brought it in and, under it, what it would show: empty until the coach accepts it, ticked after; the coach\'s own lines have no box. '
+  + 'It can be ticked, changed and left out in the version that stands; in an older version and once the analysis has started the box only shows',
+  accepted.querySelector('button.tick.on[data-ar="tick"]') && accepted.querySelector('.tick').getAttribute('role') === 'checkbox' && accepted.querySelector('.tick').getAttribute('aria-checked') === 'true'
+  && accepted.querySelector('.tick').getAttribute('title') === 'Have the analysis test it' && accepted.querySelector('.tick svg') && accepted.querySelector('.src.ar').textContent === 'Architect'
+  && accepted.querySelector('.fact').textContent === 'the gap narrows with size held fixed' && accepted.querySelector('.pen[data-ar="edit"]') && accepted.querySelector('.drop[data-ar="drop"]')
+  && !mineToo.querySelector('.tick') && !mineToo.querySelector('.src')
+  && proposed.querySelector('button.tick') && !proposed.querySelector('.tick.on') && proposed.querySelector('.tick').getAttribute('aria-checked') === 'false' && !proposed.querySelector('.tick svg')
+  && proposed.querySelector('.tick').hasAttribute('disabled') && !proposed.querySelector('[data-ar]') && proposed.className === 'ar-line changed'
+  && acceptedRun.querySelector('button.tick.on') && acceptedRun.querySelector('.tick').hasAttribute('disabled') && !acceptedRun.querySelector('[data-ar]'), accepted.outerHTML + proposed.outerHTML);
 const old = el(b.brief(F3, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief');
 const ran = el(b.brief(F3, { chain: 71, state: 'run' })).querySelector('.ar-brief');
 check('an older version is read, not changed: no pencil, no cross, no Start analysis, what it did not say reads "not said"; both arrows live',
@@ -511,8 +537,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: asking })]); await tick();
   const goesOn = { calls: calls.slice(n), pane: pane().slice(-3), rows: $('streamOutput').querySelectorAll('.sp-row').length, lock: locks[locks.length - 1], choices: $('streamOutput').querySelectorAll('.ar-choice').length };
   const marking = JSON.parse(JSON.stringify(asking));
-  marking.versions.push({ n: marking.versions.length + 1, by: 'architect', why: 'check', changed: ['rests_on.0'],
-                          brief: Object.assign({}, latest().brief, { rests_on: [{ text: 'B looked better', source: 'person', mark: 'does not hold', note: 'rows by arm: A 3 · B 3' }] }) });
+  marking.versions.push({ n: marking.versions.length + 1, by: 'architect', why: 'check', changed: ['also_check.0', 'rests_on.0'],
+                          brief: Object.assign({}, latest().brief, { rests_on: [{ text: 'B looked better', source: 'person', mark: 'does not hold', note: 'rows by arm: A 3 · B 3' }], also_check: [ITS] }) });
   marking.turns.push({ who: 'architect', text: 'One line does not hold. Keep it, or change it?', choices: ['Keep it', 'Change it'], v: marking.versions.length, cost: 0.01, call: 10 });
   reply([200, stream({ framing: marking })]); await tick();
   const line0 = lineOf(brief(), 'rests_on.0');
@@ -525,6 +551,21 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && line0.querySelector('.mk.no').textContent === '✕' && line0.querySelector('.fact.no').textContent === 'rows by arm: A 3 · B 3'
     && same($('streamOutput').querySelectorAll('.ar-choice').map(c => c.textContent), ['Keep it', 'Change it']) && $('streamOutput').querySelectorAll('.sp-row').length === 1
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').value === '' && $('queryInput').placeholder === 'Answer, or say what to change', [calls.slice(n), pane().slice(-2)]);
+  // what the Architect proposed: a tick accepts it, another takes the tick back - each a version of the coach's
+  serve(); n = calls.length;
+  const boxWas = lineOf(brief(), 'also_check.0').querySelector('.tick').className + '|' + lineOf(brief(), 'also_check.0').querySelector('.src').textContent + '|' + lineOf(brief(), 'also_check.0').className;
+  doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.tick')); await tick();
+  const ticked = { call: calls[n], box: lineOf(brief(), 'also_check.0').querySelector('.tick').className, why: brief().querySelector('.why').textContent, line: lineOf(brief(), 'also_check.0').className, by: latest().by };
+  doc.dispatch('click', lineOf(brief(), 'expects').querySelector('.pen'));
+  lineOf(brief(), 'expects').querySelector('.ar-input').value = 'B above A by 4';
+  doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.tick')); await tick();
+  check('the box on what the Architect proposed: a click sends the brief with the line accepted, and the tab shows the new version - the box ticked, changed by you, the line marked; another click takes the '
+    + 'tick back - a line being typed elsewhere kept first, as its own version',
+    boxWas === 'tick|Architect|ar-line changed' && same(ticked.call, ['/architect/brief', { thread_id: 7, chain_id: 71, brief: Object.assign({}, marking.versions[marking.versions.length - 1].brief, { also_check: [Object.assign({}, ITS, { accepted: true })] }), changed: ['also_check.0'] }])
+    && ticked.box === 'tick on' && ticked.why === 'changed by you' && ticked.line === 'ar-line changed' && ticked.by === 'person'
+    && calls.length === n + 3 && same(calls[n + 1][1].changed, ['expects']) && calls[n + 1][1].brief.expects === 'B above A by 4' && calls[n + 1][1].brief.also_check[0].accepted === true
+    && same(calls[n + 2][1].changed, ['also_check.0']) && calls[n + 2][1].brief.also_check[0].accepted === false && calls[n + 2][1].brief.expects === 'B above A by 4'
+    && lineOf(brief(), 'also_check.0').querySelector('.tick').className === 'tick' && !brief().querySelector('.editing'), [boxWas, ticked, calls.slice(n + 1)]);
   held(); n = calls.length;
   A.tell('and the other line?'); await tick();
   const again = JSON.parse(JSON.stringify(entry.framing));
@@ -595,6 +636,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && shell.includes('body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer-events: none; }')
     && paneCss.includes('#streamOutput .ar-msg {') && paneCss.includes('#streamOutput .ar-msg.arch {') && paneCss.includes('#streamOutput .ar-msg.wait {') && paneCss.includes('#streamOutput .ar-choice {')
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
+    && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
     && tabsCss.includes('#content-answer .ar-against {') && tabsCss.includes('#content-answer .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-answer .ar-against .v.' + v + ' {')));
   finish();
 })().catch(e => { check('the module ran without throwing', false, e && e.stack); finish(); });

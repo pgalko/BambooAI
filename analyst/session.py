@@ -942,7 +942,7 @@ class Session:
         else:
             run = self.nb.new_run(question, parent, run_id=run_id)
         # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in
-        run.brief = briefs.normalise(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
+        run.brief = briefs.agreed(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
         run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
         run.sandbox = tools.sandbox(self.kernel)      # the box the cells run on, for the reach report (2026-10-28)
         if data:

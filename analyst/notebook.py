@@ -158,8 +158,8 @@ class Run:
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
     framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Architect: {versions: [{n, by, changed, why, brief}],
-                                                  # turns: [{who, text, choices, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}], calls}
-                                                  # (docs/ARCHITECT_DESIGN.md §2.6, §2.12, §2.13); {} for a run not framed
+                                                  # turns: [{who, text, choices, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}], calls,
+                                                  # proposed} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14); {} for a run not framed
 
     @property
     def note(self) -> str:

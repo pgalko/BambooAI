@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.11 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, and checks what the brief rests on, 0298)
+# The Architect and memory from saved analyses — design v0.12 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, and proposes other explanations, 0299)
 
 Release 2.8 does three things.
 
@@ -419,9 +419,45 @@ not cover, a tool that changed - ends, before any analysis, with the line marked
 numbers beside it (`test_analyst.py`; the lookups run in a kernel, as in the local edition). The stack's walk plants
 one in an answer the coach types, beside a line that holds and one that cannot be checked.
 
-Not in this patch: what the Architect brings in on its own - other explanations to tick (0299), a fact from the
+Not in this patch: what the Architect brings in on its own - other explanations to tick (§2.14), a fact from the
 data as a line of its own; a mark on what is fixed - a period the data does not cover is caught by the Analyst,
 which stops and asks (§2.10); saved analyses (0303); a way to stop a reply in flight.
+
+### 2.14 Other explanations, to tick — built (0299, 2026-11-16)
+
+The first thing the Architect brings in on its own: another explanation for what the coach expects to see. It
+enters the brief unticked, and only the coach's tick puts it before the Analyst (decision 22).
+
+**In the brief.** A line under *Also check* that the Architect proposed says so, and whether the coach accepted it
+(`source`, `accepted`), and may carry what it would show. A line of the coach's own carries neither word. The list
+holds two lines in all (§2.2), whoever wrote them.
+
+**What the Analyst receives** (`brief.agreed()`). The brief without what was proposed and not accepted. A run takes
+its brief through it (`Session.run`), so an unticked line is in no prompt, not on the run's brief, and not in the
+brief a follow-up starts from. An accepted line reads like any line under Also check, with what it would show.
+
+**The reply** (`propose`). Each proposal is a line, what the analysis would find if it were so, and the column of
+the data that tells. In code:
+
+- A proposal enters only where its column is in the data's description, as a whole name.
+- A brief takes two proposals in all, so one the coach left out is not proposed again and again.
+- A reply cannot accept a proposal, and one placed inside the reply's `brief` part is not taken.
+
+Whether the explanation is a sensible one is the model's judgement, and the live test's.
+
+**Its instructions.** With the marks - or with the message that the brief is ready, where there was nothing to check
+- the Architect may propose another explanation: something else that would give the result the coach expects. Only
+what a column of the data can tell apart from the coach's view. Never chance, measurement error or how the cases
+were chosen: those are always tested. It does not ask about a proposal; where one is unticked when it says the brief
+is ready, it says that it can be ticked. Rule 1, "add nothing of your own", names this one exception.
+
+**On the page.** The Architect's line has a box, the mark "Architect" and, under it, what it would show. A click on
+the box accepts it, another takes the tick back: each a version of the coach's (`POST /architect/brief`). The pencil
+makes it the coach's own line, without a box; the cross leaves it out. In an older version, and once the analysis
+has started, the box only shows.
+
+Not in this patch: a fact from the data as a line of its own; a proposal for what is fixed; accepting by saying so -
+the Architect can then write the line as the coach's own, with `drop` and `also_check`.
 
 ## 3. Memory from saved analyses
 
@@ -550,7 +586,7 @@ repository and the dev box only.
 | 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand (§2.11). | built |
 | 0297 | The Architect talks: it fills the brief from the question and asks for what is missing, one question a message, with choices to click (§2.12). | built |
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. The marks (§2.13). | built |
-| 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own. | |
+| 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own (§2.14). | built |
 | 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
 | 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |

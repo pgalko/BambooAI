@@ -1,5 +1,5 @@
 """The Architect: the model that frames a question with the person before it is analysed (docs/ARCHITECT_DESIGN.md
-§2.3, §2.12, §2.13).
+§2.3, §2.12-§2.14).
 
 One exchange is one model call. The Architect reads the data's description, the analyses the question follows, the
 question, the brief as it stands and the conversation so far (prompt()), and replies with one JSON object: the parts
@@ -9,6 +9,7 @@ the conversation with the person's message and the Architect's.
 
 A reply may also ask for lookups, to check what the brief rests on (analyst/lookup.py). The host answers them, and
 what they found joins the conversation as a turn of its own; the reply to the next exchange marks the lines by it.
+And it may propose another explanation, which enters the brief as the Architect's own, for the person to accept.
 Nothing here computes: a lookup is the host's, and the analysis is the analyst's.
 """
 from __future__ import annotations
@@ -30,6 +31,7 @@ EFFORT = ("low", "medium")       # a short reply over a short prompt: the seat's
 TURNS_MAX = 20                   # replies in one brief: half a dozen frame and check a question; the bound is for a conversation that will not end
 ROUNDS = 2                       # rounds of lookups after one message of the person's: the second is for what the first refused
 NOT_ABOUT = "a lookup names the line under rests_on it checks, copied exactly"
+PROPOSALS = 2                    # explanations the Architect proposes in one brief, in all: one left out is not proposed again and again
 SAY_CHARS = 600                  # the Architect's message, at most
 CHOICES, CHOICE_CHARS = 4, 120
 EMPTY = "(empty)"
@@ -58,7 +60,8 @@ def _line(value, chars: int) -> str:
 
 def parse(text: str) -> dict:
     """The reply's JSON object, fenced or bare: {"brief": the parts it writes, "say": its message, "choices": [...],
-    "lookups": what it asks of the data, "marks": the marks it gives}. Raises Unreadable."""
+    "lookups": what it asks of the data, "marks": the marks it gives, "propose": the explanations it proposes}.
+    Raises Unreadable."""
     t = (text or "").strip()
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", t, re.S)
     if fenced:
@@ -82,14 +85,15 @@ def parse(text: str) -> dict:
         c = _line(c, CHOICE_CHARS)
         if c and c not in choices:
             choices.append(c)
-    asked, marks = (obj.get(key) if isinstance(obj.get(key), list) else [] for key in ("lookups", "marks"))
+    asked, marks, proposed = (obj.get(key) if isinstance(obj.get(key), list) else [] for key in ("lookups", "marks", "propose"))
     return {"brief": obj.get("brief") if isinstance(obj.get("brief"), dict) else {}, "say": say, "choices": choices[:CHOICES],
-            "lookups": asked[:lookup.MAX_LOOKUPS], "marks": marks}
+            "lookups": asked[:lookup.MAX_LOOKUPS], "marks": marks, "propose": proposed}
 
 
 def block(brief: dict) -> str:
     """The BRIEF block of the Architect's prompt: every part under the name the reply uses for it. A line the brief
-    rests on shows its mark, with what was found, once it was checked."""
+    rests on shows its mark, with what was found, once it was checked; an explanation the Architect proposed says so,
+    and whether the person accepted it."""
     lines = [f"BRIEF (version {brief.get('version', 1)}):"]
     for key in ("decision", "thinks"):
         lines.append(f"{key}: {brief.get(key) or EMPTY}")
@@ -99,7 +103,8 @@ def block(brief: dict) -> str:
     for key in ("expects", "would_change"):
         lines.append(f"{key}: {brief.get(key) or EMPTY}")
     lines.append("also_check:" + ("" if brief.get("also_check") else f" {EMPTY}"))
-    lines += [f"- {r['text']}" for r in brief.get("also_check", [])]
+    lines += [f"- {r['text']}" + (f" [proposed by you, {'accepted' if r.get('accepted') else 'not accepted'}]" if r.get("source") == "architect" else "")
+              for r in brief.get("also_check", [])]
     lines += [f"fixed.{key}: {brief.get('fixed', {}).get(key) or EMPTY}" for key in briefs.FIXED]
     return "\n".join(lines)
 
@@ -174,14 +179,22 @@ def _check(requests: list, brief: dict, made: int, look: Callable) -> dict:
     return {"who": "check", "found": found, "secs": round(time.time() - began, 1)}
 
 
+def _grounded(proposal, data: str) -> bool:
+    """Whether an explanation the Architect proposes names a column the data's description has: one the data cannot
+    tell apart from the person's view is not proposed."""
+    column = _line(proposal.get("column"), lookup.NAME_CHARS) if isinstance(proposal, dict) else ""
+    return bool(column) and bool(re.search(r"(?<!\w)" + re.escape(column) + r"(?!\w)", data or ""))
+
+
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None) -> dict:
     """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
     after a round of lookups - and its reply. A reply that cannot be read is asked for once more. Returns the framing
     as it then stands: the brief as one more version when the reply changed a part or marked a line (the Architect's,
     made from the question, from an answer, or from a check against the data), the conversation with both messages,
     the calls counted. Where the reply asks for lookups, `look` answers them - clean lookups in, an answer to each
-    out - and the round is the conversation's last turn: the next exchange, with no message, reads it. Raises Failed;
-    nothing is kept of an exchange that fails."""
+    out - and the round is the conversation's last turn: the next exchange, with no message, reads it. What the reply
+    proposes enters the brief only where it names a column of the data, and a brief takes two proposals in all.
+    Raises Failed; nothing is kept of an exchange that fails."""
     framing = dict(run.framing or {})
     turns = list(framing.get("turns") or [])
     if sum(1 for t in turns if t.get("who") == "architect") >= TURNS_MAX:
@@ -207,7 +220,12 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     if got is None:
         raise Failed(UNREAD.format(problem=problem), calls, cost)
     facts = {f["k"]: (f["about"], f["fact"], f["ran"]) for t in turns if t.get("who") == "check" for f in t.get("found", [])}
-    written, changed = briefs.write(brief, got["brief"])
+    made_before = int(framing.get("proposed") or 0)
+    proposals = [p for p in got["propose"] if _grounded(p, data)][:max(0, PROPOSALS - made_before)]
+    written, changed = briefs.write(brief, {**got["brief"], "propose": proposals})
+    proposed = sum(1 for c in changed if c.startswith("also_check.") and written["also_check"][int(c.split(".")[1])].get("source") == "architect")
+    if proposed:
+        framing["proposed"] = made_before + proposed
     written, marked = briefs.mark(written, got["marks"], facts)
     if changed or marked:
         framing = briefs.version(framing, written, by="architect", changed=changed + [c for c in marked if c not in changed],
