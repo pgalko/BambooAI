@@ -232,8 +232,8 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
-    # the Architect (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief written by hand, the
-    # analysis started from it, the report against the brief, the thread map
+    # the Architect (docs/ARCHITECT_DESIGN.md §2.11, §2.12): a question typed with the switch on, the conversation that fills
+    # its brief, a line changed by hand, the analysis started from it, the report against the brief, the thread map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):
@@ -243,18 +243,31 @@ def story(w, mod, dataset, questions):
             if keep:
                 p.keyboard.press("Enter")
                 p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=n, timeout=15000)
+
+        def said(n):
+            p.wait_for_function("(n) => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length === n && !document.getElementById('queryInput').disabled", arg=n, timeout=30000)
+            p.wait_for_timeout(300)
         p.click("#architectSwitch")
         p.fill("#queryInput", brief_question)
         p.wait_for_timeout(200)
         w.shot("architect_composer")
         p.click("#submitQuery")
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
-        p.wait_for_timeout(400)
-        w.shot("architect_brief_empty")
-        for path, text in (("decision", "Switch the clay plots to regime C next season, or keep A."), ("thinks", "C does better than A."),
-                           ("rests_on.+", "The C plots looked greener last season."), ("expects", "C yields at least 0.3 t/ha more than A."),
-                           ("also_check.+", "Rainfall differed between the C and A plots."), ("fixed.comparison", "regime C against regime A, within soil type")):
-            write(path, text)
+        said(1)
+        w.shot("architect_first_question")
+        p.click("#streamOutput .ar-choice")
+        said(2)
+        p.fill("#queryInput", "C does better than A because the C plots looked greener last season.")
+        p.wait_for_timeout(200)
+        w.shot("architect_answer_typed")
+        p.click("#submitQuery")
+        said(3)
+        p.fill("#queryInput", "C yields at least 0.3 t/ha more than A.")
+        p.click("#submitQuery")
+        said(4)
+        w.shot("architect_ready")
+        write("also_check.+", "Rainfall differed between the C and A plots.")
+        write("fixed.comparison", "regime C against regime A, within soil type")
         write("fixed.measure", "yield_t_ha, plot means", keep=False)
         p.wait_for_timeout(300)
         w.shot("architect_brief_typing")
@@ -264,9 +277,12 @@ def story(w, mod, dataset, questions):
         p.wait_for_timeout(300)
         w.shot("architect_brief")
         p.click('#content-brief [data-ar="step"][data-step="-1"]')
+        p.click('#content-brief [data-ar="step"][data-step="-1"]')
+        p.click('#content-brief [data-ar="step"][data-step="-1"]')
         p.wait_for_timeout(300)
         w.shot("architect_brief_older_version")
-        p.click('#content-brief [data-ar="step"][data-step="1"]')
+        for _ in range(3):
+            p.click('#content-brief [data-ar="step"][data-step="1"]')
         p.click("#railMapButton")
         p.wait_for_timeout(900)
         w.shot("architect_map_not_run")
@@ -278,9 +294,11 @@ def story(w, mod, dataset, questions):
         w.js("activateTab('answer')")
         p.wait_for_timeout(500)
         w.shot("architect_answer")
+        p.click("#streamOutput .ar-fold > summary")
         w.js("activateTab('brief')")
         p.wait_for_timeout(400)
         w.shot("architect_brief_after_run")
+        p.click("#streamOutput .ar-fold > summary")
         p.click("#railMapButton")
         p.wait_for_timeout(900)
         w.shot("architect_map")

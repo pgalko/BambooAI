@@ -1927,5 +1927,138 @@ check("brief: the standing rules hold for its texts too - none of the tested tas
       and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in (_cb, reviewer_text(True, brief=True), _thin)),
       {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _btexts.items() if _DOMAIN.search(t)})
 
+# ---- the Architect (0297, docs/ARCHITECT_DESIGN.md §2.12): one exchange is one model call, and its reply is written into the brief
+from analyst import architect as arch
+_wb = {"question": "Is B above A?", "decision": "keep one arm", "rests_on": [{"text": "B looked better", "source": "person", "mark": "holds", "note": "seen in 9 of 12"}, {"text": "a count from the data", "source": "data", "mark": "holds"}],
+       "also_check": [{"text": "the two halves differ", "shows": "a gap in one half only"}], "fixed": {"measure": "x"}, "saved": [{"question": "Was B above A before?", "passage": "B led by 3."}], "set_aside": ["the weather"], "version": 4}
+_wb_before = json.dumps(_wb, sort_keys=True)
+_w1, _c1 = briefs.write(_wb, {"decision": "  keep   both arms ", "thinks": "B is better", "expects": "", "fixed": {"period": "the first half", "measure": "x"}})
+_w2, _c2 = briefs.write(_wb, {"decision": "", "fixed": {"measure": ""}})
+check("brief.write: the parts a reply names are written in - a text part on one line, an empty string emptying it, what is fixed part by part - and each part that changed is named as the page names it; a part given as it "
+      "stands changes nothing; the rest of the brief - its lists, the saved analyses, what was set aside, the question - is untouched, the version number left to the caller, the brief passed in not altered",
+      _w1["decision"] == "keep both arms" and _w1["thinks"] == "B is better" and "expects" not in _w1 and _w1["fixed"] == {"measure": "x", "period": "the first half"} and _c1 == ["decision", "thinks", "fixed.period"]
+      and all(_w1[k] == _wb[k] for k in ("rests_on", "also_check", "saved", "set_aside", "question")) and "version" not in _w1
+      and "decision" not in _w2 and "fixed" not in _w2 and _c2 == ["decision", "fixed.measure"] and briefs.write(_wb, {"decision": "keep one arm", "fixed": {"measure": " x "}})[1] == []
+      and briefs.write(_wb, {})[1] == [] and briefs.write(_wb, None)[0] == briefs.working(_wb) and json.dumps(_wb, sort_keys=True) == _wb_before, (_w1, _c1, _w2, _c2))
+_w3, _c3 = briefs.write(_wb, {"rests_on": [" B looked   better ", "a third thing", {"text": "a fourth"}, "a fifth", "a third thing"], "also_check": ["luck", "the two halves differ", "a third rival"]})
+_w4, _c4 = briefs.write(_wb, {"drop": [" B looked   better ", "the two halves differ", "not there"], "rests_on": ["B looked best"]})
+check("brief.write, the lists: a line given under a list's name is added when it is not there yet - a line of the person's with no mark, named by its place - and the lines the reply does not name stay as they "
+      "are, with their source, their mark and what the check found; a line given twice is one; the lists stop at the design's counts, four and two. A line given under drop is taken out of either list when it is "
+      "there word for word, and the list is named as changed; a list emptied goes",
+      _w3["rests_on"] == _wb["rests_on"] + [{"text": "a third thing", "source": "person", "mark": ""}, {"text": "a fourth", "source": "person", "mark": ""}]
+      and _w3["also_check"] == [_wb["also_check"][0], {"text": "luck"}] and _c3 == ["rests_on.2", "rests_on.3", "also_check.1"]
+      and _w4["rests_on"] == [_wb["rests_on"][1], {"text": "B looked best", "source": "person", "mark": ""}] and "also_check" not in _w4 and _c4 == ["rests_on", "rests_on.1", "also_check"]
+      and briefs.write(_wb, {"rests_on": ["B looked better", "a count from the data"]})[1] == [] and briefs.write(_wb, {"drop": ["nothing like it"], "rests_on": "a string", "also_check": {"text": "x"}})[1] == []
+      and briefs.write(_wb, {"drop": ["a count from the data"]})[0]["rests_on"] == [_wb["rests_on"][0]] and briefs.write(_wb, {"drop": "B looked better"})[1] == []
+      and briefs.COUNTS == {"rests_on": 4, "also_check": 2}, (_w3, _c3, _w4, _c4))
+_fv = briefs.version(briefs.version({}, {"question": "q"}), {"question": "q", "decision": "d"}, by="architect", changed=["decision"], why="question")
+check("brief.version: a version of the Architect's says what it was made from; a version without a reason carries none",
+      _fv["versions"][1] == {"n": 2, "by": "architect", "changed": ["decision"], "brief": {"decision": "d", "question": "q"}, "why": "question"} and "why" not in _fv["versions"][0], _fv)
+
+_reply = {"brief": {"decision": "keep one arm"}, "say": "What do you   expect\nto see?", "choices": ["  Keep one arm ", "Keep both", "Keep one arm", "", 7, "c", "d", "e"]}
+_parsed = arch.parse("Here it is:\n```json\n" + json.dumps(_reply) + "\n```\nAnything else?")
+def _unreadable(text):
+    try:
+        arch.parse(text)
+    except arch.Unreadable as exc:
+        return str(exc)
+    return None
+check("architect.parse: the reply's JSON object, bare or fenced, with words around it: the parts it writes, its message on one line, its choices cleaned - none twice, none empty, four at most; a reply without "
+      "a brief writes nothing",
+      _parsed == {"brief": {"decision": "keep one arm"}, "say": "What do you expect to see?", "choices": ["Keep one arm", "Keep both", "c", "d"]}
+      and arch.parse('{"say": "Ready."}') == {"brief": {}, "say": "Ready.", "choices": []} and arch.parse('note {"say": "x", "brief": ["no"], "choices": "no"} end') == {"brief": {}, "say": "x", "choices": []}
+      and arch.parse('I could write {this}:\n```json\n{"say": "x"}\n```')["say"] == "x"
+      and len(arch.parse(json.dumps({"say": "y" * 900}))["say"]) == arch.SAY_CHARS == 600, _parsed)
+check("architect.parse: a reply that is not the object asked for says what is wrong with it - no object, JSON that does not parse, not an object, no message",
+      _unreadable("I would ask about the decision.") == "it holds no JSON object" and _unreadable("") == "it holds no JSON object" and _unreadable('{"say": "x",}').startswith("its JSON does not parse: ")
+      and _unreadable('{"brief": {}}') == 'it has no "say"' and _unreadable('{"say": "  "}') == 'it has no "say"' and _unreadable("[1, 2]") == "it holds no JSON object",
+      [_unreadable(t) for t in ("x", '{"say": "x",}', '{"brief": {}}', "[1, 2]")])
+_ab = arch.block({**_wb, "thinks": "B is better"})
+check("architect.block: the brief as the Architect reads it - every part under the name its reply uses, the lists a line each, an empty part said to be empty, with the version that stands",
+      _ab == ("BRIEF (version 4):\ndecision: keep one arm\nthinks: B is better\nrests_on:\n- B looked better\n- a count from the data\nexpects: (empty)\nwould_change: (empty)\nalso_check:\n- the two halves differ\n"
+              "fixed.comparison: (empty)\nfixed.measure: x\nfixed.period: (empty)")
+      and arch.block({"question": "q"}).splitlines()[:4] == ["BRIEF (version 1):", "decision: (empty)", "thinks: (empty)", "rests_on: (empty)"], _ab)
+_anb = Notebook("arch")
+_a0 = _anb.new_run("Does B beat A?"); _a0.status = "answered"; _a0.brief = {"decision": "d", "version": 2}
+_a0.report = "B beats A by 3 units. It holds in both halves.\n\n## Against the brief\n- Expected: not met - the gap is 3\n- Would change their mind: seen\n\n## Did not fit\n- The late rows lag.\n- One site reverses."
+_a0.brief_outcome = briefs.outcome(_a0.report)
+_a1 = _anb.new_run("And on x?", _a0.id); _a1.status = "asked"; _a1.turns.append(Turn(kind="cell", code="1")); _a1.turns.append(Turn(kind="ask", text="The data has no x.\nShall I use y?"))
+_a2 = _anb.new_run("Use y.", _a1.id); _a2.status = "framing"; _a2.framing = briefs.version({}, {"question": "Use y.", "decision": "d"}, changed=["from the last brief"])
+_ae = arch.earlier(_anb, _a2.id)
+check("architect.earlier: the analyses the question follows, oldest first - each one's question and what it found, how the result stood against its brief and what did not fit; where the analyst stopped and "
+      "asked, what it asked, on one line; nothing for a question that follows none",
+      _ae == ("EARLIER (the analyses this question follows, oldest first):\n[1] Q: Does B beat A?\n    Found: B beats A by 3 units. It holds in both halves.\n"
+              "    Against its brief - what they expected: not met; what would change their mind: seen\n    Did not fit: The late rows lag.; One site reverses.\n"
+              "[2] Q: And on x?\n    The analyst stopped and asked: The data has no x. Shall I use y?")
+      and arch.earlier(_anb, _a0.id) == "" and arch.earlier(_anb, "nowhere") == "", _ae)
+_ap = arch.prompt("Use y.", briefs.latest(_a2.framing), [{"who": "architect", "text": "Ready?"}, {"who": "person", "text": "yes"}], data="`df`: 3 rows", before=_ae)
+check("architect.prompt: what does not change from one reply to the next comes first - the data's description, the analyses the question follows - then the question, the brief, the conversation under who "
+      "said what, and one line asking for the object; without data or earlier analyses those parts are not there, and a conversation not yet begun says so",
+      _ap == "DATA:\n`df`: 3 rows\n\n" + _ae + "\n\nQUESTION:\nUse y.\n\n" + arch.block(briefs.latest(_a2.framing)) + "\n\nCONVERSATION:\nArchitect: Ready?\nPerson: yes\n\nReply with the JSON object."
+      and arch.prompt("q", {"question": "q"}, []) == "QUESTION:\nq\n\n" + arch.block({"question": "q"}) + "\n\nCONVERSATION:\n(nothing yet)\n\nReply with the JSON object.", _ap)
+
+def _arch_llm(replies, usage=None):
+    seen = []
+    def llm(system, user, **kw):
+        seen.append((system, user, kw))
+        return replies.pop(0), dict(usage or {"cost": 0.004})
+    return llm, seen
+_xn = Notebook("x"); _xr = _xn.new_run("Is B above A?"); _xr.status = "framing"; _xr.framing = briefs.version({}, {"question": _xr.question})
+_llm1, _seen1 = _arch_llm([json.dumps({"brief": {"fixed": {"comparison": "B against A"}}, "say": "What will you do differently depending on the answer?", "choices": ["Keep B", "Keep A"]})])
+_f1 = arch.exchange(_llm1, _xn, _xr, None, data="`df`: 3 rows")
+check("architect.exchange, its first turn: one call - its instructions, the prompt with the brief as it stands and no conversation, the lowered effort - and the reply taken in: the part it wrote as one more "
+      "version, the Architect's, made from the question; its message with its choices in the conversation, with the version that then stands, what the call cost and the call's number; the run's own framing not touched",
+      len(_seen1) == 1 and _seen1[0][0] == arch.SYSTEM and _seen1[0][1] == arch.prompt(_xr.question, briefs.latest(_xr.framing), [], "`df`: 3 rows") and _seen1[0][2] == {"effort": ("low", "medium")}
+      and [(v["n"], v["by"], v.get("why"), v["changed"]) for v in _f1["versions"]] == [(1, "person", None, []), (2, "architect", "question", ["fixed.comparison"])]
+      and _f1["versions"][1]["brief"] == {"fixed": {"comparison": "B against A"}, "question": "Is B above A?"}
+      and _f1["turns"] == [{"who": "architect", "text": "What will you do differently depending on the answer?", "choices": ["Keep B", "Keep A"], "v": 2, "cost": 0.004, "call": 1}] and _f1["calls"] == 1
+      and len(_xr.framing["versions"]) == 1 and "turns" not in _xr.framing, _f1)
+_xr.framing = _f1
+_llm2, _seen2 = _arch_llm(["I think the decision is clear.", json.dumps({"brief": {"decision": "Keep B"}, "say": "What do you expect to see?"})])
+_f2 = arch.exchange(_llm2, _xn, _xr, "  Keep B  ", data="`df`: 3 rows")
+check("architect.exchange, an answer: the person's message joins the conversation the Architect reads; a reply that cannot be read is asked for once more, with what was wrong with it; the reply kept is written "
+      "in as a version made from the answer, and its message carries the cost of both calls and the number of the second",
+      len(_seen2) == 2 and "CONVERSATION:\nArchitect: What will you do differently depending on the answer?\nPerson: Keep B\n\nReply with the JSON object." in _seen2[0][1]
+      and _seen2[1][1] == _seen2[0][1] + "\n\nYour last reply could not be read: it holds no JSON object. Reply with the JSON object and nothing else."
+      and (_f2["versions"][2]["by"], _f2["versions"][2]["why"], _f2["versions"][2]["changed"], _f2["versions"][2]["brief"]["decision"]) == ("architect", "answer", ["decision"], "Keep B")
+      and _f2["turns"][1:] == [{"who": "person", "text": "Keep B"}, {"who": "architect", "text": "What do you expect to see?", "v": 3, "cost": 0.008, "call": 3}] and _f2["calls"] == 3, (_f2["turns"], [u[-120:] for _, u, _ in _seen2]))
+_xr.framing = _f2
+_llm3, _seen3 = _arch_llm([json.dumps({"say": "The brief is ready: start the analysis, or change a line."})])
+_f3 = arch.exchange(_llm3, _xn, _xr, "skip", data="")
+check("architect.exchange: a reply that writes nothing makes no version - the message alone joins the conversation, with the version that stands; without a data description the prompt has no DATA part",
+      len(_f3["versions"]) == 3 and _f3["turns"][-2:] == [{"who": "person", "text": "skip"}, {"who": "architect", "text": "The brief is ready: start the analysis, or change a line.", "v": 3, "cost": 0.004, "call": 4}]
+      and _seen3[0][1].startswith("QUESTION:\nIs B above A?\n\nBRIEF (version 3):\ndecision: Keep B\n"), (_f3["turns"][-2:], _seen3[0][1][:80]))
+def _failed(replies, usage=None, run=_xr, text="B above A by 2"):
+    llm, seen = _arch_llm(list(replies), usage)
+    try:
+        arch.exchange(llm, _xn, run, text)
+    except arch.Failed as exc:
+        return str(exc), exc.calls, round(exc.cost, 4), len(seen)
+    return None
+_stood = json.dumps(_xr.framing, sort_keys=True)
+_xfull = _xn.new_run("q"); _xfull.status = "framing"
+_xfull.framing = {"versions": briefs.version({}, {"question": "q"})["versions"], "turns": [{"who": "architect", "text": "?"}] * arch.TURNS_MAX}
+check("architect.exchange, no reply to keep: unreadable twice, the reason in words with the two calls and their cost; a reply cut at the token limit says so; a request the model declined is not asked again; a brief "
+      "the Architect has replied to twelve times gets no further call. Nothing of a failed exchange is kept",
+      _failed(["no", "still no"]) == ("The Architect's reply could not be read (it holds no JSON object).", 2, 0.008, 2)
+      and _failed(['{"say": "x', '{"say": "x'], {"cost": 0.01, "truncated": True}) == ("The Architect's reply could not be read (it was cut off at the token limit).", 2, 0.02, 2)
+      and _failed([""], {"cost": 0.0, "declined": "policy"}) == ("The model declined to reply (policy).", 1, 0.0, 1)
+      and _failed(["x"], run=_xfull) == ("The Architect has replied 12 times in this brief. Change the brief yourself, or start the analysis.", 0, 0.0, 0)
+      and json.dumps(_xr.framing, sort_keys=True) == _stood, (_failed(["no", "still no"]), _failed([""], {"cost": 0.0, "declined": "policy"}), _failed(["x"], run=_xfull)))
+_llm4, _seen4 = _arch_llm([json.dumps({"say": "ok"})])
+_f4 = arch.exchange(_llm4, _anb, _a2, "y" * 5000, data="d")
+check("architect.exchange: a follow-up's prompt carries the analyses it follows; the person's message is bounded as a question is; a brief that starts from the last one reads it as it stands",
+      "\n\n" + _ae + "\n\nQUESTION:\nUse y.\n\nBRIEF (version 1):\ndecision: d\n" in _seen4[0][1] and len(_f4["turns"][0]["text"]) == briefs.QUESTION_CHARS and _f4["versions"] == _a2.framing["versions"], _seen4[0][1][:300])
+_atexts = {"the Architect's instructions": arch.SYSTEM}
+for _k, _t in enumerate(_authored_strings("analyst/architect.py")):
+    _atexts[f"analyst/architect.py string {_k}"] = _t
+check("the Architect's instructions: who it is, every part of the brief under the name its reply uses, the reply's form; and the standing rules hold for its texts - none of the tested tasks' vocabulary, no "
+      "section named for thinking or reasoning - in the instructions and in every string of analyst/architect.py",
+      arch.SYSTEM.startswith("You are the Architect.") and all(f"`{k}`" in arch.SYSTEM for k in ("decision", "thinks", "rests_on", "expects", "would_change", "also_check", "fixed", "comparison", "measure", "period", "brief", "drop", "say", "choices"))
+      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 4000
+      and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}
+      and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", arch.SYSTEM),
+      ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}, len(arch.SYSTEM)))
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

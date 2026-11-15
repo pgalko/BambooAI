@@ -105,6 +105,7 @@ class BambooAI:
         # Storage: the notebook tree, one file per thread, under the user's storage.
         self.store = NotebookStore(self._user_storage())
         self.notebook = None
+        self._framed = set()             # the chains the Architect talked in whose analysis has not run: their calls are not charged yet
 
         # The kernel: one per thread, kept warm between runs; rehydrated on a branch.
         self._kernel = None
@@ -172,6 +173,12 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Figures' if 'Figures' in agents else self._seat()
 
+    def _architect_seat(self):
+        """The seat the Architect runs on (docs/ARCHITECT_DESIGN.md, decision 28): 'Architect' when the config carries
+        one, else the analyst seat. Either way its calls are logged as the Architect's (_llm's `label`)."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return 'Architect' if 'Architect' in agents else self._seat()
+
     def _promoter_seat(self):
         """The seat Save as routine's one model call runs on (2026-10-10): 'Promoter' when the config carries one -
         its own model, effort and token allowance, since the reply is a JSON object of edits that a seat tuned for
@@ -180,7 +187,7 @@ class BambooAI:
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
     def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
-             effort=None, **hints):
+             effort=None, label: str = None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
@@ -194,7 +201,8 @@ class BambooAI:
         `effort` lowers the seat's effort for this call - a word, or words in
         order of preference, the first the model accepts (the analyst's report
         turn and its second attempts, 2026-10-18); the usage says the effort the
-        call was asked at."""
+        call was asked at. `label` is the name the call is logged under when
+        it is not the seat's (the Architect on the analyst's seat)."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
         before = self._chain_cost()
@@ -202,7 +210,8 @@ class BambooAI:
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
                                agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=self.chain_id,
-                               reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}))
+                               reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}),
+                               **({"label": label} if label else {}))
         if isinstance(text, tuple):
             text = text[0]
         # whether the reply was cut at the seat's max_tokens (the model layer records it per request; 2026-10-06: a turn
@@ -1225,6 +1234,46 @@ class BambooAI:
         self.store.save(nb)
         return run.framing
 
+    def architect_say(self, thread_id, run_id, text=None):
+        """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
+        first turn - and its reply, taken into the brief and the conversation. The calls are the run's own: logged
+        under its chain as the Architect's, and charged with its analysis - or when the instance is torn down, if no
+        analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
+        architect.Failed with the reason to show."""
+        from analyst import architect
+        self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
+        self._stop_event.clear()
+        self._on_thread(thread_id)
+        run = self.notebook.runs.get(str(run_id))
+        if run is None or run.status != "framing":
+            return None
+        seat = self._architect_seat()
+        keep, self.chain_id = self.chain_id, (int(run_id) if str(run_id).isdigit() else run_id)      # the cost is counted by chain
+        self._framed.add(self.chain_id)
+        try:
+            run.framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
+                                             self.notebook, run, text, data=self._data_description())
+        except architect.Failed as exc:
+            # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
+            run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
+            raise
+        finally:
+            self.chain_id = keep
+            self.store.save(self.notebook)
+            try:
+                self.store.record(self.notebook, run)           # the usage ledger's line: a brief never run is named there too
+            except Exception:                                  # noqa: BLE001
+                logger.warning("The framing run's ledger line was not kept", exc_info=True)
+        return run.framing
+
+    def _on_thread(self, thread_id):
+        """The instance on this thread: its record in hand; a kernel that held another thread's names is dropped."""
+        self.thread_id = thread_id
+        self.log_and_call_manager.thread_id = self.thread_id
+        if self.notebook is None or self.notebook.thread_id != str(self.thread_id):
+            self.notebook = self.store.load(self.thread_id)
+            self._drop_kernel()
+
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
                           image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None, brief=None,
                           run_id=None):
@@ -1245,11 +1294,7 @@ class BambooAI:
             return
 
         # thread and position
-        self.thread_id = thread_id if thread_id is not None else utils.next_thread_id()
-        self.log_and_call_manager.thread_id = self.thread_id
-        if self.notebook is None or self.notebook.thread_id != str(self.thread_id):
-            self.notebook = self.store.load(self.thread_id)
-            self._drop_kernel()
+        self._on_thread(thread_id if thread_id is not None else utils.next_thread_id())
         self._sync_documents()                       # the thread's documents into the kernel's folder
         parent = str(chain_id) if chain_id is not None and str(chain_id) in self.notebook.runs else None
         parent_for_ui = chain_id if parent is not None else None      # the browser's own value, same type
@@ -1347,6 +1392,7 @@ class BambooAI:
                     self.log_and_call_manager.charge_for_completed_query(self.chain_id)
             except Exception:                                  # noqa: BLE001
                 pass
+            self._framed.discard(self.chain_id)                # the Architect's calls in this chain were charged with it
             try:
                 _run = self.notebook.runs.get(str(self.chain_id)) if self.notebook else None
                 if _run is not None and not _run.data:
@@ -1453,6 +1499,12 @@ class BambooAI:
 
     def cleanup(self):
         self._drop_kernel()
+        for chain in list(self._framed):                       # briefs the Architect talked in and no analysis followed: their calls are charged now
+            try:
+                self.log_and_call_manager.charge_for_completed_query(chain)
+            except Exception:                                  # noqa: BLE001
+                pass
+        self._framed.clear()
         try:
             self.log_and_call_manager.consolidate_logs()
         except Exception:                                      # noqa: BLE001

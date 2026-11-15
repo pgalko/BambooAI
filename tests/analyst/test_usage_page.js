@@ -157,7 +157,8 @@ check('callTip: the seat and model, when and how long, the tokens with the cache
   && el(b.callTip(Object.assign({}, DET.calls[0], { cached: null }))).textContent.includes('cache not recorded'));
 check('the outcome words (2026-10-31, from the product owner reading "answered" as the general success): every chip carries its gloss, the detail pane spells it out, the filter\'s options say what each word means',
   el(chip_('reproduced')).querySelector('.rt-status').getAttribute('title') === 'answered; the replay re-ran the cells and the cited numbers matched' && el(chip_('answered')).querySelector('.rt-status').getAttribute('title') === 'answered; no replay on record'
-  && el(chip_('failed at cell 4')).querySelector('.rt-status').getAttribute('title') === 'the run failed; the last error was in cell 4' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
+  && el(chip_('failed at cell 4')).querySelector('.rt-status').getAttribute('title') === 'the run failed; the last error was in cell 4'
+  && el(chip_('not run')).querySelector('.rt-status').getAttribute('title') === 'a brief written with the Architect; its analysis was not started' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
   && [...el(b.analysesTab(DATA, ST)).querySelectorAll('[data-outcome] option')].map(o => o.textContent).join('|') === 'Every outcome|answered — no replay on record|failed|reproduced — replay matched');
 d = el(b.detail(Object.assign({}, DET, { analysis: AN[0] })));
 check('detail of a chain the thread store does not know (Save as routine): no title, no "open the analysis"', !d.querySelector('.open') && txt(d, '.us-detail-h .q') === 'Save as routine: the proposal' && !d.querySelector('.us-detail-h .muted'));

@@ -248,8 +248,11 @@ def _ledger_lines(store_dir):
 
 
 def outcome(f):
-    """One word for how the run ended: answered | reproduced | differed | replay failed | failed at cell n | refused | stopped | asked | running."""
+    """One word for how the run ended: answered | reproduced | differed | replay failed | failed at cell n | refused | stopped | asked | running |
+    not run (a brief written with the Architect whose analysis was not started)."""
     s = f.get("status") or ""
+    if s == "framing":
+        return "not run"
     if s == "failed":
         return "refused" if f.get("refused") else (f"failed at cell {f['failed_at']}" if f.get("failed_at") else "failed")
     if s in ("stopped", "asked", "running"):

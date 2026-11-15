@@ -938,6 +938,7 @@ class Session:
         if framed is not None and framed.status == "framing":
             run = framed                                  # the brief was written in this run: its analysis is the same run (one box on the map)
             run.question, run.status = question, "running"
+            run.created = time.time()                     # the analysis starts now: its time on the usage record leaves the framing out
         else:
             run = self.nb.new_run(question, parent, run_id=run_id)
         # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in

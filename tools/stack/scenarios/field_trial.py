@@ -50,6 +50,11 @@ DOC_QUESTION = "What do the field notes say about the wet season?"
 # the Architect (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief filled by hand, then run
 BRIEF_QUESTION = "Is regime C worth switching to from regime A?"
 BRIEF_ANSWER = "Use yield instead."                # the person's answer when the analyst asks about a measure the data lacks
+# the Architect's questions, in the order of its instructions (analyst/architect.md), each with the part it asks for
+ARCHITECT_ASKS = (("decision", "What will you do differently depending on the answer?"),
+                  ("thinks", "What do you think is going on, and what makes you think so?"),
+                  ("expects", "What do you expect to see?"))
+ARCHITECT_READY = "The brief is ready: start the analysis, or change a line."
 
 
 def make_dataset(path, seed=20260909):
@@ -280,6 +285,8 @@ class Scenario:
                         f"- Verdict: REPORT the comparison the question requires is made and its uncertainty stated [cell {last}].")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
+        if system.startswith("You are the Architect"):
+            return "", self.architect(user)
         if system.startswith("You are drawing the figures"):
             return "", self.figures(user)
         if system.startswith("You are the Reader"):
@@ -287,6 +294,44 @@ class Scenario:
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user, system)
         return "", "OK"
+
+    # ------------------------------------------------------------ the Architect (docs/ARCHITECT_DESIGN.md §2.12)
+    def architect(self, user):
+        """The Architect's reply, read off its prompt (analyst/architect.py). On its first turn it writes what the
+        question states: the two regimes it compares, or - where the analyst had stopped and asked - the measure the
+        person's answer names. After that the person's last message goes, as they gave it, into the part that was
+        asked for ("... because ..." also gives what the view rests on; "The measure is ..." changes what is fixed;
+        "skip" leaves the part empty). Then it asks for the next part still empty and not yet asked for, with two
+        choices where the question names two courses, and says the brief is ready when nothing is left."""
+        find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
+        question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(")
+        empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
+        talk = re.findall(r"^(Architect|Person): (.*)$", find(r"^CONVERSATION:\n(.*?)\n\nReply with"), re.M)
+        asked = [key for key, ask in ARCHITECT_ASKS if ("Architect", ask) in talk]
+        pair = re.search(r"regime (\w)\b.*\bregime (\w)\b", question)
+        writes = {}
+        if not talk:
+            other = re.match(r"(?i)use (\w+) instead", question)
+            if other and "The analyst stopped and asked:" in user:
+                return json.dumps({"brief": {"fixed": {"measure": other.group(1)}}, "say": ARCHITECT_READY})
+            if pair and empty("fixed.comparison"):
+                writes["fixed"] = {"comparison": f"regime {pair.group(1)} against regime {pair.group(2)}"}
+        elif talk[-1][0] == "Person":
+            said = talk[-1][1].strip()
+            measure = re.match(r"(?i)the measure is (.+?)\.?$", said)
+            if measure:
+                writes["fixed"] = {"measure": measure.group(1)}
+            elif asked and said.lower() != "skip":
+                if asked[-1] == "thinks" and " because " in said:
+                    view, ground = said.split(" because ", 1)
+                    writes.update(thinks=view.strip() + ".", rests_on=[ground.strip()[:1].upper() + ground.strip()[1:]])
+                else:
+                    writes[asked[-1]] = said
+        nxt = next(((key, ask) for key, ask in ARCHITECT_ASKS if key not in asked and key not in writes and empty(key)), None)
+        reply = {"brief": writes, "say": nxt[1] if nxt else ARCHITECT_READY}
+        if nxt and nxt[0] == "decision" and pair:
+            reply["choices"] = [f"Switch to regime {pair.group(1)}", f"Keep regime {pair.group(2)}"]
+        return json.dumps(reply)
 
     # ------------------------------------------------------------ the promoter (routines, docs/ROUTINES_DESIGN.md)
     def promoter(self, user, system=""):

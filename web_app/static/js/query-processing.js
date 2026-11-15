@@ -58,10 +58,11 @@ function handleQuerySubmit(options = {}) {
     }
 
     if (window.ArchitectUI && !framed) {
-        // a brief not yet run is on screen: only its own analysis starts from it
+        // a brief not yet run is on screen: what is typed is said to the Architect, and nothing else starts from it
         if (window.ArchitectUI.framingInView()) {
             answerTabSynthesis = false;
-            showSystemMessage('This brief has not been run: start its analysis, or open another chain');
+            if (typed) window.ArchitectUI.tell(query);
+            else showSystemMessage('This brief has not been run: start its analysis, or open another chain');
             return;
         }
         // a typed question with the Architect on is framed first: its brief opens, and nothing runs until Start analysis

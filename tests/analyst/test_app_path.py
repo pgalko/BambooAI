@@ -34,7 +34,12 @@ class FakeModels:
         user = raw if isinstance(raw, str) else "\n".join(str(p.get("text") or "") for p in raw if isinstance(p, dict) and p.get("type") == "text")
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
-        lacm.write_to_log(agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
+        lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
+        if messages[0]["content"].startswith("You are the Architect"):
+            state.setdefault("architect_seen", []).append((agent, kw, messages[0]["content"], user))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["architect"].pop(0) if state.get("architect") else '{"say": "The brief is ready: start the analysis, or change a line."}'
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
@@ -1599,7 +1604,11 @@ except Exception as exc:                                     # noqa: BLE001
 try:
     import architect_routes as AR
     import types as _tps
-    _app_was = sys.modules.get("app"); sys.modules["app"] = _tps.SimpleNamespace(get_bamboo_ai=lambda sid: BAMBOO)      # the route asks the app for the instance
+    _auth = {"counted": [], "refuse": None}                 # the app's authorisation, as the routes ask it: whether each query counted, and the refusal to give
+    def _refusal(count=True):
+        _auth["counted"].append(bool(count))
+        return _auth["refuse"]
+    _app_was = sys.modules.get("app"); sys.modules["app"] = _tps.SimpleNamespace(get_bamboo_ai=lambda sid: BAMBOO, query_refusal=_refusal)      # the route asks the app for the instance
     _wa = Flask("ta"); _wa.secret_key = "t"; _wa.register_blueprint(AR.architect_bp); _wac = _wa.test_client()
     with _wac.session_transaction() as _sess: _sess["session_id"] = "s1"
     _keep_script, _keep_i = state["script"], state["i"]
@@ -1660,6 +1669,95 @@ try:
               "brief": {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "question": "And on the other half?"}}
           and str(_op3["thread_id"]) != "1077" and _op3["parent_chain_id"] is None and _other[str(_op3["chain_id"])]["status"] == "framing" and BAMBOO.notebook.thread_id == "1077",
           (_late.status_code, _frun2.framing, _op3))
+    # ---- the Architect talks (0297, §2.12): one exchange is one model call - the run's own, logged as the Architect's
+    from analyst import architect as _arch
+    def _say(payload):
+        r = _wac.post("/architect/say", json=payload)
+        return r.status_code, [json.loads(ln) for ln in r.get_data(as_text=True).splitlines() if ln.strip()]
+    def _logged(chain):
+        return [e.get("agent") for e in json.load(open(BAMBOO.log_and_call_manager.run_log_file_path)) if str(e.get("chain_id")) == str(chain)]
+    _charged = []
+    _keep_charge = BAMBOO.log_and_call_manager.charge_for_completed_query
+    BAMBOO.log_and_call_manager.charge_for_completed_query = lambda chain: (_charged.append(chain), True)[1]
+    while not q.empty(): q.get()
+    _c2 = _op2["chain_id"]
+    state["architect"] = ['{"brief": {"fixed": {"comparison": "B against A"}}, "say": "What will you do differently depending on the answer?", "choices": ["Keep B", "Keep A"]}']
+    state["architect_seen"] = []
+    BAMBOO.kill_signal = True; BAMBOO._stop_event.set()                       # a run stopped earlier left the signal set
+    _n5, _chain_was, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, []
+    _st5, _ln5 = _say({"thread_id": "1077", "chain_id": _c2})
+    _seat5, _kw5, _sys5, _user5 = state["architect_seen"][-1]
+    check("/architect/say, the Architect's first turn: a stream that ends on the framing; one model call - its instructions, on the analyst's seat at a lowered effort, logged as the Architect's under the brief's own "
+          "chain - whose prompt has the data's description, the analyses the question follows with how the last stood against its brief, the question, the brief as it stands and no conversation yet",
+          _st5 == 200 and _ln5[-1] == {"architect": {"framing": _frun2.framing}} and len(state["calls"]) == _n5 + 1 and _seat5 == "Investigator" and _kw5.get("label") == "Architect"
+          and _kw5.get("reasoning_effort") == ("low", "medium") and _sys5 == _arch.SYSTEM and _user5.startswith("DATA:\n") and "EARLIER (the analyses this question follows, oldest first):\n[1] Q: " in _user5
+          and "] Q: Is B above A, on x?\n    Found: " in _user5 and "    Against its brief - what they expected: met" in _user5
+          and "\n\nQUESTION:\nAnd on the other half?\n\nBRIEF (version 1):\ndecision: which arm to keep\n" in _user5 and _user5.endswith("CONVERSATION:\n(nothing yet)\n\nReply with the JSON object.")
+          and _logged(_c2) == ["Architect"], (_st5, _ln5[-1], _seat5, _kw5, _user5[-600:], _logged(_c2)))
+    _file5 = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][str(_c2)]
+    check("the reply is taken into the run's framing, on the record: the part the Architect wrote as one more version, its own, made from the question, the first still saying it came from the last brief; its "
+          "message with its choices in the conversation. The instance is where it was - its chain, no stop signal left - the brief is noted as one whose calls are still to be charged, the query was authorised "
+          "without being counted, and the usage ledger has the brief's line",
+          [(v["n"], v["by"], v.get("why"), v["changed"]) for v in _frun2.framing["versions"]] == [(1, "person", None, ["from the last brief"]), (2, "architect", "question", ["fixed.comparison"])]
+          and _frun2.framing["versions"][1]["brief"]["fixed"] == {"measure": "x", "comparison": "B against A"}
+          and [(t["who"], t["text"], t.get("choices"), t.get("v"), t.get("call")) for t in _frun2.framing["turns"]] == [("architect", "What will you do differently depending on the answer?", ["Keep B", "Keep A"], 2, 1)]
+          and _frun2.framing["calls"] == 1 and _frun2.status == "framing" and _file5["framing"] == _frun2.framing
+          and BAMBOO.chain_id == _chain_was and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set() and BAMBOO._framed == {int(_c2)} and _auth["counted"] == [False]
+          and BAMBOO.store.ledger()[str(_c2)]["status"] == "framing", (_frun2.framing, BAMBOO._framed, _auth["counted"]))
+    state["architect"] = ["I would ask about the decision.", '{"brief": {"decision": "Keep B"}, "say": "What do you expect to see?"}']
+    _st6, _ln6 = _say({"thread_id": "1077", "chain_id": _c2, "text": "  Keep B  "})
+    check("/architect/say, an answer: the coach's words join the conversation the Architect reads; a reply that cannot be read is asked for once more; the reply kept is a version made from the answer, and its "
+          "message carries the number of the call that brought it - the log holds three calls of the Architect's in this chain",
+          _st6 == 200 and _ln6[-1] == {"architect": {"framing": _frun2.framing}} and "Person: Keep B\n" in state["architect_seen"][-1][3] and "Your last reply could not be read: it holds no JSON object." in state["architect_seen"][-1][3]
+          and [(t["who"], t["text"]) for t in _frun2.framing["turns"][1:]] == [("person", "Keep B"), ("architect", "What do you expect to see?")] and _frun2.framing["turns"][2]["call"] == 3 and _frun2.framing["calls"] == 3
+          and (_frun2.framing["versions"][2]["by"], _frun2.framing["versions"][2]["why"], _frun2.framing["versions"][2]["brief"]["decision"]) == ("architect", "answer", "Keep B")
+          and _logged(_c2) == ["Architect"] * 3, (_ln6[-1], _frun2.framing["turns"], _logged(_c2)))
+    _stood6 = json.dumps({k: v for k, v in _frun2.framing.items() if k != "calls"}, sort_keys=True)
+    state["architect"] = ["no", "still no"]
+    _st7, _ln7 = _say({"thread_id": "1077", "chain_id": _c2, "text": "B above A by 2"})
+    _n7 = len(state["calls"])
+    _st8, _ln8 = _say({"thread_id": "1077", "chain_id": _opj["chain_id"], "text": "too late"})
+    _st9 = _wac.post("/architect/say", json={"thread_id": "1077"}).status_code
+    check("/architect/say, no reply to keep: the stream ends on the reason, in words; the brief and the conversation stand as they did, and only the calls are counted, so the next reply's number is right. A brief "
+          "whose analysis has started is refused without a call; a request without its chain is refused",
+          _st7 == 200 and _ln7[-1] == {"architect": {"error": "The Architect's reply could not be read (it holds no JSON object)."}}
+          and json.dumps({k: v for k, v in _frun2.framing.items() if k != "calls"}, sort_keys=True) == _stood6 and _frun2.framing["calls"] == 5 and _logged(_c2) == ["Architect"] * 5
+          and _ln8[-1] == {"architect": {"error": "This brief can no longer be changed: its analysis has started."}} and len(state["calls"]) == _n7 and _st9 == 400, (_ln7[-1], _frun2.framing["calls"], _ln8[-1], _st9))
+    _auth["counted"], _auth["refuse"] = [], ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
+    _runs9 = len(BAMBOO.notebook.runs)
+    _r_open = _wac.post("/architect/open", json={"question": "One more?", "thread_id": "1077", "chain_id": _prun.id})
+    _r_say = _wac.post("/architect/say", json={"thread_id": "1077", "chain_id": _c2, "text": "again"})
+    _auth["refuse"] = None
+    _op6 = _wac.post("/architect/open", json={"question": "One more?", "thread_id": "1077", "chain_id": _prun.id}).get_json()
+    check("a framed question is a query for the account: authorised when its brief opens and at each exchange - a refusal is the app's own answer, with no run made and no call - and counted once, when the brief opens",
+          _r_open.status_code == 403 and _r_open.get_json()["message"].startswith("You need $0.010 per query") and _r_say.status_code == 403 and _r_say.get_json()["error"] == "authorization_failed"
+          and len(state["calls"]) == _n7 and _auth["counted"] == [True, False, True] and len(BAMBOO.notebook.runs) == _runs9 + 1 and str(_op6["chain_id"]) in BAMBOO.notebook.runs,
+          (_r_open.status_code, _r_say.status_code, _auth["counted"]))
+    # another thread: the instance follows the conversation there
+    state["architect"] = ['{"say": "What will you do differently depending on the answer?"}']
+    _st10, _ln10 = _say({"thread_id": _op3["thread_id"], "chain_id": _op3["chain_id"]})
+    _user10 = state["architect_seen"][-1][3]
+    check("the Architect in a brief on another thread: the instance goes there, as it does for a run - that thread's record in hand, the usage filed under it, the other thread's kernel dropped; a question that follows "
+          "no analysis has no EARLIER part; a reply that writes nothing makes no version",
+          _st10 == 200 and BAMBOO.notebook.thread_id == str(_op3["thread_id"]) and str(BAMBOO.log_and_call_manager.thread_id) == str(_op3["thread_id"]) and BAMBOO._kernel is None
+          and "EARLIER" not in _user10 and "QUESTION:\nSomething else, elsewhere\n\nBRIEF (version 1):" in _user10 and len(_ln10[-1]["architect"]["framing"]["versions"]) == 1
+          and [t["who"] for t in _ln10[-1]["architect"]["framing"]["turns"]] == ["architect"] and BAMBOO._framed == {int(_c2), int(_op3["chain_id"])}, (_st10, BAMBOO.notebook.thread_id, _user10[:200], BAMBOO._framed))
+    # the analysis of a brief the Architect talked in: one chain on the log, charged once; a brief never run is charged when the instance goes
+    import time as _time
+    _opened, _before = _frun2.created, _time.time()
+    _n11 = len(state["calls"])
+    state.update(i=0, script=_BRIEFED); BAMBOO.output_manager.add_user_input(_frun2.question)
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=_prun.id, mode="deep", run_id=_c2)
+    while not q.empty(): q.get()
+    _ran2 = BAMBOO.notebook.runs[str(_c2)]                   # the thread's record was read again when the instance came back to it
+    _log11 = _logged(_c2)
+    check("the analysis of a brief the Architect talked in: the same chain - on the log the Architect's five calls, then the analyst's own under its seat, so its first turn is its seat's first call; the chain is "
+          "charged once, when the analysis ends, and is no longer waiting to be; the run's clock starts with the analysis, not with the brief",
+          _ran2.status == "answered" and _ran2.brief["decision"] == "Keep B" and _ran2.brief["version"] == 3 and _log11[:5] == ["Architect"] * 5 and "Architect" not in _log11[5:] and _log11[5] == "Investigator"
+          and _charged == [int(_c2)] and BAMBOO._framed == {int(_op3["chain_id"])} and _ran2.created >= _before > _opened and len(_ran2.framing["turns"]) == 3, (_ran2.status, _log11, _charged, BAMBOO._framed))
+    BAMBOO.cleanup()
+    check("a brief the Architect talked in and no analysis followed: its calls are charged when the instance is torn down, once", _charged == [int(_c2), int(_op3["chain_id"])] and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
+    BAMBOO.log_and_call_manager.charge_for_completed_query = _keep_charge
     state["script"], state["i"] = _keep_script, _keep_i
     sys.modules["app"] = _app_was
 except Exception as exc:                                     # noqa: BLE001

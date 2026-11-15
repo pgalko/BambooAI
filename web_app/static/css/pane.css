@@ -105,7 +105,15 @@
 #streamOutput .sp-telemetry { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
 #streamOutput .sp-telemetry > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-tertiary); }
 #streamOutput .sp-telemetry pre { margin: 6px 0 0; padding: 8px 10px; background: var(--code-bg); border: 1px solid var(--border-color); border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.4; color: var(--text-secondary); white-space: pre-wrap; }
-/* ---- the Architect in the left pane (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the coach's question as a card; once the analysis starts, the framing is one folded row above the run ---- */
+/* ---- the Architect in the left pane (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the conversation as cards - the coach's and the Architect's, its choices as pills; once the analysis starts, the framing is one folded row above the run ---- */
 #streamOutput .ar-msg { margin-left: 10px; padding: 7px 12px 8px; border: 1px solid var(--border-color); border-radius: 6px; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
 #streamOutput .ar-msg .who { display: block; margin-bottom: 2px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
 #streamOutput .ar-fold .ar-msg { margin: 8px 10px; background: var(--bg-primary); }
+#streamOutput .ar-msg.arch { border-left: 3px solid var(--c-model); background: var(--bg-secondary); }
+#streamOutput .ar-msg.arch .who { color: var(--c-model); }
+#streamOutput .ar-msg.arch .sp-prompt { float: right; margin: 0; text-transform: none; letter-spacing: 0; }
+#streamOutput .ar-msg.wait { color: var(--text-tertiary); font-style: italic; }
+#streamOutput .ar-msg.wait .who { font-style: normal; }
+#streamOutput .ar-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
+#streamOutput .ar-choice { padding: 3px 12px; border: 1px solid var(--chip-model-border); border-radius: 999px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; text-align: left; cursor: pointer; }
+#streamOutput .ar-choice:hover { background: var(--accent-bg-hover); }

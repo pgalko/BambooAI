@@ -27,7 +27,9 @@ STATES = {
     'dlg_endura': "document.getElementById('enduraModal').style.display='flex'; document.getElementById('enduraRaceSelect').innerHTML='<option>Spring classic 2026</option>';",
     'dlg_intervals_cfg': "document.getElementById('intervalsConfigModal').style.display='flex';",
     'dlg_codebook': "CodebookUI.open();",
-    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # a brief written by hand, one line open (docs/ARCHITECT_DESIGN.md §2.11)
+    'architect_talk': ARCHITECT + "galleryArchitect.talk();",          # the Architect's first question, with its choices (docs/ARCHITECT_DESIGN.md §2.12)
+    'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Architect reading, the composer held
+    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation, one line open (§2.11)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
 }
 

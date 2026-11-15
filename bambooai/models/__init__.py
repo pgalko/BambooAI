@@ -331,7 +331,9 @@ class ModelManager:
 
     def llm_stream(self, prompt_manager, log_and_call_manager, output_manager, messages: str, agent: str = None,
                    chain_id: str = None, tools: str = None, reasoning_models: list = None,
-                   reasoning_effort: str = None, stop_event: threading.Event = None):
+                   reasoning_effort: str = None, stop_event: threading.Event = None, label: str = None):
+        # label: the name the call is logged and its usage recorded under, when a role runs on another seat's model
+        # (2026-11-15: the Architect on the analyst's seat). A chain's log counts a seat's calls by this name.
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
         model, provider, max_tokens, temperature, response_format, api_type = self._init(agent)
@@ -496,7 +498,7 @@ class ModelManager:
             # sent, whether the answer was cut off, and the cap it was cut off
             # against. Same channel, same reset-before-dispatch discipline.
             _meta = prompt_cache.last_meta()
-            log_and_call_manager.write_to_log(agent, chain_id, timestamp, model, local_llm_messages, content_received,
+            log_and_call_manager.write_to_log(label or agent, chain_id, timestamp, model, local_llm_messages, content_received,
                                             prompt_tokens_used, completion_tokens_used, total_tokens_used,
                                             elapsed_time, tokens_per_second,
                                             cached_tokens=_cached,

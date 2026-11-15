@@ -71,6 +71,39 @@
   workspace. The stack's scripted analyst keeps to a brief and asks where it cannot (`field_trial.py`,
   `BRIEF_QUESTION`); the walk's last section and the browse walk's last leg go through it. Not run against a live
   model: Palo's live test of this patch is the first of the series.
+  **0297 (2026-11-15): the Architect talks** (the design's §2.12). *The engine.* `analyst/architect.py`, its
+  instructions in `analyst/architect.md` (in the package data). One exchange is one model call: `prompt()` - the
+  data's description, `earlier()` (the analyses the question follows: what each found, how it stood against its
+  brief, what the Analyst asked where it stopped), the question, `block()` (the brief under the names the reply
+  uses), the conversation - and `parse()` of the reply's one JSON object `{brief, say, choices}`; an unreadable reply
+  is asked for once more, then `Failed` with words for the person. `brief.write()` takes the reply's parts into the
+  brief (text parts; lines added to the two lists and taken out by `drop`, the lines not named left as they are;
+  the fixed parts; `COUNTS` four and two) and names what changed; `brief.version(why=)` - a version of the Architect's says `question` or
+  `answer`. `Run.framing` gains `turns` (`{who, text}`; the Architect's with `choices`, `v`, `cost`, `call`) and
+  `calls`; `TURNS_MAX` 12; `EFFORT` low, else medium. *The host.* `BambooAI.architect_say(thread_id, run_id, text)`:
+  clears a stop signal left by an earlier run, `_on_thread()` (the instance on the brief's thread - the lines
+  `pd_agent_converse` now shares), the chain id set to the run's for the call and put back, `_architect_seat()`
+  (`Architect` when configured, else the analyst's seat), `_llm(label="Architect")` -> `llm_stream(label=)`: the name
+  the call is logged and its usage recorded under, so a chain's log counts the Analyst's calls apart (the prompt
+  buttons go by seat and call number). A failed exchange keeps only its call count. *A framed question is one
+  query:* `app.query_refusal(count)` is the authorisation `/query` had inline; `/architect/open` asks it and counts,
+  `/architect/say` asks it without counting, `/query` with `run_id` does not count again. Charged once: the chain's
+  rows go with the analysis' own (`charge_for_completed_query` in `pd_agent_converse`); `_framed` holds the chains
+  talked in and not yet run, charged in `cleanup()`. This rests on the charging procedure taking a chain once, with
+  every usage row it then has - its SQL is not in the repository. `POST /architect/say` streams through
+  `routines_routes._stream` and ends on `{"architect": {"framing"}}` or `{"architect": {"error"}}`.
+  `usage_routes.outcome()`: a chain left at `framing` is "not run". `Session.run` starts a framed run's clock when
+  the analysis starts. *The page.* `architect.js`: `open()` is followed by `exchange(entry, '')`; `tell(text)` is what the
+  composer's send calls while a brief not yet run is on screen (`query-processing.js`) and what a clicked choice
+  calls; a line being typed in the brief is kept first. `exchange()` reads the stream to its end (`closing()`),
+  shows the sent message and "reading…" meanwhile, puts the typed text back when no reply was kept. `onChain()`: the
+  composer is the conversation's ("Answer, or say what to change", its own words kept in `data-placeholder`), held
+  while the Architect replies and while another chain runs. `build.said / talk / pane / fold`: the cards, the
+  choices as pills on the last message only, the prompt button (`data-agent="Architect"`, `data-call` from the
+  record), the cost in the strip, the conversation inside the fold. *Not there:* lookups, marks and proposals to
+  tick (0298), saved analyses (0302), stopping a reply in flight; no code checks that a line is in the coach's
+  words. The stack's scripted Architect is `Scenario.architect` in `field_trial.py` (`ARCHITECT_ASKS`). Not run
+  against a live model: Palo's live test.
 - **Published.** 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -147,8 +180,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (265/227/31/27/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 62/7/50/72/24/174/14/25/4/15/67/41/67 JS; 2,001 on 2026-11-15; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (162 hosted on 2026-11-15; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (279/235/31/28/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 62/7/50/72/24/174/14/25/4/15/67/41/83 JS; 2,040 on 2026-11-15; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (167 hosted on 2026-11-15; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.

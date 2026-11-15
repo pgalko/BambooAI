@@ -1,9 +1,11 @@
-// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11; 2026-11-15): the brief,
-// written by hand. A question typed with the switch on is framed before it is analysed: the server opens a framing run
-// on the thread's record (POST /architect/open - no model is called) and the page shows it as a chain of its own, the
-// question in the left pane and its brief on a Brief tab. The coach changes the brief where it stands; every change
-// kept is one more version, stored by the server (POST /architect/brief). Start analysis continues the same chain
-// (/query with run_id), so the question is one box on the thread map.
+// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11, §2.12; 2026-11-15). A
+// question typed with the switch on is framed before it is analysed: the server opens a framing run on the thread's
+// record (POST /architect/open) and the page shows it as a chain of its own, the conversation in the left pane and
+// its brief on a Brief tab. The Architect fills the brief from the question and asks for what is missing, one
+// exchange a call (POST /architect/say, a stream); while such a chain is on screen the composer is the conversation's
+// input. The coach also changes the brief where it stands; every change kept is one more version, stored by the
+// server (POST /architect/brief). Start analysis continues the same chain (/query with run_id), so the question is
+// one box on the thread map.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
@@ -12,19 +14,21 @@
 // The report of a run with a brief has a part "Against the brief" (analyst/session.py): dressAnswer() makes it a card
 // of verdicts. The page's words sit in WORDS; nothing here reaches a prompt.
 //
-// window.ArchitectUI = { initialize, isOn, open, restore, onChain, framingInView, started, notStarted, dressAnswer,
-//                        mark, apply, build }
+// window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
+//                        dressAnswer, mark, apply, build }
 
 (function () {
     'use strict';
 
     const WORDS = {
-        locked: 'Fill the brief, then Start analysis',
+        answer: 'Answer, or say what to change', replying: 'The Architect is replying', reading: 'reading…',
         unsaid: 'not said yet', unsaidKept: 'not said', left: 'left to the Analyst', add: '+ Add',
         standing: 'Chance, measurement error, how the cases were chosen',
         would: 'You would change your mind if:',
-        why: { question: 'from your question', last: 'from the last brief', person: 'changed by you', architect: 'changed by the Architect' },
+        why: { question: 'from your question', last: 'from the last brief', person: 'changed by you',
+               architect: { question: 'the Architect, from your question', answer: 'the Architect, from your answer' } },
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
+        noReply: 'The Architect did not reply',
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
@@ -50,6 +54,7 @@
     function byId(id) { return document.getElementById(id); }
     function say(text) { if (typeof showSystemMessage === 'function') showSystemMessage(text); }
     function versionsOf(framing) { return framing && Array.isArray(framing.versions) ? framing.versions : []; }
+    function turnsOf(framing) { return framing && Array.isArray(framing.turns) ? framing.turns : []; }
     function latestN(framing) { return Math.max(1, versionsOf(framing).length); }
     function versionAt(framing, n) {
         const all = versionsOf(framing);
@@ -173,7 +178,8 @@
         },
         version(framing, shown) {
             const n = latestN(framing), v = versionAt(framing, shown);
-            const why = v.by === 'architect' ? WORDS.why.architect : (shown > 1 ? WORDS.why.person : ((v.changed || []).indexOf(FROM_LAST) >= 0 ? WORDS.why.last : WORDS.why.question));
+            const why = v.by === 'architect' ? (WORDS.why.architect[v.why] || WORDS.why.architect.answer)
+                : (shown > 1 ? WORDS.why.person : ((v.changed || []).indexOf(FROM_LAST) >= 0 ? WORDS.why.last : WORDS.why.question));
             const arrow = (d, glyph, title, off) => '<button type="button" data-ar="step" data-step="' + d + '" title="' + title + '"' + (off ? ' disabled' : '') + '>' + glyph + '</button>';
             return '<div class="ar-ver"><span class="step">' + arrow(-1, '‹', 'The version before', shown <= 1) + '<b>v' + shown + '</b>' + arrow(1, '›', 'The version after', shown >= n) + '</span>' +
                 '<span class="why">' + why + '</span></div>';
@@ -207,23 +213,44 @@
                 '<button type="button" class="ok" data-ar="keep" title="Keep">' + ICON.ok + '</button><button type="button" class="no" data-ar="cancel" title="Cancel">' + ICON.x + '</button></span>';
         },
         you(text) { return '<div class="ar-msg you"><span class="who">You</span>' + esc(text) + '</div>'; },
-        // the left pane of a brief not yet run: which version stands, and the question
-        pane(entry) {
-            return '<div class="sp-strip"><span class="live idle"></span><span class="mode">Architect</span><span>brief <b>v' + latestN(entry.framing) + '</b></span></div>' +
-                '<div class="sp-stream">' + build.you(entry.queryText) + '</div>';
+        // a message of the Architect's: its words, the button to the prompt it received (the run log's call), and its
+        // choices while they can still be clicked
+        said(turn, chain, live) {
+            const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt the Architect received (run log)" data-agent="Architect" data-chain="' +
+                esc(chain) + '" data-call="' + esc(turn.call) + '">⌘</button>' : '';
+            const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
+            return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + choices + '</div>';
         },
-        // the framing folded to one row, above the run it started
+        // the conversation: the question, then what was said. o: {live: the last message's choices can be clicked,
+        // sent: a message on its way, waiting: the Architect is replying}
+        talk(entry, o) {
+            o = o || {};
+            const turns = turnsOf(entry.framing);
+            return build.you(entry.queryText) +
+                turns.map((t, i) => t.who === 'architect' ? build.said(t, entry.chain_id, o.live && !o.waiting && i === turns.length - 1) : build.you(t.text)).join('') +
+                (o.sent ? build.you(o.sent) : '') +
+                (o.waiting ? '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>' : '');
+        },
+        // the left pane of a brief not yet run: which version stands, what the Architect's calls cost, the conversation
+        pane(entry, o) {
+            const cost = turnsOf(entry.framing).reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+            return '<div class="sp-strip"><span class="live idle"></span><span class="mode">Architect</span><span>brief <b>v' + latestN(entry.framing) + '</b></span>' +
+                (cost >= 0.005 ? '<span>$' + cost.toFixed(2) + '</span>' : '') + '</div>' +
+                '<div class="sp-stream">' + build.talk(entry, Object.assign({ live: true }, o)) + '</div>';
+        },
+        // the framing folded to one row, above the run it started: the conversation is inside
         fold(entry) {
             return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Architect</span><span class="kind">brief v' + latestN(entry.framing) + '</span>' +
-                '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.you(entry.queryText) + '</div></details>';
+                '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.talk(entry) + '</div></details>';
         },
         against
     };
 
     // ------------------------------------------------------------ the page
     let on = false;            // the switch: a typed question is framed first
-    let mine = false;          // the composer's lock is the Architect's
-    let busy = false;          // a change is on its way to the server
+    let mine = false;          // the composer's words are the Architect's
+    let busy = false;          // a change or a message is on its way to the server
+    let talking = null;        // the exchange in flight: {entry, sent}
 
     function isOn() { return on; }
     function setOn(value) {
@@ -244,39 +271,56 @@
     }
     function framingInView() { const r = responses[currentResponseIndex]; return !!(r && r.status === 'framing'); }
 
+    // the left pane of a brief not yet run, its newest message in view
+    function drawPane(entry) {
+        const pane = byId('streamOutput'), mid = talking && talking.entry === entry;
+        pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true } : {});
+        pane.scrollTop = pane.scrollHeight;
+    }
     function show(entry) {
-        byId('streamOutput').innerHTML = build.pane(entry);
+        drawPane(entry);
         byId('tabContainer').innerHTML = '<div id="tab-brief" class="tab active">Brief</div>';
         byId('contentOutput').innerHTML = '<div id="content-brief" class="tab-content active">' + build.brief(entry.framing, { chain: entry.chain_id, state: 'framing' }) + '</div>';
     }
-    // after a change: the brief and the pane's version in place, so the tab keeps its scroll
+    // after a change: the brief and the pane in place, so the tab keeps its scroll
     function refresh(entry) {
         const root = briefRoot();
         if (root) root.parentNode.innerHTML = build.brief(entry.framing, { chain: entry.chain_id, state: 'framing' });
-        byId('streamOutput').innerHTML = build.pane(entry);
+        drawPane(entry);
     }
     function restore(entry) { if (entry && entry.status === 'framing') show(entry); }
+    // While a brief not yet run is on screen the composer is the conversation with the Architect: held while it
+    // replies, and while another chain runs - whose Stop stays within reach. Anywhere else it is as it was.
     function onChain(entry) {
-        // a brief not yet run is on screen: nothing is asked from it but its own analysis; anywhere else the composer is free again
         const framing = !!(entry && entry.status === 'framing');
         document.body.classList.toggle('ar-framing', framing);
-        if (framing) {
-            mine = true;
-            if (typeof composerLock === 'function') composerLock(WORDS.locked);
-            const send = byId('submitQuery');
-            if (send && typeof queryRunning !== 'undefined' && queryRunning) send.disabled = false;      // another chain is running: its Stop stays within reach
-        } else if (mine) {
-            mine = false;
-            if (typeof composerUnlock === 'function') composerUnlock();
+        if (!framing) {
+            if (mine) { mine = false; if (typeof composerUnlock === 'function') composerUnlock(); }
+            return;
+        }
+        if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) return;      // a routine's run is on screen: its hold stands
+        mine = true;
+        const input = byId('queryInput'), send = byId('submitQuery');
+        const running = typeof queryRunning !== 'undefined' && queryRunning;
+        if (talking && talking.entry === entry || running) {
+            if (typeof composerLock === 'function') composerLock(running ? WORDS.busyRun : WORDS.replying);
+            if (send && running) send.disabled = false;
+            return;
+        }
+        if (typeof composerUnlock === 'function') composerUnlock();
+        if (input && !input.disabled) {                        // not held by anything else: the conversation's words, the composer's own kept for later
+            if (input.getAttribute('data-placeholder') == null) input.setAttribute('data-placeholder', input.placeholder || '');
+            input.placeholder = WORDS.answer;
         }
     }
 
-    // a question typed with the switch on: its framing run is opened on the record, and the page moves to it
+    // a question typed with the switch on: its framing run is opened on the record, the page moves to it, and the
+    // Architect takes its first turn
     function open(question) {
-        if (busy) return;
+        if (busy) { if (talking) say(WORDS.replying + '.'); return; }
         busy = true;
         post('/architect/open', { question, thread_id: currentData.thread_id || null, chain_id: currentData.chain_id || null }).then(res => {
-            if (!res.ok) { say(res.json.error || WORDS.notOpened + '.'); return; }
+            if (!res.ok) { say(res.json.message || res.json.error || WORDS.notOpened + '.'); return null; }
             const d = res.json;
             const entry = { status: 'framing', chain_id: d.chain_id, thread_id: d.thread_id, parentChainId: d.parent_chain_id == null ? null : d.parent_chain_id, queryText: question,
                             tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null, reportHead: null, framing: d.framing };
@@ -286,7 +330,60 @@
             if (input) { input.value = ''; input.style.height = 'auto'; }
             loadResponseContent(entry);
             if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
-        }).catch(() => say(WORDS.notOpened + ': ' + WORDS.unreachable + '.')).then(() => { busy = false; });
+            return entry;
+        }).catch(() => { say(WORDS.notOpened + ': ' + WORDS.unreachable + '.'); return null; }).then(entry => { busy = false; if (entry) exchange(entry, ''); });
+    }
+
+    // What the exchange's stream ends on: the route's closing message - the framing, or why no reply was kept. A
+    // stream cut short leaves the last error it carried; a refusal (the balance, the month's queries) is one JSON
+    // object. The model's own traffic - its text as it arrives - is passed over.
+    function closing(body) {
+        let out = {};
+        String(body || '').split('\n').forEach(line => {
+            if (!line.trim()) return;
+            let d = null;
+            try { d = JSON.parse(line); } catch (e) { return; }
+            if (d && d.architect) out = d.architect;
+            else if (d && (d.message || d.error || d.routine_error)) out = { error: d.message || d.error || d.routine_error };
+        });
+        return out;
+    }
+    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. Resolves to
+    // whether a reply was kept; when none was, the brief stands as it did and the reason is said.
+    function exchange(entry, text) {
+        if (busy || !entry || entry.status !== 'framing') return Promise.resolve(false);
+        busy = true;
+        talking = { entry, sent: text };
+        const inView = () => responses[currentResponseIndex] === entry;
+        const draw = () => { if (inView()) { refresh(entry); onChain(entry); } };
+        draw();
+        return window.authService.fetch('/architect/say', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                             body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, text: text || null }) })
+            .then(r => r.text()).then(body => {
+                const out = closing(body);
+                if (out.framing) { entry.framing = out.framing; return true; }
+                say(out.error || WORDS.noReply + '.');
+                return false;
+            }).catch(() => { say(WORDS.noReply + ': ' + WORDS.unreachable + '.'); return false; }).then(kept => {
+                busy = false; talking = null;
+                draw();
+                const input = byId('queryInput');
+                if (!kept && text && inView() && input && !input.value) input.value = text;      // what was typed is not lost
+                return kept;
+            });
+    }
+    // what the coach typed or chose, said to the Architect of the brief on screen; a line being typed in the brief is kept first
+    function tell(text) {
+        const entry = responses[currentResponseIndex], root = briefRoot();
+        text = String(text || '').trim();
+        if (busy || !text || !entry || entry.status !== 'framing') return Promise.resolve(false);
+        if (typeof queryRunning !== 'undefined' && queryRunning) { say(WORDS.busyRun); return Promise.resolve(false); }
+        return (root ? keep(root) : Promise.resolve({})).then(out => {
+            if (!out) return false;
+            const input = byId('queryInput');
+            if (input) { input.value = ''; input.style.height = 'auto'; }
+            return exchange(entry, text);
+        });
     }
 
     // ---- the Brief tab's clicks: everything is read from the tab's own markup, so a restored chain behaves the same
@@ -372,6 +469,7 @@
 
     function onClick(ev) {
         const hit = ev.target && ev.target.closest ? ev.target.closest('[data-ar]') : null;
+        if (hit && hit.getAttribute('data-ar') === 'choice') { tell(hit.textContent); return; }      // a choice clicked is the coach's answer
         const root = hit ? hit.closest('.ar-brief') : null;
         if (!root) return;
         const act = hit.getAttribute('data-ar');
@@ -408,5 +506,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, build };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, build };
 })();

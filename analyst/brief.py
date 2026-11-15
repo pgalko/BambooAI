@@ -17,7 +17,8 @@ prompt says so.
 
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
 nothing checked it. normalise() brings what a caller sends into this shape, render() writes the BRIEF block of the
-prompt, and outcome() reads back what a report says against the brief.
+prompt, and outcome() reads back what a report says against the brief. While a brief is being written it is kept as
+versions on its run (version(), latest()), and write() takes in what a reply of the Architect's names.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ SAVED = ("when", "question", "passage", "data", "period", "thread", "run")
 TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
 MAX = {"rests_on": 6, "also_check": 4, "saved": 6, "set_aside": 8}      # bounds on what a prompt carries, not the design's counts
+COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
 LEFT = "left to you"             # a part of what is fixed that the person did not fix: the analyst chooses it
 UNSAID = "not said"              # a part of the frame the person did not state
 ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run
@@ -100,13 +102,50 @@ def working(brief) -> dict:
     return out
 
 
-def version(framing: dict, brief, by: str = "person", changed=None) -> dict:
-    """A version added to a run's framing: the brief as it stands, who made the change and which parts it touched.
-    Returns the framing with the new version; every earlier one stays."""
+def version(framing: dict, brief, by: str = "person", changed=None, why: str = "") -> dict:
+    """A version added to a run's framing: the brief as it stands, who made the change, which parts it touched and,
+    for the Architect's, what it was made from (`why`: the question, or an answer). Returns the framing with the new
+    version; every earlier one stays."""
     versions = list((framing or {}).get("versions") or [])
     entry = {"n": len(versions) + 1, "by": by if by in ("person", "architect") else "person",
              "changed": [str(c)[:60] for c in (changed or []) if isinstance(c, str)][:12], "brief": working(brief)}
+    if why:
+        entry["why"] = str(why)[:60]
     return {**(framing or {}), "versions": versions + [entry]}
+
+
+def write(brief, parts) -> tuple:
+    """The brief with what a reply of the Architect names written in (analyst/architect.py). A text part is a
+    string, and "" empties it. The two lists take lines: a line given under `drop` is taken out of either, when it is
+    there word for word; a line given under a list's own name is added to it when it is not there yet, as a line of
+    the person's, up to the design's counts. A line the reply does not name stays as it is, with its source and its
+    mark. What is fixed is given part by part. Nothing else of the brief is touched. Returns the brief and the parts
+    that changed, as the page names them."""
+    out = working(brief)
+    parts = parts if isinstance(parts, dict) else {}
+    changed = []
+    for key in ("decision", "thinks", "expects", "would_change"):
+        if isinstance(parts.get(key), str) and _text(parts[key]) != out.get(key, ""):
+            out[key] = _text(parts[key])
+            changed.append(key)
+    gone = {_text(x) for x in (parts.get("drop") if isinstance(parts.get("drop"), list) else [])}
+    for key, line in (("rests_on", lambda t: {"text": t, "source": "person", "mark": ""}), ("also_check", lambda t: {"text": t})):
+        now = [a for a in out.get(key, []) if a["text"] not in gone]
+        if len(now) != len(out.get(key, [])):
+            changed.append(key)
+        for item in parts.get(key) if isinstance(parts.get(key), list) else []:
+            text = _text(item.get("text") if isinstance(item, dict) else item)
+            if text and text not in [a["text"] for a in now] and len(now) < COUNTS[key]:
+                now.append(line(text))
+                changed.append(f"{key}.{len(now) - 1}")
+        out[key] = now
+    fixed = dict(out.get("fixed", {}))
+    given = parts.get("fixed") if isinstance(parts.get("fixed"), dict) else {}
+    for key in FIXED:
+        if isinstance(given.get(key), str) and _text(given[key]) != fixed.get(key, ""):
+            fixed[key] = _text(given[key])
+            changed.append(f"fixed.{key}")
+    return working({**out, "fixed": fixed}), changed          # a part emptied falls away
 
 
 def latest(framing: dict) -> dict:

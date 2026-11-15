@@ -245,7 +245,8 @@ check("the local store takes in_() (the ledger's chains and threads looked up in
 w = UR.window("30d", datetime(2026, 3, 15, 9)); check("window(): 30 days end today exclusive, the before window the 30 days ahead of it", w[0] == datetime(2026, 2, 14) and w[1] == datetime(2026, 3, 16) and w[4] == (datetime(2026, 1, 15), datetime(2026, 2, 14)), w)
 w = UR.window("last_month", datetime(2026, 3, 15, 9)); check("window(): last month is Feb 1 - Mar 1 (28 days) with January before it", w[0] == datetime(2026, 2, 1) and w[1] == datetime(2026, 3, 1) and w[4] == (datetime(2026, 1, 4), datetime(2026, 2, 1)) and w[3] == "1 – 28 Feb", w)
 check("outcome(): the words the ledger uses", [UR.outcome(f) for f in ({"status": "answered", "replay": "reproduced"}, {"status": "answered", "replay": ""}, {"status": "answered", "replay": "differed"}, {"status": "answered", "replay": "failed"},
-      {"status": "failed", "failed_at": 3}, {"status": "failed", "refused": True}, {"status": "failed"}, {"status": "stopped"}, {"status": "asked"})] == ["reproduced", "answered", "differed", "replay failed", "failed at cell 3", "refused", "failed", "stopped", "asked"])
+      {"status": "failed", "failed_at": 3}, {"status": "failed", "refused": True}, {"status": "failed"}, {"status": "stopped"}, {"status": "asked"}, {"status": "framing"})]
+      == ["reproduced", "answered", "differed", "replay failed", "failed at cell 3", "refused", "failed", "stopped", "asked", "not run"])      # a brief whose analysis was not started (0297)
 check("prices(): the configuration's per-thousand prices as per-million, the provider from the seat that uses the model",
       UR.prices({"model_properties": {"m": {"prompt_tokens": 0.003, "completion_tokens": 0.015, "cache_read_tokens": 0.0003}}, "agent_configs": [{"agent": "Analyst", "details": {"model": "m", "provider": "anthropic"}}]})
       == {"m": {"in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write": None, "provider": "anthropic"}})

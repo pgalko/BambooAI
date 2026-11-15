@@ -77,6 +77,7 @@
         if (o === 'stopped') return 'stopped before it answered';
         if (o === 'asked') return 'the analyst asked a question and waited';
         if (o === 'running') return 'still running when last saved';
+        if (o === 'not run') return 'a brief written with the Architect; its analysis was not started';
         return '';
     }
     function chip(o) { return o ? '<span class="rt-status ' + statusClass(o) + '" title="' + esc(gloss(o)) + '">' + esc(o) + '</span>' : ''; }

@@ -1240,52 +1240,61 @@ def get_dataset_preview():
         df_json_str = json.dumps({'type': 'dataframe', 'data': df_html})
         return jsonify({'dataframe_html': df_json_str}), 200
 
+def query_refusal(count=True):
+    """Whether the signed-in user may run a query now - authorisation only, nothing is charged: None when they may,
+    else the 403 answer the page shows (the month's free queries used up, the balance). `count`: this query counts
+    towards the month's free queries; a question framed with the Architect is counted when its brief opens, and not
+    again when its analysis starts (architect_routes.py)."""
+    auth0_user_id = get_current_user_id()
+    if not auth0_user_id:
+        return None
+    auth_result = can_execute_chain(auth0_user_id)
+    if not auth_result.get('ok'):
+        return None
+
+    # TODO: Add logic to check if the current config and container matches the subscription
+
+    auth_data = auth_result.get('data', {})
+    if not auth_data.get('allowed'):
+        reason = auth_data.get('reason', 'unknown')
+        compute_tier = auth_data.get('compute_tier', 'unknown')
+        balance = auth_data.get('balance', 0)
+        query_cost = auth_data.get('query_cost', 0)
+
+        if reason == 'limit_reached':
+            queries_used = auth_data.get('queries_used', 0)
+            max_queries = auth_data.get('max_queries', 20)
+            message = f"You've used all {queries_used} of your {max_queries} free queries this month. Upgrade to Plus or Pro to continue."
+        elif reason == 'insufficient_funds':
+            message = f"You need ${query_cost:.3f} per query but your balance is ${balance:.2f}. Please add funds to continue."
+        else:
+            message = "Query not authorized."
+
+        return jsonify({
+            'error': 'authorization_failed',
+            'message': message,
+            'reason': reason,
+            'tier': compute_tier,
+            'balance': balance,
+            'query_cost': query_cost
+        }), 403
+
+    if count:                                # the month's free queries, counted
+        try:
+            increment_queries_counter(auth0_user_id)
+        except Exception as e:
+            logger.error(f"Failed to increment counter: {e}")
+    return None
+
+
 @app.route('/query', methods=['POST'])
 @requires_auth
 def query():
     session_id = session['session_id']
-    auth0_user_id = get_current_user_id()
-    
-    if auth0_user_id:
-        # Check authorization only (no charging)
-        auth_result = can_execute_chain(auth0_user_id)
-        
-        if auth_result.get('ok'):
+    refused = query_refusal(count=not request.json.get('run_id'))
+    if refused is not None:
+        return refused
 
-            # TODO: Add logic to check if the current config and container matches the subscription
-
-            auth_data = auth_result.get('data', {})
-            if not auth_data.get('allowed'):
-                # Build error message (unchanged)
-                reason = auth_data.get('reason', 'unknown')
-                compute_tier = auth_data.get('compute_tier', 'unknown')
-                balance = auth_data.get('balance', 0)
-                query_cost = auth_data.get('query_cost', 0)
-                
-                if reason == 'limit_reached':
-                    queries_used = auth_data.get('queries_used', 0)
-                    max_queries = auth_data.get('max_queries', 20)
-                    message = f"You've used all {queries_used} of your {max_queries} free queries this month. Upgrade to Plus or Pro to continue."
-                elif reason == 'insufficient_funds':
-                    message = f"You need ${query_cost:.3f} per query but your balance is ${balance:.2f}. Please add funds to continue."
-                else:
-                    message = "Query not authorized."
-                
-                return jsonify({
-                    'error': 'authorization_failed',
-                    'message': message,
-                    'reason': reason,
-                    'tier': compute_tier,
-                    'balance': balance,
-                    'query_cost': query_cost
-                }), 403
-            
-            # Just increment counter for free tier tracking
-            try:
-                increment_queries_counter(auth0_user_id)
-            except Exception as e:
-                logger.error(f"Failed to increment counter: {e}")
-    
     # Continue with query processing
     current_bamboo_ai_instance = get_bamboo_ai(session_id)
     

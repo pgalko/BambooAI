@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.9 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296)
+# The Architect and memory from saved analyses — design v0.10 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297)
 
 Release 2.8 does three things.
 
@@ -242,7 +242,7 @@ the page: §2.11.
 
 ### 2.11 The brief on the page — built (0296, 2026-11-15)
 
-The coach writes the brief by hand. No model takes part yet: the Architect starts talking in 0297.
+The brief's own screen, and the coach's changes by hand. What the Architect does in it is §2.12.
 
 **The switch.** A button named Architect beside the mode control (`#architectSwitch`; the page's side is
 `architect.js`). It stays as set for the browser session. It applies to a question typed in the composer and sent
@@ -251,9 +251,9 @@ from it. A next question, a question about a plot or a selection, and Synthesise
 **A framing run.** A question sent with the switch on opens a run on the thread's record before any analysis
 (`POST /architect/open`, `BambooAI.open_framing`): status `framing`, attached where the question was asked, with the
 first version of its brief (`Run.framing`). A follow-up to a run that had a brief starts from that brief, and says
-so. No model is called. The page shows the run as a chain of its own: the question in the left pane under
-"Architect · brief v1", and one tab, Brief. While it is on screen the composer is held ("Fill the brief, then Start
-analysis") and nothing else starts from it. A brief not yet run is not saved with its thread.
+so. The page shows the run as a chain of its own: the question in the left pane under "Architect · brief v1", and
+one tab, Brief. While it is on screen nothing else starts from it, and the composer is the conversation's (§2.12). A
+brief not yet run is not saved with its thread.
 
 **The Brief tab.** The question as the title. A stepper through the versions, with who made the one shown. Then the
 parts in the brief's order: Decision, What you think, It rests on, You expect (with "You would change your mind
@@ -290,6 +290,70 @@ off the answer runs at once under the brief as it was (§2.10).
 
 Not in this patch: the Data tab beside a brief not yet run (it returns when the analysis starts), and ticks on
 proposals. A brief that carries saved analyses or lines set aside shows them as stored.
+
+### 2.12 The Architect talks — built (0297, 2026-11-15)
+
+The Architect fills the brief from the question and asks for what is missing. It makes no lookups yet (0298) and
+reads no saved analyses (0302).
+
+**One exchange, one call.** `analyst/architect.py`. An exchange is the coach's message - none on the Architect's
+first turn - and its reply. The Architect reads (`prompt()`): the data's description, as the Analyst gets it; the
+analyses the question follows (`earlier()`) - each one's question and what it found, how the result stood against
+its brief, what did not fit, and, where the Analyst stopped and asked, what it asked; the question; the brief as it
+stands, part by part; the conversation so far. It replies with one JSON object (`parse()`): the parts of the brief
+it writes, one message, and choices where it offers them. A reply that cannot be read is asked for once more; then
+the exchange fails, in words, and nothing of it is kept.
+
+**Its instructions.** `analyst/architect.md`, one page. The brief holds what the coach said, in their words:
+shorten, do not rephrase or complete, add nothing. It writes every part the coach's words state, then asks for what
+is still missing, in the agreed order: the decision; what they think and what that rests on; what they expect and
+what would change their mind. It writes a part of what is fixed when the coach's words state it, and does not ask
+for one. A message is one question of at most two sentences, in the coach's language, asked so that the answer can
+be written down as given: never a yes-or-no question. Choices only where the coach's words already name the possible
+answers. A part the coach does not want to state stays empty, and is asked for once. When nothing is left to ask it
+says the brief is ready. It does not analyse, compute or answer.
+
+**What a reply may change** (`brief.write()`). The four text parts, the two lists, the three fixed parts. To a list
+it adds lines, as the coach's own, four and two at most (§2.2), and it takes a line out by naming it word for word;
+a line it does not name stays as it is, with its source and mark. A reply cannot change the question, a mark, a
+source, the saved analyses or what was set aside.
+A reply that changes a part makes one more version, the Architect's, which says what it was made from: the question,
+or an answer. Nothing in the code checks that a line is in the coach's words: that is the instructions' work, and
+the live test judges it.
+
+**The record.** `Run.framing` holds the conversation beside the versions: `turns`, each with who spoke and the text.
+A turn of the Architect's also has its choices, the version that then stood, what its calls cost and the number of
+its call in the chain's log; `calls` counts them. A brief takes twelve replies at most.
+
+**The calls** (`BambooAI.architect_say()`). The instance goes to the brief's thread, as it does for a run. The call
+runs on the `Architect` seat when the configuration has one, else on the analyst's seat (decision 28), at a lowered
+effort. Either way it is logged, and recorded in usage, as the Architect's (`llm_stream(label=)`), under the brief's
+own chain: the Analyst's calls in that chain keep their numbers, and the prompt buttons theirs.
+
+**A framed question is one query.** It is authorised like one when its brief opens and at every exchange. It counts
+towards the month's free queries once, when the brief opens, and not again when its analysis starts. It is charged
+once, with its analysis. A brief the Architect talked in whose analysis never starts is charged when the instance
+is torn down: a new workspace, signing out, or idling out. The Usage dialog calls such a chain *not run*.
+
+**The route.** `POST /architect/say` with the thread, the chain and the coach's text: a stream, as a routine's is,
+that ends on the framing, or on the reason no reply was kept.
+
+**On the page.** Opening a brief is followed at once by the Architect's first turn. The left pane is the
+conversation: the coach's messages and the Architect's, its choices as pills under its last message, "reading…"
+while it replies. The strip says which version stands and what the calls have cost. While a brief not yet run is on
+screen the composer is the conversation's ("Answer, or say what to change"): what is typed is said to the
+Architect, and a choice clicked is the coach's answer. It is held while the Architect replies, and while another
+chain runs. Each message of the Architect's has the button to the prompt it received. The Brief tab says who made
+the version shown, and from what: "the Architect, from your question", "the Architect, from your answer", "changed
+by you". The coach's own changes work as in §2.11, between exchanges. Once the analysis starts, the conversation is
+inside the folded row above the run.
+
+**A follow-up.** A question typed with the switch on under an earlier analysis opens a brief that starts from the
+last one, and the Architect keeps what the new question leaves standing. Where the Analyst had stopped and asked,
+the coach's answer is the question: the Architect changes the part it settles.
+
+Not in this patch: lookups and marks (0298); proposals to tick, which arrive with the first thing the Architect
+brings in on its own (0298); saved analyses (0302); a way to stop a reply in flight.
 
 ## 3. Memory from saved analyses
 
@@ -416,7 +480,7 @@ repository and the dev box only.
 | 0294 | The old memory goes (§5). Save as favourite is one click. | built |
 | 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit* (§2.10). | built |
 | 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand (§2.11). | built |
-| 0297 | The Architect talks: it fills the brief from the question and asks for what is missing. | |
+| 0297 | The Architect talks: it fills the brief from the question and asks for what is missing, one question a message, with choices to click (§2.12). | built |
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. | |
 | 0299 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
 | 0300 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |

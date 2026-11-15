@@ -157,7 +157,8 @@ class Run:
     sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
-    framing: dict = field(default_factory=dict)   # the brief's versions, each kept: {versions: [{n, by, changed, brief}]} (docs/ARCHITECT_DESIGN.md §2.6); {} for a run not framed
+    framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Architect: {versions: [{n, by, changed, why, brief}],
+                                                  # turns: [{who, text, choices, v, cost, call}], calls} (docs/ARCHITECT_DESIGN.md §2.6, §2.12); {} for a run not framed
 
     @property
     def note(self) -> str:
