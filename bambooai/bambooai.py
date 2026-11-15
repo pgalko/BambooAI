@@ -50,7 +50,6 @@ class BambooAI:
                  max_conversations: int = 4,
                  search_tool: bool = False,
                  exploratory: bool = True,
-                 memory_path: str = None,
                  planning: bool = False,
                  webui: bool = False,
                  df_id: str = None,
@@ -79,7 +78,6 @@ class BambooAI:
         self.df_id = df_id
         self.auxiliary_datasets = auxiliary_datasets or []
         self.load_params = None          # how the data loaded now was loaded (the integration routes set it; a routine's run repeats it)
-        self.memory_path = memory_path
         self.search_tool = bool(search_tool)
         self.exploratory = exploratory
         self.planning = planning            # the UI's dial: True -> the adaptive preset
@@ -316,13 +314,6 @@ class BambooAI:
         if sources:
             text += "\nSources:\n" + "\n".join(f"- {x['title']}: {x['url']}" for x in sources)
         return text
-
-    def _recall(self, query):
-        if not self.memory_path:
-            return []
-        from bambooai.knowledge_pack import memory_lookup
-        text = memory_lookup(self.memory_path, [query])
-        return [text] if text else []
 
     # ------------------------------------------------------------- the READ
     def _reader_seat(self):
@@ -1092,7 +1083,7 @@ class BambooAI:
         if self.webui:
             self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui)
             self._pane('pane_run_start', mode="Ideas", of=1, dollars=0.1)
-        session = Session(None, self.notebook, self._llm, store=self.store, emit=self._emit, recall=None, search=None,
+        session = Session(None, self.notebook, self._llm, store=self.store, emit=self._emit, search=None,
                           data_description=self._data_description())
         run = session.ideas(int(level), parent=parent, run_id=str(self.chain_id), question=question or "", mode="Ideas")
         try:
@@ -1168,7 +1159,7 @@ class BambooAI:
                 except Exception:                              # noqa: BLE001
                     model = ''
             self._pane('pane_lookup_start', kind=ev.get("kind"), query=ev.get("query") or '', model=model or '')
-        elif kind in ("show", "names", "recall", "search", "read"):
+        elif kind in ("show", "names", "search", "read"):
             text = ev.get('text') or ''
             query = ev.get('query') or (self._last_search_query if kind == "search" else (getattr(self, '_last_read_query', '') if kind == "read" else ''))
             sources = list(getattr(self, '_last_search_sources', []) or [])[:8] if kind == "search" else []
@@ -1271,7 +1262,7 @@ class BambooAI:
         kernel = self._kernel_for(parent, data_record)       # ... and what decides which earlier cells it continues (2026-10-12)
         figure = self._figure_for_analyst(image) if image else None
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
-                          recall=self._recall if self.memory_path else None, search=self._search,
+                          search=self._search,
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
                           documents=bool(self._documents_prelude()), context=bool(self._context_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
@@ -1354,7 +1345,6 @@ class BambooAI:
             _n = -1
         logger.info("Analyst run %s finished: status=%s, cells=%d, replay=%s, cost=$%.3f, run log entries=%s",
                     run.id, run.status, len(run.cells()), run.replay_status or "-", self._chain_cost(), _n)
-        self._stage_memory_source(run)
         return None
 
     def _report_head(self, run, mode=""):
@@ -1375,70 +1365,6 @@ class BambooAI:
         return {"title": run.title or "", "question": question_line(run.note) or run.question or "", "data": data,
                 "mode": str(mode or ""), "replay": run.replay_status or "",
                 "cells": len(run.cells()), "prepared": time.strftime("%Y-%m-%d")}
-
-    # ------------------------------------------------------------- memory
-    def _stage_memory_source(self, run):
-        """Stage what a later keep-signal may distill: the report and the script."""
-        if not self.memory_path or not run.report:
-            return
-        try:
-            from bambooai.knowledge_pack import stage_distill_source
-            stage_distill_source(self.memory_path, str(run.id), {
-                "question": run.question, "technical": run.report, "code": run.replay_script or ""})
-            self._staged_chain_ids = getattr(self, "_staged_chain_ids", set()) | {str(run.id)}
-        except Exception:                                      # noqa: BLE001
-            logger.warning("Memory: staging failed", exc_info=True)
-
-    def distill_kept_chain(self, chain_id):
-        """The write pass at the keep-signal: the person ranked or saved this
-        run, so distill at most one candidate method card from its report."""
-        if not self.memory_path:
-            return None
-        chain_id = str(chain_id)
-        done = getattr(self, "_distilled_chains", None)
-        if done is None:
-            done = self._distilled_chains = set()
-        if chain_id in done:
-            return None
-        try:
-            from bambooai.knowledge_pack import (pop_distill_source, append_card, cards_from_distiller_output,
-                                                 load_pack, reinforce)
-            src = pop_distill_source(self.memory_path, chain_id)
-            if src is None:
-                return None
-            pack, _ = load_pack(self.memory_path)
-            index_lines = "\n".join(f"- {c['name']} - {(c.get('hooks') or {}).get('answers_question', '')}"
-                                    for c in pack.get("cards", []) if not c.get("_decayed")) or "(empty)"
-            agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
-            agent = 'Knowledge Distiller' if 'Knowledge Distiller' in agents else self._seat()
-            messages = [{"role": "system", "content": self.prompts.knowledge_distiller_system},
-                        {"role": "user", "content": self.prompts.knowledge_distiller_user.format(
-                            index_lines, "(none)", src.get("question", ""),
-                            (src.get("technical") or "")[:8000], (src.get("code") or "")[:6000])}]
-            draft = self.models.llm_call(self.log_and_call_manager, messages, agent=agent, chain_id=chain_id)
-            done.add(chain_id)
-            cards, reason = cards_from_distiller_output(draft or "", chain_id=chain_id, question=src.get("question", ""),
-                                                        existing_cards=pack.get("cards", []))
-            if not cards:
-                logger.info("Memory: distiller declined - %s", reason)
-                return None
-            written = []
-            for card in cards:
-                ok, why = append_card(self.memory_path, card)
-                if ok:
-                    written.append(card['name'])
-                else:
-                    logger.info("Memory: card '%s' not written - %s", card['name'], why)
-            if not written:
-                return None
-            reinforce(self.memory_path, chain_id, reason='birth-keep')
-            self.output_manager.display_system_messages(
-                "Memory: method distilled into new candidate card" + ("s " if len(written) > 1 else " ")
-                + ", ".join(f"'{n}'" for n in written))
-            return written[0]
-        except Exception:                                      # noqa: BLE001
-            logger.warning("Memory: distillation failed", exc_info=True)
-            return None
 
     # --------------------------------------------------------- infographic
     def _generate_synthesis_image(self, report_text):
@@ -1472,13 +1398,6 @@ class BambooAI:
         self._stop_event.set()
 
     def cleanup(self):
-        try:
-            ids = getattr(self, "_staged_chain_ids", None)
-            if ids and self.memory_path:
-                from bambooai.knowledge_pack import discard_staged
-                discard_staged(self.memory_path, ids)
-        except Exception:                                      # noqa: BLE001
-            pass
         self._drop_kernel()
         try:
             self.log_and_call_manager.consolidate_logs()

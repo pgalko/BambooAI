@@ -1,6 +1,6 @@
 """The analyst session: one model, one kernel, one notebook, one report.
 
-    session = Session(kernel, notebook, llm, store, emit=..., recall=..., search=...)
+    session = Session(kernel, notebook, llm, store, emit=..., search=...)
     run = session.run(question, parent=None, budget=Budget(turns=15, dollars=1.0))
 
 Each turn: build the prompt (contract + data + question + note + cells + task),
@@ -476,7 +476,7 @@ class Budget:
 
 @dataclass
 class Action:
-    verb: str          # cell | show | names | recall | search | read | ask | report | invalid
+    verb: str          # cell | show | names | search | read | ask | report | invalid
     arg: str = ""      # code, cell number, query, question or the report text
     more: tuple = ()   # the further actions a reply carried after this one, which did not run (2026-10-03)
     tool_call: bool = False    # read from a tool call the reply wrote in place of its marker lines (2026-10-18)
@@ -625,8 +625,8 @@ def _unmarked_report(text: str) -> str:
 
 
 REPORT_EMPTY = "REPORT with nothing under it"
-_ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|RECALL|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
-_ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|recall|search|read|ask|report)\b[ \t]*(.*)$", re.I)
+_ACTION_WORD_RE = re.compile(r"^\s*(CELL|SHOW|NAMES|SEARCH|READ|ASK|REPORT)\b[ \t]*(.*)$")          # as the contract writes them
+_ACTION_WORD_ANY_CASE_RE = re.compile(r"^\s*(cell|show|names|search|read|ask|report)\b[ \t]*(.*)$", re.I)
 _TOOL_CALL_RE = re.compile(r"<(?:invoke|function_calls)\b")                # a tool call, in the markup models are trained on
 _INVOKE_RE = re.compile(r"<invoke\s+name\s*=\s*[\"']([^\"']*)[\"']\s*>(.*?)</invoke>", re.S)
 _TAG_LINE_RE = re.compile(r"^[ \t]*</?(?:invoke|parameter|function_calls|code)\b[^>\n]*>[ \t]*(?:\n|\Z)", re.M)
@@ -718,7 +718,7 @@ def _actions_in(body: str):
                     nxt = next((x.strip() for x in lines[i + 1:] if x.strip()), "")
                     arg = nxt.split()[0] if nxt else ""
                 acts.append(Action("show", arg))
-            else:                                                    # recall, search, read: the query is its one line
+            else:                                                    # search, read: the query is its one line
                 acts.append(Action(verb, arg))
         elif ln.strip():
             first = False
@@ -734,7 +734,7 @@ def _actions_in(body: str):
 
 class Session:
     def __init__(self, kernel, notebook: Notebook, llm: Callable, store: Optional[NotebookStore] = None,
-                 emit: Optional[Callable[[dict], None]] = None, recall: Optional[Callable] = None,
+                 emit: Optional[Callable[[dict], None]] = None,
                  search: Optional[Callable] = None, data_description: str = "",
                  kernel_factory: Optional[Callable[[], object]] = None,
                  replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
@@ -745,7 +745,6 @@ class Session:
         self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
         self.store = store
         self.emit = emit or (lambda ev: None)
-        self.recall = recall
         self.search = search
         self.data_description = data_description or "(no dataset attached)"
         self.kernel_factory = kernel_factory
@@ -1045,9 +1044,6 @@ class Session:
             elif action.verb == "names":
                 turn.stdout = tools.names(self.kernel)
                 extra = "NAMES IN THE KERNEL:\n" + turn.stdout
-            elif action.verb == "recall":
-                turn.stdout = tools.recall(self.recall, action.arg)
-                extra = f"RECALLED ({action.arg}):\n" + turn.stdout
             elif action.verb == "search":
                 turn.text = action.arg                          # the query, so SHOW SEARCH k can name it
                 done = sum(1 for t in run.turns if t.kind == "search" and t.stdout and not t.stdout.startswith("(search budget"))

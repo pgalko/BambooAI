@@ -144,8 +144,6 @@ class Scenario:
             return "", "Most sessions start in the morning on the local clock; the share in the 9 to 12 band is given with its interval."
         if "Propose five follow-up questions" in user:
             return "", "1. **Weekday vs weekend**: Does the start hour differ?\n2. **Travel**: Does the away block shift it?\n3. **Type**: Rides vs runs?\n4. **Season**: Earlier in summer?\n5. **Load**: Do later starts follow heavier days?"
-        if system.startswith("You are the Knowledge Distiller"):
-            return "", "NO_CARD"
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
         if system.startswith("You are the reviewer"):

@@ -37,7 +37,7 @@ The underlying principle is simple: AI-generated analysis should be open to the 
   - [Runs and actions](#runs-and-actions)
   - [Analysis modes](#analysis-modes)
   - [Reports and verification](#reports-and-verification)
-  - [Follow-ups, plots and memory](#follow-ups-plots-and-memory)
+  - [Follow-ups and plots](#follow-ups-and-plots)
   - [Routines](#routines)
 - [Configuration](#configuration)
   - [Environment variables](#environment-variables)
@@ -146,7 +146,6 @@ The working directory holds configuration and saved work:
 ├── storage/<user>/favourites/        saved chains
 ├── storage/<user>/routines/          routine versions, runs and results
 ├── storage/<user>/context/           codebooks and coded Intervals.icu passages
-├── memory/<user>/                    dataset memory pack
 └── logs/<user>/                      model calls, tokens, latency and cost
 ```
 
@@ -169,7 +168,6 @@ abbreviated in the prompt but remain available through `SHOW`.
 | `CELL` | Execute a Python cell in the persistent kernel. |
 | `SHOW n` | Reopen a previous cell's full output. |
 | `NAMES` | Inspect variables in the kernel. |
-| `RECALL` | Consult saved memory for the dataset. |
 | `SEARCH` | Search the web with Google AI grounding and return sources. |
 | `READ` | Read passages from attached documents or Intervals.icu context using the Reader seat. |
 | `ASK` | Request input from the user; the answer continues in the next run. |
@@ -228,7 +226,7 @@ After `REPORT`, BambooAI performs several distinct steps:
 These checks catch reproducibility and reporting problems; reproducing a calculation does not validate
 its statistical design or interpretation.
 
-### Follow-ups, plots and memory
+### Follow-ups and plots
 
 A follow-up continues from the preceding run's Python state; a new question starts a fresh workspace.
 Runs form navigable chains. If the dataset changes, BambooAI starts a fresh kernel and keeps earlier
@@ -239,10 +237,6 @@ file comparison.
 Use the chat button on a figure to ask about it. The image is included only when the Analyst supports
 images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
 without the image, and the app indicates that limitation.
-
-Saving a run invokes the `Knowledge Distiller` to capture dataset-specific notes, column quirks and
-useful approaches in `memory/<user>/memory_pack.yaml`. Future analyses of the same data can retrieve
-them using `RECALL`.
 
 ### Routines
 
@@ -315,7 +309,6 @@ defined in the template):
   {"agent": "Coder",                     "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reviewer",                  "details": {"model": "openai/gpt-6.1-sol",                 "provider": "openrouter",  "reasoning_effort": "high",   "max_tokens": 48000, "temperature": 0}},
   {"agent": "Promoter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Knowledge Distiller",       "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 24000, "temperature": 0}},
   {"agent": "Google Search Executor",    "details": {"model": "gemini-flash-latest",                "provider": "gemini",      "reasoning_effort": "none",   "max_tokens":  8000, "temperature": 0}},
   {"agent": "Google Search Summarizer",  "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 12000, "temperature": 0}},
   {"agent": "Image Generator",           "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 28000, "temperature": 0}}
@@ -344,7 +337,6 @@ Anthropic, Google, Groq, Mistral, xAI, DeepSeek, Ollama and vLLM.
 | `Reader` | Targeted document and context reads (`READ`). |
 | `Coder` | Codes Intervals.icu context against the codebook; falls back to `Reader`. |
 | `Promoter` | Extracts routine inputs; falls back to `Analyst`. |
-| `Knowledge Distiller` | Dataset memory on save. |
 | `Google Search Executor` | Grounded Gemini search. |
 | `Google Search Summarizer` | Search digest with citations. |
 | `Image Generator` | SVG infographic for thread synthesis, not every analysis report. |

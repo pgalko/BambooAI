@@ -120,7 +120,7 @@ for day in range(2, 32):
         n = max(0, n - 3)
     for k in range(n):
         analysis(day, random.randint(7, 21), f"t{day}", random.choice(["Deep", "Deep", "Quick", "Adaptive", "Quick"]), fail=random.random() < 0.06)
-# a Save-as-routine proposal, an ideas run, the memory's distillation
+# a Save-as-routine proposal, an ideas run, and a call of the Knowledge Distiller: the seat is retired (2.8), its past rows are still shown
 call("1793399001", "t18", datetime(2026, 10, 18, 17, 5), "Promoter", 14000, 0, 2200, 18.0)
 ideas = analysis(20, 9, "t20", "Quick", q="Ideas")
 threads["t20"].runs[ideas].mode = "Ideas"

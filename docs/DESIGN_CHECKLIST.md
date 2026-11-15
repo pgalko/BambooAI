@@ -35,7 +35,7 @@ is not earning its place.
   the model. The scanner test stays, and covers every text a model reads: the contract and its inserts, the
   reviewer's prompt, the rewrite task, the Reader, and every string the session, tools and reader send.
 - [ ] C6. No structure added without a failure observed in the comparison runs that it fixes. Complexity is earned, never anticipated.
-- [ ] C7. No context pasted "just in case": the memory index, registry dumps, prior-chain briefings and record views are replaced by tools the analyst calls (`show`, `names`, `recall`, `search`).
+- [ ] C7. No context pasted "just in case": the memory index, registry dumps, prior-chain briefings and record views are replaced by tools the analyst calls (`show`, `names`, `search`).
 
 ## D. Context and duration
 
@@ -53,8 +53,8 @@ is not earning its place.
 
 - [ ] E1. Quick / Deep / Adaptive are budget presets of the one component (≈1+1 repair, ≈15, ≈40–60 turns), with per-preset model seating in the tier configuration.
 - [ ] E2. Routing is a rule: data attached → the kernel has `df` and the schema is in the prompt; none → compute/knowledge analyst with search. It fixes the toolset, never the kind of question; the analyst judges each turn.
-- [ ] E3. Tools: run a cell; show a cell; list names; recall from memory; web search; ask the user. Nothing else unless C6 earns it.
-- [ ] E4. Memory (knowledge pack) is a tool read on demand and written once from the finished report and note. Its store and review UI are unchanged.
+- [ ] E3. Tools: run a cell; show a cell; list names; web search; ask the user. Nothing else unless C6 earns it.
+- [ ] E4. Memory is not a tool of the analyst (2.8, 2026-11-15): the knowledge pack, its `recall` and its review UI are retired; memory is the coach's saved analyses, reached through the Architect before a run (docs/ARCHITECT_DESIGN.md).
 - [ ] E5. The Socratic assistant is retired; the analyst asks the user when the brief is ambiguous and otherwise states its reading in the note.
 
 ## F. Outputs, storage, UI

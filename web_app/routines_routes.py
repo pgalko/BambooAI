@@ -1,6 +1,6 @@
 """Routines (docs/ROUTINES_DESIGN.md): the routes behind Save as routine, the Routines manager and the favourites'
 cards. The routines live as files beside the favourites (storage/<user>/routines/<id>/); the two slow routes -
-propose (the promoter's call) and create (run zero) - stream the pane's rows while they work, as /submit_rank does,
+propose (the promoter's call) and create (run zero) - stream the pane's rows while they work,
 and end with one message the dialog reads (routine_proposal, routine_made, or routine_error)."""
 import json
 import threading

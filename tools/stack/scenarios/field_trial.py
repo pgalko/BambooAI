@@ -211,8 +211,6 @@ class Scenario:
             return "", self.rewrite(user)
         if "Propose five follow-up questions" in user:
             return "", IDEAS
-        if system.startswith("You are the Knowledge Distiller"):
-            return "", self.card()
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
         if system.startswith("You are the reviewer"):
@@ -544,25 +542,3 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
                     "held fixed, one value per plot.\n\n## What it does not mean\nA small real effect cannot be ruled out at "
                     "this trial's size.\n\n## What to do next\nPut all three regimes in one model with soil and rainfall.")
         return "The plain-language version of a placeholder answer: nothing was computed for this question."
-
-    # --------------------------------------------------------------- memory
-    def card(self):
-        return """```yaml
-name: within_soil_plot_level_contrast
-kind: method
-status: candidate
-hooks:
-  answers_question: "How much does one regime change yield compared with another when the soil mix differs by regime?"
-  use_when: "Comparing treatments across plots with repeated seasons and an unevenly spread stratifying factor"
-body:
-  function_definition: "Average each plot over its seasons; within each stratum compute treatment minus control on the plot means; weight strata by the number of plots compared; bootstrap by resampling plots within stratum and treatment for the interval."
-  assumes: "The stratifying factor is the main imbalance; plots are exchangeable within stratum and treatment."
-  limitations: "Does not adjust for covariates that vary within stratum (rainfall); not causal without randomised assignment."
-  rationale: "Plots, not rows, are the sampling unit; stratifying removes the imbalance the raw contrast carries."
-relations:
-  requires: []
-  depends_on: []
-  produces: []
-  alternative_to: []
-  complemented_by: []
-```"""

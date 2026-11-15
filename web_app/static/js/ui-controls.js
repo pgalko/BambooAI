@@ -403,8 +403,8 @@ function updateNavigationButtons() {
         nextDisabled: nextButton.disabled
     });
 
-    if (typeof updateRankButtonVisibility === 'function') {
-        updateRankButtonVisibility();
+    if (typeof updateSaveButton === 'function') {
+        updateSaveButton();
     }
     // the code map follows the chain on screen while it is open (2026-10-20)
     if (window.CodeMapUI && typeof window.CodeMapUI.onChain === 'function') {

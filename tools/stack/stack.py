@@ -10,7 +10,7 @@
 
 Ports default to 5055 (executor), 5056 (orchestrator), 5001 (web app); --auto-ports picks free
 ones. Everything the stack writes lives under --workdir (default /tmp/bamboo_stack):
-executor/, webapp/ (config, storage, memory, logs), data/ (the scenario's dataset), logs/
+executor/, webapp/ (config, storage, logs), data/ (the scenario's dataset), logs/
 (one file per process), stack.json (ports and pids of a detached stack).
 """
 import argparse

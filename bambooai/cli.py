@@ -6,7 +6,7 @@
 
 One working folder, BAMBOO_HOME (default ~/bambooai), owns everything the app writes: .env,
 LLM_CONFIG_template.json (your copy of the seats and prices), bambooai.sqlite, and per user
-config/, storage/, memory/, logs/, temp/, datasets/, iframe_figures/. The code is never written
+config/, storage/, logs/, temp/, datasets/, iframe_figures/. The code is never written
 to, wherever it is installed. `serve` writes a .env with generated secrets the first time, loads
 it, applies the edition's defaults for anything the file leaves unset, moves into the folder (the
 app resolves its paths from the working directory) and runs the web app on localhost.
@@ -51,7 +51,7 @@ ENV_TEMPLATE = """# BambooAI - the self-hosted edition. This file is yours; the 
 # --- who and how -----------------------------------------------------------------
 # one person, no sign-in
 AUTH_MODE=single
-# names your folders: config/local, storage/local, memory/local...
+# names your folders: config/local, storage/local...
 BAMBOO_USER=local
 # cost | performance | max - the first default; the account dialog saves your later choice.
 # cost runs on an OpenRouter key alone; performance and max put the Analyst and the writing seats
@@ -129,7 +129,7 @@ def init_home(home, quiet=False):
     if not os.path.exists(template_dst) and os.path.exists(template_src):
         shutil.copy2(template_src, template_dst)
         made.append("LLM_CONFIG_template.json")
-    for d in ("config", "storage", "memory", "logs", "temp", "datasets", "iframe_figures"):
+    for d in ("config", "storage", "logs", "temp", "datasets", "iframe_figures"):
         os.makedirs(os.path.join(home, d), exist_ok=True)
     if not quiet:
         print(f"bambooai: working folder {home}" + (f" (created {', '.join(made)})" if made else ""))
@@ -152,7 +152,6 @@ def load_env(home):
         os.environ.setdefault(k, v)
     os.environ.setdefault("BAMBOO_HOME", home)
     os.environ.setdefault("BAMBOO_DATA_DIR", home)          # bambooai.sqlite (phase 3)
-    os.environ.setdefault("BAMBOO_MEMORY_DIR", os.path.join(home, "memory"))
 
 
 def _missing_keys():

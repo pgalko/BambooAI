@@ -5,6 +5,9 @@ code as the replacement lands (in place, not in a parallel tree). "Simplify" mea
 the responsibility, cut the mechanism to what the checklist allows. Line counts are the
 current tree's.
 
+2026-11-15 (2.8): the knowledge pack, its review UI and the `recall` tool, which this inventory keeps,
+are retired (docs/ARCHITECT_DESIGN.md §5).
+
 ## 1. New (one small package, ~600–900 lines total)
 
 | Module | Responsibility | Checklist |

@@ -16,7 +16,7 @@ No production file changes. What is replaced, in this process only, before app.p
     behind the app's own client code (env SUPABASE_* point at it). Stripe stays unconfigured. The orchestrator is the fake at --orchestrator-port; the executor behind it is real.
 
 Environment the app reads (same names as /etc/bambooai/*.env on the box): AUTH_MODE, AUTH0_*,
-FLASK_SECRET, ORCHESTRATOR_API_URL, EXECUTION_MODE=api, BAMBOO_MEMORY_DIR, SYNTHESIS_INFOGRAPHIC.
+FLASK_SECRET, ORCHESTRATOR_API_URL, EXECUTION_MODE=api, SYNTHESIS_INFOGRAPHIC.
 The working directory holds LLM_CONFIG_template.json, config/, storage/, logs/, temp/ - the
 app's cwd-relative layout, as under gunicorn on the box.
 """
@@ -56,7 +56,7 @@ def main():
     ap.add_argument("--orchestrator-port", type=int, default=5056)
     ap.add_argument("--workdir", default=os.path.join("/tmp", "bamboo_stack", "webapp"))
     ap.add_argument("--scenario", default="field_trial")
-    ap.add_argument("--fresh", action="store_true", help="wipe the working directory first (config, storage, memory)")
+    ap.add_argument("--fresh", action="store_true", help="wipe the working directory first (config, storage)")
     ap.add_argument("--compute", choices=("orchestrator", "direct", "local"), default="orchestrator")
     ap.add_argument("--executor-port", type=int, default=5055)
     ap.add_argument("--edition", choices=("hosted", "local"), default="hosted",
@@ -75,7 +75,7 @@ def main():
         "BAMBOO_USER": "local", "BAMBOO_LEVEL": "performance",
         "GEMINI_API_KEY": "stack-search-key",          # search is on only with a Gemini key (D28); the seam below answers, not Gemini
         "FLASK_SECRET": "local-stack-secret",
-        "EXECUTION_MODE": "local" if a.compute == "local" else "api", "BAMBOO_MEMORY_DIR": os.path.join(a.workdir, "memory"),
+        "EXECUTION_MODE": "local" if a.compute == "local" else "api",
         "SYNTHESIS_INFOGRAPHIC": os.environ.get("SYNTHESIS_INFOGRAPHIC", "false"),
         "STREAM_HEARTBEAT_SECONDS": "5",
     })

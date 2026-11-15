@@ -191,7 +191,6 @@
 
 .attach-icon { left: 10px; }
 .planning-brain { left: 40px; }
-.rank-icon { left: 100px; }
 
 #queryInput {
     width: 100%;
@@ -900,13 +899,6 @@
 
 
 
-#ratingValue {
-    display: block;
-    font-size: 16px;
-    font-weight: 500;
-    margin-bottom: 4px;
-    color: var(--text-primary);
-}
 
 
 
@@ -1163,20 +1155,6 @@
 
 .icon-button.suggest-questions:hover {
     opacity: 0.8;
-}
-
-.icon-button.rank-icon {
-    cursor: pointer;
-    color: var(--accent-color);
-    transition: all 0.2s ease;
-}
-
-.icon-button.rank-icon.active {
-    color: var(--accent-color);
-}
-.icon-button.rank-icon:hover {
-    transform: scale(1.05);
-    color: var(--accent-color);
 }
 
 /* Branching CV Icons Popup */

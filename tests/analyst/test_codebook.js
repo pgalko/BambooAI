@@ -140,9 +140,9 @@ answers['/codebook'] = [200, VIEW];
   const html = fs.readFileSync(path.join(root, 'templates', 'index.html'), 'utf8'), core = fs.readFileSync(path.join(root, 'static', 'js', 'core.js'), 'utf8');
   const dcss = fs.readFileSync(path.join(root, 'static', 'css', 'dialogs.css'), 'utf8'), scss = fs.readFileSync(path.join(root, 'static', 'css', 'shell.css'), 'utf8');
   const intMod = el(html.slice(html.indexOf('id="intervalsModal"'), html.indexOf('id="intervalsConfigModal"')));
-  check('index.html: the Context card of the Intervals dialog carries the line slot the module fills; nothing universal carries the codebook (no gear item, no rail entry); codebook.js is loaded after memory-review.js; core.js initialises the module after auth',
+  check('index.html: the Context card of the Intervals dialog carries the line slot the module fills; nothing universal carries the codebook (no gear item, no rail entry); codebook.js is loaded after routines.js; core.js initialises the module after auth',
     intMod.querySelector('.int-card #context-checkbox') && intMod.querySelector('.int-card .more#contextCodebookLine') && !html.includes('codebook-option') && !html.includes('codebookPill')
-    && html.indexOf("js/codebook.js") > html.indexOf("js/memory-review.js") && core.includes('window.CodebookUI.initialize();'));
+    && html.indexOf("js/codebook.js") > html.indexOf("js/routines.js") && core.includes('window.CodebookUI.initialize();'));
   check('the stylesheets: the dialog\'s rules in dialogs.css (the modal, the cards, the forms, the status chips, the tables, the card\'s badge), the pill\'s badge in shell.css',
     dcss.includes('#codebookModal { display: none; position: fixed;') && dcss.includes('.cb-card {') && dcss.includes('.cb-form {') && dcss.includes('.cb-status.confirmed') && dcss.includes('.cb-table td.num') && dcss.includes('.integration-dialog .n-badge {') && scss.includes('.topbar .context-pill .pill-badge {'));
   finish();

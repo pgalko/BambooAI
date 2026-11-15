@@ -542,23 +542,6 @@ def compute_aux_dataset_sample(file_paths: List[str],
     
     return html_results
     
-def inspect_dataframe(df, execution_mode='local', df_id=None, executor_client=None,
-                      num_rows=5, **_ignored):
-    """A preview of the dataframe as a string.
-
-    The ontology-extraction path that used to live here ran the Dataframe
-    Inspector agent, which the Investigator replaced: it consults the memory
-    pack's index (knowledge_pack.memory_index) as part of its schema, looks up
-    detail on demand through `memory:` SEARCH steps, and decides what matters
-    by running code, rather than guessing up front.
-
-    `**_ignored` keeps the old keyword call sites working during the cutover;
-    they pass prompt_manager / log_and_call_manager / the old ontology kwargs and now get a
-    plain preview back instead of a tuple.
-    """
-    return dataframe_to_string(df=df, execution_mode=execution_mode, df_id=df_id,
-                               executor_client=executor_client, num_rows=num_rows)
-
 # ── chain identifiers ──────────────────────────────────────────────────────
 _CHAIN_ID_LOCK = threading.Lock()
 _LAST_CHAIN_ID = 0

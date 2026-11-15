@@ -85,7 +85,7 @@ immediately before it. The answer:
   configuration (`LLM_CONFIG.json`, the user's or the box's; nothing when it has no entry);
 - `analyses`: the ledger, one entry per chain of the period, newest first: when (UTC), the thread, the kind
   (`analysis`, `ideas`, or - for a chain the thread store does not know - `routine` for the Promoter's Save-as-routine
-  call, `context` for the Coder's pass, `reading`, `memory`, `other`), the question and the title, the mode, the
+  call, `context` for the Coder's pass, `reading`, `memory` - the Knowledge Distiller's calls, a seat retired with 2.8 - or `other`), the question and the title, the mode, the
   cells and figures, the outcome (`answered`, `reproduced`, `differed`, `replay failed`, `failed at cell n`,
   `refused`, `stopped`, `asked`, `running`), the wall time (first turn to last), the calls, tokens, cache, time,
   cost, compute, the cost per seat, and `saved` - whether the chain's favourite file exists, since the page opens a

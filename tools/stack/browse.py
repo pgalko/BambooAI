@@ -9,7 +9,7 @@
 The story: cold page -> the dataset uploaded through the file input -> the question typed ->
 Deep run (screenshots while it runs and when it completes) -> each right-pane tab -> the
 simplified view -> a follow-up on the warm kernel -> the chain navigation -> the thread map ->
-the seedling (Explore) -> Save (memory card) -> Saved workflows -> the settings dialogs.
+the seedling (Explore) -> Save as favourite -> Saved workflows -> the settings dialogs.
 Page errors and console errors are written to <out>/console.txt; a non-empty errors list makes
 the exit status 1, so the walk doubles as a smoke test.
 """
@@ -197,18 +197,14 @@ def story(w, mod, dataset, questions):
         p.click("#prevResponse")
         p.wait_for_timeout(500)
 
-    # Save: the rank modal; 7 -> favourite + the memory write pass
-    if p.query_selector("#rankButton"):
-        p.click("#rankButton")
-        p.wait_for_selector("#rankModal", state="visible", timeout=10000)
-        p.click("#rankModal .rating-segment[data-value='7']")
-        p.wait_for_timeout(300)
-        w.shot("rank_modal")
-        p.click("#submit-rank")
+    # Save: the pill's menu, then Save as favourite - one click
+    if p.query_selector("#saveButton"):
+        p.click("#saveButton")
+        p.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+        w.shot("save_menu")
+        p.click("#saveMenu .it[data-act='favourite']")
         p.wait_for_timeout(2500)
         w.shot("saved")
-        if p.query_selector("#rankModal"):
-            p.evaluate("(() => { const m = document.querySelector('#rankModal'); if (m) m.style.display = 'none'; })()")
 
     # the dialogs
     def close_dialogs():
@@ -223,11 +219,6 @@ def story(w, mod, dataset, questions):
     p.wait_for_timeout(1200)
     w.shot("saved_workflows")
     close_dialogs()
-    if p.query_selector("#memoryReviewPill") and p.is_visible("#memoryReviewPill"):
-        p.click("#memoryReviewPill")
-        p.wait_for_timeout(800)
-        w.shot("memory_review")
-        close_dialogs()
     p.click("#datasetManagerPill")
     p.wait_for_timeout(900)
     w.shot("dataset_cache")

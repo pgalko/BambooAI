@@ -113,7 +113,7 @@ def _reach_html(reaches) -> str:
 
 def _step_html(turn: Turn, index: int) -> str:
     kind = turn.kind
-    if kind in ("show", "names", "recall", "search"):
+    if kind in ("show", "names", "recall", "search"):                  # recall: a step of a run made before 2.8, when the analyst had a memory to ask
         label = {"show": "Re-opened a cell", "names": "Kernel names", "recall": "Recalled from memory", "search": "Web search"}[kind]
         body = turn.stdout or ""
         return (f'<details class="nb-step"><summary><span class="nb-chevron"></span><span class="nb-out-label">{label}</span>'

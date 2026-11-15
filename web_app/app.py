@@ -254,38 +254,6 @@ EXPLORATORY = True
 SEARCH_TOOL = bool(os.getenv('GEMINI_API_KEY')) and os.getenv('WEB_SEARCH_MODE', 'google_ai') not in ('off', 'none', 'false', '0')
 WEBUI = True
 
-# Workspace memory is ALWAYS ON at a fixed per-user path - no UI lever, no
-# preference, no opt-in. Layout: memory/<user_id>/memory_pack.yaml. An
-# absent file is a silent cold start; the pack grows through the write
-# path (step 23) or by placing a YAML at the path the startup log names.
-#
-# Anchoring: the app package directory (dirname(__file__)), NOT the
-# process CWD - services chdir wherever their unit says (this deployment
-# runs from orchestration/), so CWD is not deterministic, while the app
-# dir is. It is often read-only to the service user, so the root needs a
-# one-time provisioning exactly like temp/ received:
-#     mkdir memory && chown/chmod --reference=temp memory
-# or set BAMBOO_MEMORY_DIR to any writable location instead.
-MEMORY_DIR = os.environ.get('BAMBOO_MEMORY_DIR') or os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'memory')
-try:
-    os.makedirs(MEMORY_DIR, exist_ok=True)
-    logger.info(f"Memory root: {MEMORY_DIR}")
-except Exception as _e:                                        # noqa: BLE001
-    logger.error(f"Cannot create memory root {MEMORY_DIR}: {_e}. Memory "
-                 f"stays cold until you either pre-provision that directory "
-                 f"for the service user or set BAMBOO_MEMORY_DIR.")
-
-def user_memory_path():
-    """The canonical memory pack path for the current user:
-    MEMORY_DIR/<user_id>/memory_pack.yaml (per-user subdir, house style)."""
-    user_dir = os.path.join(MEMORY_DIR, get_user_id())
-    try:
-        os.makedirs(user_dir, exist_ok=True)
-    except Exception:                                          # noqa: BLE001
-        pass  # read path cold-starts; the per-run log names the path
-    return os.path.join(user_dir, 'memory_pack.yaml')
-
 # Initialize SweatStack integration
 init_sweatstack_integration(app, 
     user_preferences=user_preferences,
@@ -389,7 +357,6 @@ def get_bamboo_ai(session_id, df=None):
             planning=prefs['planning'],
             search_tool=SEARCH_TOOL,
             webui=WEBUI,
-            memory_path=user_memory_path(),  # always-on workspace memory
             df_id=prefs['df_id'],
             auxiliary_datasets=prefs['auxiliary_datasets'],
             api_keys=api_keys,
@@ -616,10 +583,6 @@ def start_new_conversation(session_id):
     # Clear datasets user_preferences for the current session
     prefs['auxiliary_datasets'] = []
     prefs['df_id'] = None
-    
-    # Workspace memory is untouched here by design: it is always-on at a
-    # fixed path (user_memory_path) and survives conversations, dataset
-    # switches, and restarts. See memory_pack_design.md.
     
     user_preferences[session_id] = prefs
     
@@ -1359,7 +1322,7 @@ def query():
     current_bamboo_ai_instance.output_manager.add_user_input(user_input)
     
     def run_bamboo_ai():
-        result = current_bamboo_ai_instance.pd_agent_converse(
+        current_bamboo_ai_instance.pd_agent_converse(
             thread_id=thread_id,
             chain_id=chain_id,
             image=image if image else None,
@@ -1369,9 +1332,6 @@ def query():
             mode=mode,
             ideas=branching_cv,
         )
-        
-        #if result is not None and getattr(current_bamboo_ai_instance, 'output_manager', None):
-            #current_bamboo_ai_instance.output_manager.output_queue.put(json.dumps({"rank_data": result}))
 
     thread = threading.Thread(target=run_bamboo_ai)
     thread.start()
@@ -1413,106 +1373,6 @@ def query():
 
     return Response(generate(), mimetype='application/json')
 
-@app.route('/submit_rank', methods=['POST'])
-@requires_auth
-def submit_rank():
-    session_id = session['session_id']
-    bamboo_ai_instance = get_bamboo_ai(session_id)
-    
-    data = request.json
-    user_rank = data.get('rank')
-    chain_id = data.get('chain_id')
-    intent_breakdown = data.get('intent_breakdown')
-    data_descr = data.get('data_descr')
-    code = data.get('code')
-    
-    # The rank event credits memory: a high rank reinforces the cards
-    # whose findings this chain rested on (the only signal that counts
-    # toward promotion). Quick chains reinforce nothing structurally -
-    # they carry no evidence entries. Never breaks the rank.
-    logger.info(f"Rank event: chain {chain_id} rank {user_rank}")
-    try:
-        from bambooai.knowledge_pack import reinforce, REINFORCE_RANK_MIN
-        if user_rank is not None and int(user_rank) >= REINFORCE_RANK_MIN:
-            credited = reinforce(user_memory_path(), str(chain_id),
-                                 reason='rank')
-            if credited:
-                logger.info(f"Memory: reinforcement recorded for "
-                            f"{len(credited)} cards ({', '.join(credited)}) "
-                            f"via rank on chain {chain_id}")
-                bamboo_ai_instance.output_manager.output_queue.put(json.dumps({
-                    "system_message": f"Memory: reinforcement recorded for "
-                                      f"{', '.join(credited)}"}))
-                # Crossing the threshold earns a REVIEW, not an
-                # automatic promotion - nudge the user toward it.
-                from bambooai.knowledge_pack import promotable
-                _promo = [x['name'] for x in
-                          promotable(user_memory_path())]
-                if _promo:
-                    logger.info(f"Memory: ready for promotion review: "
-                                f"{', '.join(_promo)}")
-                    bamboo_ai_instance.output_manager.output_queue.put(
-                        json.dumps({"memory_review": _promo}))
-                    bamboo_ai_instance.output_manager.output_queue.put(
-                        json.dumps({"system_message":
-                                    "Memory: '"
-                                    + "', '".join(_promo)
-                                    + "' ready for promotion - open "
-                                      "Memory Review"}))
-            # Consent-on-write (step 26): the keep-signal is where a
-            # memory may be BORN. The distill itself - the slow LLM call -
-            # runs in the response generator's worker below, so its
-            # progress streams into the rank dialog live.
-    except Exception as _mem_err:                               # noqa: BLE001
-        logger.warning(f"Memory: rank reinforcement failed: {_mem_err}")
-
-    def generate():
-        # The memory work above queued its messages synchronously, so
-        # historically the client saw them in one burst AFTER the
-        # distiller finished - "Saving checkpoint..." sat frozen for the
-        # whole LLM call. The distill (the slow part) now runs in a
-        # worker while this generator drains the queue LIVE, so the rank
-        # dialog narrates the birth as it happens.
-        import threading
-        _done = threading.Event()
-
-        def _distill_work():
-            try:
-                bamboo_ai_instance.output_manager.output_queue.put(
-                    json.dumps({"system_message":
-                                "Distilling this run into memory..."}))
-                new_cards = bamboo_ai_instance.distill_kept_chain(
-                    str(chain_id))
-                if new_cards:
-                    bamboo_ai_instance.output_manager.output_queue.put(
-                        json.dumps({"system_message":
-                                    "Memory: new candidate card"
-                                    + ("s " if len(new_cards) > 1 else " ")
-                                    + ", ".join(f"'{n}'"
-                                                for n in new_cards)}))
-                else:
-                    bamboo_ai_instance.output_manager.output_queue.put(
-                        json.dumps({"system_message":
-                                    "Saved. No new memory card from this "
-                                    "run."}))
-            except Exception as _d_err:                         # noqa: BLE001
-                logger.warning(f"Memory: distill worker failed: {_d_err}")
-            finally:
-                _done.set()
-
-        threading.Thread(target=_distill_work, daemon=True).start()
-        while not _done.is_set() or \
-                not bamboo_ai_instance.output_manager.output_queue.empty():
-            try:
-                output = bamboo_ai_instance.output_manager.output_queue.get(
-                    timeout=0.2)
-                if output:
-                    yield output + '\n'
-            except Empty:
-                pass  # keep draining until the worker finishes
-
-    return Response(generate(), mimetype='application/json')
-
 @app.route('/storage/get_existing_chains/<thread_id>', methods=['GET'])
 @requires_auth
 def get_existing_chains(thread_id):
@@ -1528,118 +1388,10 @@ def get_existing_chains(thread_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/memory/review', methods=['GET'])
-@requires_auth
-def memory_review():
-    """The promotion review's read side: candidates at the threshold,
-    with the flags to clear and the similar cards to merge."""
-    try:
-        from bambooai.knowledge_pack import promotable, governing
-        return jsonify({'promotable': promotable(user_memory_path()),
-                        'established': governing(user_memory_path())}), 200
-    except Exception as e:                                      # noqa: BLE001
-        logger.warning(f"Memory review read failed: {e}")
-        return jsonify({'promotable': []}), 200
-
-
-@app.route('/memory/review/action', methods=['POST'])
-@requires_auth
-def memory_review_action():
-    """The review's verbs: promote (with optional hook polish), merge
-    (absorb similars; stays a candidate), retire (repudiation)."""
-    try:
-        from bambooai.knowledge_pack import promote, retire, merge
-        data = request.json or {}
-        action = data.get('action')
-        name = data.get('name')
-        if action == 'promote':
-            ok, why = promote(user_memory_path(), name,
-                              hooks=data.get('hooks'))
-        elif action == 'retire':
-            ok, why = retire(user_memory_path(), name)
-        elif action == 'merge':
-            ok, why = merge(user_memory_path(), name,
-                            data.get('absorb') or [])
-        else:
-            return jsonify({'ok': False, 'reason': 'unknown action'}), 400
-        if ok:
-            logger.info(f"Memory review: {action} '{name}' ok")
-        return jsonify({'ok': ok, 'reason': why}), (200 if ok else 400)
-    except Exception as e:                                      # noqa: BLE001
-        logger.warning(f"Memory review action failed: {e}")
-        return jsonify({'ok': False, 'reason': str(e)}), 500
-
-
-@app.route('/storage/favourites', methods=['POST'])
-@requires_auth
-def store_favourite():
-    """ Store the favourite solution in the storage/favourites directory """
-    
-    try:
-        data = request.json
-        if not data:
-            return jsonify({'error': 'Missing request data'}), 400
-            
-        # Extract and validate fields
-        thread_id = data.get('thread_id')
-        chain_id = data.get('chain_id')
-        dataset_name = data.get('dataset_name')
-        index = data.get('index')
-        rank = data.get('rank')
-        content = data.get('content')
-        task = data.get('task', '')  # Extract task field with empty default
-
-        # Create directory path for favourites
-        favourites_dir = user_path('storage', 'favourites', str(thread_id))
-        os.makedirs(favourites_dir, exist_ok=True)
-
-        # Create filename using chain_id
-        filename = os.path.join(favourites_dir, f'{chain_id}.json')
-
-        # Add timestamp and task to saved data
-        save_data = {
-            'thread_id': thread_id,
-            'chain_id': chain_id,
-            'parentChainId': data.get('parentChainId'),
-            'dataset_name': dataset_name,
-            'index': index,
-            'rank': rank,
-            'timestamp': pd.Timestamp.now().isoformat(),
-            'task': task,
-            'bookmark_type': 'individual',
-            **content
-        }
-
-        # Write to JSON file, overwriting if it exists
-        with open(filename, 'w') as f:
-            json.dump(save_data, f, indent=2)
-
-        # Saving a chain is the strongest keep-signal there is: reinforce
-        # the cards whose findings it rested on. Never breaks the save.
-        try:
-            from bambooai.knowledge_pack import reinforce
-            credited = reinforce(user_memory_path(), str(chain_id),
-                                 reason='save')
-            if credited:
-                logger.info(f"Memory: reinforcement recorded for "
-                            f"{len(credited)} cards ({', '.join(credited)}) "
-                            f"via save of chain {chain_id}")
-        except Exception as _mem_err:                           # noqa: BLE001
-            logger.warning(f"Memory: save reinforcement failed: {_mem_err}")
-
-        return jsonify({
-            'message': 'Solution saved to favourites', 
-            'filename': filename,
-            'task_included': bool(task)  # Let client know if task was included
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
-    
 @app.route('/storage/trajectory_favourites', methods=['POST'])
 @requires_auth
 def store_trajectory_favourites():
-    """Store an entire trajectory of chains to favorites."""
+    """Save chains of a thread as favourites: one file per chain, the picked one marked individual, the rest trajectory."""
     try:
         data = request.json
         if not data:
@@ -1647,7 +1399,6 @@ def store_trajectory_favourites():
         
         thread_id = data.get('thread_id')
         dataset_name = data.get('dataset_name')
-        rank = data.get('rank')
         trajectory = data.get('trajectory', [])
         
         if not thread_id or not trajectory:
@@ -1659,7 +1410,6 @@ def store_trajectory_favourites():
         
         saved_count = 0
         errors = []
-        saved_chain_ids = []
         
         for chain_data in trajectory:
             try:
@@ -1674,7 +1424,6 @@ def store_trajectory_favourites():
                 
                 filename = os.path.join(favourites_dir, f'{chain_id}.json')
                 
-                # --- NEW: Determine bookmark type ---
                 bookmark_type = chain_data.get('bookmark_type')
                 
                 # Preserve existing bookmark — individual takes precedence
@@ -1689,7 +1438,6 @@ def store_trajectory_favourites():
                                 bookmark_type = existing_type
                     except Exception:
                         pass
-                # --- END NEW ---
                 
                 save_data = {
                     'thread_id': thread_id,
@@ -1697,10 +1445,9 @@ def store_trajectory_favourites():
                     'parentChainId': parent_chain_id,
                     'dataset_name': dataset_name,
                     'index': index,
-                    'rank': rank,
                     'timestamp': pd.Timestamp.now().isoformat(),
                     'task': task,
-                    'bookmark_type': bookmark_type,  # NEW
+                    'bookmark_type': bookmark_type,
                     **content
                 }
                 
@@ -1708,65 +1455,12 @@ def store_trajectory_favourites():
                     json.dump(save_data, f, indent=2)
                 
                 saved_count += 1
-                saved_chain_ids.append((str(chain_id), bookmark_type))
                 
             except Exception as chain_error:
                 logger.error(f"Error saving chain {chain_data.get('chain_id')}: {chain_error}")
                 errors.append(str(chain_error))
                 continue
         
-        # This is the LIVE save path (the UI's fused rank-then-save gesture
-        # lands here; the plain /storage/favourites route is legacy). Every
-        # deliberately kept chain reinforces the cards it rested on. With a
-        # high rank the rank hook credited first and this is an idempotent
-        # no-op; with a low rank the save is the keep-signal that credits.
-        # Never breaks the save.
-        try:
-            from bambooai.knowledge_pack import reinforce
-            credited_all = set()
-            # The save is a keep-signal too: attempt distillation for each
-            # kept chain (idempotent - the rank leg of the fused gesture
-            # usually got there first at high ranks; at LOW ranks this is
-            # where a memory may be born).
-            # Judgment births, archival credits: only chains kept as
-            # 'individual' (the deliberate single-chain gesture) are
-            # distilled. A bulk Save Trajectory - auto_explore can carry
-            # 20+ chains of exploratory scaffolding - reinforces every
-            # saved chain but births nothing.
-            # The rating bar is the consent dial the UI advertises:
-            # below REINFORCE_RANK_MIN the hint reads "Saves to
-            # favorites only" - so memory stays untouched, honoring the
-            # on-screen contract over any silent cleverness.
-            from bambooai.knowledge_pack import REINFORCE_RANK_MIN
-            try:
-                _qualifies = (rank is not None
-                              and int(rank) >= REINFORCE_RANK_MIN)
-            except (TypeError, ValueError):
-                _qualifies = False
-            _sid = session.get('session_id')
-            _inst = bamboo_ai_instances.get(_sid) if _sid else None
-            for _cid, _btype in saved_chain_ids:
-                if not _qualifies:
-                    continue
-                if _inst is not None and _btype == 'individual':
-                    _inst.distill_kept_chain(_cid)
-                credited_all.update(reinforce(user_memory_path(), _cid,
-                                              reason='save'))
-            if credited_all:
-                logger.info(f"Memory: reinforcement recorded for "
-                            f"{len(credited_all)} cards "
-                            f"({', '.join(sorted(credited_all))}) via save "
-                            f"of {len(saved_chain_ids)} chains "
-                            f"({sum(1 for _c, _b in saved_chain_ids if _b == 'individual')} individual)")
-                from bambooai.knowledge_pack import promotable
-                _promo = [x['name'] for x in
-                          promotable(user_memory_path())]
-                if _promo:
-                    logger.info(f"Memory: ready for promotion review: "
-                                f"{', '.join(_promo)}")
-        except Exception as _mem_err:                           # noqa: BLE001
-            logger.warning(f"Memory: save reinforcement failed: {_mem_err}")
-
         return jsonify({
             'message': 'Trajectory saved successfully',
             'saved_count': saved_count,
@@ -1997,34 +1691,19 @@ def get_chain_preview(thread_id, chain_id):
 @app.route('/delete_thread/<thread_id>', methods=['DELETE'])
 @requires_auth
 def delete_thread(thread_id):
-    """Delete an entire thread and all its chains from favorites and vector db."""
+    """Delete a saved thread: its favourites, their labels, its documents."""
     try:
-        session_id = session.get('session_id')
         thread_path = user_path('storage', 'favourites', thread_id)
         
         if not os.path.exists(thread_path):
             return jsonify({'error': 'Thread not found'}), 404
         
-        # Collect all chain_ids before deletion (for memory tombstoning)
+        # the thread's chains, for their labels
         chain_files = glob.glob(os.path.join(thread_path, '*.json'))
         chain_ids = []
         for chain_file in chain_files:
             chain_id = os.path.basename(chain_file).replace('.json', '')
             chain_ids.append(chain_id)
-
-        # Deletion is housekeeping, not repudiation: candidate evidence
-        # citing these chains is tombstoned; established cards unaffected.
-        try:
-            from bambooai.knowledge_pack import tombstone
-            marked, removed = tombstone(user_memory_path(), chain_ids)
-            if marked:
-                logger.info(f"Memory: tombstoned {marked} evidence entries "
-                            f"(thread delete, {len(chain_ids)} chains)"
-                            + (f"; removed {len(removed)} orphaned "
-                               f"candidates ({', '.join(removed)})"
-                               if removed else ""))
-        except Exception as _mem_err:                           # noqa: BLE001
-            logger.warning(f"Memory: tombstoning failed: {_mem_err}")
 
         # Remove labels from all chains
         for chain_id in chain_ids:
@@ -2051,28 +1730,13 @@ def delete_thread(thread_id):
 @app.route('/delete_chain/<thread_id>/<chain_id>', methods=['DELETE'])
 @requires_auth
 def delete_chain(thread_id, chain_id):
-    """Delete a chain from the favorites directory and vector db if applicable."""
+    """Remove one chain from a saved thread: its favourite file and its label."""
     try:
-        session_id = session.get('session_id')
-        
         # Remove label from the chain in database (chain record stays)
         if remove_label_from_chain(chain_id):
             logger.info(f"Removed label from chain {chain_id}")
         else:
             logger.warning(f"Could not remove label from chain {chain_id}")
-
-        # Single-chain deletion tombstones its candidate evidence too.
-        try:
-            from bambooai.knowledge_pack import tombstone
-            marked, removed = tombstone(user_memory_path(), [str(chain_id)])
-            if marked:
-                logger.info(f"Memory: tombstoned {marked} evidence entries "
-                            f"(chain {chain_id} deleted)"
-                            + (f"; removed {len(removed)} orphaned "
-                               f"candidates ({', '.join(removed)})"
-                               if removed else ""))
-        except Exception as _mem_err:                           # noqa: BLE001
-            logger.warning(f"Memory: tombstoning failed: {_mem_err}")
 
         # Construct the path to the chain file
         chain_file = user_path('storage', 'favourites', thread_id, f'{chain_id}.json')

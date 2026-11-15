@@ -16,9 +16,9 @@ class OutputManager:
         # Error colors
         self.color_error_ntb = '#d86c00'
         self.color_error_cli = {'color': '\033[31m', 'reset': '\033[0m'}
-        # User input colors
+        # User input and info colors
         self.color_usr_input_prompt = 'blue'
-        self.color_usr_input_rank = 'green'
+        self.color_info = 'green'
         # Token summary colors
         self.color_token_summary_header_ntb = 'blue'
         self.color_token_summary_text_ntb = '#555555'
@@ -168,34 +168,31 @@ class OutputManager:
 
         return question
     
-    # Display the input to enter the rank
-        return rank
-    
     # Request user feedback
     def request_user_feedback(self, chain_id=None, query_clarification=None, context_needed=None):
         if self.is_notebook:
-            display(HTML(f'<b style="color:{self.color_usr_input_rank};">Requesting user feedback: \"{query_clarification}\"</b>'))
+            display(HTML(f'<b style="color:{self.color_info};">Requesting user feedback: \"{query_clarification}\"</b>'))
             time.sleep(1)
             feedback = input()
         else:
-            cprint(f"\nRequesting user feedback: \"{query_clarification}\"", self.color_usr_input_rank)
+            cprint(f"\nRequesting user feedback: \"{query_clarification}\"", self.color_info)
             feedback = input()
         
         return feedback
  
     def display_tool_info(self,action, action_input, chain_id=None):
         if self.is_notebook:
-            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- Performing Action {action}: \"{action_input}\"</span>'))
+            display(HTML(f'<span style="color:{self.color_info};">-- Performing Action {action}: \"{action_input}\"</span>'))
             time.sleep(1)
         else:
-            cprint(f"\n--Performing Action {action}: \"{action_input}\"", self.color_usr_input_rank)
+            cprint(f"\n--Performing Action {action}: \"{action_input}\"", self.color_info)
 
     def display_system_messages(self, message, chain_id=None):
         if self.is_notebook:
-            display(HTML(f'<span style="color:{self.color_usr_input_rank};">-- info: \"{message}\"</span>'))
+            display(HTML(f'<span style="color:{self.color_info};">-- info: \"{message}\"</span>'))
             time.sleep(1)
         else:
-            cprint(f"\n--info: \"{message}\"", self.color_usr_input_rank)
+            cprint(f"\n--info: \"{message}\"", self.color_info)
 
     def display_call_summary(self, summary_text):
         if self.is_notebook:

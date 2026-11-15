@@ -561,8 +561,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #workflowManagerModal .workflow-card-info span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 #workflowManagerModal .workflow-card-label-name { color: var(--c-kernel); }
 #workflowManagerModal .workflow-card-task { font-size: 12.5px; color: var(--text-primary); line-height: 1.45; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-#workflowManagerModal .workflow-card-memory-badge { margin-left: auto; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--c-model); border: 1px solid var(--chip-model-border); border-radius: var(--r-2); }
-#workflowManagerModal .workflow-card-memory-badge svg { width: 14px; height: 14px; }
+#workflowManagerModal .workflow-card-saved-badge { margin-left: auto; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; color: var(--c-model); border: 1px solid var(--chip-model-border); border-radius: var(--r-2); }
+#workflowManagerModal .workflow-card-saved-badge svg { width: 14px; height: 14px; }
 #workflowManagerModal .workflow-card-footer { display: flex; gap: 6px; padding: 6px 8px; border-top: 1px solid var(--border-color); }
 #workflowManagerModal .workflow-card-footer button { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-small); cursor: pointer; }
 #workflowManagerModal .workflow-card-footer button:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
@@ -777,136 +777,6 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
     background: rgba(255, 255, 255, 0.03);
     border-color: rgba(255, 255, 255, 0.06);
 }
-
-/* ---- memory dialog (#memoryReviewModal, built by memory-review.js): memory.css is retired ---- */
-#memoryReviewModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
-#memoryReviewModal .ui-dlg { width: min(760px, 100%); max-height: min(85vh, 800px); }
-#memoryReviewModal .memory-section-title { margin: 0 0 4px; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
-#memoryReviewModal .memory-section-sub { margin: 0 0 12px; font-size: var(--fs-meta); color: var(--text-tertiary); line-height: 1.5; }
-#memoryReviewModal .memory-empty { margin: 20px 0; font-size: var(--fs-meta); color: var(--text-quaternary); text-align: center; }
-#memoryReviewModal .mr-card { border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); padding: 12px 14px; margin-bottom: 10px; }
-#memoryReviewModal .memory-card-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
-#memoryReviewModal .memory-card-name { font-family: var(--font-mono); font-size: var(--fs-body); color: var(--c-model); font-weight: 600; word-break: break-all; }
-#memoryReviewModal .memory-card-meta { font-size: var(--fs-small); color: var(--text-quaternary); margin-left: auto; white-space: nowrap; }
-#memoryReviewModal .memory-flag { font-size: var(--fs-small); color: var(--c-kernel); border: 1px solid var(--chip-kernel-border); border-radius: var(--r-1); padding: 4px 8px; margin: 4px 0 8px; }
-#memoryReviewModal .memory-field-label { font-size: var(--fs-small); color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .03em; margin: 8px 0 4px; }
-#memoryReviewModal .memory-textarea { width: 100%; box-sizing: border-box; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: var(--r-2); color: var(--text-primary); padding: 6px 8px; font-family: var(--font-ui); font-size: var(--fs-meta); line-height: 1.45; resize: vertical; }
-#memoryReviewModal .memory-textarea:focus { outline: none; border-color: var(--text-tertiary); }
-#memoryReviewModal .memory-detail-text { font-size: var(--fs-meta); color: var(--text-secondary); line-height: 1.5; white-space: pre-wrap; }
-#memoryReviewModal .memory-similar { margin-top: 6px; }
-#memoryReviewModal .memory-similar-row { display: flex; align-items: center; gap: 8px; font-size: var(--fs-meta); color: var(--text-secondary); padding: 3px 0; cursor: pointer; }
-#memoryReviewModal .memory-similar-row code { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-primary); }
-#memoryReviewModal .memory-similar-blocked { color: var(--text-quaternary); cursor: default; }
-#memoryReviewModal .memory-similar-row input { accent-color: var(--accent-color); }
-#memoryReviewModal .memory-status-chip { font-size: 10px; border: 1px solid var(--border-color); border-radius: 10px; padding: 1px 7px; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .04em; }
-#memoryReviewModal .memory-chip-rule { border-color: var(--chip-model-border); color: var(--c-model); }
-#memoryReviewModal .memory-actions { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-#memoryReviewModal .memory-btn { display: inline-flex; align-items: center; height: 28px; padding: 0 11px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font: inherit; font-size: var(--fs-meta); cursor: pointer; }
-#memoryReviewModal .memory-btn:hover:not(:disabled) { color: var(--text-primary); border-color: var(--text-tertiary); }
-#memoryReviewModal .memory-btn:disabled { opacity: .4; cursor: default; }
-#memoryReviewModal .memory-btn-primary { border-color: var(--c-model); color: var(--c-model); }
-#memoryReviewModal .memory-btn-primary:hover:not(:disabled) { background: var(--accent-bg-hover); }
-#memoryReviewModal .memory-btn-danger { border-color: var(--chip-fail-border); color: var(--c-fail); }
-#memoryReviewModal .memory-btn-danger:hover:not(:disabled) { background: var(--error-bg); }
-#memoryReviewModal .memory-btn-right { margin-left: auto; }
-#memoryReviewModal .memory-action-status { font-size: var(--fs-small); color: var(--text-tertiary); margin-top: 6px; min-height: 14px; }
-#memoryReviewModal .memory-gov-row-wrap { border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); padding: 8px 12px; margin-bottom: 6px; }
-#memoryReviewModal .memory-gov-row { display: flex; align-items: center; gap: 10px; }
-#memoryReviewModal .memory-gov-row code { font-family: var(--font-mono); font-size: var(--fs-meta); color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#memoryReviewModal .memory-gov-meta { font-size: var(--fs-small); color: var(--text-quaternary); white-space: nowrap; }
-#memoryReviewModal .memory-gov-detail { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); }
-#memoryReviewModal .mr-gov-status { font-size: var(--fs-small); color: var(--text-tertiary); }
-
-/* kept from memory.css: the top-panel pill and its badge */
-/* Memory (step 27) — pill, badge, and review modal.
-   Sibling geometry to the Workflows / Dataset Cache pills, themed on
-   the app's accent green (--accent-*), which switches with light/dark
-   automatically. All memory styling lives here. */
-
-/* ── Pill ─────────────────────────────────────────────────────────── */
-
-.memory-review-pill {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    border-radius: 12px;
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    border: 1px solid var(--accent-border);
-    background-color: var(--accent-bg);
-    color: var(--accent-color);
-}
-.memory-review-pill:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px var(--shadow-color);
-    border-color: var(--accent-color);
-    background-color: var(--accent-bg-hover);
-}
-.memory-review-icon {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.memory-review-text {
-    display: flex;
-    align-items: center;
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--accent-color);
-}
-/* Unfilled count: a thin circle, transparent inside. */
-.memory-review-badge {
-    /* The count-badge classic: line-height equal to the INNER height
-       (16px minus the two 1px borders) centers digits optically in
-       every font - grid centered the glyph box, but the digit sits
-       high inside its own box, which the screenshot showed. */
-    display: inline-block;
-    box-sizing: border-box;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    margin-left: 6px;
-    border: 1px solid var(--accent-color);
-    border-radius: 9999px;
-    background: transparent;
-    color: var(--accent-color);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 14px;
-    text-align: center;
-    vertical-align: middle;
-}
-
-/* ---- save-this-chain dialog (#rankModal): the rating track; its old rules left styles.css ---- */
-#rankModal .progress-rating-container { margin: 4px 0 10px; }
-#rankModal .rating-labels { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--text-quaternary); margin-bottom: 6px; }
-#rankModal .progress-rating-track { position: relative; height: 14px; border-radius: 4px; background: var(--bg-tertiary); overflow: hidden; }
-#rankModal .progress-rating-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--c-model); border-radius: 4px; transition: width .15s ease; opacity: .85; }
-#rankModal .progress-rating-segments { position: absolute; inset: 0; display: flex; }
-#rankModal .rating-segment { flex: 1; cursor: pointer; border-right: 1px solid var(--bg-primary); position: relative; }
-#rankModal .rating-segment:last-child { border-right: none; }
-#rankModal .rating-segment:hover { background: rgba(255, 255, 255, 0.06); }
-#rankModal .threshold-line { position: absolute; left: -1px; top: -3px; bottom: -3px; width: 2px; background: var(--c-kernel); }
-#rankModal .rating-value-display { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 8px; font-size: var(--fs-meta); color: var(--text-primary); }
-#rankModal .ui-dlg { width: min(500px, 100%); }
-#rankModal #ratingValue { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-#rankModal .rating-value-display.low #ratingValue { color: var(--c-fail); }
-#rankModal .rating-value-display.medium #ratingValue { color: var(--c-kernel); }
-#rankModal .rating-value-display.high #ratingValue { color: var(--c-model); }
-#rankModal .threshold-hint { flex: 1; font-size: var(--fs-small); color: var(--text-quaternary) !important; text-align: right; }
-#rankModal .rank-status-message { display: none; margin-top: 10px; font-size: var(--fs-meta); }
-#rankModal .privacy-info { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-small); color: var(--text-quaternary); }
-#rankModal .blog-link-hint a { color: var(--c-model); text-decoration: none; }
-#rankModal .blog-link-hint a:hover { text-decoration: underline; }
-#rankModal .submit-rank-btn svg { display: none; }
-/* the memory distillation stream the save appends beneath the status */
-#rankModal .memory-distill { margin-top: 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); }
-#rankModal .memory-distill-header { display: flex; align-items: center; gap: 6px; padding: 6px 10px; font-size: var(--fs-small); color: var(--text-tertiary); cursor: pointer; }
-#rankModal .memory-distill-chevron { color: var(--text-quaternary); }
-#rankModal .memory-distill-stream { margin: 0; padding: 8px 10px; border-top: 1px solid var(--border-color); background: var(--code-bg); font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-secondary); white-space: pre-wrap; max-height: 200px; overflow: auto; }
 
 /* ---- the prompt viewer (#agentInstructionsModal, built by agent-instructions.js): agent-instructions.css is retired ---- */
 #agentInstructionsModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }

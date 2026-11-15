@@ -87,11 +87,7 @@
 .rail .rb svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; display: block; }
 .rail .rb > span { display: contents; }
 .rail .rb .workflow-manager-text, .rail .rb .dataset-manager-text { display: none; }
-.rail .rb .memory-review-text { display: contents; font-size: 0; }
-.rail .rb .memory-review-badge { position: absolute; top: -3px; right: -3px; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--c-model); color: #000; font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; box-shadow: 0 0 0 2px var(--bg-primary); }
 .rail .rb[data-tip]:hover::after { content: attr(data-tip); position: absolute; left: 40px; top: 6px; padding: 3px 8px; border: 1px solid var(--border-color); border-radius: 5px; background: var(--bg-tertiary); color: var(--text-primary); font-size: var(--fs-small); white-space: nowrap; z-index: 1003; pointer-events: none; }
-.rail #memoryReviewPill.rb { display: grid; }
-.rail #memoryReviewPill.rb[style*="display: none"], .rail #memoryReviewPill.rb[style*="display:none"] { display: none; }
 
 /* ---- the collapse handle (positioned by script) ---- */
 .collapse-button { width: 14px; height: 36px; border-radius: 0 5px 5px 0; background: var(--bg-secondary); border: 1px solid var(--border-color); border-left: none; color: var(--text-tertiary); display: grid; place-items: center; opacity: .7; padding: 0; }
@@ -103,7 +99,7 @@
 /* ---- the composer (2026-09-08): one card; the dataset chips above it; the mode as a segmented control ----
    No script changed: #queryInput, #uploadButton + .attach-menu (hover), #modeSwitch + #modeSliderPopup with the
    .mode-option buttons setMode() toggles (the popup is simply always shown, inline), #suggestQuestions,
-   #rankButton, #submitQuery with its airplane/globe/stop icons and query-running / auto-explore-* classes. */
+   #submitQuery with its airplane/globe/stop icons and query-running / auto-explore-* classes. */
 .left-panel .input-area { display: flex; flex-direction: column; gap: 0; padding: 8px 12px 10px; border-top: 1px solid var(--border-color); background: var(--bg-primary); }
 .left-panel .input-row { display: block; margin: 0; padding: 0; width: auto; }
 .left-panel .textarea-container { position: relative; display: flex; flex-direction: column; margin: 0; width: auto; max-width: none; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); padding: 0; }
@@ -462,16 +458,15 @@
 .auth-error-icon svg { width: 36px; height: 36px; stroke: currentColor; fill: none; }
 .auth-error-message { margin: 0; padding: 8px 12px; border: 1px solid var(--chip-fail-border); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--c-fail); }
 
-/* ---- Save this chain (2026-09-08): #rankButton in the top bar, beside the chain navigation. query-processing.js shows it
+/* ---- Save this chain (2026-09-08): #saveButton in the top bar, beside the chain navigation. query-processing.js shows it
    (display: block) when a chain has finished. */
-.topbar #rankButton { width: auto !important; min-width: 0; height: 24px !important; overflow: visible; margin: 0; padding: 0 9px 0 7px; border: 1px solid var(--border-color); border-radius: 12px; background: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 500; line-height: 22px; white-space: nowrap; cursor: pointer; box-shadow: none; transition: none; }   /* grey like the chain arrows: the chip is the bar's only green */
-.topbar #rankButton:hover { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
-.topbar #rankButton svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; stroke: currentColor; fill: none; }
-.topbar #rankButton .rank-label { vertical-align: 0; }
+.topbar #saveButton { width: auto; min-width: 0; height: 24px; overflow: visible; margin: 0; padding: 0 9px 0 7px; border: 1px solid var(--border-color); border-radius: 12px; background: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 500; line-height: 22px; white-space: nowrap; cursor: pointer; box-shadow: none; transition: none; }   /* grey like the chain arrows: the chip is the bar's only green */
+.topbar #saveButton:hover { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
+.topbar #saveButton svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; stroke: currentColor; fill: none; }
 /* the pill's menu (2026-10-10, routines.js): Save as favourite / Save as routine, under the pill on hover or click; a chain
    that is a favourite marks the pill .saved (the bookmark filled) and keeps it, since the menu still offers Save as routine */
-.topbar #rankButton.saved svg { fill: currentColor; }
-.topbar #rankButton.menu-open { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
+.topbar #saveButton.saved svg { fill: currentColor; }
+.topbar #saveButton.menu-open { border-color: var(--text-tertiary); color: var(--text-primary); background: var(--bg-tertiary); }
 .save-menu { position: fixed; z-index: 1200; min-width: 250px; max-width: 360px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); display: flex; flex-direction: column; gap: 2px; font-family: var(--font-ui); }
 .save-menu::before { content: ''; position: absolute; left: 0; right: 0; top: -8px; height: 8px; }   /* the gap to the pill stays hoverable */
 .save-menu .it { display: flex; flex-direction: column; gap: 2px; padding: 7px 10px; border-radius: var(--r-2); cursor: pointer; }

@@ -16,7 +16,7 @@ logger = get_logger(__name__)
 AUTH_MODE = os.getenv('AUTH_MODE', 'none')
 # The self-hosted edition (docs/OSS_DESIGN.md D4, D29): AUTH_MODE=single is one person on their own machine.
 # Every request carries the fixed local identity, no token, no Auth0; BAMBOO_USER names the folders under
-# storage/, memory/ and config/. 'none' keeps its old meaning - nothing configured - so a box never runs
+# storage/ and config/. 'none' keeps its old meaning - nothing configured - so a box never runs
 # open by accident.
 BAMBOO_USER = os.getenv('BAMBOO_USER', 'local')
 LOCAL_SUB = f"local|{BAMBOO_USER}"

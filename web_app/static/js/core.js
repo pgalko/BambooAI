@@ -11,7 +11,6 @@ let tabCounter = 0;
 let currentResponseIndex = -1;
 let responses = [];
 let buffer = '';
-let currentRankData = null;
 let currentDatasetName = null;
 let taskContents = {};
 let popupTimeout;
@@ -54,8 +53,6 @@ let limitMessageTimeout = null;
 let mermaidReady = false;
 
 let isWaitingForApiKeys = false;
-
-let isTrajectoryRank = false;
 
 // Query state
 let queryRunning = false;
@@ -286,10 +283,6 @@ function continueAppInitialization() {
     if (typeof initializeQueryProcessing === 'function') initializeQueryProcessing();
     if (typeof initializeContentRendering === 'function') initializeContentRendering();
     if (typeof initializeWorkflowManagement === 'function') initializeWorkflowManagement();
-    // Memory Review (step 27): initialized here, after auth settles,
-    // so its first /memory/review check carries a valid token instead
-    // of racing authentication behind a timer.
-    if (typeof window.initializeMemoryReview === 'function') window.initializeMemoryReview();
     if (typeof initializePDFExport === 'function') initializePDFExport();
     if (window.UsageUI) window.UsageUI.initialize();                  // the Usage dialog (usage.js, 2026-10-31)
 

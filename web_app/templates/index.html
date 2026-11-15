@@ -76,7 +76,7 @@
             <div id="datasetStatusPillsContainer"></div>
             <span class="sp"></span>
             <div class="tab-navigation"><button id="prevResponse" class="nav-arrow" disabled title="Previous chain">‹</button><span id="chainPosition" class="chain-position"></span><button id="nextResponse" class="nav-arrow" disabled title="Next chain">›</button></div>
-            <button id="rankButton" type="button" class="icon-button rank-icon" data-tip="Save this chain" style="display: none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="rank-label">Save</span></button>
+            <button id="saveButton" type="button" data-tip="Save this chain" style="display: none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg><span class="save-label">Save</span></button>
             <div id="containerStatus" class="container-status status-offline">
             <span id="containerStatusIcon" class="container-status-icon">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -96,7 +96,6 @@
             <div id="workflowManagerPill" class="workflow-manager-pill rb" data-tip="Saved workflows"><span class="workflow-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="workflow-manager-text">Workflows</span></div>
             <button id="routinesPill" class="rb" data-tip="Routines" aria-label="Routines"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
             <div id="datasetManagerPill" class="dataset-manager-pill rb" data-tip="Dataset cache"><span class="dataset-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg></span><span class="dataset-manager-text">Dataset Cache</span></div>
-            <div id="memoryReviewPill" class="memory-review-pill rb" style="display:none;" data-tip="Memory"><span class="memory-review-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></span><span class="memory-review-text">Memory<span id="memoryReviewBadge" class="memory-review-badge" style="display:none;"></span></span></div>
             <button id="railMapButton" class="rb" data-tip="Thread map (⌘M)" aria-label="Thread map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg></button>
             <span class="rail-gap"></span>
             <div class="settings-container" data-tip="Settings">
@@ -414,47 +413,6 @@
     </div>
 
 
-    <!-- Rank Modal -->
-    <div id="rankModal" class="modal ui-modal">
-        <div class="modal-content rank-modal-content ui-dlg sm">
-            <div class="ui-dlg-h">
-                <div><div class="title">Save this chain</div><div class="sub">to your saved workflows; a rating of 5 or more also adds it to your private memory</div></div>
-                <span class="sp"></span>
-                <button class="close x" aria-label="Close">×</button>
-            </div>
-            <div class="ui-dlg-b">
-                <div class="progress-rating-container">
-                    <div class="rating-labels"><span class="rating-label-start">Poor</span><span class="rating-label-end">Excellent</span></div>
-                    <div class="progress-rating-track">
-                        <div class="progress-rating-fill" id="ratingFill"></div>
-                        <div class="progress-rating-segments">
-                            <div class="rating-segment" data-value="1"></div>
-                            <div class="rating-segment" data-value="2"></div>
-                            <div class="rating-segment" data-value="3"></div>
-                            <div class="rating-segment" data-value="4"></div>
-                            <div class="rating-segment threshold-indicator" data-value="5"><div class="threshold-line"></div></div>
-                            <div class="rating-segment" data-value="6"></div>
-                            <div class="rating-segment" data-value="7"></div>
-                            <div class="rating-segment" data-value="8"></div>
-                            <div class="rating-segment" data-value="9"></div>
-                            <div class="rating-segment" data-value="10"></div>
-                        </div>
-                    </div>
-                    <div class="rating-value-display"><span id="ratingValue">Click to rate</span><span class="threshold-hint" id="thresholdHint">Saves to workflows · 5+ also adds to your private memory</span></div>
-                </div>
-                <div id="rankStatusMessage" class="rank-status-message"></div>
-            </div>
-            <div class="modal-footer-section ui-dlg-f">
-                <div class="privacy-info">
-                    <span class="privacy-detail">Private: your solutions are never used for model training.</span>
-                    <div class="blog-link-hint"><a href="https://blog.bambooai.io/long-term-memory-in-ai-powered-sports-science-data-analysis-335777e06ac6" target="_blank" rel="noopener noreferrer">How private memory helps →</a></div>
-                </div>
-                <span class="sp"></span>
-                <button id="submit-rank" class="submit-rank-btn ui-btn primary" disabled aria-label="Save checkpoint">Save</button>
-            </div>
-        </div>
-    </div>
-
     <!-- Workflow Map Modal -->
     <div id="workflowMapModal" class="modal map-drawer">
         <div class="modal-content workflow-modal-content">
@@ -765,7 +723,6 @@
     <script src="{{ url_for('static', filename='js/labels.js') }}"></script>
     <script src="{{ url_for('static', filename='js/workflow-modal.js') }}"></script>
     <script src="{{ url_for('static', filename='js/routines.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/memory-review.js') }}"></script>
     <script src="{{ url_for('static', filename='js/codebook.js') }}"></script>
     <script src="{{ url_for('static', filename='js/code-map.js') }}"></script>
 

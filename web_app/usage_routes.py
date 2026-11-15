@@ -36,7 +36,8 @@ PAGE = 1000                  # rows per fetch
 MAX_ROWS = 50000             # the most rows one answer aggregates (the answer says when it stopped there)
 _FACTS = {}                  # thread file -> (mtime, {run id: the facts the ledger shows}); re-read when the file changes
 
-# a chain the thread store does not know, named by the seat that spent on it
+# a chain the thread store does not know, named by the seat that spent on it (the last two seats are retired, 2.8: the
+# calls they made before stay in the record, and keep their name)
 _OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
           "Knowledge Distiller": ("memory", "Memory: the distillation"), "Embedder": ("memory", "Memory: the embeddings")}
 

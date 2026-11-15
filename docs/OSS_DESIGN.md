@@ -16,7 +16,8 @@ reason; the reasoning behind the reasons is in the session notes.
   self-hosted install never configures them. *Reason:* one tree cannot drift; the app already
   degrades to the free tier when Supabase is absent, and the local stack has run without Auth0,
   Supabase and Nomad since 2026-09-09.
-- **D3. What the user gets:** the analyst engine, the notebook, the memory pack, the web app, the
+- **D3. What the user gets:** the analyst engine, the notebook, the memory pack (retired with 2.8,
+  docs/ARCHITECT_DESIGN.md §5), the web app, the
   executor image, the local adapters, the tests and the stack. What they do not get: your `.env`
   files (outside the tree in `/etc/bambooai`) and the Supabase schema (D14).
 
@@ -173,7 +174,7 @@ statement by statement against the code.
   no tiers exist locally. Proposal: the three levels stay as presets of the template; the words
   about paying go.
 - **D29. The local identity is `BAMBOO_USER=local` in `.env`** — a constant the user may change —
-  used for `storage/<id>`, `memory/<id>` and `config/<id>` (settled 2026-09-14; was O8).
+  used for `storage/<id>` and `config/<id>` (settled 2026-09-14; was O8; `memory/<id>` went with 2.8).
 
 ## 8b. Settled since (2026-09-16 to 2026-10-03)
 

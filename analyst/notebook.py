@@ -3,7 +3,7 @@
 A RUN is one user question and everything the analyst did to answer it. Runs
 have parents, so a thread is a tree; the context for a run is the path from the
 root to its parent. A TURN is one action inside a run - a cell, a shown cell, a
-search, a recall, a question to the user, the report, the rewrite - together
+search, a question to the user, the report, the rewrite - together
 with the note as the analyst rewrote it that turn.
 
 Cells are numbered along the path (1, 2, 3 ...) so the analyst and the report
@@ -115,11 +115,11 @@ def purpose_of(turn: "Turn", width: int = 110) -> str:
 
 @dataclass
 class Turn:
-    kind: str                       # cell | show | names | recall | search | read | ask | report | rewrite | review | error
+    kind: str                       # cell | show | names | search | read | ask | report | rewrite | review | error (recall: in runs made before 2.8)
     note: str = ""                  # the note as rewritten this turn
     thinking: str = ""              # free text before the note, if any
     code: str = ""                  # CELL: the code that ran
-    stdout: str = ""                # CELL/SHOW/NAMES/RECALL/SEARCH/READ: what came back
+    stdout: str = ""                # CELL/SHOW/NAMES/SEARCH/READ: what came back
     error: str = ""                 # CELL: traceback, if the cell failed
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
     results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects, line)

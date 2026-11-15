@@ -111,7 +111,7 @@ def main():
     check("bambooai init creates the working folder", r.returncode == 0 and os.path.isdir(home), r.stdout + r.stderr)
     env_text = open(os.path.join(home, ".env")).read() if os.path.exists(os.path.join(home, ".env")) else ""
     check("init wrote .env with generated secrets and the edition's settings", "FLASK_SECRET=" in env_text and "AUTH_MODE=single" in env_text and "BAMBOO_COMPUTE=docker" in env_text and len(env_text.split("FLASK_SECRET=")[1].splitlines()[0]) > 20, env_text[:200])
-    check("init copied the template and made the folders", os.path.exists(os.path.join(home, "LLM_CONFIG_template.json")) and all(os.path.isdir(os.path.join(home, d)) for d in ("config", "storage", "memory", "logs")))
+    check("init copied the template and made the folders (no memory folder: the old memory is retired, 2.8)", os.path.exists(os.path.join(home, "LLM_CONFIG_template.json")) and all(os.path.isdir(os.path.join(home, d)) for d in ("config", "storage", "logs")) and not os.path.exists(os.path.join(home, "memory")))
     r2 = run(["init", "--home", home])
     check("init is safe to repeat (nothing recreated, the .env kept)", r2.returncode == 0 and open(os.path.join(home, ".env")).read() == env_text, r2.stdout)
     r3 = run(["init", "--home", ROOT])

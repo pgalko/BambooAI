@@ -120,7 +120,7 @@ function handlePageLoad() {
 // chain, its live DOM (stream, tabs, tab content) is parked in detached holders and the incoming
 // events keep rendering into them; coming back moves the nodes into view again. Nothing is
 // serialised until the chain ends, so plots and listeners survive the trip.
-const liveState = { running: false, away: false, index: null, parent: null, data: null, rank: null, tasks: null, holders: null, forceView: false };
+const liveState = { running: false, away: false, index: null, parent: null, data: null, tasks: null, holders: null, forceView: false };
 
 function liveTargets() {
     if (liveState.away && liveState.holders && !liveState.forceView) return liveState.holders;
@@ -153,8 +153,8 @@ function liveGoAway() {
     _moveChildren(document.getElementById('streamOutput'), h.stream);
     _moveChildren(document.getElementById('tabContainer'), h.tabs);
     _moveChildren(document.getElementById('contentOutput'), h.content);
-    liveState.holders = h; liveState.data = currentData; liveState.rank = currentRankData; liveState.tasks = taskContents;
-    currentData = {}; currentRankData = null; taskContents = {};
+    liveState.holders = h; liveState.data = currentData; liveState.tasks = taskContents;
+    currentData = {}; taskContents = {};
     liveState.away = true;
 }
 
@@ -163,10 +163,10 @@ function liveComeBack() {
     const so = document.getElementById('streamOutput'), tc = document.getElementById('tabContainer'), co = document.getElementById('contentOutput');
     so.innerHTML = ''; tc.innerHTML = ''; co.innerHTML = '';
     _moveChildren(liveState.holders.stream, so); _moveChildren(liveState.holders.tabs, tc); _moveChildren(liveState.holders.content, co);
-    currentData = liveState.data; currentRankData = liveState.rank; taskContents = liveState.tasks || {};
+    currentData = liveState.data; taskContents = liveState.tasks || {};
     liveState.away = false; liveState.holders = null;
     currentResponseIndex = liveState.index; lastActiveChainId = currentData.chain_id || liveState.parent;
-    if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
+    if (typeof updateSaveButton === 'function') updateSaveButton();
     if (window.Plotly) co.querySelectorAll('.js-plotly-plot').forEach(el => { try { Plotly.Plots.resize(el); } catch (e) {} });
     so.scrollTop = so.scrollHeight;
 }
@@ -180,7 +180,7 @@ function endLiveChain(saved) {
         responses.push(saved);
         if (!liveState.away) currentResponseIndex = responses.length - 1;
     }
-    liveState.running = false; liveState.holders = null; liveState.data = null; liveState.rank = null; liveState.tasks = null;
+    liveState.running = false; liveState.holders = null; liveState.data = null; liveState.tasks = null;
     if (liveState.away) { liveState.away = false; }
 }
 
@@ -189,7 +189,6 @@ async function saveCurrentResponse(explicitParentChainId = null) {
     const tabContainer = t.tabs, contentOutput = t.content, streamOutput = t.stream;
     // the live chain's own data (the person may be looking at another chain right now)
     const data = (liveState.running && liveState.away) ? liveState.data : currentData;
-    const rank = (liveState.running && liveState.away) ? liveState.rank : currentRankData;
     const tasks = (liveState.running && liveState.away) ? liveState.tasks : taskContents;
     
     // Use explicit parent if provided, otherwise the parent captured when the chain started
@@ -208,8 +207,7 @@ async function saveCurrentResponse(explicitParentChainId = null) {
         simplifiedAnswer: data.simplifiedAnswer || null,
         summaryViewMode: data.summaryViewMode || 'technical',
         synthesisImage: data.synthesisImage || null,
-        reportHead: data.reportHead || null,                     // the report's head, for the export (2026-10-17)
-        rankData: rank || null
+        reportHead: data.reportHead || null                      // the report's head, for the export (2026-10-17)
     };
     
     // Update lastActiveChainId for next interaction (only if no explicit parent was given, and only
@@ -302,7 +300,6 @@ function loadResponseContent(response) {
     currentData.summaryViewMode = response.summaryViewMode || 'technical';
     currentData.synthesisImage = response.synthesisImage || null;
     currentData.reportHead = response.reportHead || null;
-    currentRankData = response.rankData || null;
     console.log('Loaded chain_id:', currentData.chain_id);
 
     // Reattach all event listeners lost during innerHTML restore
@@ -388,7 +385,7 @@ function _reattachRestoredListeners() {
     }
 
     // Plan & model diagram tabs: strip any stale zoom buttons left from the
-    // retired graph viewer (graphControls.js - see memory_pack_design.md).
+    // retired graph viewer (graphControls.js).
     ['plan', 'model'].forEach(type => {
         const tab = document.getElementById(`content-${type}`);
         if (!tab) return;
@@ -586,7 +583,7 @@ function initializeWorkflowMap() {
     
     // Trajectory button handler
     if (trajectoryButton) {
-        trajectoryButton.addEventListener('click', requestTrajectoryRank);
+        trajectoryButton.addEventListener('click', saveTrajectory);
     }
     
     // Close the modal if user clicks outside of it
@@ -671,19 +668,9 @@ function updateTrajectoryButtonState() {
     }
 }
 
-function requestTrajectoryRank() {
-    const workflowMapModal = document.getElementById('workflowMapModal');
-    
-    // Close the modal
-    workflowMapModal.style.display = 'none';
-    
-    // Set trajectory rank mode
-    isTrajectoryRank = true;
-    
-    // Show the rank modal
-    if (typeof showRankModal === 'function') {
-        showRankModal();
-    }
+function saveTrajectory() {
+    // every chain of the thread, in one click; the map stays open
+    if (typeof saveToFavourites === 'function') saveToFavourites('all');
 }
 
 //--------------------

@@ -29,7 +29,6 @@ _EXPECTED_TEMPLATES = [
     "error_corector_system_reasoning","error_corector_edited_system", 
     "error_corector_edited_system_reasoning","solution_summarizer_system","solution_summarizer_custom_code_system", "solution_summarizer_simplified_system",
     "plot_query", "plot_query_routing", "socratic_assistant_system",
-    "knowledge_distiller_system", "knowledge_distiller_user",
     "synthesis_infographic_template",
 ]
 

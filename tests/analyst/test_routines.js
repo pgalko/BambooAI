@@ -7,7 +7,7 @@ const { makeDocument } = require(path.join(__dirname, 'minidom.js'));
 const doc = makeDocument(); global.document = doc; global.window = { innerWidth: 1400 };
 global.responses = []; global.currentResponseIndex = 0; global.currentData = {};
 const comp = doc.createElement('div'); comp.innerHTML = '<textarea id="queryInput" placeholder="Enter your query here"></textarea><button id="submitQuery"></button><div class="tab-navigation"><button id="prevResponse"></button><span id="chainPosition"></span><button id="nextResponse"></button></div><div id="streamOutput"></div>'; doc.body.appendChild(comp);
-global.clearAllTabs = () => { global.__tabsCleared = (global.__tabsCleared || 0) + 1; }; global.paneRunIds = d => { global.__ids = d; }; global.paneRunStrip = h => { global.__strip = h; }; global.updateRankButtonVisibility = () => { global.__rankSeen = true; };
+global.clearAllTabs = () => { global.__tabsCleared = (global.__tabsCleared || 0) + 1; }; global.paneRunIds = d => { global.__ids = d; }; global.paneRunStrip = h => { global.__strip = h; }; global.updateSaveButton = () => { global.__saveSeen = true; };
 window.DateWindow = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js')).DateWindow;     // the plan's reach and window (2026-11-08): the run dialog's custom pickers read it
 global.localIsoDay = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'routines.js'));
@@ -472,7 +472,7 @@ w.RoutinesUI.enterRunView({ id: 'r1', name: 'Rows above a line', current_version
 const pos = doc.querySelector('#chainPosition');
 check('run view: the pane and the tabs cleared, the id line and the strip written for the run, the position counts the runs the arrows step through - run 2, the last of run 0, 1 and 2, reads "3 of 3" - with the next arrow off, the composer locked, the Save pill asked to hide',
   w.RoutinesUI.inRunView() && global.__tabsCleared === 1 && global.__ids.run === '2 · v2' && global.__strip.run === 2 && pos.textContent === '3 of 3' && doc.querySelector('#nextResponse').disabled === true && doc.querySelector('#prevResponse').disabled === false
-  && doc.querySelector('#queryInput').disabled === true && global.__rankSeen === true, [global.__ids, pos.textContent]);
+  && doc.querySelector('#queryInput').disabled === true && global.__saveSeen === true, [global.__ids, pos.textContent]);
 w.RoutinesUI.enterRunView({ id: 'r1', name: 'x', current_version: 2 }, [0, 1, 2, 3], 3, { version: 2, pending: true });
 check('a run under way: the position says so and both arrows are off', pos.textContent === 'run 3 · running' && doc.querySelector('#prevResponse').disabled === true && doc.querySelector('#nextResponse').disabled === true);
 w.RoutinesUI.exitRunView();
@@ -875,11 +875,11 @@ check('the page follows the proof behind the dialog (§17, §22): the watch goes
   && rtSrcC.includes("' · verified' + (build.alone(r) ? '' : ' on the original data') + (less.length ? ' · ' + less.map(t => 'a ' + t.interval + ' gives ' + build.triedText(t)).join(', ') : '')") && rtSrcC.includes("watching[id] = true;")
   && rtSrcC.includes("if (manager && manager.style.display !== 'none') loadManager(id);"));
 check('stylesheets: the pill\'s menu and its saved and open states in shell.css (the rail badge rule gone with the badge); the dialog, the manager, the card button, the composer lock, the interval row, the plan, the fill box and the fill line in dialogs.css',
-  ['.save-menu', '.save-menu .it.done', '#rankButton.saved', '#rankButton.menu-open'].every(c => shellCss.includes(c)) && !shellCss.includes('.rb-badge')
+  ['.save-menu', '.save-menu .it.done', '#saveButton.saved', '#saveButton.menu-open'].every(c => shellCss.includes(c)) && !shellCss.includes('.rb-badge')
   && ['#routineMakeModal', '#routinesModal', '.rt-inputs', '.rt-results .r.flag', '.rt-version', '.workflow-card-routine.has', 'body.composer-locked', '.rt-interval', '.rt-plan', '.rt-fillbox', '.rt-fillbar'].every(c => dlgCss.includes(c)));
 const qp = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'query-processing.js'), 'utf8');
-check('the Save pill: a click opens the menu (the rank dialog from its first item); the pill stays on a saved chain, marked .saved',
-  qp.includes('window.RoutinesUI.toggleSaveMenu()') && qp.includes("rankButton.classList.toggle('saved', saved)") && !qp.includes("currentResponse.bookmark_type === 'individual') {\n        rankButton.style.display = 'none'"));
+check('the Save pill: a click opens the menu; the pill stays on a saved chain, marked .saved',
+  qp.includes('window.RoutinesUI.toggleSaveMenu()') && qp.includes("saveButton.classList.toggle('saved', saved)") && !qp.includes("currentResponse.bookmark_type === 'individual') {\n        saveButton.style.display = 'none'"));
 // the executor chip (2026-10-10, Palo's test: it stayed on Executing after a run): the routine's ROUTINE / RUN rows set it as a
 // cell does, so their completion releases it as the replay's does; the closing card and a broken stream release it too
 const lookupLine = qp.split('\n').find(l => l.includes('data.type === "pane_lookup")')) || '';
@@ -935,6 +935,68 @@ const fm = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
   doc.dispatch('click', pos);
   check('an athlete alone on a period: the name is plain text and a click on the position opens nothing; leaving the run view closes the menu',
     pos.textContent === '1 of 2 · Fourth Athlete' && !pos.querySelector('.rt-who') && menu.style.display === 'none' && (w.RoutinesUI.exitRunView(), menu.style.display === 'none'), pos.innerHTML);
+  // ---- 2.8: Save as favourite is one click (the rating step is gone) ----
+  // the menu's first item saves the chain in view at once
+  const pillBox = doc.createElement('div'); pillBox.innerHTML = '<button id="saveButton"><svg></svg><span class="save-label">Save</span></button>'; doc.body.appendChild(pillBox);
+  const savePill = doc.querySelector('#saveButton'); savePill.style.display = 'block';
+  const asked = []; global.saveToFavourites = (target, quiet) => { asked.push([target, !!quiet]); return Promise.resolve(true); };
+  global.responses = [{ chain_id: 'c1', thread_id: 't1', queryText: 'first' }, { chain_id: 'c2', thread_id: 't1', queryText: 'second' }]; global.currentResponseIndex = 1; global.currentData = { thread_id: 't1', chain_id: 'c2' };
+  w.RoutinesUI.toggleSaveMenu();
+  const saveMenu = doc.querySelector('#saveMenu'), opened = saveMenu && saveMenu.style.display !== 'none';
+  saveMenu.dispatch('click', saveMenu.querySelector('.it[data-act="favourite"]').querySelector('b'));
+  check('Save as favourite is one click (2.8): the menu\'s first item saves the chain in view at once and closes the menu - no dialog, no rating; Save as routine saves the favourite on its way, without a message',
+    opened && asked.length === 1 && asked[0][0] === 'c2' && asked[0][1] === false && saveMenu.style.display === 'none' && !doc.querySelector('#rankModal') && rtSrc.includes('return saveToFavourites(chainId, true);'), asked);
+  // the save itself (query-processing.js), with the page's other parts faked: what is sent, the marks, the message, the pill
+  const saving = qp.slice(qp.indexOf('//  SAVING'), qp.indexOf('//  POPUP SYSTEM'));
+  const stored = [{ chain_id: 'c1', thread_id: 't1', queryText: 'first', contentOutput: 'A', streamOutput: 'a' }, { chain_id: 'c2', thread_id: 't1', parentChainId: 'c1', queryText: 'second', contentOutput: 'B', streamOutput: 'b' },
+                  { chain_id: 'x9', thread_id: 't2', queryText: 'another thread' }];
+  const onPage = stored.map(r => Object.assign({}, r));
+  const server = { held: ['c1'], answer: null, urls: [], posted: [], labelWhileSaving: null };
+  const said = [], later = v => new Promise(done => setTimeout(() => done(v), 3));     // the server answers a moment later, as a real one does
+  const env = {
+    document: doc, window: { RoutinesUI: w.RoutinesUI, authService: { fetch: (url, opts) => {
+      server.urls.push(url.startsWith('/storage/get_existing_chains/') ? 'held' : 'post');
+      server.labelWhileSaving = doc.querySelector('#saveButton .save-label').textContent;
+      if (url.startsWith('/storage/get_existing_chains/')) return later({ ok: true, json: () => Promise.resolve({ chain_ids: server.held }) });
+      server.posted.push(JSON.parse(opts.body));
+      return later(server.answer || { ok: true, status: 200, json: () => Promise.resolve({ saved_count: 1, errors: null }) });
+    } } },
+    localforage: { getItem: () => new Promise(done => setTimeout(() => done(stored), 5)), setItem: () => Promise.resolve() },
+    currentData: { thread_id: 't1', chain_id: 'c2' }, currentDatasetName: 'laps.csv', responses: onPage, currentResponseIndex: 1,
+    generatePlotPreview: () => Promise.resolve(null), compressContent: s => Promise.resolve(s), showSystemMessage: t => said.push(t), console: { error() {} },
+  };
+  const save = new Function(...Object.keys(env), saving + '\nreturn { saveToFavourites, updateSaveButton };')(...Object.values(env));
+  const first = await save.saveToFavourites('c2');
+  const sent = server.posted[0] || {};
+  check('the save (2.8): one request, no rating in it; the chain picked is sent marked individual, a chain the server holds is not sent again; the page says "Saved as favourite", the pill reads Saving… meanwhile and ends marked saved',
+    first === true && server.urls.join(',') === 'held,post' && !('rank' in sent) && sent.thread_id === 't1' && sent.dataset_name === 'laps.csv' && sent.trajectory.length === 1 && sent.trajectory[0].chain_id === 'c2'
+    && sent.trajectory[0].bookmark_type === 'individual' && sent.trajectory[0].parentChainId === 'c1' && sent.trajectory[0].content.queryText === 'second' && said.join('|') === 'Saved as favourite' && server.labelWhileSaving === 'Saving…'
+    && doc.querySelector('#saveButton .save-label').textContent === 'Save' && savePill.classList.contains('saved') && savePill.getAttribute('data-tip') === 'Saved · Save as routine'
+    && onPage[1].bookmark_type === 'individual' && onPage[0].bookmark_type === 'trajectory' && !onPage[2].bookmark_type, [server.urls, sent, said, onPage.map(r => r.bookmark_type)]);
+  server.held = []; server.posted = []; server.urls = [];
+  const whole = await save.saveToFavourites('all');
+  check('the whole thread (the map\'s Save trajectory): every chain of the thread is sent alongside, none of another thread; a chain picked before keeps its mark on the page; the page says so',
+    whole === true && server.posted.length === 1 && server.posted[0].trajectory.map(c => c.chain_id + ':' + c.bookmark_type).join(',') === 'c1:trajectory,c2:trajectory'
+    && onPage[1].bookmark_type === 'individual' && said[1] === 'Saved the whole thread', [server.posted, said]);
+  server.answer = { ok: false, status: 500, json: () => Promise.resolve({ error: 'disk full' }) };
+  const failed = await save.saveToFavourites('c1');
+  server.answer = { ok: true, status: 200, json: () => Promise.resolve({ saved_count: 0, errors: ['chain c1 was not written'] }) };
+  const partly = await save.saveToFavourites('c1');
+  check('a save that fails says why and marks nothing: the server\'s refusal, and a chain the server could not write',
+    failed === false && partly === false && said[2] === 'Could not save: disk full' && said[3] === 'Could not save: chain c1 was not written' && onPage[0].bookmark_type === 'trajectory'
+    && doc.querySelector('#saveButton .save-label').textContent === 'Save', said);
+  server.answer = null; server.urls = []; server.held = ['c1', 'c2'];
+  const quiet = [save.saveToFavourites('c1', true), save.saveToFavourites('c2', true)];
+  const both = await Promise.all(quiet);
+  check('saves run one after another in the order asked, and a quiet one (Save as routine\'s) leaves no message',
+    both.join(',') === 'true,true' && server.urls.join(',') === 'held,post,held,post' && said.length === 4 && onPage[0].bookmark_type === 'individual', [server.urls, said]);
+  env.responses[1].status = 'running'; save.updateSaveButton();
+  const hiddenRunning = savePill.style.display === 'none' && !savePill.classList.contains('saved');
+  delete env.responses[1].status; env.responses[1].chain_id = null; env.responses[1].bookmark_type = null; save.updateSaveButton();
+  const hiddenNoId = savePill.style.display === 'none';
+  env.responses[1].chain_id = 'c2'; save.updateSaveButton();
+  check('the Save pill: hidden on a running chain and on one with no id, shown on a finished one - unsaved, so its tooltip offers the save',
+    hiddenRunning && hiddenNoId && savePill.style.display === 'block' && !savePill.classList.contains('saved') && savePill.getAttribute('data-tip') === 'Save this chain', [hiddenRunning, hiddenNoId, savePill.style.display]);
   finish();
 })();
 

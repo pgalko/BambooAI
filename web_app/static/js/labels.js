@@ -196,7 +196,7 @@ window.LabelsManager = (function() {
     function showAddLabelModal() {
         if (isModalOpen) return;
     
-        // Use unique class names that won't conflict with rank modal
+        // Use unique class names that won't conflict with the other dialogs
         const modalHTML = `
             <div id="labelModal" class="label-modal-container" style="display: flex;">
                 <div class="label-modal-dialog">

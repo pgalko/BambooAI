@@ -39,8 +39,8 @@ def check(name, cond, detail=""):
 
 
 def wait_run_end(page, n_responses, timeout=180000):
-    """The run is over for the page: the closing card is up, the `end` event has been handled (the rank stub
-    built, the snapshot saved) and the chain is in responses[]."""
+    """The run is over for the page: the closing card is up, the `end` event has been handled (the snapshot
+    saved) and the chain is in responses[]."""
     wait_text(page, ".sp-done", "Run complete", timeout)
     page.wait_for_function("(n) => typeof queryRunning !== 'undefined' && !queryRunning && typeof responses !== 'undefined' && responses.length >= n",
                            arg=n_responses, timeout=timeout)
@@ -395,18 +395,35 @@ def main():
                 page.click("#nextResponse")
                 page.wait_for_timeout(400)
 
-            # Save (2026-10-10, routines): the pill opens its menu; Save as favourite is the rank dialog as before
-            page.click("#rankButton")
+            # Save trajectory in the thread map (2.8): the whole thread at once - no dialog - and the map stays open
+            page.evaluate("showWorkflowMap()")
+            page.wait_for_selector("#trajectoryButton:not([disabled])", timeout=10000)
+            page.click("#trajectoryButton")
+            page.wait_for_function("() => /Saved the whole thread/.test(document.getElementById('summaryPopup').textContent)", timeout=30000)
+            traj = page.evaluate("""() => ({ map: getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none', dialog: !!document.getElementById('rankModal'),
+                marks: responses.map(r => r.bookmark_type || null), thread: String(currentData.thread_id) })""")
+            traj_docs = [json.load(open(f)) for f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "favourites", traj["thread"], "*.json"))]
+            check("Save trajectory saves the whole thread in one click (2.8): every chain stored alongside, none picked, no rating; the page says so and the map stays open",
+                  traj["map"] and not traj["dialog"] and traj["marks"] == ["trajectory"] * 4 and len(traj_docs) == 4
+                  and all(d.get("bookmark_type") == "trajectory" and "rank" not in d for d in traj_docs), (traj, [d.get("bookmark_type") for d in traj_docs]))
+            page.click("#workflowMapModal .workflow-close")
+            page.wait_for_timeout(300)
+
+            # Save (2026-10-10, routines): the pill opens its menu; Save as favourite saves at once (2.8: no dialog, no rating)
+            page.click("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             menu_items = page.evaluate("() => [...document.querySelectorAll('#saveMenu .it b')].map(e => e.textContent)")
             check("the Save pill opens its menu: Save as favourite and Save as routine", menu_items == ["Save as favourite", "Save as routine"], menu_items)
             page.click("#saveMenu .it[data-act='favourite']")
-            page.wait_for_selector("#rankModal", state="visible", timeout=10000)
-            page.click("#rankModal .rating-segment[data-value='7']")
-            page.click("#submit-rank")
-            page.wait_for_timeout(3000)
-            pill_after = page.evaluate("() => { const p = document.getElementById('rankButton'); return [getComputedStyle(p).display, p.className]; }")
-            check("after the save the pill stays, marked saved (its menu still offers Save as routine)", pill_after[0] != "none" and "saved" in pill_after[1].split(), pill_after)
+            page.wait_for_function("() => document.getElementById('saveButton').classList.contains('saved')", timeout=30000)
+            saved = page.evaluate("""() => { const p = document.getElementById('saveButton'), t = document.getElementById('summaryPopup');
+                return { pill: [getComputedStyle(p).display, p.className, p.textContent.trim()], said: getComputedStyle(t).display !== 'none' ? t.textContent : '',
+                         dialog: !!document.getElementById('rankModal'), thread: String(currentData.thread_id), chain: String(currentData.chain_id) }; }""")
+            fav4 = os.path.join(workdir, "webapp", "storage", USER, "favourites", saved["thread"], saved["chain"] + ".json")
+            fav4_doc = json.load(open(fav4)) if os.path.exists(fav4) else {}
+            check("Save as favourite is one click (2.8): no dialog and no rating - the page says it is saved, the chain stored alongside becomes the one picked, and the pill stays, marked saved (its menu still offers Save as routine)",
+                  saved["pill"][0] != "none" and "saved" in saved["pill"][1].split() and saved["pill"][2] == "Save" and "Saved as favourite" in saved["said"] and not saved["dialog"]
+                  and fav4_doc.get("bookmark_type") == "individual" and "rank" not in fav4_doc, (saved, sorted(fav4_doc)[:14]))
 
             # Save as routine on chain 1 (docs/ROUTINES_DESIGN.md F1): the promoter (scripted) names the regime as the one
             # input, run zero runs through the real executor and reproduces the chain's RESULT line, the routine is stored
@@ -415,7 +432,7 @@ def main():
                 page.click("#prevResponse")
                 page.wait_for_timeout(400)
             wait_text(page, "#chainPosition", "chain 1 of 4", 10000)
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal", state="visible", timeout=10000)
@@ -490,7 +507,7 @@ def main():
             while _fav_type() != "individual" and time.time() - t_f < 20:   # and the earlier Save left the chain's file marked 'trajectory' until that save rewrites it (hosted)
                 time.sleep(0.5)
             check("Save as routine saved the chain as a favourite too (individually)", _fav_type() == "individual", (fav1, _fav_type()))
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.wait_for_function("() => (document.querySelector('#saveMenu .it[data-act=\"routine\"] span') || {}).textContent.includes('made from this chain')", timeout=10000)
             menu2 = page.evaluate("() => [...document.querySelectorAll('#saveMenu .it')].map(e => [e.className, e.querySelector('span').textContent])")
@@ -546,7 +563,7 @@ def main():
                   "Regime contrast" in rd["title"] and rd["fit"] is None and "The data loaded now · field_trial.csv" in rd["data"] and rd["rows"] == ["data", "file", "inputs"] and rd["regime"] == "B" and rd["compare"] == [] and rd["runOn"] and rd["note"].startswith("the check on the original data took "), rd)
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => document.getElementById('routineRunModal').style.display === 'none' && /run 1/.test(document.getElementById('chainPosition').textContent)", timeout=30000)
-            live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
+            live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('saveButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
             check("while run 1 runs: the position says so, both arrows are off, the composer is locked and the Save pill is hidden",
                   "running" in live["pos"] and live["locked"] and live["pill"] == "none" and live["arrows"] == [True, True], live)
             wait_position(page, "2 of 2", 180000)
@@ -554,7 +571,7 @@ def main():
             rv = page.evaluate("""() => ({ rows: [...document.querySelectorAll('.sp-row.tool')].map(e => e.textContent), done: (document.querySelector('.sp-done') || {}).textContent || '', warn: !!document.querySelector('.sp-done.warn'),
                 tabs: [...document.querySelectorAll('#tabContainer .tab')].map(e => e.id), active: (document.querySelector('#contentOutput .tab-content.active') || {}).id, strip: (document.querySelector('.sp-strip') || {}).textContent || '',
                 ids: (document.querySelector('.sp-ids') || {}).textContent || '', locked: document.getElementById('queryInput').disabled && document.getElementById('submitQuery').disabled && document.body.classList.contains('composer-locked'),
-                placeholder: document.getElementById('queryInput').placeholder, pill: getComputedStyle(document.getElementById('rankButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
+                placeholder: document.getElementById('queryInput').placeholder, pill: getComputedStyle(document.getElementById('saveButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled],
                 cmp: (document.getElementById('content-comparison') || {}).textContent || '', turns: document.querySelectorAll('.sp-turn').length, chip: document.querySelector('#containerStatusText').textContent })""")
             check("after run 1 the executor chip is back to " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute] + " (2026-10-10: it stayed on Executing)",
                   rv["chip"] == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], rv["chip"])
@@ -583,7 +600,7 @@ def main():
             page.click("#workflowManagerModal .workflow-card")
             page.wait_for_function("() => /chain \\d of 4/.test(document.getElementById('chainPosition').textContent) && !document.getElementById('queryInput').disabled", timeout=15000)
             page.wait_for_timeout(300)
-            unlocked = page.evaluate("() => ({ locked: document.body.classList.contains('composer-locked'), placeholder: document.getElementById('queryInput').placeholder, pos: document.getElementById('chainPosition').textContent, pill: getComputedStyle(document.getElementById('rankButton')).display })")
+            unlocked = page.evaluate("() => ({ locked: document.body.classList.contains('composer-locked'), placeholder: document.getElementById('queryInput').placeholder, pos: document.getElementById('chainPosition').textContent, pill: getComputedStyle(document.getElementById('saveButton')).display })")
             check("loading a favourite leaves the run view: the composer is back with its own placeholder, the chains' navigation and the Save pill return",
                   not unlocked["locked"] and "open the analysis" not in unlocked["placeholder"] and "chain" in unlocked["pos"] and unlocked["pill"] != "none", unlocked)
             # the code map from a restored chain (2026-10-20, M5): the card saved as HTML carries the chain id, so its button still opens the map
@@ -929,9 +946,11 @@ def main():
                   ([(t_.get("refused"), t_.get("cell_no"), t_.get("reaches")) for t_ in t8], r8.get("sandbox"), (r8.get("code_map") or {}).get("view", {}).get("reaches")))
             favs = glob.glob(os.path.join(wa, "storage", USER, "favourites", "*", "*.json"))
             check("Save wrote the favourites (one file per chain of the thread)", len(favs) == 4, favs)
-            pack = os.path.join(wa, "memory", USER, "memory_pack.yaml")
-            check("Save at 7 ran the write pass: the memory pack holds the distilled candidate card",
-                  os.path.exists(pack) and "within_soil_plot_level_contrast" in open(pack).read(), pack)
+            check("the old memory is retired (2.8): no favourite carries a rating, and nothing made a memory folder in the working directory",
+                  all("rank" not in json.load(open(f)) for f in favs) and not os.path.exists(os.path.join(wa, "memory")), sorted(os.listdir(wa)))
+            gone = page.evaluate("""() => Promise.all([['/submit_rank', 'POST'], ['/memory/review', 'GET'], ['/memory/review/action', 'POST'], ['/storage/favourites', 'POST']]
+                .map(([u, m]) => window.authService.fetch(u, { method: m, headers: { 'Content-Type': 'application/json' }, body: m === 'POST' ? '{}' : undefined }).then(r => r.status)))""")
+            check("its routes are gone: the rating, the memory review and its action, the single-favourite save all answer 404", gone == [404, 404, 404, 404], gone)
 
             # ---- the Usage dialog (docs/USAGE_DESIGN.md, step 3): what it shows against the rows the logger wrote ----
             rows = usage_rows(wa, edition, USER)
@@ -1021,7 +1040,7 @@ def main():
             page.wait_for_timeout(500)
             check("'open the analysis' closes the dialog and loads the saved thread at that chain", "chain 1 of" in page.inner_text("#chainPosition"), page.inner_text("#chainPosition"))
 
-            # the thread's documents go with the thread (D35): the last thing, since deleting it tombstones the memory card
+            # the thread's documents go with the thread (D35)
             tid = str(page.evaluate("() => currentData.thread_id"))
             docs_dir = os.path.join(wa, "storage", USER, "documents", tid)
             had_docs = os.path.isdir(docs_dir) and os.path.exists(os.path.join(docs_dir, "manifest.json"))
@@ -1044,7 +1063,7 @@ def main():
             alone_run = page.evaluate("() => ({ pills: document.querySelectorAll('.primary-dataset-pill').length, done: document.querySelector('.sp-done').textContent, cells: document.querySelectorAll('.sp-row.cell, .sp-row.ok').length })")
             check("a new workflow has no dataset, and a question that needs none is answered from the values in its cell: the replay reproduces the number",
                   alone_run["pills"] == 0 and "Replay reproduced" in alone_run["done"], alone_run)
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)

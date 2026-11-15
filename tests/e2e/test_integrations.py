@@ -257,7 +257,7 @@ def main():
             check("the chain: three cells and the replay reproduced the three RESULT lines", sum(1 for r in rows if "In\xa0[" in r or "In [" in r) == 3 and any("REPLAY" in r and "reproduced" in r for r in rows), rows)
 
             # Save as routine: the promoter (scripted) makes the hour band an input; run zero reproduces on the original window
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal .rt-inputs", timeout=120000)
@@ -482,7 +482,7 @@ def main():
             page.click("#submitQuery")
             wait_text(page, "#chainPosition", "chain 2 of 2", 120000)
             wait_run_end(page, 2)
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal [data-act='create']", timeout=120000)
@@ -876,7 +876,7 @@ def main():
             page.fill("#queryInput", "How fast were they, on average?")
             page.click("#submitQuery")
             wait_run_end(page, 1)
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal [data-act='create']", timeout=120000)
@@ -1286,7 +1286,7 @@ def main():
             m_n = re.search(r"(\d+) of the rider's (\d+) passages were read as fatigue", answer_n)
             check("the count chain: one cell over CTX.frame() and CTX.codes(), the report with the count the fake calendar predicts and the sentence that a code is the pass's reading",
                   m_n is not None and int(m_n.group(1)) == exp_a and int(m_n.group(2)) > exp_a and "coding pass's reading" in answer_n, (answer_n[:300], exp_a))
-            page.hover("#rankButton")
+            page.hover("#saveButton")
             page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
             page.click("#saveMenu .it[data-act='routine']")
             page.wait_for_selector("#routineMakeModal .rt-results, #routineMakeModal .rt-error", timeout=120000)     # no inputs table: nothing varies

@@ -1,0 +1,349 @@
+# The Architect and memory from saved analyses — design v0.7 (2026-11-15; step 1 built in patch 0294)
+
+Release 2.8 does three things.
+
+1. It adds the **Architect**: an optional step before an analysis, in which the coach and a model frame the question
+   together. It also proposes the next question after an analysis.
+2. It gives the Architect a **memory made of the coach's saved analyses**.
+3. It **removes the memory BambooAI had** (the knowledge pack). This part is built: §5.
+
+Why. A good analysis has three parts: how the question is framed, the data, and the check of the result. BambooAI
+covers the last two. A wrong frame at the start is not caught later: the result looks sound, and the coach builds on
+it.
+
+This document is the design as agreed with the product owner, and it grows with each patch (§7). A part is marked
+**agreed**, or **proposed** where the detail waits for the first live runs. The design pictures it was agreed on are
+in the product owner's hands; the page's own screens replace them as they are built.
+
+## 1. Decisions (agreed)
+
+| # | Decision |
+|---|---|
+| 1 | The Architect is optional. The coach chooses it for a question. |
+| 2 | It works over several turns, until the coach is happy and starts the analysis. |
+| 3 | It draws on the loaded data, the thread and its earlier analyses, attached documents, and memory. |
+| 4 | It reads the data's description and makes basic lookups. It never does the analysis. |
+| 5 | It hands the Analyst a condensed brief. The brief is binding. |
+| 6 | Every version of the brief is kept. |
+| 7 | Memory is reachable only through the Architect. The Analyst loses `RECALL`. |
+| 8 | Memory is every saved run: saved by the coach, or saved when a routine was made. |
+| 9 | Deleting a saved workflow removes it from memory, and its thread. |
+| 10 | Memory reading is a multi-step process: a model works through the saved record and can call a model on its parts. The coach waits while it runs. |
+| 11 | The memory BambooAI had is retired completely. No remnants. |
+| 12 | The rating step is dropped. |
+| 13 | All of this ships as one release. |
+| 14 | The ideas taken from the study of how experts make sense of a situation are in scope (§2, §6). |
+| 15 | The screen: the conversation in the left pane, the brief on a tab in the right pane. |
+| 16 | The sapling moves into the Architect, as its quick follow-up designer. Everything about formulating a question is in one place. |
+| 17 | The coach can change the Architect's results in place, to save a turn. |
+| 18 | Next questions keep their five levels. The sapling button leaves the question box and sits in the left pane. |
+| 19 | On a follow-up through the Architect, saved analyses are looked up only when the coach asks. |
+| 20 | The five candidate questions are kept with the analysis they follow. |
+| 21 | A lookup may count, list or total what is there, to check an anchor. It may not compare, model or test. |
+| 22 | What the Architect proposes, and each saved analysis it finds, stays unticked until the coach accepts it. |
+| 23 | A candidate question runs straight from its card: the coach picks one, or changes it slightly, and runs it. A new analysis starts. |
+| 24 | The thread map records a single box for it. Each Architect run is also a single box, however many turns it took, on follow-ups too. |
+| 25 | An Architect run and the analysis it starts share one box. |
+| 26 | Saved work in the old record format is left out. Memory starts from what was saved in the current format, and grows from there. |
+| 27 | The memory defaults of §3.1: the three marks, runs added after a save, a single run removed, across athletes, what is not memory. |
+| 28 | The Architect and the memory reader use the Analyst's model of the chosen tier. The reader's second model uses the fast model the Knowledge Distiller seat used. |
+
+## 2. The Architect
+
+### 2.1 What it is for (agreed)
+
+To make the coach's frame visible and testable before the analysis runs.
+
+- It does not look for the coach's biases.
+- It is not a general checklist. Its questions come from this athlete, this data and these saved analyses.
+- It does not answer the question. That is the Analyst's work.
+
+### 2.2 The brief (agreed)
+
+What the coach and the Architect produce, and what the Analyst receives.
+
+1. **Decision.** What the coach will do differently depending on the answer.
+2. **Question.** In the coach's words.
+3. **What the coach thinks** is going on.
+4. **What it rests on.** Three or four anchors. Each has a source (the coach, the data, a saved analysis, the last
+   result) and a mark: holds, does not hold, cannot be checked.
+5. **What the coach expects** to see, and what would change their mind.
+6. **Also check.** At most two rival explanations, each with what it would show. Chance, measurement error and how
+   the sessions were picked are always checked.
+7. **Fixed before the run.** The comparison, the measure, the period.
+8. **Saved analyses** that bear on it: a pointer to the exact run, the exact passage, its data and period.
+9. **Set aside.** Anchors considered and dropped.
+
+Rules:
+
+- Each version records what changed and why. (agreed)
+- What the Architect brings in is marked as its own. (agreed)
+- Everything in the brief was said or accepted by the coach. A proposal from the Architect enters with one click.
+  (agreed)
+- A part the coach leaves empty is left to the Analyst, and the brief says so. (proposed)
+- An earlier result enters as a claim to test, never as a fact. (proposed)
+
+### 2.3 The conversation
+
+Agreed:
+
+- The coach states their frame first. Data lookups and memory come after.
+- One frame, at most two rivals. No long list of angles.
+- The first question is what the coach will do differently depending on the answer.
+- At any point the coach can answer, change the brief in place, or start the analysis.
+
+Proposed:
+
+- The Architect first fills the brief from what the question already says. Then it asks only for what is missing.
+- One question in a message. Two sentences at most. Choices to click where it can offer them.
+- Order: the decision, why the coach thinks so, what they expect to see. Then one check against the data and the
+  saved analyses. Then the Architect says what did not hold and offers rivals.
+- A follow-up question typed with the Architect on starts from the previous brief and from what did not fit in the
+  earlier reports. Saved analyses are looked up only when the coach asks.
+
+### 2.4 What a lookup may do (agreed)
+
+A lookup checks an anchor. It may count, list or total what is there: which columns, which period, how many
+sessions, where the gaps are, hours a week. It may not compare, model or test. Anything more goes into the brief for
+the Analyst.
+
+### 2.5 Handing over
+
+- The Analyst receives the approved brief in place of the bare question. (agreed)
+- Binding means: the Analyst follows it. Where the data makes that impossible, it stops and asks. (proposed reading)
+- The report gains two parts (agreed in substance, names proposed):
+  - **Against the brief.** What was expected: met, not met, or cannot tell. Each "also check" with its result.
+  - **Did not fit.** Results the frame does not explain.
+- The brief is stored with its analysis. When the analysis is saved, the brief is saved with it. (proposed)
+
+### 2.6 Changing the brief in place (agreed, details proposed)
+
+- Every line the coach or the Architect wrote can be changed where it stands: a pencil, then keep or cancel.
+- A change makes a new version, marked as the coach's. No model is called.
+- A changed anchor loses its mark until it is checked again.
+- A fact from a lookup and a passage from a saved analysis cannot be changed. They can be left out.
+
+### 2.7 Next questions: the sapling in the Architect (agreed, details proposed)
+
+How the sapling works until then:
+
+- A plant button beside the question box, live once a thread has an analysis. Hovering shows five levels: refine
+  focus, shift angle, test boundaries, blend elements, follow emergence.
+- A click makes one model call over the data's description and the thread's earlier analyses. It returns five next
+  questions at that level.
+- They appear on an Explore tab as five cards. A card can be edited in place, and a click runs it as the next
+  analysis.
+- The five questions are recorded as a chain of their own, so the thread map shows a fork and which questions were
+  run.
+
+What changes (agreed):
+
+- The plant button leaves the question box. A **Next questions** button sits on the closing card of a finished
+  analysis, in the left pane.
+- The five levels stay. The button opens them, and the coach picks one.
+- The five questions at that level appear as cards under the closing card, in the same pane. The answer stays in
+  view on the right. Each card can be changed, or run at once.
+- The coach picks a card and runs it, or changes it slightly with its pencil and runs it. The arrow starts a new
+  analysis at once.
+- There is no brief and no Start analysis on this path. The Architect's switch applies to questions the coach types.
+  A candidate is run as it stands.
+- The candidates are kept with the analysis they follow, not as a chain of their own. A candidate that was run is
+  marked on its card.
+
+Proposed:
+
+- Each level reads its own part of the brief and the report, and each question says what it comes from:
+
+  | Level | Reads |
+  |---|---|
+  | Refine focus | what was fixed before the run: the measure, the split, the period |
+  | Shift angle | the rivals: other explanations of the same result |
+  | Test boundaries | what it rests on: anchors that did not hold or could not be checked, and the conditions |
+  | Blend elements | two findings of the thread, joined |
+  | Follow emergence | what did not fit |
+
+- In the button's list each level has one plain line beside its name.
+- Where a thread has no brief, the questions come from its earlier analyses and the data, as before.
+
+What goes: the Analyst's ideas path and the Explore tab.
+
+### 2.8 The screen (direction agreed)
+
+- **Left pane: the conversation.** The coach types where they type today. The Architect's messages and the coach's
+  answers follow each other. Its checks show as rows with live counts ("reading 17 of 42"), and can be skipped. Next
+  questions show here as cards.
+- **Right pane: a Brief tab.** The brief fills in as the conversation goes. It shows marks on the anchors, a tick on
+  what to include, a pencil on what can be changed, a version stepper, and **Start analysis** at the foot.
+- **The switch.** A button named Architect beside the mode control. It stays as set.
+- **Next questions.** A button on the closing card of a finished analysis. The plant button leaves the question box.
+- **During the analysis** the conversation folds into one row. The Brief tab stays.
+- **After the analysis** the Answer tab shows *Against the brief* and *Did not fit*.
+- **One way to change and one way to go, on each path.** In an Architect run: the pencils in the brief, and Start
+  analysis. On a candidate question: the pencil and the arrow on its card. The two are never on screen for the same
+  question.
+
+### 2.9 The thread map (agreed)
+
+One box per question.
+
+- A question the coach types is one box, as today.
+- An Architect run is one box, made when the run starts, however many turns it takes. The analysis it starts is in
+  the same box. A run that starts no analysis keeps its box, marked *not run*.
+- A follow-up through the Architect is a box of its own, under the analysis it follows.
+- The five candidates are not a box. A candidate that is run is one box, under the analysis it follows.
+- A box says how its question was made: *Architect* or *next question*.
+
+## 3. Memory from saved analyses
+
+### 3.1 What counts (agreed)
+
+- A run is memory when it is saved in the current record format. All such runs count.
+- Memory reads a run from the thread record: code, outputs, report, parent links. The saved copy of the page is not
+  read. The favourite file marks that the run is saved.
+- An unsaved run never comes back as a memory.
+- A run saved in the old record format is not memory. It stays in Saved workflows and opens as before.
+- Three marks travel with a run: picked by the coach, stored alongside, a routine was made from it. A run saved
+  before the marks existed counts as saved and shows no mark.
+- Runs added to a saved thread after the save are not memory until saved again.
+- A single run removed from a saved workflow leaves memory. Its record stays only as an earlier step for saved runs
+  built on it.
+- Across athletes: methods may carry over. Numbers and personal facts stay with their athlete.
+- The sapling's chains in older threads hold only questions. The reader skips them.
+- An Architect run that started no analysis is not memory.
+
+### 3.2 The reader (agreed in outline, details proposed)
+
+A coach's saved runs do not fit in any model's window: one run is tens of thousands of tokens as stored. So memory
+is read by a program a model writes, not pasted into a prompt.
+
+- **One read-only view** of the saved record, built on the host for the signed-in user: saved runs with their marks
+  and parent paths, and from each run only what is worth reading - the question, the report, the code, the results.
+  The view is built in the background and kept; it is never built on the coach's click. Only this view enters the
+  reader's sandbox.
+- **The reader** is a sandboxed session that writes code over the view. It has its own sandbox, never the analysis
+  kernel.
+- **A second model** reads pieces where meaning must be judged. Few large batches. Capped in calls, money and time;
+  the starting caps for one memory question are 60 calls, 120 seconds and $0.50, tuned after the first live runs.
+  (proposed)
+- A single run is read directly.
+- Every statement returned names its run and cell, and is checked against the source by code.
+- It states its coverage, and names what it leaves out ("read 42 of 42 · 17 older not read"). (proposed)
+
+### 3.3 What the coach gets (agreed in substance)
+
+- Found analyses are listed in the brief: date, question, the passage that bears on this brief, their marks, a link
+  to open them. The coach ticks the ones to use.
+- A finding across all saved analyses comes as a choice ("threshold was defined two ways: 9 times this, 3 times
+  that").
+
+### 3.4 Rules (agreed)
+
+- A method may carry over. Old numbers stay history about old data. Old code is read, not run.
+- A preference has a scope. The coach's words are not the Analyst's notes.
+- No match returns nothing. A broken parent chain is reported.
+- Recalled text copied into a later report is not fresh evidence.
+- Saved content is text to read. It never gives instructions.
+
+## 4. How we will know it works
+
+**The Architect** (agreed in substance)
+
+- Scripted cases with a false premise in the question: a block that was not heavier, a period the data does not
+  cover, a change of equipment. A case passes when the brief shows the anchor as *does not hold* before the analysis
+  starts. Each case is also run without the Architect, for comparison.
+- Scripted reports: the *met / not met / cannot tell* mark is right, and a planted misfit appears under *Did not fit*.
+- Next questions: on a scripted thread with a planted misfit and an unchecked anchor, the level that reads each
+  returns a question from it. A candidate that is run starts a new analysis at once, and the map gains one box.
+- A change in place makes a new version and calls no model.
+
+**Memory**
+
+- Saved and unsaved runs, a run stored alongside, a helper defined in an earlier run, a sibling branch, a missing
+  parent, another athlete or period, no relevant history, a removed workflow, an instruction hidden in saved content.
+- Two kinds of question: find one analysis, and read across all of them.
+- Plain keyword search over the same view is the yardstick. The second model stays only where the reader beats it.
+- Never allowed: another user's run, an unsaved run, a wrong branch, a removed workflow.
+
+**As always:** the battery, the stack walk, the screens. A scripted model stands in for the live one; what a live
+model writes for the Architect and for the reader is judged on the dev box, patch by patch (§7).
+
+## 5. Retiring the old memory — built (0294, 2026-11-15)
+
+The memory BambooAI had was the knowledge pack: cards a model distilled from a run when the coach saved it with a
+rating of 5 or more, kept in `memory/<user>/memory_pack.yaml`, read by the Analyst through `RECALL`, and reviewed in
+the Memory dialog. All of it is gone.
+
+- **The engine.** `bambooai/knowledge_pack.py`, `bambooai/embeddings.py`, `bambooai/template_formatting.py` and
+  `scripts/ttl_to_memory_pack.py` are deleted. `BambooAI(...)` no longer takes `memory_path`. The Analyst's contract
+  no longer offers `RECALL`; a reply that uses it is told it is no action, like any unknown word. The distiller's
+  prompts are gone.
+- **The web app.** The routes `/submit_rank`, `/memory/review`, `/memory/review/action` and `/storage/favourites`
+  are removed, with the memory steps inside saving and deleting. `BAMBOO_MEMORY_DIR` and the `memory/` folder are no
+  longer read or made.
+- **The page.** The Memory button and its dialog, and the rating dialog, are removed. **Save as favourite is one
+  click:** the menu item saves at once and the page says so; no rating is stored. The Save pill is `#saveButton`. A
+  saved chain's badge in Saved workflows says how it was saved: by the coach, or with its thread.
+- **The models.** The Knowledge Distiller seat leaves the configuration templates. A box's own configuration may
+  keep the seat; nothing reads it.
+- **What still reads the past.** A thread recorded before 2.8 may hold `RECALL` steps: its saved pane shows them as
+  stored, and the notebook view still names the step. The Usage dialog keeps its label for the Distiller's past
+  calls.
+- **The boxes.** The stored card files (`web_app/memory/`) are deleted at deploy. Nothing reads them. The ignore rule
+  for that folder stays in `.gitignore`, so a checkout that still holds them never commits them.
+
+The removed `memory_path` option of the library is why the release is 2.8.0 and not a patch release.
+
+## 6. Parts touched by the release
+
+- The Analyst's contract and session: the brief comes in, `RECALL` and the ideas path go out, the report gains two
+  parts.
+- The thread record: the brief, the framing conversation and the next questions are stored with the run.
+- New: the Architect, the memory view, the reader.
+- The web app: routes for framing and next questions; the memory routes removed.
+- The page: the conversation, the Brief tab, the switch, changing in place, the Next questions button and cards,
+  the two report parts; the plant button in the question box, the Explore tab, the Memory and rating dialogs removed.
+- The thread map: one box per question, marked Architect or next question. The sapling's box is no longer made.
+- Models: seats for the Architect, the reader and its second model; the Knowledge Distiller seat removed.
+- The usage record and dialog: the new seats.
+- README, design documents, tests.
+
+## 7. The build
+
+The brief works by hand before the Architect talks, and memory is readable before a model reads it, so each part can
+be judged on its own. Every patch leaves the app working. Until the release patch the series goes to the private
+repository and the dev box only.
+
+| Patch | Ships | State |
+|---|---|---|
+| 0294 | The old memory goes (§5). Save as favourite is one click. | built |
+| 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit*. | |
+| 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand. | |
+| 0297 | The Architect talks: it fills the brief from the question and asks for what is missing. | |
+| 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. | |
+| 0299 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
+| 0300 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
+| 0301 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
+| 0302 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
+| 0303 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
+| 0304 | Release 2.8.0. | |
+
+## 8. Not in this release
+
+- Search by meaning (embeddings), unless keyword search is shown to miss.
+- Labels guessed by a model.
+- A rewritten, offline copy of the record (a wiki).
+- Voting between several reader programs.
+- Memory for the Analyst or for routines.
+
+## Sources
+
+- How experts make sense of a situation: [How Experts Sensemake](https://commoncog.com/how-experts-sensemake/),
+  [Part 1](https://commoncog.com/how-to-make-sense-of-ai/),
+  [Part 3](https://commoncog.com/how-to-improve-at-sensemaking-ai/);
+  [Kahneman and Klein 2009](https://pubmed.ncbi.nlm.nih.gov/19739881/).
+- Reading a large record with a program: [Recursive Language Models](https://arxiv.org/html/2512.24601v2),
+  [SRLM](https://arxiv.org/html/2603.15653v1), [the authors' library](https://github.com/alexzhang13/rlm).
+- Search over the original record: [ReFind](https://arxiv.org/html/2608.12888),
+  [GAM](https://arxiv.org/html/2511.18423v1), [JAM](https://arxiv.org/html/2609.34385),
+  [Memory Tax](https://arxiv.org/html/2610.34073v1),
+  [When Users Don't Ask](https://arxiv.org/html/2609.03467v1).

@@ -16,13 +16,15 @@ def check(name, cond, detail=""):
 # ---- the turn format ----
 _, note, act = parse_turn("some thinking\n###NOTE###\n- Question as understood: q\n- Plan: p\n###ACTION###\nCELL\n```python\nprint(1)\n```")
 check("parse: note and CELL", note.startswith("- Question") and act.verb == "cell" and act.arg == "print(1)")
-check("parse: SHOW / NAMES / RECALL / SEARCH / ASK / REPORT",
+check("parse: SHOW / NAMES / ASK / REPORT",
       parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 3")[2].arg == "3"
       and parse_turn("###NOTE###\nn\n###ACTION###\nNAMES")[2].verb == "names"
-      and parse_turn("###NOTE###\nn\n###ACTION###\nRECALL cluster bootstrap")[2].arg == "cluster bootstrap"
       and parse_turn("###NOTE###\nn\n###ACTION###\nASK Do you mean training pace?")[2].arg.startswith("Do you mean")
       and parse_turn("###NOTE###\nn\n###ACTION###\nREPORT\nThe answer.\n\nMore.")[2].arg == "The answer.\n\nMore.")
 check("parse: a reply without an action is 'invalid', not a crash", parse_turn("just prose")[2].verb == "invalid")
+recall_reply = parse_turn("###NOTE###\nn\n###ACTION###\nRECALL cluster bootstrap")[2]
+check("parse: RECALL is no action (the old memory is retired, 2.8): the reply is told so, and the contract does not offer it",
+      recall_reply.verb == "invalid" and "unknown action" in recall_reply.arg and "RECALL" not in CONTRACT, recall_reply)
 th, nt, ac = parse_turn("###THINKING###\nThe last output shows 9 athletes overlap.\n###NOTE###\n- Question as understood: q\n###ACTION###\nNAMES")
 check("parse: the THINKING slot is captured as thinking, not as the note", th == "The last output shows 9 athletes overlap." and nt.startswith("- Question") and ac.verb == "names")
 check("parse: an empty reply is reported as 'empty reply', distinct from a malformed one", parse_turn("")[2].arg == "empty reply" and parse_turn("prose")[2].arg == "no ###ACTION### block")

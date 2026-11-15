@@ -43,7 +43,7 @@ check('workflows dialog: every structural class the scripts swap, replace or tog
 check('workflows dialog: the search container precedes the grid inside the right panel (the thread nav is inserted before the grid)', (() => { const r = wroot.querySelector('.workflow-modal-right'); const kids = r.elements.map(e => e.className); return kids.findIndex(c => c.includes('workflow-modal-header-row')) < kids.findIndex(c => c.includes('workflow-chains-grid')); })());
 check('workflows dialog: workflow-modal.css and workflow-replay.css are retired (not linked)', !html.includes("filename='css/workflow-modal.css'") && !html.includes("filename='css/workflow-replay.css'"));
 const dcss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');
-check('workflows dialog: dialogs.css styles the generated cards, labels and thread nav', ['.workflow-card', '.workflow-label-item', '.workflow-thread-nav', '.workflow-card-memory-badge'].every(c => dcss.includes(c)));
+check('workflows dialog: dialogs.css styles the generated cards, labels and thread nav', ['.workflow-card', '.workflow-label-item', '.workflow-thread-nav', '.workflow-card-saved-badge'].every(c => dcss.includes(c)));
 // the v1 replay view is retired with step 4 of the routines (docs/ROUTINES_DESIGN.md S10): its script is not linked, its
 // dataset picker is not styled, the modal keeps no replay state, and the card's Replay button is gone with it
 check('workflows dialog: workflow-replay.js is retired (not linked; no replay view or state snapshot in workflow-modal.js; no replay rules in dialogs.css)', !html.includes("filename='js/workflow-replay.js'") && !fs.existsSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-replay.js')) && !fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-modal.js'), 'utf8').match(/enterReplayView|isReplayView|modalStateSnapshot/) && !dcss.match(/replay-dataset|workflow-replay-theme|workflow-card-replay/));
@@ -71,15 +71,18 @@ check('intervals.js puts the athlete\'s folder on the window\'s record when a lo
   && cip.includes('if (currentIntervalsState.pillId) { const old = document.getElementById(currentIntervalsState.pillId); if (old) old.remove(); }') && cip.indexOf('currentIntervalsState.dataInfo = dataInfo;') < cip.indexOf('intervalsOneAthlete(dataInfo.folder);')
   && cap.indexOf('intervalsOneAthlete(dataInfo && dataInfo.folder);') < cap.indexOf('createOrUpdateDatasetPill(') && (ijs.match(/intervalsOneAthlete\(/g) || []).length === 3
   && dm.includes('intervalsOtherAthletePills(folder)') && dm.includes("The Data tab holds another athlete's data"), [cip.length, cap.length, (ijs.match(/intervalsOneAthlete\(/g) || []).length]);
-const mr = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'memory-review.js'), 'utf8');
-check('memory dialog: the script builds the shell and the body it renders into', mr.includes("'<div class=\"memory-modal ui-dlg\">'") && mr.includes('id="memoryReviewBody" class="memory-modal-body ui-dlg-b"') && mr.includes('memoryReviewClose'));
 check('dataset-manager.css and memory.css are retired (not linked)', !html.includes("filename='css/dataset-manager.css'") && !html.includes("filename='css/memory.css'"));
-check('dialogs.css keeps the two top-panel pills those sheets provided', dcss.includes('.dataset-manager-pill') && dcss.includes('.memory-review-pill'));
-// ---- the save-this-chain dialog ----
-const rroot = doc.createElement('div'); rroot.innerHTML = fragment('rankModal');
-check('rank dialog: every id query-processing.js addresses exists (fill, value, hint, status, submit) and the ten segments with the threshold at 5',
-  ['ratingFill', 'ratingValue', 'thresholdHint', 'rankStatusMessage', 'submit-rank'].every(id => rroot.querySelector('#' + id)) && rroot.querySelectorAll('.rating-segment').length === 10 && rroot.querySelector('.rating-segment.threshold-indicator[data-value="5"]') && rroot.querySelector('.ui-dlg-h .x.close'));
-check('rank dialog: its rules left styles.css for dialogs.css', !fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'styles.css'), 'utf8').includes('.progress-rating-track') && dcss.includes('#rankModal .progress-rating-track'));
+check('dialogs.css keeps the top-panel pill the dataset sheet provided', dcss.includes('.dataset-manager-pill'));
+// ---- 2.8: the old memory is retired - the Memory dialog and the rating step are gone, Save as favourite is one click ----
+const staticDir = path.join(__dirname, '..', '..', 'web_app', 'static');
+const allCss = ['styles.css', 'dialogs.css', 'shell.css', 'components.css', 'tabs.css'].map(f => fs.readFileSync(path.join(staticDir, 'css', f), 'utf8')).join('\n');
+const pageJs = fs.readdirSync(path.join(staticDir, 'js')).filter(f => f.endsWith('.js') && !f.includes('.min.')).map(f => fs.readFileSync(path.join(staticDir, 'js', f), 'utf8')).join('\n');
+check('the Memory dialog is gone (2.8): no script, no rail button, no rule, no call for it',
+  !fs.existsSync(path.join(staticDir, 'js', 'memory-review.js')) && !/memory-review|memoryReview/.test(html + allCss + pageJs) && !pageJs.includes('/memory/review'));
+check('the rating step is gone (2.8): no dialog in the page, no rule for it, and the scripts neither open it nor send a rating',
+  !/rankModal|rating-segment|submit-rank/.test(html + allCss + pageJs) && !/currentRankData|showRankModal|submit_rank|isTrajectoryRank/.test(pageJs)
+  && !/\brank:/.test(fs.readFileSync(path.join(staticDir, 'js', 'query-processing.js'), 'utf8')));
+check('a saved chain\'s badge in Saved workflows says how it was saved, in plain words', pageJs.includes("? 'You saved this chain' : 'Saved with its thread'") && !/agent memory/i.test(pageJs));
 // ---- the prompt viewer ----
 const ai = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'agent-instructions.js'), 'utf8');
 check('prompt viewer: the script builds the shell with the ids it fills and the sections it toggles', ai.includes('id="agentInstructionsModal" class="agent-instructions-modal-container ui-modal-plain"') && ai.includes('id="systemInstructions"') && ai.includes('id="userInstructions"') && ai.includes('class="agent-instructions-close x"'));

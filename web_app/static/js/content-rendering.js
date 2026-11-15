@@ -321,8 +321,7 @@ async function updateTabContent(type, data, id = null, format = null) {
                             }
         
                             // Zoom/fullscreen controls retired with the
-                            // graph viewer (graphControls.js) - see
-                            // memory_pack_design.md.
+                            // graph viewer (graphControls.js).
                         }
                     })
                     .catch(function (err) {

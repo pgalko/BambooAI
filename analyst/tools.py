@@ -1,6 +1,6 @@
 """The analyst's tools. Each is a plain function over an object the platform
 already has: the kernel (PersistentKernel or RemoteKernel - same interface),
-the knowledge pack, the search seam, the output channel to the user.
+the search seam, the output channel to the user.
 
 Nothing here decides anything. The analyst chooses; these carry it out and
 return text for the next turn's context.
@@ -98,29 +98,6 @@ def names(kernel, limit: int = 200) -> str:
         else:
             lines.append(str(it))
     return "\n".join(lines) if lines else "(no user-defined names yet)"
-
-
-def recall(pack_retrieve: Optional[Callable[[str], list]], query: str, limit: int = 5) -> str:
-    """Methods this workspace has learned, relevant to the query. `pack_retrieve`
-    is knowledge_pack.retrieve bound to the user's pack, or None when memory is off."""
-    if pack_retrieve is None:
-        return "(memory is not enabled in this workspace)"
-    try:
-        cards = pack_retrieve(query) or []
-    except Exception as exc:                          # noqa: BLE001
-        logger.warning("recall failed: %s", exc)
-        return f"(memory lookup failed: {exc})"
-    if not cards:
-        return "(nothing relevant in memory)"
-    out = []
-    for c in cards[:limit]:
-        if isinstance(c, dict):
-            title = c.get("title") or c.get("name") or "card"
-            body = c.get("method") or c.get("body") or c.get("text") or ""
-            out.append(f"- {title}: {str(body)[:600]}")
-        else:
-            out.append(f"- {str(c)[:600]}")
-    return "\n".join(out)
 
 
 def search(search_fn: Optional[Callable[[str], str]], query: str) -> str:

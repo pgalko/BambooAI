@@ -70,7 +70,7 @@
     }
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
     function kindLabel(kind) {
-        return ({ cell: 'cell', show: 'look-up', names: 'look-up', recall: 'memory', search: 'search', review: 'review',
+        return ({ cell: 'cell', show: 'look-up', names: 'look-up', search: 'search', review: 'review',
                   ask: 'question', report: 'report', rewrite: 'plain-language version', figures: 'figures', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
     }
     function noteGrid(note) {
@@ -153,7 +153,7 @@
         },
         lookupStart(l) {
             // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
-            const label = ({ search: 'SEARCH', read: 'READ', recall: 'RECALL', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
+            const label = ({ search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
             const doing = ({ search: 'searching the web…', replay: 'reproducing the cited cells in a fresh kernel…', routine: 'checking the method on this chain\'s own data…',
                              check: 'checking the data against the routine…', run: 'running the method on the data loaded now…', compare: 'comparing with the run before…', load: 'loading…' })[l.kind]
                         || (l.kind === 'read' ? 'reading' + (l.model ? ' · Reader on ' + esc(String(l.model).split('/').pop()) : '') + '…' : 'working…');
@@ -161,8 +161,8 @@
                 '<span class="out">' + doing + '</span><span class="t"></span></div>';
         },
         lookup(l) {
-            const label = ({ show: 'SHOW', names: 'NAMES', recall: 'RECALL', search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
-            const glyph = ({ search: '⌕', recall: '✦', read: '¶', replay: '↻', routine: '↻', run: '↻', check: '✓', compare: '⇄', load: '⇩' })[l.kind] || '↺';
+            const label = ({ show: 'SHOW', names: 'NAMES', search: 'SEARCH', read: 'READ', replay: 'REPLAY', routine: 'ROUTINE', check: 'CHECK', run: 'RUN', compare: 'COMPARE', load: 'LOAD' })[l.kind] || String(l.kind || '').toUpperCase();
+            const glyph = ({ search: '⌕', read: '¶', replay: '↻', routine: '↻', run: '↻', check: '✓', compare: '⇄', load: '⇩' })[l.kind] || '↺';
             const right = l.kind === 'search' && l.sources && l.sources.length ? l.sources.length + ' source' + (l.sources.length === 1 ? '' : 's')
                         : (l.kind === 'read' ? (l.passages && l.passages.length ? l.passages.length + ' passage' + (l.passages.length === 1 ? '' : 's') : 'no passage') : '');
             // the row's text whole on hover: a CHECK row's sentences run past the row (step 4, 2026-10-11); the query whole, wrapping

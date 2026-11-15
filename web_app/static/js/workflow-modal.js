@@ -489,8 +489,8 @@
             <div class="workflow-card-footer">
                 ${(window.RoutinesUI && typeof window.RoutinesUI.cardButton === 'function') ? window.RoutinesUI.cardButton(window.RoutinesUI.cardCount(chains || chain)) : ''}
                 ${chain.bookmark_type ? `
-                    <span class="workflow-card-memory-badge ${chain.bookmark_type}" 
-                          title="${chain.bookmark_type === 'individual' ? 'Saved to agent memory' : 'Saved to agent memory (trajectory)'}">
+                    <span class="workflow-card-saved-badge ${chain.bookmark_type}"
+                          title="${chain.bookmark_type === 'individual' ? 'You saved this chain' : 'Saved with its thread'}">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/>
                         </svg>

@@ -40,9 +40,8 @@ find) — on the box's venv nothing is faked, and the executor uses the real pya
 imbalance (regime B sits on more loam). The story for the first question, in Deep: inspect →
 one search (two sources) → a cell that fails on a wrong column and is rolled back → the
 soil-adjusted comparison with a plot-level bootstrap → a figure → the report. A follow-up
-("and regime C?") reuses the warm kernel in two turns. Explore returns five questions; Save at 7
-births a candidate memory card through the real distiller parser. Any other question gets a
-short generic answer, so the app can be driven by hand.
+("and regime C?") reuses the warm kernel in two turns. Explore returns five questions. Any other
+question gets a short generic answer, so the app can be driven by hand.
 
 Every number in the scripted report is read from the real cell outputs in the prompt, so the two
 numeric guards, the replay comparison and the cost accounting all run for real. A scenario is a
@@ -53,7 +52,7 @@ module with `DATASET_NAME`, `QUESTIONS`, `make_dataset(path)` and a `Scenario.re
 
     executor/      the executor's datasets/, temp/, iframe_figures/
     webapp/        LLM_CONFIG_template.json (every seat on the scripted provider; the tier budgets untouched),
-                   config/<user>/LLM_CONFIG.json, storage/<user>/{threads,favourites}/, memory/<user>/memory_pack.yaml, logs/
+                   config/<user>/LLM_CONFIG.json, storage/<user>/{threads,favourites}/, logs/
     data/          the scenario's dataset
     logs/          executor.log, orchestrator.log, webapp.log
     stack.json     ports and pids of a detached stack

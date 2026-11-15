@@ -14,7 +14,7 @@ function initializeQueryProcessing() {
     }
     
     initializeMainQuerySubmission();
-    initializeRankingSystem();
+    initializeSaveButton();
     initializePopupSystem();
     
     console.log('Query processing initialized');
@@ -67,12 +67,11 @@ function handleQuerySubmit(options = {}) {
         setQueryRunning(true);
     }
 
-    // Hide rank button and reset its state
-    const rankButton = document.getElementById('rankButton');
-    if (rankButton) {
-        rankButton.style.display = 'none';
+    // Hide the Save pill while the new chain runs
+    const saveButton = document.getElementById('saveButton');
+    if (saveButton) {
+        saveButton.style.display = 'none';
     }
-    currentRankData = null;
 
     // Store the query text
     if (synthesis) {
@@ -162,15 +161,6 @@ function handleQuerySubmit(options = {}) {
                         setQueryRunning(false);
                     }
         
-                    // Create theoretical stub BEFORE saving
-                    if (!currentRankData) {
-                        currentRankData = {
-                            chain_id: currentData.chain_id,
-                            theoretical: true
-                        };
-                        updateRankButtonVisibility();
-                    }
-        
                     if (typeof saveCurrentResponse === 'function') {
                         saveCurrentResponse();
                     }
@@ -219,8 +209,8 @@ function processChunk(chunk) {
         let line = buffer.substring(startIndex, endIndex).trim();
         if (line) {
             const away = (typeof liveState !== 'undefined' && liveState.running && liveState.away);
-            let viewData = null, viewRank = null, viewTasks = null;
-            if (away) { viewData = currentData; viewRank = currentRankData; viewTasks = taskContents; currentData = liveState.data; currentRankData = liveState.rank; taskContents = liveState.tasks; }
+            let viewData = null, viewTasks = null;
+            if (away) { viewData = currentData; viewTasks = taskContents; currentData = liveState.data; taskContents = liveState.tasks; }
             try {
                 const data = JSON.parse(line);
                 if (data.type === "id") {
@@ -313,10 +303,6 @@ function processChunk(chunk) {
                     }
                 } else if (data.type === 'end') {
                     console.log("End of results detected");
-                } else if (data.rank_data) {
-                    currentRankData = data.rank_data;
-                    updateRankButtonVisibility();
-                    console.log("Rank data detected:", data.rank_data);
                 } else {
                     console.log("Unhandled data detected:", data);
                 }
@@ -326,7 +312,7 @@ function processChunk(chunk) {
                 // Don't add the line to the output, keep it in the buffer
                 break;
             }
-            if (away) { liveState.data = currentData; liveState.rank = currentRankData; liveState.tasks = taskContents; currentData = viewData; currentRankData = viewRank; taskContents = viewTasks; if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility(); }
+            if (away) { liveState.data = currentData; liveState.tasks = taskContents; currentData = viewData; taskContents = viewTasks; }
         }
         startIndex = endIndex + 1;
     }
@@ -347,395 +333,51 @@ function processChunk(chunk) {
 //--------------------
 
 //--------------------
-//  FEEDBACK SYSTEM
+//  SAVING
 //--------------------
 
-//--------------------
-//  RANKING SYSTEM
-//--------------------
-
-function initializeRankingSystem() {
-    const rankButton = document.getElementById('rankButton');
-    const modal = document.getElementById('rankModal');
-    const modalContent = modal?.querySelector('.modal-content');
-    const submitRankButton = document.getElementById('submit-rank');
-    const closeModalButton = modal?.querySelector('.close');
-
-    if (rankButton) {
-        // the pill's menu (2026-10-10, routines): Save as favourite opens the rank dialog as before, Save as routine the
-        // routine dialog; the pill shows the menu on hover and on click
-        rankButton.addEventListener('click', () => {
-            if (window.RoutinesUI && typeof window.RoutinesUI.toggleSaveMenu === 'function') {
-                window.RoutinesUI.toggleSaveMenu();
-            } else {
-                showRankModal();
-            }
-        });
-        rankButton.style.display = 'none';
-    }
-
-    if (submitRankButton) {
-        submitRankButton.addEventListener('click', submitRank);
-    }
-
-    if (closeModalButton) {
-        closeModalButton.addEventListener('click', closeRankModal);
-    }
-
-    if (modal && modalContent) {
-        modal.addEventListener('click', function(event) {
-            if (event.target === modal) {
-                closeRankModal();
-            }
-        });
-
-        modalContent.addEventListener('click', function(event) {
-            event.stopPropagation();
-        });
-    }
-
-    initializeProgressRating();
-}
-
-function initializeProgressRating() {
-    const segments = document.querySelectorAll('.rating-segment');
-    const ratingFill = document.getElementById('ratingFill');
-    const ratingValue = document.getElementById('ratingValue');
-    const thresholdHint = document.getElementById('thresholdHint');
-    const submitButton = document.getElementById('submit-rank');
-    const valueDisplay = document.querySelector('.rating-value-display');
-    
-    // Store rating in a more reliable way
-    let selectedRating = null;
-    
-    segments.forEach(segment => {
-        segment.addEventListener('click', function() {
-            const value = parseInt(this.dataset.value);
-            selectedRating = value;
-            
-            // Store in window object for access from submitRank
-            window.currentSelectedRating = value;
-            
-            // Update visual state
-            segments.forEach(s => s.classList.remove('active'));
-            for (let i = 0; i < value; i++) {
-                segments[i].classList.add('active');
-            }
-            
-            // Update fill width
-            ratingFill.style.width = `${value * 10}%`;
-            
-            // Update value display
-            const labels = ['Poor', 'Below Average', 'Fair', 'Good', 'Good', 
-                          'Very Good', 'Very Good', 'Excellent', 'Excellent', 'Perfect'];
-            ratingValue.textContent = `${value}/10 - ${labels[value - 1]}`;
-            
-            // Update threshold hint with clearer messaging
-            if (value >= 5) {
-                thresholdHint.textContent = 'Saves to favorites + your private memory for future similar tasks';
-                thresholdHint.style.color = 'var(--text-secondary)';
-            } else {
-                thresholdHint.textContent = 'Saves to favorites only';
-                thresholdHint.style.color = 'var(--text-secondary)';
-            }
-            
-            // Color coding
-            valueDisplay.classList.remove('low', 'medium', 'high');
-            if (value <= 3) valueDisplay.classList.add('low');
-            else if (value <= 6) valueDisplay.classList.add('medium');
-            else valueDisplay.classList.add('high');
-            
-            // Enable submit button
-            submitButton.disabled = false;
-        });
-        
-        // Hover preview
-        segment.addEventListener('mouseenter', function() {
-            const value = parseInt(this.dataset.value);
-            if (!selectedRating) {
-                ratingFill.style.width = `${value * 10}%`;
-            }
-        });
-        
-        segment.addEventListener('mouseleave', function() {
-            if (!selectedRating) {
-                ratingFill.style.width = '0%';
-            } else {
-                ratingFill.style.width = `${selectedRating * 10}%`;
-            }
-        });
+function initializeSaveButton() {
+    const saveButton = document.getElementById('saveButton');
+    if (!saveButton) return;
+    // the pill opens its menu (routines.js): Save as favourite, Save as routine
+    saveButton.addEventListener('click', () => {
+        if (window.RoutinesUI && typeof window.RoutinesUI.toggleSaveMenu === 'function') window.RoutinesUI.toggleSaveMenu();
     });
+    saveButton.style.display = 'none';
 }
 
-function showRankModal() {
-    if (currentRankData) {
-        const modal = document.getElementById('rankModal');
-        const submitButton = document.getElementById('submit-rank');
-        const statusMessage = document.getElementById('rankStatusMessage');
-        
-        // Reset modal state
-        submitButton.disabled = true;
-        statusMessage.textContent = '';
-        statusMessage.style.display = 'none';
-        statusMessage.style.color = '#35c477';
-        
-        // Reset progress bar
-        resetProgressBar();
-        
-        modal.style.display = 'flex';
-    }
+let savesInOrder = Promise.resolve();   // one save at a time, in the order asked
+
+// Save to Saved workflows, in one click. `target` is the chain the coach picked, or 'all' for the whole thread.
+// Every chain of the thread is stored: the picked one marked 'individual', the others 'trajectory'. `quiet` leaves
+// out the closing message (Save as routine saves the favourite on its way). Resolves true once stored.
+function saveToFavourites(target, quiet = false) {
+    savesInOrder = savesInOrder.then(() => storeFavourites(target, quiet));
+    return savesInOrder;
 }
 
-function closeRankModal() {
-    const modal = document.getElementById('rankModal');
-    modal.style.display = 'none';
-}
-
-// ── Rank-dialog distillation expander (memory.css styles) ──
-function ensureDistillExpander() {
-    let box = document.getElementById('distillExpander');
-    if (box) return box;
-    const anchor = document.getElementById('rankStatusMessage');
-    if (!anchor) return null;
-    box = document.createElement('div');
-    box.id = 'distillExpander';
-    box.className = 'memory-distill';
-    box.style.display = 'none';
-    box.innerHTML =
-        '<div class="memory-distill-header" id="distillToggle">' +
-        '<span class="memory-distill-chevron">\u25b8</span>' +
-        '<span>Memory distillation</span></div>' +
-        '<pre class="memory-distill-stream" id="distillStream" ' +
-        'style="display:none;"></pre>';
-    anchor.insertAdjacentElement('afterend', box);
-    box.querySelector('#distillToggle').addEventListener('click', () => {
-        const pre = document.getElementById('distillStream');
-        const chev = box.querySelector('.memory-distill-chevron');
-        const open = pre.style.display !== 'none';
-        pre.style.display = open ? 'none' : 'block';
-        chev.textContent = open ? '\u25b8' : '\u25be';
-    });
-    return box;
-}
-
-function appendDistillStream(text) {
-    const box = ensureDistillExpander();
-    if (!box) return;
-    box.style.display = 'block';
-    const pre = document.getElementById('distillStream');
-    pre.textContent += (pre.textContent ? '\n' : '') + text;
-}
-
-function resetDistillExpander() {
-    const box = document.getElementById('distillExpander');
-    if (box) {
-        box.style.display = 'none';
-        const pre = document.getElementById('distillStream');
-        if (pre) { pre.textContent = ''; pre.style.display = 'none'; }
-        const chev = box.querySelector('.memory-distill-chevron');
-        if (chev) chev.textContent = '\u25b8';
-    }
-}
-
-function submitRank() {
-    // Use the new rating system
-    const userRank = window.currentSelectedRating || null;
-    const submitButton = document.getElementById('submit-rank');
-    const statusMessage = document.getElementById('rankStatusMessage');
-
-    console.log('Selected rating:', userRank, typeof userRank);
-
-    // Validate inputs before proceeding
-    if (!currentRankData) {
-        statusMessage.textContent = "Error: Missing rank data.";
-        statusMessage.style.display = 'block';
-        statusMessage.style.color = '#ff0000';
-        return;
-    }
-
-    if (!userRank) {
-        statusMessage.textContent = "Please select a rating.";
-        statusMessage.style.display = 'block';
-        statusMessage.style.color = '#ff0000';
-        return;
-    }
-
-    submitButton.disabled = true;
-
-    // NEW: Theoretical chains — skip vector DB, save to favorites only
-    if (currentRankData.theoretical) {
-        statusMessage.textContent = "Saving to favorites...";
-        statusMessage.style.display = 'block';
-        statusMessage.style.color = '#35c477';
-        saveAllResponsesToFavorites(
-            userRank, statusMessage, submitButton,
-            isTrajectoryRank ? 'all' : currentData.chain_id
-        );
-        return;
-    }
-
-    // Start the submission process (analytical chains)
-    statusMessage.textContent = "Saving to favorites...";
-    resetDistillExpander();
-    statusMessage.style.display = 'block';
-    statusMessage.style.color = '#35c477';
-
-    console.log('Current rank data:', currentRankData);
-
-    // Step 1: Submit to vector DB
-    window.authService.fetch('/submit_rank', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-            rank: userRank,
-            ...currentRankData
-        }),
-    })
-    .then(response => {
-        if (!response.ok) {
-            return response.json().then(errData => {
-                console.error('Server error details:', errData);
-                throw new Error(errData.error || `Server responded with status: ${response.status}`);
-            });
-        }
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        return new ReadableStream({
-            start(controller) {
-                function push() {
-                    reader.read().then(({ done, value }) => {
-                        if (done) {
-                            controller.close();
-                            
-                            // After vector DB response, check for favorites storage
-                            if (userRank) {
-                                saveAllResponsesToFavorites(
-                                    userRank, statusMessage, submitButton,
-                                    isTrajectoryRank ? 'all' : currentData.chain_id
-                                );
-                            } else {
-                                setTimeout(() => {
-                                    closeRankModal();
-                                    document.getElementById('rankButton').style.display = 'none';
-                                    statusMessage.textContent = '';
-                                    statusMessage.style.display = 'none';
-                                    submitButton.disabled = false;
-                                    // Reset the progress bar
-                                    resetProgressBar();
-                                }, 2000);
-                            }
-                            return;
-                        }
-
-                        const chunk = decoder.decode(value, { stream: true });
-                        const messages = chunk.split('\n');
-
-                        messages.forEach(message => {
-                            if (message.trim()) {
-                                try {
-                                    const data = JSON.parse(message);
-                                    if (data.system_message) {
-                                        console.log('System message:', data.system_message);
-                                        statusMessage.textContent = data.system_message;
-                                    }
-                                    if (data.distill_stream) {
-                                        // The distiller's draft, live -
-                                        // into the dialog's expandable.
-                                        appendDistillStream(data.distill_stream);
-                                    }
-                                    if (data.memory_review &&
-                                        typeof window.memoryReviewReady === 'function') {
-                                        // A rank just pushed card(s) past the
-                                        // promotion threshold - light the
-                                        // Memory Review button.
-                                        window.memoryReviewReady(data.memory_review);
-                                    }
-                                } catch (error) {
-                                    console.error('Error parsing message:', message, error);
-                                }
-                            }
-                        });
-
-                        push();
-                    }).catch(error => {
-                        console.error('Error reading from stream:', error);
-                        controller.error(error);
-                    });
-                }
-
-                push();
-            }
-        });
-    })
-    .catch(error => {
-        console.error('Error submitting to vector DB:', error);
-        statusMessage.textContent = "Error submitting rank. Please try again.";
-        statusMessage.style.color = '#ff0000';
-        submitButton.disabled = false;
-    });
-}
-
-async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton, bookmarkTarget = null) {
-    let allResponses;
+async function storeFavourites(target, quiet) {
+    const label = document.querySelector('#saveButton .save-label');
+    if (label) label.textContent = 'Saving…';
     try {
-        allResponses = await localforage.getItem('responses');
-        if (!allResponses || !Array.isArray(allResponses)) {
-            throw new Error('No valid responses found in storage');
-        }
-    } catch (error) {
-        console.error('Error loading responses:', error);
-        statusMessage.textContent = `Error: ${error.message}`;
-        statusMessage.style.color = '#ff0000';
-        submitButton.disabled = false;
-        isTrajectoryRank = false;
-        return;
-    }
+        const allResponses = await localforage.getItem('responses');
+        const threadId = currentData.thread_id;
 
-    const threadId = currentData.thread_id;
+        // every chain of this thread, in the order they were made
+        const threadResponses = [];
+        (Array.isArray(allResponses) ? allResponses : []).forEach((resp, idx) => {
+            if (resp && threadId && resp.thread_id === threadId) {
+                threadResponses.push({ resp, idx });
+            }
+        });
+        if (threadResponses.length === 0) throw new Error('nothing to save yet');
 
-    if (!threadId) {
-        statusMessage.textContent = "Error: Missing thread ID.";
-        statusMessage.style.color = '#ff0000';
-        submitButton.disabled = false;
-        isTrajectoryRank = false;
-        return;
-    }
-
-    // Collect ALL responses for this thread
-    const threadResponses = [];
-    allResponses.forEach((resp, idx) => {
-        if (resp && resp.thread_id === threadId) {
-            threadResponses.push({ resp, idx });
-        }
-    });
-
-    if (threadResponses.length === 0) {
-        statusMessage.textContent = "No analytical chains found.";
-        statusMessage.style.color = '#ff0000';
-        submitButton.disabled = false;
-        isTrajectoryRank = false;
-        return;
-    }
-
-    // Sort by index for chronological order
-    threadResponses.sort((a, b) => a.idx - b.idx);
-
-    statusMessage.textContent = "Checking existing saves...";
-
-    try {
-        // Ask backend which chains are already saved
+        // the chains the server holds already are not sent again (String(): its ids are strings)
         const existingResponse = await window.authService.fetch(
             `/storage/get_existing_chains/${threadId}`
         );
         const existingData = await existingResponse.json();
         const existingChainIds = new Set(existingData.chain_ids || []);
-
-        // Split into new chains (need compression) and existing (skip)
-        // FIX 1: String() wrap to match backend's string IDs
         const newChains = threadResponses.filter(
             ({ resp }) => !existingChainIds.has(String(resp.chain_id))
         );
@@ -743,28 +385,12 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
             ({ resp }) => existingChainIds.has(String(resp.chain_id))
         );
 
-        // FIX 2: Always re-send the bookmark target even if already on disk
-        if (bookmarkTarget && bookmarkTarget !== 'all') {
-            const alreadyIncluded = newChains.some(({ resp }) => String(resp.chain_id) === String(bookmarkTarget));
-            if (!alreadyIncluded) {
-                const targetIdx = existingChains.findIndex(({ resp }) => String(resp.chain_id) === String(bookmarkTarget));
-                if (targetIdx > -1) {
-                    newChains.push(existingChains[targetIdx]);
-                    existingChains.splice(targetIdx, 1);
-                }
-            }
-        }
-
-        console.log(`Thread has ${threadResponses.length} chains: ${newChains.length} new, ${existingChains.length} already saved`);
+        // except the picked chain: sent every time, so its mark and its pane are the current ones
+        const pickedIdx = existingChains.findIndex(({ resp }) => String(resp.chain_id) === String(target));
+        if (pickedIdx > -1) newChains.push(existingChains.splice(pickedIdx, 1)[0]);
 
         const trajectoryData = [];
-
-        // Process NEW chains — full compression
-        for (let i = 0; i < newChains.length; i++) {
-            const { resp: chainData, idx } = newChains[i];
-
-            statusMessage.textContent = `Compressing ${i + 1}/${newChains.length} new chains...`;
-
+        for (const { resp: chainData, idx } of newChains) {
             const plotPreview = await generatePlotPreview(chainData.contentOutput || '');
             const compressedContentOutput = await compressContent(chainData.contentOutput || '');
             const compressedStreamOutput = await compressContent(chainData.streamOutput || '');
@@ -786,9 +412,7 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
                 parentChainId: chainData.parentChainId || null,
                 index: idx,
                 task: task,
-                bookmark_type: bookmarkTarget === 'all'
-                    ? 'trajectory'
-                    : (String(chainData.chain_id) === String(bookmarkTarget) ? 'individual' : 'trajectory'),
+                bookmark_type: String(chainData.chain_id) === String(target) ? 'individual' : 'trajectory',
                 content: {
                     tabContent: chainData.tabContent || '',
                     contentOutput: compressedContentOutput,
@@ -806,38 +430,24 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
             });
         }
 
-        if (trajectoryData.length === 0) {
-            statusMessage.textContent = "All chains already saved!";
-            statusMessage.style.color = '#35c477';
-        } else {
-            statusMessage.textContent = `Saving ${trajectoryData.length} new chains...`;
-
+        if (trajectoryData.length > 0) {
             const response = await window.authService.fetch('/storage/trajectory_favourites', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     thread_id: threadId,
                     dataset_name: currentDatasetName,
-                    rank: userRank,
                     trajectory: trajectoryData
                 }),
             });
-
-            if (!response.ok) {
-                const errData = await response.json().catch(() => ({}));
-                throw new Error(errData.error || `Server error: ${response.status}`);
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok || result.error) {
+                throw new Error(result.error || `the server answered ${response.status}`);
             }
-
-            const result = await response.json();
-
-            if (result.error) {
-                throw new Error(result.error);
-            }
-
-            statusMessage.textContent = `Saved ${result.saved_count} chains (${existingChains.length} already existed)`;
+            if (result.errors) throw new Error(result.errors[0]);
         }
 
-        // FIX 3: Stamp bookmark_type but never downgrade 'individual' to 'trajectory'
+        // the marks on the page's own copies; a picked chain is never downgraded to 'trajectory'
         trajectoryData.forEach(item => {
             const lfMatch = allResponses.find(r => r && String(r.chain_id) === String(item.chain_id));
             if (lfMatch && lfMatch.bookmark_type !== 'individual') {
@@ -848,7 +458,6 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
                 globalMatch.bookmark_type = item.bookmark_type;
             }
         });
-        // Existing chains — mark as trajectory at minimum
         existingChains.forEach(({ resp }) => {
             const globalMatch = responses.find(r => r && String(r.chain_id) === String(resp.chain_id));
             if (globalMatch && !globalMatch.bookmark_type) {
@@ -856,61 +465,39 @@ async function saveAllResponsesToFavorites(userRank, statusMessage, submitButton
             }
         });
         await localforage.setItem('responses', allResponses);
-        updateRankButtonVisibility();
 
-        statusMessage.style.color = '#35c477';
-
+        if (!quiet) showSystemMessage(target === 'all' ? 'Saved the whole thread' : 'Saved as favourite');
+        return true;
     } catch (error) {
         console.error('Error saving:', error);
-        statusMessage.textContent = `Error: ${error.message}`;
-        statusMessage.style.color = '#ff0000';
+        if (!quiet) showSystemMessage(`Could not save: ${error.message}`);
+        return false;
     } finally {
-        setTimeout(() => {
-            closeRankModal();
-            statusMessage.textContent = '';
-            statusMessage.style.display = 'none';
-            submitButton.disabled = false;
-            resetProgressBar();
-            isTrajectoryRank = false;
-            updateRankButtonVisibility();
-        }, 2000);
+        if (label) label.textContent = 'Save';
+        updateSaveButton();
     }
 }
 
-function updateRankButtonVisibility() {
-    const rankButton = document.getElementById('rankButton');
-    if (!rankButton) return;
+function updateSaveButton() {
+    const saveButton = document.getElementById('saveButton');
+    if (!saveButton) return;
 
-    if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { rankButton.style.display = 'none'; return; }   // a run is recorded as it completes: nothing to save
+    if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { saveButton.style.display = 'none'; return; }   // a run is recorded as it completes: nothing to save
     const currentResponse = responses[currentResponseIndex];
 
     // the pill shows on any finished chain in view (2026-10-10, routines): saved or not, since its menu offers Save as
     // routine beside Save as favourite; a running chain, or none, hides it. A saved chain marks the pill .saved.
-    const finished = currentResponse && currentResponse.status !== 'running' && (currentRankData || currentResponse.bookmark_type || currentResponse.chain_id);
+    const finished = currentResponse && currentResponse.status !== 'running' && (currentResponse.bookmark_type || currentResponse.chain_id);
     if (!finished) {
-        rankButton.style.display = 'none';
-        rankButton.classList.remove('saved');
+        saveButton.style.display = 'none';
+        saveButton.classList.remove('saved');
         if (window.RoutinesUI && typeof window.RoutinesUI.hideSaveMenu === 'function') window.RoutinesUI.hideSaveMenu();
         return;
     }
-    rankButton.style.display = 'block';
+    saveButton.style.display = 'block';
     const saved = currentResponse.bookmark_type === 'individual';
-    rankButton.classList.toggle('saved', saved);
-    rankButton.setAttribute('data-tip', saved ? 'Saved · Save as routine' : 'Save this chain');
-}
-
-function resetProgressBar() {
-    const segments = document.querySelectorAll('.rating-segment');
-    const ratingFill = document.getElementById('ratingFill');
-    const ratingValue = document.getElementById('ratingValue');
-    const thresholdHint = document.getElementById('thresholdHint');
-    
-    segments.forEach(s => s.classList.remove('active'));
-    if (ratingFill) ratingFill.style.width = '0%';
-    if (ratingValue) ratingValue.textContent = 'Click to rate';
-    if (thresholdHint) thresholdHint.textContent = 'All solutions are saved • 5+ adds to AI memory';
-    
-    window.currentSelectedRating = null;
+    saveButton.classList.toggle('saved', saved);
+    saveButton.setAttribute('data-tip', saved ? 'Saved · Save as routine' : 'Save this chain');
 }
 
 //--------------------

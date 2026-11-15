@@ -1042,7 +1042,7 @@
         m.innerHTML = build.menu(menuState);
     }
     function showMenu() {
-        const pill = document.getElementById('rankButton'); if (!pill || pill.style.display === 'none') return;
+        const pill = document.getElementById('saveButton'); if (!pill || pill.style.display === 'none') return;
         if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
         const c = current();
         menuState = { saved: !!(c.response && c.response.bookmark_type === 'individual'), own: [], thread: [] };
@@ -1062,7 +1062,7 @@
     function hideMenu() {
         if (menuTimer) { clearTimeout(menuTimer); menuTimer = null; }
         if (menuEl) menuEl.style.display = 'none';
-        const pill = document.getElementById('rankButton'); if (pill) pill.classList.remove('menu-open');
+        const pill = document.getElementById('saveButton'); if (pill) pill.classList.remove('menu-open');
     }
     function hideMenuSoon() {
         if (menuTimer) clearTimeout(menuTimer);
@@ -1070,16 +1070,14 @@
     }
     function toggleMenu() { showMenu(); }   // a click opens (it follows the hover that already opened it); closing is leaving, or a click elsewhere
     function saveAsFavourite() {
-        // the rank dialog, as before: a chain loaded from favourites has no rank data yet - the stub the stream end makes
         const c = current();
-        if (typeof currentRankData !== 'undefined' && !currentRankData && c.chain_id) { try { currentRankData = { chain_id: c.chain_id, theoretical: true }; } catch (e) { /* read-only */ } }
-        if (typeof showRankModal === 'function') showRankModal();
+        if (c.chain_id && typeof saveToFavourites === 'function') saveToFavourites(c.chain_id);
     }
     function bindPill() {
-        const pill = document.getElementById('rankButton'); if (!pill) return;
+        const pill = document.getElementById('saveButton'); if (!pill) return;
         pill.addEventListener('mouseenter', showMenu);
         pill.addEventListener('mouseleave', hideMenuSoon);
-        document.addEventListener('click', e => { if (menuEl && menuEl.style.display !== 'none' && !e.target.closest('#saveMenu') && !e.target.closest('#rankButton')) hideMenu(); });
+        document.addEventListener('click', e => { if (menuEl && menuEl.style.display !== 'none' && !e.target.closest('#saveMenu') && !e.target.closest('#saveButton')) hideMenu(); });
     }
 
     // ------------------------------------------------------------ the favourite saved silently (Save as routine saves it too)
@@ -1088,14 +1086,13 @@
         // is one already is saved again the same way, so the stored pane carries the row too
         const c = current();
         if (!c.response || String(c.chain_id) !== String(chainId)) return false;
-        if (typeof saveAllResponsesToFavorites !== 'function') return false;
+        if (typeof saveToFavourites !== 'function') return false;
         try {
             const so = document.getElementById('streamOutput');
             if (so && !(typeof liveState !== 'undefined' && liveState.running && liveState.away)) c.response.streamOutput = so.innerHTML;
             if (typeof localforage !== 'undefined' && typeof responses !== 'undefined') await localforage.setItem('responses', responses);
         } catch (e) { /* the snapshot is a courtesy */ }
-        const status = document.createElement('span'), button = document.createElement('button');
-        try { await saveAllResponsesToFavorites(null, status, button, chainId); return true; } catch (e) { return false; }
+        return saveToFavourites(chainId, true);
     }
 
     // ------------------------------------------------------------ the Save-as-routine dialog
@@ -1291,7 +1288,7 @@
             toast('Routine made: ' + name + ' · v' + made.version + (rz.verified ? ' · verified' + on : (rz.status === 'verifying' ? ' · verifying' + on + ' in the background' : ' · not verified')));
             if (rz.status === 'verifying' && made.routine && made.routine.id) watchVerification(made.routine.id, name, made.version);
             if (!st.fromCard) await ensureFavourite(st.chain_id);
-            if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
+            if (typeof updateSaveButton === 'function') updateSaveButton();
             if (manager && manager.style.display !== 'none') loadManager(made.routine && made.routine.id);
             if (window.WorkflowModal && typeof window.WorkflowModal.refresh === 'function') window.WorkflowModal.refresh();
         }).catch(err => {
@@ -2051,7 +2048,7 @@
         if (typeof paneRunIds === 'function') paneRunIds({ name: routine.name, run: (number != null ? number : '…') + ' · v' + (viewState.version || routine.current_version) + whoLine(), df_id: (typeof currentData !== 'undefined' && currentData.df_id) || '' });
         if (typeof paneRunStrip === 'function') paneRunStrip({ mode: 'Routine', run: number != null ? number : '…', version: viewState.version || routine.current_version, estimate: '' });
         composerLock();
-        if (typeof updateRankButtonVisibility === 'function') updateRankButtonVisibility();
+        if (typeof updateSaveButton === 'function') updateSaveButton();
         updateRunNav();
     }
     function whoLine() { const n = viewState ? subjectName(viewState.subject) : ''; return n ? ' · ' + n : ''; }

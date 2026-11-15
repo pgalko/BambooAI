@@ -232,8 +232,8 @@ cell without the literal cost that routine its `peak_month` input, and the note 
 
 ### F1 — Save as routine (promotion) — built
 
-Entry: the *Save* pill on a finished chain, whose hover (or click) menu has two items — *Save as favourite* (the
-rank dialog, as before) and *Save as routine* — and a saved workflow's card (its *Routine* button, grey when the
+Entry: the *Save* pill on a finished chain, whose hover (or click) menu has two items — *Save as favourite* (one
+click since 2.8; a rating dialog before) and *Save as routine* — and a saved workflow's card (its *Routine* button, grey when the
 analysis has no routine). The pill now stays on a saved chain, the bookmark filled, since its menu still offers Save
 as routine; the first item then reads "Saved as favourite".
 
@@ -291,7 +291,7 @@ as routine; the first item then reads "Saved as favourite".
 4. **Stored at once, run zero behind the dialog** (rebuilt 2026-10-15, patch 0160: run zero re-executes every cell of
    the chain — nine minutes on the first live routine over a heavy chain — and nobody waits for a dialog that long).
    On Create the routine is stored, v1 (or the next version) with its manifest and `run_zero.status = verifying`,
-   the dialog closes, the chain is saved as a favourite (silently, no rank) when it is not one yet, and a toast
+   the dialog closes, the chain is saved as a favourite (silently) when it is not one yet, and a toast
    says "Routine made: <name> · v1 · verifying on the original data in the background". Then, in a thread of the
    app, the proof (§22.7). Run zero first: the runner executes every statement of the script with the defaults on
    the chain's data through the executor (the replay's path and timeout), and the RESULT lines that come back are
