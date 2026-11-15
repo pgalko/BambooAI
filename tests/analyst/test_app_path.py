@@ -1560,4 +1560,38 @@ except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("a routine without data through the instance: the checks ran", False, traceback.format_exc()[-600:])
 
+# the brief through the instance (2.8, docs/ARCHITECT_DESIGN.md §2.5): pd_agent_converse hands it to the session - the analyst reads
+# it under the question, the run and the thread file keep it with what the report says against it, and the report the page
+# receives has the two parts; a run without one is as before
+try:
+    _keep_script, _keep_i = state["script"], state["i"]
+    while not q.empty(): q.get()
+    _BRIEFED = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nab = {'A': 1.0, 'B': 1.5}\nprint('means', ab)\n```",
+                "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B is above A\n\n## Answer\nB is above A [cell 1].\n\n## Against the brief\n- Expected: met [cell 1].\n- Would change their mind: not seen.\n- Chance: not examined.\n\n## Did not fit\nNothing.\n"]
+    _n0 = len(state["calls"])
+    state.update(i=0, script=_BRIEFED); BAMBOO.output_manager.add_user_input("Is B above A?")
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=None, mode="deep", brief={"version": 2, "decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "junk": 1})
+    _bev = []
+    while not q.empty(): _bev.append(json.loads(q.get()))
+    _brun = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    _bprompt = next((u for a, u in state["calls"][_n0:] if "TASK: turn 1" in u), "")
+    _bfile = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][_brun.id]
+    _banswer = str(next((e.get("data") for e in _bev if e.get("type") == "answer"), ""))
+    check("the brief through the instance: the analyst reads it under the question; the run and the thread file keep it in its known shape with what the report says against it; the report the page receives has the two parts",
+          _brun.status == "answered" and "QUESTION:\nIs B above A?\n\nBRIEF (agreed with the person before this run):\nDecision: which arm to keep\n" in _bprompt and "- measure: x\n- period: left to you" in _bprompt
+          and _brun.brief == {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "version": 2} and _bfile["brief"] == _brun.brief
+          and _brun.brief_outcome == {"stated": True, "expected": "met", "would_change": "not seen", "checks": ["Chance: not examined."], "did_not_fit": []} and _bfile["brief_outcome"] == _brun.brief_outcome
+          and "Against the brief" in _banswer and "Did not fit" in _banswer, (_brun.status, _brun.brief, _brun.brief_outcome, _bprompt[:300]))
+    _n1 = len(state["calls"])
+    state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# On its own\n\n## Answer\nNothing computed.\n"]); BAMBOO.output_manager.add_user_input("And without a brief?")
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=_brun.id, mode="deep")
+    while not q.empty(): q.get()
+    _prun = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    check("a follow-up without a brief, after a briefed run that was answered: no brief on the run, none in its prompts",
+          _prun.parent == _brun.id and _prun.brief == {} and not any("BRIEF (" in u for a, u in state["calls"][_n1:]), _prun.brief)
+    state["script"], state["i"] = _keep_script, _keep_i
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("the brief through the instance: the checks ran", False, traceback.format_exc()[-600:])
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

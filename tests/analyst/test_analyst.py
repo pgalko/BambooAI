@@ -1714,5 +1714,178 @@ check("reach: the record's lines in words",
 _subs = {"analyst." + f for f in os.listdir(os.path.join(ROOT, "analyst")) if os.path.isdir(os.path.join(ROOT, "analyst", f)) and f != "__pycache__"}
 check("packaging: every subpackage of analyst/ is listed in pyproject's packages", _subs <= _pkgs, sorted(_subs - _pkgs))
 
+# ---- the brief (2.8, docs/ARCHITECT_DESIGN.md §2.2, §2.5): what the person agreed before a run is handed to the analyst, kept
+# ---- with the run, shown under the question every turn, and read back from the report; without one nothing changes
+from analyst import brief as briefs
+from analyst.session import REWRITE_BRIEF, BRIEF_UNANSWERED, BRIEF_PARTS, CONTRACT_BRIEF
+_cb = contract(False, 0, brief=True)
+check("brief: without one the contract and the reviewer's prompt are what they were; with one the contract gains The brief between How you work and Results and the two report parts between the answer and its conditions, and the reviewer the brief among what it receives; no placeholder is left in any variant",
+      contract(False, 0) == CONTRACT and "brief" not in CONTRACT.lower() and reviewer_text(False) == REVIEWER and "BRIEF" not in REVIEWER
+      and _cb.replace("\n" + CONTRACT_BRIEF, "", 1).replace(BRIEF_PARTS, "", 1) == CONTRACT
+      and _cb.index("## How you work") < _cb.index("## The brief") < _cb.index("## Results")
+      and _cb.index("- the answer: the estimate") < _cb.index("- against the brief, under the heading `## Against the brief`") < _cb.index("- what did not fit, under the heading `## Did not fit`") < _cb.index("- the conditions it depends on")
+      and "- the person's question, verbatim\n- BRIEF: what the person fixed" in reviewer_text(False, brief=True)
+      and not any("{" + p in t for p in ("BRIEF", "REVIEWS", "DOCUMENTS", "READ_ROW", "WORDS", "LENSES") for t in (_cb, contract(True, 8, context=True, brief=True), reviewer_text(True, brief=True))))
+check("brief: the contract's section says the five things the analyst does with it - the decision is what the answer is for, what is fixed is what is computed, what it rests on is a frame and not evidence, every Also check line is tested, and where the data cannot give what is fixed it asks",
+      all(s in CONTRACT_BRIEF for s in ("The decision is what the answer is for", "What is fixed - the comparison, the measure, the period - is what you compute", "A part marked \"left to you\"\n  is yours to choose",
+                                        "is the person's frame, not evidence", "Every line under Also check is tested", "put nothing else in its place: ASK, saying what is missing and what the data would\n  allow")))
+_b_in = {"version": 3, "question": " Did  it work? ", "decision": "repeat it or not", "thinks": "it worked",
+         "rests_on": ["the two were measured the same way", {"text": "the first was larger", "source": "data", "mark": "does not hold", "note": "41 against 44"},
+                      {"text": "nothing else changed", "source": "nobody", "mark": "maybe"}, {"text": "  "}, {"text": "an earlier finding", "source": "result"}, {"text": "the logs are whole", "mark": "cannot be checked"}],
+         "expects": "up by about 6.5 percent", "would_change": "no change in the second half",
+         "also_check": [{"text": "the season", "shows": "the same change in both"}, "a new device", {"shows": "no text"}],
+         "fixed": {"comparison": "after against before", "measure": "", "junk": "x"},
+         "saved": [{"when": "March", "question": "an earlier question", "passage": "it was 3.1", "data": "the spring file", "odd": 1}, {"data": "only data"}],
+         "set_aside": ["a change of place", "", None], "unknown": {"a": 1}}
+_b = briefs.normalise(_b_in)
+check("brief.normalise: the parts with content in a known shape - text on one line, a bare string a line of the person's, an unknown source the person's and an unknown mark none, empty lines and unknown keys dropped, the version and the question kept",
+      _b == {"decision": "repeat it or not", "thinks": "it worked", "expects": "up by about 6.5 percent", "would_change": "no change in the second half",
+             "rests_on": [{"text": "the two were measured the same way", "source": "person", "mark": ""}, {"text": "the first was larger", "source": "data", "mark": "does not hold", "note": "41 against 44"},
+                          {"text": "nothing else changed", "source": "person", "mark": ""}, {"text": "an earlier finding", "source": "result", "mark": ""}, {"text": "the logs are whole", "source": "person", "mark": "cannot be checked"}],
+             "also_check": [{"text": "the season", "shows": "the same change in both"}, {"text": "a new device"}], "fixed": {"comparison": "after against before"},
+             "saved": [{"when": "March", "question": "an earlier question", "passage": "it was 3.1", "data": "the spring file"}], "set_aside": ["a change of place"], "version": 3, "question": "Did it work?"}, _b)
+_big = briefs.normalise({"rests_on": [f"line {i}" for i in range(20)], "also_check": [f"other {i}" for i in range(20)], "decision": "x" * 2000, "version": True})
+check("brief.normalise: bounded - a line at most 600 characters, six lines to rest on and four to check also; a version that is no count is 1; nothing that frames the question is no brief (a bare question, an empty dict, a string)",
+      len(_big["decision"]) == 600 and len(_big["rests_on"]) == 6 and len(_big["also_check"]) == 4 and _big["version"] == 1
+      and briefs.normalise({"question": "only a question"}) == {} and briefs.normalise({}) == {} and briefs.normalise("a string") == {} and briefs.normalise({"fixed": {"junk": 1}, "rests_on": [" "]}) == {}, _big)
+_block = briefs.render(_b)
+check("brief.render: the BRIEF block as the analyst reads it - every part on its line, each line it rests on with what it is worth (checked and what the check found, cannot be checked, an earlier result as a claim to test, the person's word), "
+      "the three standing checks after the person's, a part that was not fixed left to the analyst, the saved analyses as claims, what was set aside",
+      _block == ("BRIEF (agreed with the person before this run):\n"
+                 "Decision: repeat it or not\n"
+                 "What the person thinks: it worked\n"
+                 "What it rests on:\n"
+                 "- the two were measured the same way [the person's word, not checked]\n"
+                 "- the first was larger [checked against the data: does not hold - 41 against 44]\n"
+                 "- nothing else changed [the person's word, not checked]\n"
+                 "- an earlier finding [from an earlier result: a claim to test]\n"
+                 "- the logs are whole [cannot be checked]\n"
+                 "What they expect to see: up by about 6.5 percent\n"
+                 "What would change their mind: no change in the second half\n"
+                 "Also check:\n"
+                 "- the season: it would show the same change in both\n"
+                 "- a new device\n"
+                 "- chance [always]\n"
+                 "- measurement error [always]\n"
+                 "- how the cases compared came to be chosen [always]\n"
+                 "Fixed before the run:\n"
+                 "- comparison: after against before\n"
+                 "- measure: left to you\n"
+                 "- period: left to you\n"
+                 "Saved analyses the person chose (earlier results: claims to test, not evidence):\n"
+                 "- March \"an earlier question\": \"it was 3.1\" (the spring file)\n"
+                 "Set aside (considered and dropped): a change of place"), _block)
+_thin = briefs.render(briefs.normalise({"fixed": {"period": "the last year"}}))
+check("brief.render: a part of the frame the person did not state is 'not said'; no brief renders nothing",
+      _thin == ("BRIEF (agreed with the person before this run):\nDecision: not said\nWhat the person thinks: not said\nWhat it rests on: not said\n"
+                "What they expect to see: not said\nWhat would change their mind: not said\nAlso check:\n- chance [always]\n- measurement error [always]\n- how the cases compared came to be chosen [always]\n"
+                "Fixed before the run:\n- comparison: left to you\n- measure: left to you\n- period: the last year") and briefs.render({}) == "", _thin)
+_rep = ("# Title\n\n## Answer\nx\n\n## Against the brief\n- **Expected:** not met - the rise was 1.2 percent [cell 3].\n- Would change their mind: seen - no rise in the second half.\n"
+        "- The season: the same change in both [cell 4].\n* Chance: the interval includes zero.\n\n## Did not fit\n- The smaller one came first [cell 4].\n1. A second thing.\n\n## Limitations\ny\n\n> CHECK: something")
+_o = briefs.outcome(_rep)
+check("brief.outcome: what the report says against the brief - the verdict on what was expected ('not met' is not read as 'met'), on what would change the person's mind, the other lines as the checks, what did not fit; each part ends at the next heading",
+      _o == {"stated": True, "expected": "not met", "would_change": "seen", "checks": ["The season: the same change in both [cell 4].", "Chance: the interval includes zero."],
+             "did_not_fit": ["The smaller one came first [cell 4].", "A second thing."]}, _o)
+check("brief.outcome: the verdict words each read - met, cannot tell; not seen; a part that says Nothing holds nothing; a report without the part, or with no verdict in it, has not stated it; a CHECK line under the part is not one of its lines",
+      briefs.outcome("## Against the brief\nExpected: met, as said\nWould change their mind: not seen\n## Did not fit\nNothing.\n") == {"stated": True, "expected": "met", "would_change": "not seen", "checks": [], "did_not_fit": []}
+      and briefs.outcome("### against the brief:\n- Expectation - cannot tell: no data for it\n")["expected"] == "cannot tell"
+      and briefs.outcome("# t\n\n## Answer\nmet\n")["stated"] is False and briefs.outcome("## Against the brief\n- The season: nothing.\n")["stated"] is False
+      and briefs.outcome("## Did not fit\n- One thing.\n\n> CHECK: 1 number(s) in this report were not printed by any cell (7.7).")["did_not_fit"] == ["One thing."])
+# a scripted run under the brief, over a real kernel
+_bdf = pd.DataFrame({"part": np.repeat(["before", "after"], 30), "y": np.r_[np.full(30, 100.0), np.full(30, 101.2)]})
+_bseen = {"system": [], "user": [], "rewrite": []}
+def _bact(a): return "###STEP###\ns.\n###NOTE###\n" + NOTE5 + "\n###ACTION###\n" + a
+_BREPORT = ("REPORT\n# After was 1.2 percent higher than before\n\nA small rise.\n\n## Answer\nAfter was 1.2 percent higher [cell 1].\n\n## Against the brief\n- Expected: not met - 1.2 percent, not about 6.5 percent [cell 1].\n"
+            "- Would change their mind: cannot tell.\n- The season: not separable here, and 77.7 is invented.\n- Chance: none, the values are constant [cell 1].\n\n## Did not fit\n- The first was larger and the rise still came [cell 1].\n\n## Limitations\nSixty rows.")
+def _brief_llm(script):
+    state = {"i": 0}
+    def llm(system, user, **h):
+        if user.startswith("Rewrite the technical report"):
+            _bseen["rewrite"].append(user); return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
+        if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+        _bseen["system"].append(system); _bseen["user"].append(user)
+        t = script[min(state["i"], len(script) - 1)]; state["i"] += 1
+        return t, {"cost": 0.001}
+    return llm
+_CELL = _bact("```python\nm = df.groupby('part')['y'].mean()\npct = round(100 * (m['after'] / m['before'] - 1), 1)\nRESULT('y, after vs before, 30 rows each', pct, pct, pct, 'percent', 'after higher')\n```")
+kb = PersistentKernel(df=_bdf); store_b = NotebookStore(tempfile.mkdtemp()); nb_b = Notebook("tb")
+try:
+    sb = Session(kb, nb_b, _brief_llm([_CELL, _bact(_BREPORT)]), store=store_b, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf))
+    rb = sb.run("Did it work?", budget=Budget(turns=6, dollars=1.0), brief=_b_in)
+finally:
+    kb.cleanup()
+check("brief in a run: every turn's prompt carries the BRIEF block under the question, and the contract of the run has The brief and the two report parts",
+      rb.status == "answered" and len(_bseen["user"]) == 2 and all(("QUESTION:\nDid it work?\n\n" + _block + "\n\nYOUR NOTE") in u for u in _bseen["user"]) and all(sy == _cb for sy in _bseen["system"]),
+      (rb.status, _bseen["user"][0][:600]))
+check("brief in a run: the run keeps the brief as it was handed over and what the report says against it; a number the brief states is the person's own, so the report may repeat it, and an invented one is still said",
+      rb.brief == _b and rb.brief_outcome == {"stated": True, "expected": "not met", "would_change": "cannot tell",
+                                               "checks": ["The season: not separable here, and 77.7 is invented.", "Chance: none, the values are constant [cell 1]."],
+                                               "did_not_fit": ["The first was larger and the rise still came [cell 1]."]}
+      and "> CHECK: 1 number(s) in this report were not printed by any cell (77.7). Treat them as unverified." in rb.report and BRIEF_UNANSWERED not in rb.report, (rb.brief_outcome, rb.report[-300:]))
+check("brief in a run: the plain-language version is asked to keep the two parts under their headings; the record on disk holds the brief and its outcome",
+      len(_bseen["rewrite"]) == 1 and _bseen["rewrite"][0].startswith(REWRITE_TASK + REWRITE_BRIEF + "# After was 1.2 percent higher than before")
+      and store_b.load("tb").runs[rb.id].brief == _b and store_b.load("tb").runs[rb.id].brief_outcome == rb.brief_outcome, _bseen["rewrite"][0][-400:])
+# without a brief: nothing of it anywhere
+_bseen = {"system": [], "user": [], "rewrite": []}
+kb = PersistentKernel(df=_bdf); nb_p = Notebook("tp")
+try:
+    rp = Session(kb, nb_p, _brief_llm([_bact("REPORT\n# A title\n\n## Answer\nNothing was computed.")]), data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=4, dollars=1.0))
+finally:
+    kb.cleanup()
+check("no brief: the run has none, its prompts carry no BRIEF block, its contract is the plain one, its rewrite task the plain one, and its report is asked nothing about a brief",
+      rp.brief == {} and rp.brief_outcome == {} and not any("BRIEF" in u for u in _bseen["user"]) and _bseen["system"] == [CONTRACT]
+      and _bseen["rewrite"][0].startswith(REWRITE_TASK + "# A title") and BRIEF_UNANSWERED not in rp.report, (rp.brief, _bseen["system"][0][:80]))
+# the analyst stops and asks; the person's answer runs under the same brief
+_bseen = {"system": [], "user": [], "rewrite": []}
+kb = PersistentKernel(df=_bdf); nb_a = Notebook("ta")
+try:
+    sa = Session(kb, nb_a, _brief_llm([_bact("ASK The brief fixes a measure the data does not record. The data would allow y instead: use it?"),
+                                       _bact("REPORT\n# With y, after was higher\n\n## Answer\nUsing y.\n\n## Against the brief\n- Expected: cannot tell - the measure was changed.\n\n## Did not fit\nNothing."),
+                                       _bact("REPORT\n# A follow-up\n\n## Answer\nOn its own.")]),
+                 data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf))
+    ra = sa.run("Did it work?", budget=Budget(turns=4, dollars=1.0), brief=_b_in)
+    ra2 = sa.run("Yes, use y.", parent=ra.id, budget=Budget(turns=4, dollars=1.0))
+    ra3 = sa.run("And the first half alone?", parent=ra2.id, budget=Budget(turns=4, dollars=1.0))
+finally:
+    kb.cleanup()
+check("brief, stop and ask: a run that ends on the analyst's question keeps its brief and has no outcome; the person's answer runs under the same brief without it being sent again - the block says it was agreed before the question and that the answer stands where "
+      "the two differ - and its report is read against it; a follow-up to an answered run has no brief of its own unless one is given",
+      ra.status == "asked" and ra.brief == _b and ra.brief_outcome == {} and ra2.brief == {**_b, "carried_from": ra.id}
+      and "QUESTION:\nYes, use y.\n\nBRIEF (agreed before your question; the QUESTION above is the person's answer, and it stands where the two differ):\nDecision: repeat it or not\n" in _bseen["user"][1]
+      and _bseen["system"][1] == _cb and ra2.brief_outcome["expected"] == "cannot tell" and ra2.brief_outcome["did_not_fit"] == []
+      and ra3.brief == {} and "BRIEF" not in _bseen["user"][2] and _bseen["system"][2] == CONTRACT, (ra.status, ra2.brief.get("carried_from"), _bseen["user"][1][:300]))
+# a briefed report that does not say how the result stands against the brief
+kb = PersistentKernel(df=_bdf); nb_u = Notebook("tu")
+try:
+    ru = Session(kb, nb_u, _brief_llm([_bact("REPORT\n# A title\n\n## Answer\nNo part for the brief here.")]), data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=4, dollars=1.0), brief={"expects": "a rise"})
+finally:
+    kb.cleanup()
+check("brief: a report that does not say how the result stands against the brief carries a line saying so, and the outcome is not stated",
+      ru.report.rstrip().endswith("> " + BRIEF_UNANSWERED) and ru.brief_outcome["stated"] is False and ru.brief_outcome["expected"] == "", ru.report[-200:])
+# the reviewer reads the brief (Adaptive)
+_rvb = {"system": [], "user": []}
+def _rvb_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    if system.startswith("You are the reviewer"):
+        _rvb["system"].append(system); _rvb["user"].append(user)
+        return "###REVIEW###\n- The question requires: x\n- Established: y [cell 1]\n- Checked: cell 1 - computes it; matches its line\n- Most consequential problem: none\n- Verdict: REPORT done [cell 1]", {"cost": 0.001}
+    return (_bact("REPORT\n# T\n\n## Answer\nDone [cell 1].\n\n## Against the brief\n- Expected: met [cell 1].\n\n## Did not fit\nNothing.") if "this turn is the report" in user else _CELL), {"cost": 0.001}
+kb = PersistentKernel(df=_bdf); nb_r = Notebook("tr")
+try:
+    rr = Session(kb, nb_r, _rvb_llm, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=8, dollars=1.0, review_every=2), brief=_b_in)
+finally:
+    kb.cleanup()
+check("brief, the reviewer: with a brief its prompt names the brief among what it receives and its input carries the BRIEF block under the question, before the data - during the run and after the report",
+      len(_rvb["user"]) >= 2 and all(sy == reviewer_text(False, brief=True) for sy in _rvb["system"]) and all(u.startswith("QUESTION:\nDid it work?\n\n" + _block + "\n\nDATA:\n") for u in _rvb["user"])
+      and rr.brief_outcome["expected"] == "met", (len(_rvb["user"]), _rvb["user"][0][:200] if _rvb["user"] else None))
+_btexts = {"contract (brief)": _cb, "reviewer (brief)": reviewer_text(True, brief=True), "the block": _thin, "rewrite, brief": REWRITE_BRIEF, "unanswered": BRIEF_UNANSWERED}
+for _k, _t in enumerate(_authored_strings("analyst/brief.py")):
+    _btexts[f"analyst/brief.py string {_k}"] = _t
+check("brief: the standing rules hold for its texts too - none of the tested tasks' vocabulary, and no section named for thinking or reasoning, in the contract with a brief, the reviewer's prompt with one, the block's own words, the rewrite's sentence and every string of analyst/brief.py",
+      not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _btexts.items() if _DOMAIN.search(t)}
+      and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in (_cb, reviewer_text(True, brief=True), _thin)),
+      {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _btexts.items() if _DOMAIN.search(t)})
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

@@ -1188,7 +1188,8 @@ class BambooAI:
 
     # ---------------------------------------------------------- the entry
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
-                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None):
+                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None, brief=None):
+        # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
         self.kill_signal = False
         self._stop_event.clear()
 
@@ -1268,7 +1269,7 @@ class BambooAI:
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay, map_inputs=self._map_inputs)
         try:
-            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label)
+            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label, brief=brief)
         except ExecutionInterrupted:
             self.output_manager.display_system_messages("Stopped.", chain_id=self.chain_id)
             run = self.notebook.runs.get(str(self.chain_id))

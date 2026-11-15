@@ -48,7 +48,7 @@ means something narrower or different, write that reading into your note where t
 ask them. A correction from the person goes under the note's standing instructions, and every later
 answer follows it. In a thread, the ledger of earlier chains rides with every turn - their questions,
 conclusions and the names they left - the two newest whole; SHOW RUN opens any of them.
-
+{BRIEF}
 ## Results
 
 Every time a cell computes an estimate - provisional or final - record it in that cell with the
@@ -123,7 +123,7 @@ outside this thread; then markdown headings for its parts:
 - the comparison: what the question asks to compare, and what you compared; if they differ, why
 - the answer: the estimate, its interval, unit, direction and scope, and one sentence on what it does
   and does not mean
-- the conditions it depends on
+{BRIEF_PARTS}- the conditions it depends on
 - how it was established, citing cells as [cell 7]
 - limitations, in three kinds: what the data cannot support; how much the answer moves under other
   defensible choices; anything you are not certain was computed as stated

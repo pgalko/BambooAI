@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import tools, report as rep, reach
+from . import tools, report as rep, reach, brief as briefs
 from .notebook import Notebook, NotebookStore, Run, Turn
 from .replay import verify
 
@@ -38,6 +38,13 @@ CONTRACT_CONTEXT = open(os.path.join(_HERE, "contract_context.md"), encoding="ut
 # the Reviews section rides only when a reviewer runs during the run (Adaptive), naming the cadence; the reviewer has its
 # own prompt and never sees the analyst's (2026-10-05)
 CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="utf-8").read()
+# the brief's section and its two parts of the report ride only when the run has a brief (docs/ARCHITECT_DESIGN.md §2.5)
+CONTRACT_BRIEF = open(os.path.join(_HERE, "contract_brief.md"), encoding="utf-8").read()
+BRIEF_PARTS = ("- against the brief, under the heading `## Against the brief`: a line `Expected:` with `met`, `not met` or\n"
+               "  `cannot tell` and the number that says so; a line `Would change their mind:` with `seen`, `not seen` or\n"
+               "  `cannot tell`; then one line for each Also check line, with what it showed\n"
+               "- what did not fit, under the heading `## Did not fit`: each result the person's frame does not explain, one\n"
+               "  to a line - or `Nothing.`\n")
 _REVIEWER_TEMPLATE = open(os.path.join(_HERE, "reviewer.md"), encoding="utf-8").read()
 # the reviewer's sixth lens, present only when the load carries the words written beside the data (docs/CONTEXT_DESIGN.md
 # §6): the explanation of a number by the words, and what it rests on; the days compared with a window, not matched
@@ -45,13 +52,20 @@ REVIEWER_WORDS_LENS = ("- Words: where a number is explained by what was written
                        "  on counts of codes, or on the analyst's reading, and is reported as what it is; and whether the\n"
                        "  days of the words and of the numbers were compared with a window rather than matched by day.\n")
 REVIEWER_WORDS_LINE = "- Words: ...\n"
+# the brief among what the reviewer receives, present only when the run has one: the analysis is judged against what the
+# person fixed, and a TEST stays inside it
+REVIEWER_BRIEF_ITEM = ("- BRIEF: what the person fixed with the question before the run - the comparison, the measure, the period,\n"
+                       "  what they expect and what else to check. The analyst is held to it: judge the analysis against it, and\n"
+                       "  recommend no TEST that puts something else in the place of what it fixes\n")
 
 
-def reviewer(context: bool = False) -> str:
-    """The reviewer's prompt; with context, the Words lens among the perspectives and its line in the format."""
+def reviewer(context: bool = False, brief: bool = False) -> str:
+    """The reviewer's prompt; with context, the Words lens among the perspectives and its line in the format; with a
+    brief, the brief among what it receives."""
     return (_REVIEWER_TEMPLATE.replace("{LENSES}", "six" if context else "five")
                               .replace("{WORDS_LENS}", REVIEWER_WORDS_LENS if context else "")
-                              .replace("{WORDS_LINE}", REVIEWER_WORDS_LINE if context else ""))
+                              .replace("{WORDS_LINE}", REVIEWER_WORDS_LINE if context else "")
+                              .replace("{BRIEF_ITEM}", REVIEWER_BRIEF_ITEM if brief else ""))
 
 
 REVIEWER = reviewer(False)
@@ -69,16 +83,19 @@ def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
-def contract(documents: bool = False, review_every: int = 0, context: bool = False) -> str:
+def contract(documents: bool = False, review_every: int = 0, context: bool = False, brief: bool = False) -> str:
     """The contract as the model reads it: one page, each rule once; with documents, the Documents section before
     Format and the READ row in the actions table; with context (the words written beside the data), the Context
-    section after it and the READ CTX row; with reviews during the run, the Reviews section after Results."""
+    section after it and the READ CTX row; with reviews during the run, the Reviews section after Results; with a
+    brief, The brief after How you work and its two parts among the report's."""
     sections = ("\n" + CONTRACT_DOCUMENTS if documents else "") + ("\n" + CONTRACT_CONTEXT if context else "")
     rows = (READ_ROW if documents else "") + (READ_ROW_CONTEXT if context else "")
     return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", sections)
                               .replace("{READ_ROW}", rows)
                               .replace("{REVIEWS}", "\n" + CONTRACT_REVIEWS.replace("{ordinal}", _ordinal(review_every))
-                                       if review_every else ""))
+                                       if review_every else "")
+                              .replace("{BRIEF}", "\n" + CONTRACT_BRIEF if brief else "")
+                              .replace("{BRIEF_PARTS}", BRIEF_PARTS if brief else ""))
 
 CONTRACT = contract(False)
 
@@ -171,6 +188,11 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
                 "not 'a dial worth turning'). The report's first line is its title (`# ...`): keep it, unchanged, as your own first "
                 "line. Then the text, and nothing else.\n\n")
+
+# with a brief, the two parts the report gained stay findable in the plain-language version
+REWRITE_BRIEF = ("The report has the parts `## Against the brief` and `## Did not fit`: keep both under those headings, each line "
+                 "opening as the report's does, the rest in everyday words.\n\n")
+BRIEF_UNANSWERED = "CHECK: this report does not say how the result stands against the brief."
 
 # the report's title (2026-10-17): the report's first line, `# ...` - a statement of what was found, written by the analyst
 # at REPORT time, the one party that knows the whole investigation - heads the report in the Answer tab and the page's export.
@@ -818,6 +840,8 @@ class Session:
                 parts.append(shown)
         parts.append(f"DATA:\n{self.data_description}")
         parts.append(f"QUESTION:\n{run.question.strip()}")
+        if run.brief:
+            parts.append(briefs.render(run.brief))
         if getattr(self, "_image", None):
             parts.append(FIGURE_ASKED_LINE)
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
@@ -907,8 +931,11 @@ class Session:
         return run
 
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
-            run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "") -> Run:
+            run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "",
+            brief: Optional[dict] = None) -> Run:
         run = self.nb.new_run(question, parent, run_id=run_id)
+        # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in
+        run.brief = briefs.normalise(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
         run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
         run.sandbox = tools.sandbox(self.kernel)      # the box the cells run on, for the reach report (2026-10-28)
         if data:
@@ -919,7 +946,7 @@ class Session:
         self._save()
         spent, extra, failures = 0.0, "", 0
         lost_at = ""                                   # the effort a reply that came back empty or cut short was asked at
-        self.system = contract(self.documents, budget.review_every, context=self.context)    # the Reviews section only when a reviewer runs
+        self.system = contract(self.documents, budget.review_every, context=self.context, brief=bool(run.brief))    # the Reviews section only when a reviewer runs, The brief only with one
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(1, budget.turns + 1):
@@ -1175,18 +1202,23 @@ class Session:
             text_u = self.unit_text(uid) if uid not in cited and self.unit_text else None
             if text_u is not None:
                 unit_texts.append(text_u)
-        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts)
+        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts
+                                    + ([briefs.render(run.brief)] if run.brief else []))     # a number the brief states is the person's own
         check_u = rep.guard_units(missing)
         disputed = disputed_cells(run)
         quoted = [c for c in cited_cells(report_text) if c in disputed]
         check_d = ("CHECK: this report cites " + ", ".join((f"cell {c}, of whose RESULT lines the review {disputed[c]['review']} found one does not describe its code" if disputed[c]["partly"]
                                                            else f"cell {c}, whose RESULT line the review {disputed[c]['review']} found does not describe its code") for c in quoted)
                    + ". Treat what it quotes from there as unverified.") if quoted else ""
-        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, figures_note) if x)
+        check_b = ""
+        if run.brief:
+            run.brief_outcome = briefs.outcome(report_text)
+            check_b = "" if run.brief_outcome["stated"] else BRIEF_UNANSWERED
+        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
-        text, usage = self.llm(self.system, REWRITE_TASK + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
+        text, usage = self.llm(self.system, REWRITE_TASK + (REWRITE_BRIEF if run.brief else "") + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
         self.emit({"type": "turn_end", "run": run.id, "turn": "rewrite", "kind": "rewrite", "thinking": "", "note": "", "code": "",
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
         # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
@@ -1469,7 +1501,7 @@ class Session:
         """What the reviewer reads, fixed material first: the question, the data, the thread; then the note (or the report),
         the ledger, what earlier reviews checked, the earlier reviews with the analyst's answer to each, the turns since
         the last review, the cells to check now, and where the run stands. Returns (text, cells sent)."""
-        parts = [f"QUESTION:\n{run.question.strip()}", f"DATA:\n{self.data_description}"]
+        parts = [f"QUESTION:\n{run.question.strip()}"] + ([briefs.render(run.brief)] if run.brief else []) + [f"DATA:\n{self.data_description}"]
         anc = self.nb.render_ancestry(run.id)
         if anc:
             parts.append(anc)
@@ -1543,7 +1575,7 @@ class Session:
         self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
         t0 = time.time()
         user, sent = self._review_input(run, budget, after_turn, report)
-        text, usage_r = self.llm(reviewer(self.context), user, review=True)    # the Words lens only with context
+        text, usage_r = self.llm(reviewer(self.context, brief=bool(run.brief)), user, review=True)    # the Words lens only with context, the brief only with one
         cost = float((usage_r or {}).get("cost", 0.0) or 0.0)
         usage = {"cost": cost, "elapsed": round(time.time() - t0, 1)}
         rv = parse_review(text)

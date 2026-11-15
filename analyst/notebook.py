@@ -154,6 +154,8 @@ class Run:
     mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code map's header)
     code_map: dict = field(default_factory=dict)   # the code map built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
     sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
+    brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
+    brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
 
     @property
     def note(self) -> str:

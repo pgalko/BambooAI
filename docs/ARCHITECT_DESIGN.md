@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.7 (2026-11-15; step 1 built in patch 0294)
+# The Architect and memory from saved analyses — design v0.8 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295)
 
 Release 2.8 does three things.
 
@@ -116,6 +116,8 @@ the Analyst.
   - **Did not fit.** Results the frame does not explain.
 - The brief is stored with its analysis. When the analysis is saved, the brief is saved with it. (proposed)
 
+The engine's side of this is built: §2.10.
+
 ### 2.6 Changing the brief in place (agreed, details proposed)
 
 - Every line the coach or the Architect wrote can be changed where it stands: a pencil, then keep or cancel.
@@ -192,6 +194,49 @@ One box per question.
 - A follow-up through the Architect is a box of its own, under the analysis it follows.
 - The five candidates are not a box. A candidate that is run is one box, under the analysis it follows.
 - A box says how its question was made: *Architect* or *next question*.
+
+### 2.10 The brief in the engine — built (0295, 2026-11-15)
+
+The engine takes a brief with a question, holds the Analyst to it, keeps it with the run, and reads back what the
+report says against it. Nothing on the page sends one yet: that is 0296.
+
+**The record.** `analyst/brief.py`. A brief is a plain dict on the run (`Run.brief`), every part optional:
+`decision`, `thinks`, `rests_on` (lines, each with a `source` - person, architect, data, saved, result - a `mark` -
+holds, does not hold, cannot be checked, or none - and an optional `note`), `expects`, `would_change`, `also_check`
+(lines, each with what it `shows`), `fixed` (`comparison`, `measure`, `period`), `saved`, `set_aside`, with the
+`version` the coach approved and the `question`. `normalise()` brings what a caller sends into that shape and
+bounds it; a brief with nothing in it is no brief.
+
+**What the Analyst reads.** Under QUESTION, every turn, a BRIEF block (`render()`): each part on its line. A line the
+frame rests on says what it is worth: checked against the data and what the check found, cannot be checked, an
+earlier result - a claim to test - or the person's word. The three standing checks follow the coach's own under
+Also check. A part of what is fixed that the coach left empty reads "left to you"; a part of the frame they did not
+state reads "not said".
+
+**The rules.** The contract gains a section, The brief (`analyst/contract_brief.md`), only when the run has one.
+Without a brief the contract, the reviewer's prompt and every prompt of the run are what they were, byte for byte.
+Five rules: the decision is what the answer is for; what is fixed is what is computed; what it rests on is a frame,
+not evidence; every Also check line is tested; and where the data cannot give what is fixed - the measure is not
+recorded, the period is not covered, a side of the comparison is empty - the Analyst puts nothing else in its place
+and asks (`ASK`), saying what is missing and what the data would allow.
+
+**Stop and ask.** A run that ends on the Analyst's question keeps its brief. The coach's answer starts the next run
+under the same brief, without it being sent again: the block says it was agreed before the question, and that the
+answer stands where the two differ. A brief sent with the answer replaces it.
+
+**The report.** Two parts under fixed headings, after the answer. `## Against the brief`: a line `Expected:` with
+met, not met or cannot tell and the number that says so; a line `Would change their mind:` with seen, not seen or
+cannot tell; then a line for each Also check line. `## Did not fit`: one result to a line, or Nothing. The engine
+reads them back (`outcome()`) onto the run (`Run.brief_outcome`): the two verdicts, the checks, what did not fit. A
+report that does not say how the result stands against the brief gets a line saying so. A number the brief states
+is the coach's own, so the report may repeat it without being marked unverified. The plain-language version is asked
+to keep both parts under their headings.
+
+**The reviewer** (Adaptive) reads the BRIEF block under the question, and its prompt says the analyst is held to the
+brief: it judges the analysis against it and recommends no test that replaces what it fixes.
+
+**The way in.** `Session.run(..., brief=...)` and `BambooAI.pd_agent_converse(..., brief=...)`. The web route and
+the page follow in 0296.
 
 ## 3. Memory from saved analyses
 
@@ -316,7 +361,7 @@ repository and the dev box only.
 | Patch | Ships | State |
 |---|---|---|
 | 0294 | The old memory goes (§5). Save as favourite is one click. | built |
-| 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit*. | |
+| 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit* (§2.10). | built |
 | 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand. | |
 | 0297 | The Architect talks: it fills the brief from the question and asks for what is missing. | |
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. | |
