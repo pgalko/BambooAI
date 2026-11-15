@@ -1929,6 +1929,7 @@ check("brief: the standing rules hold for its texts too - none of the tested tas
 
 # ---- the Architect (0297, docs/ARCHITECT_DESIGN.md §2.12): one exchange is one model call, and its reply is written into the brief
 from analyst import architect as arch
+from analyst import lookup
 _wb = {"question": "Is B above A?", "decision": "keep one arm", "rests_on": [{"text": "B looked better", "source": "person", "mark": "holds", "note": "seen in 9 of 12"}, {"text": "a count from the data", "source": "data", "mark": "holds"}],
        "also_check": [{"text": "the two halves differ", "shows": "a gap in one half only"}], "fixed": {"measure": "x"}, "saved": [{"question": "Was B above A before?", "passage": "B led by 3."}], "set_aside": ["the weather"], "version": 4}
 _wb_before = json.dumps(_wb, sort_keys=True)
@@ -1963,10 +1964,14 @@ def _unreadable(text):
     except arch.Unreadable as exc:
         return str(exc)
     return None
+_none = {"lookups": [], "marks": []}
+_asks = arch.parse(json.dumps({"say": "Checking.", "lookups": [{"op": "count"}, "count", 3, {"op": "x"}, {}, {}, {}, {}], "marks": [{"line": "l", "mark": "holds"}, "no"]}))
 check("architect.parse: the reply's JSON object, bare or fenced, with words around it: the parts it writes, its message on one line, its choices cleaned - none twice, none empty, four at most; a reply without "
-      "a brief writes nothing",
-      _parsed == {"brief": {"decision": "keep one arm"}, "say": "What do you expect to see?", "choices": ["Keep one arm", "Keep both", "c", "d"]}
-      and arch.parse('{"say": "Ready."}') == {"brief": {}, "say": "Ready.", "choices": []} and arch.parse('note {"say": "x", "brief": ["no"], "choices": "no"} end') == {"brief": {}, "say": "x", "choices": []}
+      "a brief writes nothing. The lookups it asks for and the marks it gives come through as given - the lookups six at most - and a reply without them has none",
+      _parsed == {"brief": {"decision": "keep one arm"}, "say": "What do you expect to see?", "choices": ["Keep one arm", "Keep both", "c", "d"], **_none}
+      and arch.parse('{"say": "Ready."}') == {"brief": {}, "say": "Ready.", "choices": [], **_none}
+      and arch.parse('note {"say": "x", "brief": ["no"], "choices": "no", "lookups": {"op": "count"}, "marks": "holds"} end') == {"brief": {}, "say": "x", "choices": [], **_none}
+      and _asks["lookups"] == [{"op": "count"}, "count", 3, {"op": "x"}, {}, {}] and len(_asks["lookups"]) == lookup.MAX_LOOKUPS and _asks["marks"] == [{"line": "l", "mark": "holds"}, "no"]
       and arch.parse('I could write {this}:\n```json\n{"say": "x"}\n```')["say"] == "x"
       and len(arch.parse(json.dumps({"say": "y" * 900}))["say"]) == arch.SAY_CHARS == 600, _parsed)
 check("architect.parse: a reply that is not the object asked for says what is wrong with it - no object, JSON that does not parse, not an object, no message",
@@ -1974,9 +1979,11 @@ check("architect.parse: a reply that is not the object asked for says what is wr
       and _unreadable('{"brief": {}}') == 'it has no "say"' and _unreadable('{"say": "  "}') == 'it has no "say"' and _unreadable("[1, 2]") == "it holds no JSON object",
       [_unreadable(t) for t in ("x", '{"say": "x",}', '{"brief": {}}', "[1, 2]")])
 _ab = arch.block({**_wb, "thinks": "B is better"})
-check("architect.block: the brief as the Architect reads it - every part under the name its reply uses, the lists a line each, an empty part said to be empty, with the version that stands",
-      _ab == ("BRIEF (version 4):\ndecision: keep one arm\nthinks: B is better\nrests_on:\n- B looked better\n- a count from the data\nexpects: (empty)\nwould_change: (empty)\nalso_check:\n- the two halves differ\n"
-              "fixed.comparison: (empty)\nfixed.measure: x\nfixed.period: (empty)")
+check("architect.block: the brief as the Architect reads it - every part under the name its reply uses, the lists a line each, an empty part said to be empty, with the version that stands; a line the brief "
+      "rests on shows its mark in brackets, with what was found when there is any, and a line not checked shows none",
+      _ab == ("BRIEF (version 4):\ndecision: keep one arm\nthinks: B is better\nrests_on:\n- B looked better [holds - seen in 9 of 12]\n- a count from the data [holds]\nexpects: (empty)\nwould_change: (empty)\n"
+              "also_check:\n- the two halves differ\nfixed.comparison: (empty)\nfixed.measure: x\nfixed.period: (empty)")
+      and arch.block({"question": "q", "rests_on": [{"text": "said, not checked", "source": "person", "mark": ""}]}).splitlines()[3:5] == ["rests_on:", "- said, not checked"]
       and arch.block({"question": "q"}).splitlines()[:4] == ["BRIEF (version 1):", "decision: (empty)", "thinks: (empty)", "rests_on: (empty)"], _ab)
 _anb = Notebook("arch")
 _a0 = _anb.new_run("Does B beat A?"); _a0.status = "answered"; _a0.brief = {"decision": "d", "version": 2}
@@ -2038,27 +2045,300 @@ def _failed(replies, usage=None, run=_xr, text="B above A by 2"):
 _stood = json.dumps(_xr.framing, sort_keys=True)
 _xfull = _xn.new_run("q"); _xfull.status = "framing"
 _xfull.framing = {"versions": briefs.version({}, {"question": "q"})["versions"], "turns": [{"who": "architect", "text": "?"}] * arch.TURNS_MAX}
+_xnear = _xn.new_run("q"); _xnear.status = "framing"
+_xnear.framing = {"versions": briefs.version({}, {"question": "q"})["versions"], "turns": [{"who": "architect", "text": "?"}] * (arch.TURNS_MAX - 1) + [{"who": "check", "found": [], "secs": 0.1}] * 3}
 check("architect.exchange, no reply to keep: unreadable twice, the reason in words with the two calls and their cost; a reply cut at the token limit says so; a request the model declined is not asked again; a brief "
-      "the Architect has replied to twelve times gets no further call. Nothing of a failed exchange is kept",
+      "the Architect has replied to twenty times gets no further call - a round of lookups is not a reply. Nothing of a failed exchange is kept",
       _failed(["no", "still no"]) == ("The Architect's reply could not be read (it holds no JSON object).", 2, 0.008, 2)
       and _failed(['{"say": "x', '{"say": "x'], {"cost": 0.01, "truncated": True}) == ("The Architect's reply could not be read (it was cut off at the token limit).", 2, 0.02, 2)
       and _failed([""], {"cost": 0.0, "declined": "policy"}) == ("The model declined to reply (policy).", 1, 0.0, 1)
-      and _failed(["x"], run=_xfull) == ("The Architect has replied 12 times in this brief. Change the brief yourself, or start the analysis.", 0, 0.0, 0)
+      and _failed(["x"], run=_xfull) == ("The Architect has replied 20 times in this brief. Change the brief yourself, or start the analysis.", 0, 0.0, 0)
+      and _failed(['{"say": "one more"}'], run=_xnear) is None
       and json.dumps(_xr.framing, sort_keys=True) == _stood, (_failed(["no", "still no"]), _failed([""], {"cost": 0.0, "declined": "policy"}), _failed(["x"], run=_xfull)))
 _llm4, _seen4 = _arch_llm([json.dumps({"say": "ok"})])
 _f4 = arch.exchange(_llm4, _anb, _a2, "y" * 5000, data="d")
 check("architect.exchange: a follow-up's prompt carries the analyses it follows; the person's message is bounded as a question is; a brief that starts from the last one reads it as it stands",
       "\n\n" + _ae + "\n\nQUESTION:\nUse y.\n\nBRIEF (version 1):\ndecision: d\n" in _seen4[0][1] and len(_f4["turns"][0]["text"]) == briefs.QUESTION_CHARS and _f4["versions"] == _a2.framing["versions"], _seen4[0][1][:300])
 _atexts = {"the Architect's instructions": arch.SYSTEM}
-for _k, _t in enumerate(_authored_strings("analyst/architect.py")):
-    _atexts[f"analyst/architect.py string {_k}"] = _t
-check("the Architect's instructions: who it is, every part of the brief under the name its reply uses, the reply's form; and the standing rules hold for its texts - none of the tested tasks' vocabulary, no "
-      "section named for thinking or reasoning - in the instructions and in every string of analyst/architect.py",
-      arch.SYSTEM.startswith("You are the Architect.") and all(f"`{k}`" in arch.SYSTEM for k in ("decision", "thinks", "rests_on", "expects", "would_change", "also_check", "fixed", "comparison", "measure", "period", "brief", "drop", "say", "choices"))
-      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 4000
+for _path in ("analyst/architect.py", "analyst/lookup.py"):
+    for _k, _t in enumerate(_authored_strings(_path)):
+        _atexts[f"{_path} string {_k}"] = _t
+check("the Architect's instructions: who it is, every part of the brief under the name its reply uses, the reply's form, the three things a lookup does and the three marks; and the standing rules hold for its "
+      "texts - none of the tested tasks' vocabulary, no section named for thinking or reasoning - in the instructions and in every string of analyst/architect.py and analyst/lookup.py, whose words reach it",
+      arch.SYSTEM.startswith("You are the Architect.") and all(f"`{k}`" in arch.SYSTEM for k in ("decision", "thinks", "rests_on", "expects", "would_change", "also_check", "fixed", "comparison", "measure", "period", "brief", "drop", "say", "choices",
+                                                                                                  "lookups", "marks", "count", "list", "total", "where", "by", "data", "holds", "does not hold", "cannot be checked"))
+      and all(f'"{op}"' in arch.SYSTEM for op in lookup.OPS + lookup.EVERY + briefs.MARKS) and "six at most" in arch.SYSTEM and lookup.MAX_LOOKUPS == 6 and "forty groups at most" in arch.SYSTEM and lookup.MAX_GROUPS == 40
+      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 6000
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", arch.SYSTEM),
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _atexts.items() if _DOMAIN.search(t)}, len(arch.SYSTEM)))
+
+# ---- lookups (0298, docs/ARCHITECT_DESIGN.md §2.4, §2.13): what the brief rests on is checked against the data - a count, a list or a
+# total, and nothing else - and the lines are marked by what was found
+import contextlib as _ctx, io as _io
+_lc = lookup.clean
+_kept, _kept_why = _lc({"about": " The B  units\nare more ", "op": "total", "column": " x ", "data": "datasets\\u/files/more.csv", "sql": "drop table",
+                        "where": [{"column": "arm", "is": " B ", "extra": 1}, {"column": "x", "from": 1, "to": 2.5}], "by": {"column": "day", "every": "month", "x": 1}})
+_long = _lc({"op": "list", "column": "c" * 300, "about": "a" * 700, "where": [{"column": "x", "is": "v" * 300}]})[0]
+check("lookup.clean: a request is kept in its known shape and nothing else of it - the operation, the line it checks on one line, the column, a file by its name alone, each condition as a value or a range, "
+      "the split by a column or over time; a count needs no column; a value may be text, a number or yes/no; names and values are bounded",
+      _kept == {"op": "total", "about": "The B units are more", "column": "x", "data": "more.csv", "where": [{"column": "arm", "is": "B"}, {"column": "x", "from": 1, "to": 2.5}], "by": {"column": "day", "every": "month"}}
+      and _kept_why == "" and _lc({"op": "count"}) == ({"op": "count"}, "") and _lc({"op": "count", "by": " arm "}) == ({"op": "count", "by": "arm"}, "") and _lc({"op": "list", "column": "arm", "about": " "}) == ({"op": "list", "column": "arm"}, "")
+      and _lc({"op": "count", "where": [{"column": "ok", "is": True}, {"column": "x", "to": 3}, {"column": "x", "from": 0.5}]})[0]["where"] == [{"column": "ok", "is": True}, {"column": "x", "to": 3}, {"column": "x", "from": 0.5}]
+      and (len(_long["column"]), len(_long["about"]), len(_long["where"][0]["is"])) == (lookup.NAME_CHARS, lookup.ABOUT_CHARS, lookup.NAME_CHARS) == (200, 600, 200), (_kept, _kept_why, _long))
+_refused = [{"op": "mean", "column": "x"}, "count the rows", {"column": "x"}, {"op": "list"}, {"op": "total"}, {"op": "count", "where": [{"column": "x"}]}, {"op": "count", "where": [{"is": 1}]}, {"op": "count", "where": ["x is 1"]},
+            {"op": "count", "where": [{"column": "x", "is": 1, "from": 0}]}, {"op": "count", "where": [{"column": "x", "is": [1, 2]}]}, {"op": "count", "where": [{"column": "x", "is": 1}] * 5},
+            {"op": "count", "by": {"column": "day", "every": "day"}}, {"op": "count", "by": {"every": "week"}}, {"op": "count", "by": 3}, {"op": "count", "by": ""}, {"op": "list", "column": "x", "by": "arm"}]
+check("lookup.clean: anything else is refused, in words - an operation that is not a count, a list or a total; a list or a total without its column; a condition without its column or its value, or with both a "
+      "value and a range; more than four conditions; a split over time without a column of dates or by anything but week, month or year; a split that is not a column's name; a list with a split",
+      [_lc(r) for r in _refused] == [(None, why) for why in
+          ["a lookup is a count, a list or a total"] * 3 + ["a list names its column", "a total names its column", "a condition says what the column is, or the range it lies in", "a condition names its column",
+           "a condition names its column", "a condition says what the column is, or the range it lies in", "a condition says what the column is, or the range it lies in", "a lookup takes 4 conditions at most",
+           "a split over time names a column of dates and week, month or year", "a split over time names a column of dates and week, month or year", "a split names one column", "a split names one column", "a list has no split"]]
+      and _lc({"op": "count", "where": [{"column": "x", "is": 1}] * 4})[1] == "", [_lc(r)[1] for r in _refused])
+_lf = pd.DataFrame({"arm": ["A", "A", "B", "B", "B", "C"], "x": [1.0, 2.5, 3.0, None, 4.0, 10.0], "n": [1, 2, 2, 3, 3, 3], "day": ["2026-01-05", "2026-01-19", "2026-01-20", "2026-03-02", "2026-03-30", None],
+                    "at": ["2026-01-05T08:00:00+11:00", "2026-01-19T23:30:00+11:00", "2026-01-20T06:00:00+10:00", "2026-03-02T07:00:00+10:00", "2026-03-31T07:00:00Z", "2026-03-31T00:30:00+10:00"],
+                    "seen": ["05/01/2026", "19/01/2026", "20/01/2026", "02/03/2026", "30/03/2026", "31/03/2026"], "ok": [True, False, True, True, False, True],
+                    "code": ["1998", "1998", "2004", "2004", "2004", "2011"]})
+_lf["stamp"] = pd.to_datetime(_lf["day"])
+_ldir = tempfile.mkdtemp()
+pd.DataFrame({"who": ["ann", "bo", "ann"], "h": [1.5, 2, 4]}).to_csv(os.path.join(_ldir, "more.csv"), index=False)
+_lfiles = {"more.csv": os.path.join(_ldir, "more.csv")}
+def _look(requests, frame=_lf, files=None, seen=None):
+    """A round of lookups, run as the executor runs a script: the program over `df`. Returns each lookup's line and whether it is a result."""
+    specs = [lookup.clean(r)[0] for r in requests]
+    out = _io.StringIO()
+    src = lookup.script(specs, files)
+    if seen is not None:
+        seen.append(src)
+    with _ctx.redirect_stdout(out):
+        exec(src, {"df": frame})
+    return [lookup.found(s, a) for s, a in zip(specs, lookup.read(out.getvalue(), len(specs)))]
+_lines = lambda requests, **kw: [line for line, _ in _look(requests, **kw)]
+_l1 = _look([{"op": "count"}, {"op": "count", "column": "x"}, {"op": "count", "by": "arm"}, {"op": "total", "column": "x"}, {"op": "total", "column": "x", "by": "arm"}, {"op": "total", "column": "x", "by": "n"},
+             {"op": "total", "column": "ok"}, {"op": "total", "column": "h", "by": "who", "data": "more.csv"}, {"op": "count", "data": "more.csv"}, {"op": "count", "by": "x"}], files=_lfiles)
+check("lookup, a count and a total: the rows, or the rows that have a value in a column; the sum of a column, an empty cell counting for nothing; split by a column, one number to a group, the groups in their "
+      "own order and a whole number without its decimals; over the main table or over a file beside it, named. Each is one line that opens with what was asked",
+      _l1 == [(line, True) for line in ["rows: 6", "rows with a value in x: 5", "rows by arm: A 2 · B 3 · C 1", "total of x: 20.5", "total of x by arm: A 3.5 · B 7 · C 10", "total of x by n: 1 1 · 2 5.5 · 3 14",
+                                         "total of ok: 4", "total of h by who, in more.csv: ann 5.5 · bo 2", "rows, in more.csv: 3", "rows by x: 1 1 · 2.5 1 · 3 1 · 4 1 · 10 1"]], _l1)
+_l2 = _lines([{"op": "list", "column": "arm"}, {"op": "list", "column": "x"}, {"op": "list", "column": "n"}, {"op": "list", "column": "day"}, {"op": "list", "column": "stamp"}, {"op": "list", "column": "at"},
+              {"op": "list", "column": "seen"}, {"op": "list", "column": "ok"}, {"op": "list", "column": "arm", "where": [{"column": "n", "is": 1}]}, {"op": "list", "column": "x", "where": [{"column": "arm", "is": "c"}]},
+              {"op": "list", "column": "arm", "where": [{"column": "n", "from": 9}]}, {"op": "list", "column": "who", "data": "more.csv"}, {"op": "list", "column": "code"}])
+check("lookup, a list: how many different values a column has, and which - numbers and dates from the lowest to the highest, a date counted once however many moments of it there are, text by name with the "
+      "most frequent first; one value alone is given as it is, and an empty selection says none. Text is read as dates only when written year first with its month: a day written 05/01/2026 stays text, and "
+      "so does a code of four digits",
+      _l2 == ["values of arm: 3 different: B, A, C", "values of x: 5 different, 1 to 10", "values of n: 3 different, 1 to 3", "values of day: 5 different, 2026-01-05 to 2026-03-30",
+              "values of stamp: 5 different, 2026-01-05 to 2026-03-30", "values of at: 5 different, 2026-01-05 to 2026-03-31",
+              "values of seen: 6 different: 02/03/2026, 05/01/2026, 19/01/2026, 20/01/2026, 30/03/2026, 31/03/2026", "values of ok: 2 different: True, False", "values of arm where n is 1: A",
+              "values of x where arm is c: 10", "values of arm where n is from 9: none", "values of who, in more.csv: not looked up - there is no file more.csv",
+              "values of code: 3 different: 2004, 1998, 2011"], _l2)
+_l3 = _lines([{"op": "count", "where": [{"column": "arm", "is": " b "}]}, {"op": "count", "where": [{"column": "n", "is": "2"}]}, {"op": "count", "where": [{"column": "ok", "is": True}]},
+              {"op": "count", "where": [{"column": "n", "from": 2, "to": 2}]}, {"op": "count", "where": [{"column": "x", "from": 2.5}]}, {"op": "count", "where": [{"column": "x", "to": 2.5}]},
+              {"op": "count", "where": [{"column": "arm", "is": "B"}, {"column": "x", "from": 3.5}]}, {"op": "count", "where": [{"column": "day", "is": "2026-01-19"}]},
+              {"op": "count", "where": [{"column": "day", "from": "2026-01-19", "to": "2026-03-02"}]}, {"op": "count", "where": [{"column": "stamp", "to": "2026-01-20"}]},
+              {"op": "count", "where": [{"column": "at", "is": "2026-03-31"}]}, {"op": "count", "where": [{"column": "at", "is": "2026-01-20"}]}, {"op": "count", "where": [{"column": "at", "to": "2026-01-19"}]},
+              {"op": "count", "where": [{"column": "at", "to": "2026-01-19 12:00"}]}, {"op": "count", "where": [{"column": "seen", "is": "19/01/2026"}]}, {"op": "count", "where": [{"column": "x", "is": "3"}]},
+              {"op": "count", "where": [{"column": "x", "is": 2.5}]}])
+check("lookup, the conditions: only the rows that meet every one - a value whatever its case and the spaces around it, a number given as text, yes/no, a range with either end or both, ends included; a day "
+      "is that whole day, and up to a day is through that day; a time is read on the clock it was written in, whatever zone follows it",
+      _l3 == ["rows where arm is b: 3", "rows where n is 2: 2", "rows where ok is True: 4", "rows where n is from 2 to 2: 2", "rows where x is from 2.5: 4", "rows where x is up to 2.5: 2",
+              "rows where arm is B and x is from 3.5: 1", "rows where day is 2026-01-19: 1", "rows where day is from 2026-01-19 to 2026-03-02: 3", "rows where stamp is up to 2026-01-20: 3",
+              "rows where at is 2026-03-31: 2", "rows where at is 2026-01-20: 1", "rows where at is up to 2026-01-19: 2", "rows where at is up to 2026-01-19 12:00: 1", "rows where seen is 19/01/2026: 1",
+              "rows where x is 3: 1", "rows where x is 2.5: 1"], _l3)
+_l4 = _lines([{"op": "total", "column": "x", "by": {"column": "day", "every": "month"}}, {"op": "count", "by": {"column": "at", "every": "month"}},
+              {"op": "count", "by": {"column": "day", "every": "week"}, "where": [{"column": "day", "to": "2026-01-31"}]}, {"op": "count", "by": {"column": "stamp", "every": "year"}},
+              {"op": "count", "by": {"column": "day", "every": "month"}, "where": [{"column": "n", "from": 9}]}, {"op": "count", "by": {"column": "day", "every": "month"}, "where": [{"column": "arm", "is": "C"}]},
+              {"op": "count", "where": [{"column": "arm", "is": "C"}, {"column": "day", "from": "2026-01-01"}]}])
+check("lookup, a split over time: one number to each week, month or year from the first to the last - a period with no rows shows as 0, so a gap is seen; a week is named by the day it starts, a Monday; "
+      "a row without a date is in none, and a selection left without rows or without dates gives none",
+      _l4 == ["total of x by month of day: 2026-01 6.5 · 2026-02 0 · 2026-03 4", "rows by month of at: 2026-01 3 · 2026-02 0 · 2026-03 3",
+              "rows where day is up to 2026-01-31 by week of day: 2026-01-05 1 · 2026-01-12 0 · 2026-01-19 2", "rows by year of stamp: 2026 5", "rows where n is from 9 by month of day: none",
+              "rows where arm is C by month of day: none", "rows where arm is C and day is from 2026-01-01: 0"], _l4)
+_many = pd.DataFrame({"g": list(range(41)), "name": [f"group number {i:02d} of the long ones" for i in range(41)], "v": [1] * 41})
+_l5 = _look([{"op": "total", "column": "arm"}, {"op": "total", "column": "stamp"}, {"op": "total", "column": "nothing"}, {"op": "count", "by": "nothing"}, {"op": "count", "where": [{"column": "nothing", "is": 1}]},
+             {"op": "count", "by": {"column": "seen", "every": "month"}}, {"op": "count", "by": {"column": "x", "every": "month"}}, {"op": "count", "where": [{"column": "arm", "from": 1}]},
+             {"op": "count", "where": [{"column": "n", "from": "a lot"}]}, {"op": "count", "where": [{"column": "day", "to": "soon"}]}, {"op": "count", "data": "other.csv"}], files=_lfiles)
+_l6 = _look([{"op": "count", "by": "g"}, {"op": "count", "by": "g", "where": [{"column": "g", "to": 39}]}, {"op": "count", "by": "name", "where": [{"column": "g", "to": 39}]},
+             {"op": "list", "column": "name"}, {"op": "count", "by": "name", "where": [{"column": "g", "to": 9}]}], frame=_many)
+check("lookup, what the data refuses: a column or a file that is not there, with the ones that are; a total of text or of dates; a split over time on a column that holds no dates; a range on a column that "
+      "holds neither numbers nor dates, or with an end that cannot be read. None of these is a result",
+      _l5 == [(line, False) for line in
+              ["total of arm: not looked up - arm does not hold numbers", "total of stamp: not looked up - stamp does not hold numbers",
+               "total of nothing: not looked up - there is no column nothing: the columns are arm, x, n, day, at, seen, ok, code, stamp",
+               "rows by nothing: not looked up - there is no column nothing: the columns are arm, x, n, day, at, seen, ok, code, stamp",
+               "rows where nothing is 1: not looked up - there is no column nothing: the columns are arm, x, n, day, at, seen, ok, code, stamp",
+               "rows by month of seen: not looked up - seen does not hold dates", "rows by month of x: not looked up - x does not hold dates",
+               "rows where arm is from 1: not looked up - arm holds neither numbers nor dates", "rows where n is from a lot: not looked up - the range of n could not be read",
+               "rows where day is up to soon: not looked up - the range of day could not be read", "rows, in other.csv: not looked up - there is no file other.csv: the files are more.csv"]], _l5)
+check("lookup, a result that would not fit: a split into more than forty groups is refused, never cut - a list cut short would hide the group that matters - and so is a result longer than a line of the "
+      "brief; a list of text names twelve values and says how many more there are",
+      _l6[0] == ("rows by g: not looked up - the split gives 41 groups, more than 40: narrow it with a condition, or split it more coarsely", False)
+      and _l6[1][1] is True and _l6[1][0].startswith("rows where g is up to 39 by g: 0 1 · 1 1 · ") and _l6[1][0].endswith(" · 39 1") and len(_l6[1][0]) <= lookup.FACT_CHARS
+      and _l6[2] == ("rows where g is up to 39 by name: not looked up - the result is too long to show: narrow it with a condition, or split it more coarsely", False)
+      and _l6[3] == ("values of name: 41 different: " + ", ".join(f"group number {i:02d} of the long ones" for i in range(12)) + ", and 29 more", True) and _l6[4][1] is True
+      and lookup.FACT_CHARS <= briefs.TEXT_CHARS and lookup.MAX_VALUES == 12, _l6)
+_odd = 'it\'s "odd"\n__import__("os").system("true") # é'
+_odd_said = 'it\'s "odd" __import__("os").system("true") # é'
+_of = pd.DataFrame({_odd: ["a", "a", "b"], "v": [1, 2, 3]})
+_src = []
+_l7 = _look([{"op": "count", "by": _odd, "about": "A LINE OF THE BRIEF"}, {"op": "total", "column": "v", "where": [{"column": _odd, "is": 'b"; raise SystemExit #'}]},
+             {"op": "total", "column": "v", "where": [{"column": _odd, "is": "B"}]}], frame=_of, seen=_src)
+_l8 = _look([{"op": "count"}], frame=None)
+check("lookup, the program: names and values reach it as data inside one text, never as code - a column named with quotes, a line break and a call is a column like any other, and a value written as code "
+      "matches nothing; what was found is one line whatever the names hold. The program is plain ASCII, does not carry the line of the brief, and changes nothing in the table it reads; with no table loaded "
+      "it says so",
+      _l7 == [(f"rows by {_odd_said}: a 2 · b 1", True), (f'total of v where {_odd_said} is b"; raise SystemExit #: 0', True), (f"total of v where {_odd_said} is B: 3", True)]
+      and len(_src) == 1 and _src[0].isascii() and "A LINE OF THE BRIEF" not in _src[0] and list(_of.columns) == [_odd, "v"] and _of.shape == (3, 2)
+      and _l8 == [("rows: not looked up - no main table is loaded", False)], (_l7, _l8))
+_one = {"op": "count"}
+check("lookup.read: the answers are the program's last marked line, one to a lookup; a line that is not there, does not parse or does not match the lookups asked refuses every one of them: the data could not be reached",
+      lookup.read('noise\nLOOKUPS: [{"value": 1}]\nLOOKUPS: [{"value": 2}]\nmore noise', 1) == [{"value": 2}]
+      and [lookup.read(out, 2) for out in ("", None, "LOOKUPS: [{", 'LOOKUPS: [{"value": 1}]', 'LOOKUPS: {"value": 1}', 'LOOKUPS: [1, 2]')] == [[{"refused": "the data could not be reached"}] * 2] * 6
+      and lookup.found(_one, {"refused": "the data could not be reached"}) == ("rows: not looked up - the data could not be reached", False) and lookup.found(_one, None) == ("rows: not looked up - the data could not be reached", False)
+      and lookup.found(_one, {"value": 1234567.891}) == ("rows: 1,234,567.89", True) and lookup.found({"op": "list", "column": "c"}, {"different": 2, "range": [1500, 20250.5]}) == ("values of c: 2 different, 1500 to 20250.5", True)
+      and lookup.found(_lc({"op": "count", "by": "x\ny"})[0], {"refused": "there is no column x\ny"}) == ("rows by x y: not looked up - there is no column x y", False),
+      lookup.read('LOOKUPS: [{"value": 2}]', 1))
+
+# the marks
+_mb = {"question": "q", "rests_on": [{"text": "B has the most.", "source": "person", "mark": ""}, {"text": "The arms are equal in size.", "source": "person", "mark": "holds", "note": "an old fact"},
+                                      {"text": "B looked better.", "source": "person", "mark": ""}, {"text": "It was said.", "source": "person", "mark": ""}], "also_check": [{"text": "B has the most."}]}
+_mfacts = {1: ("B has the most.", "total of x by arm: A 3 · B 2", True), 2: ("The arms are equal in size.", "rows by arm: A 2 · B 2", True), 3: ("B looked better.", "rows by look: not looked up - there is no column look", False),
+           4: ("B has the most.", "rows: 6", True)}
+_mb_before = json.dumps(_mb, sort_keys=True)
+_m1, _mc1 = briefs.mark(_mb, [{"line": " B has  the most. ", "mark": "does not hold", "lookup": 1, "why": "the model's own words"}, {"line": "The arms are equal in size.", "mark": "holds", "lookup": 2},
+                              {"line": "B looked better.", "mark": "cannot be checked", "lookup": 3}, {"line": "It was said.", "mark": "cannot be checked", "why": " nothing loaded\nrecords it "}], _mfacts)
+check("brief.mark: a line the brief rests on is marked as the reply says, named word for word. 'holds' and 'does not hold' stand on a lookup made for that line that gave a result, and the fact beside the line "
+      "is the lookup's own line, not the reply's words; a line said to be one that cannot be checked has the reason given beside it, on one line, and none where none was given. The lines that changed "
+      "are named as the page names them; the source of a line and the rest of the brief stay, and the brief passed in is not altered",
+      _m1["rests_on"] == [{"text": "B has the most.", "source": "person", "mark": "does not hold", "note": "total of x by arm: A 3 · B 2"}, {"text": "The arms are equal in size.", "source": "person", "mark": "holds", "note": "rows by arm: A 2 · B 2"},
+                          {"text": "B looked better.", "source": "person", "mark": "cannot be checked"},
+                          {"text": "It was said.", "source": "person", "mark": "cannot be checked", "note": "nothing loaded records it"}]
+      and _mc1 == ["rests_on.0", "rests_on.1", "rests_on.2", "rests_on.3"] and _m1["also_check"] == [{"text": "B has the most."}] and _m1["question"] == "q" and json.dumps(_mb, sort_keys=True) == _mb_before, (_m1, _mc1))
+_m2, _mc2 = briefs.mark(_mb, [{"line": "B has the most.", "mark": "holds", "lookup": 2}, {"line": "B looked better.", "mark": "does not hold"}, {"line": "It was said.", "mark": "holds", "lookup": 9, "why": "it is likely"},
+                              {"line": "The arms are equal in size.", "mark": "cannot be checked", "lookup": 2}], _mfacts)
+_m3, _mc3 = briefs.mark(_mb, [{"line": "not a line", "mark": "holds", "lookup": 1}, {"line": "B has the most.", "mark": "probably", "lookup": 1}, {"line": "B has the most."}, "B has the most.", None,
+                              {"line": "The arms are equal in size.", "mark": "holds", "lookup": 2.0}, {"line": "It was said.", "mark": "holds", "lookup": True}, {"line": "B looked better.", "mark": "holds", "lookup": [1]},
+                              {"line": "B has the most.", "mark": "does not hold", "lookup": 4}, {"line": "B has the most.", "mark": "does not hold", "lookup": 1}], _mfacts)
+check("brief.mark: 'holds' and 'does not hold' never stand on anything else - a lookup made for another line, a lookup that gave no result, no lookup, one that was never made, one named by anything but "
+      "its number: the mark is passed over, and the line stays as it was, checked or not. A line said to be one that cannot be checked loses the fact of the mark it had. A mark for a line that is not there "
+      "and a mark that is not one of the three are passed over; of two marks for a line the later stands; a mark given again as it stands, and marks that are not a list, change nothing",
+      _m2["rests_on"] == [{"text": "B has the most.", "source": "person", "mark": ""}, {"text": "The arms are equal in size.", "source": "person", "mark": "cannot be checked"},
+                          {"text": "B looked better.", "source": "person", "mark": ""}, {"text": "It was said.", "source": "person", "mark": ""}]
+      and _mc2 == ["rests_on.1"]
+      and _m3["rests_on"] == [{"text": "B has the most.", "source": "person", "mark": "does not hold", "note": "total of x by arm: A 3 · B 2"}, {"text": "The arms are equal in size.", "source": "person", "mark": "holds", "note": "an old fact"},
+                              {"text": "B looked better.", "source": "person", "mark": ""}, {"text": "It was said.", "source": "person", "mark": ""}]
+      and _mc3 == ["rests_on.0"]
+      and briefs.mark(_mb, [{"line": "The arms are equal in size.", "mark": "cannot be checked", "why": "the sizes were never recorded"}], _mfacts)[0]["rests_on"][1] == {"text": "The arms are equal in size.", "source": "person", "mark": "cannot be checked", "note": "the sizes were never recorded"}
+      and briefs.mark(_mb, {"line": "B has the most.", "mark": "holds", "lookup": 1}, _mfacts) == (briefs.working(_mb), []) and briefs.mark(_mb, None, {})[1] == []
+      and briefs.mark(_mb, [{"line": "B has the most.", "mark": "does not hold", "lookup": True}], _mfacts) == (briefs.working(_mb), [])
+      and briefs.mark(_mb, [{"line": "B has the most.", "mark": "probably", "lookup": 1}], _mfacts) == (briefs.working(_mb), [])
+      and briefs.mark(_mb, [{"line": "The arms are equal in size.", "mark": "cannot be checked"}], _mfacts)[0]["rests_on"][1] == {"text": "The arms are equal in size.", "source": "person", "mark": "cannot be checked"}
+      and briefs.mark(_m1, [{"line": "B has the most.", "mark": "does not hold", "lookup": 1}, {"line": "It was said.", "mark": "cannot be checked", "why": " nothing loaded\nrecords it "}], _mfacts) == (_m1, [])
+      and briefs.mark(_mb, [{"line": "B looked better.", "mark": "holds", "lookup": 3}], _mfacts) == (briefs.working(_mb), [])
+      and briefs.mark(_mb, [{"line": "B looked better.", "mark": "cannot be checked", "lookup": 3, "why": ["not", "text"]}], _mfacts)[0]["rests_on"][2] == {"text": "B looked better.", "source": "person", "mark": "cannot be checked"}
+      and briefs.mark({"question": "q"}, [{"line": "x", "mark": "holds", "lookup": 1}], _mfacts) == ({"question": "q"}, []), (_m2, _mc2, _m3, _mc3))
+
+# the exchange with lookups: a reply asks, the host answers, the round joins the conversation, and the next reply marks the lines by it
+_cn = Notebook("c"); _cr = _cn.new_run("Is B above A?"); _cr.status = "framing"
+_most, _equal, _looked = "B has the most.", "The arms are equal in size.", "B looked better."
+_cr.framing = briefs.version({}, {"question": _cr.question, "thinks": "B is better.", "rests_on": [_most, _equal]})
+_cframe = pd.DataFrame({"arm": ["A", "A", "A", "B", "B", "B"], "x": [1.0, 2.0, 3.0, 1.0, 1.5, 2.0]})
+_asked = []
+def _clook(specs):
+    _asked.append(specs)
+    out = _io.StringIO()
+    with _ctx.redirect_stdout(out):
+        exec(lookup.script(specs), {"df": _cframe})
+    return lookup.read(out.getvalue(), len(specs))
+_llm5, _seen5 = _arch_llm([json.dumps({"brief": {"expects": "B well above A.", "rests_on": [_looked]}, "say": "Checking this against the data.",
+                                       "lookups": [{"about": _most, "op": "total", "column": "x", "by": "arm"}, {"about": " The arms  are equal in size. ", "op": "count", "by": "arm"}, {"about": _looked, "op": "mean", "column": "x"},
+                                                   {"about": "B well above A.", "op": "count"}, "count the rows", {"op": "count"}, {"about": _most, "op": "count"}]})])
+_f5 = arch.exchange(_llm5, _cn, _cr, "B well above A.", data="`df`: 6 rows", look=_clook)
+_check5 = _f5["turns"][-1]
+check("architect.exchange, a reply that asks for lookups: its parts are written and its message joins the conversation as for any reply; then the round, as a turn of its own after it. Each request is a lookup "
+      "about a line the brief rests on as the reply leaves it - or it is refused in words: not a count, a list or a total; not about such a line. The host is asked once, for the ones that stand, and what each "
+      "found is one line under its number, with the line it was made for and whether it is a result; six lookups a round at most",
+      [t["who"] for t in _f5["turns"]] == ["person", "architect", "check"] and _f5["turns"][1]["text"] == "Checking this against the data." and _f5["versions"][-1]["why"] == "answer"
+      and _f5["versions"][-1]["changed"] == ["expects", "rests_on.2"] and _f5["turns"][1]["v"] == 2 and _f5["calls"] == 1 and set(_check5) == {"who", "found", "secs"} and _check5["secs"] >= 0
+      and _asked == [[{"op": "total", "about": _most, "column": "x", "by": "arm"}, {"op": "count", "about": _equal, "by": "arm"}]]
+      and _check5["found"] == [{"k": 1, "about": _most, "fact": "total of x by arm: A 6 · B 4.5", "ran": True}, {"k": 2, "about": _equal, "fact": "rows by arm: A 3 · B 3", "ran": True},
+                               {"k": 3, "about": _looked, "fact": "not looked up - a lookup is a count, a list or a total", "ran": False},
+                               {"k": 4, "about": "B well above A.", "fact": "rows: not looked up - a lookup names the line under rests_on it checks, copied exactly", "ran": False},
+                               {"k": 5, "about": "", "fact": "not looked up - a lookup is a count, a list or a total", "ran": False},
+                               {"k": 6, "about": "", "fact": "rows: not looked up - a lookup names the line under rests_on it checks, copied exactly", "ran": False}], (_f5["turns"], _asked))
+_cr.framing = _f5
+_llm6, _seen6 = _arch_llm([json.dumps({"say": "One line does not hold: A has the most, 6 against 4.5. Do you keep what you think, or change it?", "choices": ["Keep it", "Change it"],
+                                       "marks": [{"line": _most, "mark": "does not hold", "lookup": 1}, {"line": _equal, "mark": "holds", "lookup": 2}, {"line": _looked, "mark": "cannot be checked", "why": "nothing loaded records it"}]})])
+_f6 = arch.exchange(_llm6, _cn, _cr, None, data="`df`: 6 rows", look=_clook)
+_b6 = briefs.latest(_f6)
+check("architect.exchange, after a round: with nothing said, the Architect reads what the lookups found in the conversation - a numbered line to a lookup, under what was said before it - and the lines "
+      "already checked with their marks; the marks its reply gives are one more version, made from a check against the data, and the brief the analyst will receive says what each line is worth",
+      len(_seen6) == 1 and _seen6[0][1].endswith("CONVERSATION:\nPerson: B well above A.\nArchitect: Checking this against the data.\nLookups:\n1. about \"B has the most.\" - total of x by arm: A 6 · B 4.5\n"
+                                                 "2. about \"The arms are equal in size.\" - rows by arm: A 3 · B 3\n3. about \"B looked better.\" - not looked up - a lookup is a count, a list or a total\n"
+                                                 "4. about \"B well above A.\" - rows: not looked up - a lookup names the line under rests_on it checks, copied exactly\n5. about \"\" - not looked up - a lookup is a count, a list or a total\n"
+                                                 "6. about \"\" - rows: not looked up - a lookup names the line under rests_on it checks, copied exactly\n\nReply with the JSON object.")
+      and [t["who"] for t in _f6["turns"]] == ["person", "architect", "check", "architect"] and _f6["turns"][-1]["choices"] == ["Keep it", "Change it"] and _f6["turns"][-1]["v"] == 3 and len(_asked) == 1
+      and (_f6["versions"][-1]["by"], _f6["versions"][-1]["why"], _f6["versions"][-1]["changed"]) == ("architect", "check", ["rests_on.0", "rests_on.1", "rests_on.2"])
+      and _b6["rests_on"] == [{"text": _most, "source": "person", "mark": "does not hold", "note": "total of x by arm: A 6 · B 4.5"}, {"text": _equal, "source": "person", "mark": "holds", "note": "rows by arm: A 3 · B 3"},
+                              {"text": _looked, "source": "person", "mark": "cannot be checked", "note": "nothing loaded records it"}]
+      and "- B has the most. [does not hold - total of x by arm: A 6 · B 4.5]\n- The arms are equal in size. [holds - rows by arm: A 3 · B 3]\n- B looked better. [cannot be checked - nothing loaded records it]" in arch.block(_b6)
+      and "- B has the most. [checked against the data: does not hold - total of x by arm: A 6 · B 4.5]\n- The arms are equal in size. [checked against the data: holds - rows by arm: A 3 · B 3]\n"
+          "- B looked better. [cannot be checked - nothing loaded records it]" in briefs.render(_b6), (_seen6[0][1][-900:], _f6["versions"][-1], _b6))
+_cr.framing = _f6
+_again = {"about": _looked, "op": "count"}
+_llm7, _seen7 = _arch_llm([json.dumps({"say": "Looking once more.", "lookups": [_again]}), json.dumps({"say": "And once more.", "lookups": [_again]}), json.dumps({"say": "And again.", "lookups": [_again]}),
+                           json.dumps({"say": "Ready.", "marks": [{"line": _looked, "mark": "holds", "lookup": 7}]}), json.dumps({"say": "Looking.", "lookups": [_again]}),
+                           json.dumps({"brief": {"rests_on": ["A new line."]}, "say": "Ready.", "marks": [{"line": "A new line.", "mark": "cannot be checked", "why": "nothing loaded records it"},
+                                                                                                                 {"line": _most, "mark": "holds", "lookup": 2}, {"line": _equal, "mark": "does not hold"}]})])
+_rounds = []
+for _text in ("Change it", None, None, None, "and now?"):
+    _cr.framing = arch.exchange(_llm7, _cn, _cr, _text, look=_clook)
+    _rounds.append([t["who"] for t in _cr.framing["turns"]][4:])
+_k7 = [[f["k"] for f in t["found"]] for t in _cr.framing["turns"] if t["who"] == "check"]
+_f8 = arch.exchange(_llm7, _cn, _cr, "one more thing", look=None)
+_f9 = arch.exchange(_arch_llm([json.dumps({"say": "Checking.", "lookups": ["count", {"about": "nothing of the brief", "op": "count"}]})])[0], _cn, _cr, "check it", look=lambda specs: _asked.append("called") or [])
+_f10 = arch.exchange(_arch_llm([json.dumps({"say": "Checking.", "lookups": [_again]})])[0], _cn, _cr, "check it", look=None)
+check("architect.exchange, the bounds: after one message of the person's the data is looked up in two rounds at most - the second is for what the first refused - and a third request is dropped, so the "
+      "conversation never goes on by itself for long; the person's next message opens the count again. The lookups are numbered through the whole brief, so a mark names one of any round. A line the reply adds "
+      "and marks is named once as changed; a mark that would stand on another line's lookup, or on none, is passed over. Without a host to look the request is dropped; a round in which no lookup stands does "
+      "not reach the host",
+      _rounds == [["person", "architect", "check"], ["person", "architect", "check", "architect", "check"], ["person", "architect", "check", "architect", "check", "architect"],
+                  ["person", "architect", "check", "architect", "check", "architect", "architect"], ["person", "architect", "check", "architect", "check", "architect", "architect", "person", "architect", "check"]]
+      and _k7 == [[1, 2, 3, 4, 5, 6], [7], [8], [9]] and len(_asked) == 4
+      and briefs.latest(_cr.framing)["rests_on"][2] == {"text": _looked, "source": "person", "mark": "holds", "note": "rows: 6"}
+      and [t["who"] for t in _f8["turns"]][-2:] == ["person", "architect"] and _f8["versions"][-1]["why"] == "check" and _f8["versions"][-1]["changed"] == ["rests_on.3"]
+      and briefs.latest(_f8)["rests_on"][3] == {"text": "A new line.", "source": "person", "mark": "cannot be checked", "note": "nothing loaded records it"}
+      and briefs.latest(_f8)["rests_on"][:3] == briefs.latest(_cr.framing)["rests_on"][:3] and [a["mark"] for a in briefs.latest(_f8)["rests_on"][:2]] == ["does not hold", "holds"]
+      and [t["who"] for t in _f9["turns"]][-3:] == ["person", "architect", "check"] and [f["ran"] for f in _f9["turns"][-1]["found"]] == [False, False] and "called" not in _asked
+      and [(t["who"], t.get("text")) for t in _f10["turns"]][-2:] == [("person", "check it"), ("architect", "Checking.")], (_rounds, _k7, _f8["versions"][-1], _f9["turns"][-1]))
+
+# the planted cases (docs/ARCHITECT_DESIGN.md §4): a question with a false premise - a stage that was not the largest, a period the data does not cover, a tool that changed. Each passes when the brief shows the
+# line as one that does not hold, with what was found, before any analysis starts. The lookups run in a kernel, as in the local edition
+_pf = pd.DataFrame({"day": pd.date_range("2026-01-05", periods=84, freq="D").strftime("%Y-%m-%d"), "stage": ["first"] * 28 + ["second"] * 28 + ["third"] * 28,
+                    "load": [5.0] * 28 + [4.0] * 28 + [4.5] * 28, "tool": ["old"] * 50 + ["new"] * 34})
+_planted = [("Why did the result drop after the second stage, the largest of the three?", "The second stage was the largest of the three.", {"op": "total", "column": "load", "by": "stage"},
+             "total of load by stage: first 140 · second 112 · third 126"),
+            ("How did the result move over the whole of 2026?", "The data covers the whole of 2026.", {"op": "list", "column": "day"}, "values of day: 84 different, 2026-01-05 to 2026-03-29"),
+            ("Did the result change, measured with one tool throughout?", "One tool was used throughout.", {"op": "list", "column": "tool"}, "values of tool: 2 different: old, new")]
+_pk = PersistentKernel(df=_pf)
+def _plook(specs):
+    out, err, _ = _pk.execute(lookup.script(specs))
+    return lookup.read(out, len(specs))
+_cases = []
+try:
+    for _q, _premise, _ask, _fact in _planted:
+        _pn = Notebook("p"); _pr = _pn.new_run(_q); _pr.status = "framing"; _pr.framing = briefs.version({}, {"question": _q})
+        _pllm, _ = _arch_llm([json.dumps({"brief": {"rests_on": [_premise]}, "say": "Checking this against the data.", "lookups": [{"about": _premise, **_ask}]}),
+                              json.dumps({"say": "One line does not hold. Do you keep what you think, or change it?", "choices": ["Keep it", "Change it"], "marks": [{"line": _premise, "mark": "does not hold", "lookup": 1}]})])
+        _pr.framing = arch.exchange(_pllm, _pn, _pr, None, look=_plook)
+        _pr.framing = arch.exchange(_pllm, _pn, _pr, None, look=_plook)
+        _cases.append((_pr.status, briefs.latest(_pr.framing)["rests_on"], briefs.render(briefs.latest(_pr.framing))))
+finally:
+    _pk.cleanup()
+check("the planted cases: a question with a false premise - a stage that was not the largest, a period the data does not cover, a tool that changed - ends, before any analysis, with the line marked as one "
+      "that does not hold and the numbers the data gave beside it, in the brief the analyst will receive",
+      [(status, lines) for status, lines, _ in _cases] == [("framing", [{"text": premise, "source": "person", "mark": "does not hold", "note": fact}]) for _, premise, _, fact in _planted]
+      and all(f"- {premise} [checked against the data: does not hold - {fact}]" in block for (_, premise, _, fact), (_, _, block) in zip(_planted, _cases)), _cases)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

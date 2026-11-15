@@ -18,7 +18,8 @@ prompt says so.
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
 nothing checked it. normalise() brings what a caller sends into this shape, render() writes the BRIEF block of the
 prompt, and outcome() reads back what a report says against the brief. While a brief is being written it is kept as
-versions on its run (version(), latest()), and write() takes in what a reply of the Architect's names.
+versions on its run (version(), latest()); write() takes in what a reply of the Architect's names, and mark() the
+marks it gives after its lookups.
 """
 from __future__ import annotations
 
@@ -104,8 +105,8 @@ def working(brief) -> dict:
 
 def version(framing: dict, brief, by: str = "person", changed=None, why: str = "") -> dict:
     """A version added to a run's framing: the brief as it stands, who made the change, which parts it touched and,
-    for the Architect's, what it was made from (`why`: the question, or an answer). Returns the framing with the new
-    version; every earlier one stays."""
+    for the Architect's, what it was made from (`why`: the question, an answer, or a check against the data). Returns
+    the framing with the new version; every earlier one stays."""
     versions = list((framing or {}).get("versions") or [])
     entry = {"n": len(versions) + 1, "by": by if by in ("person", "architect") else "person",
              "changed": [str(c)[:60] for c in (changed or []) if isinstance(c, str)][:12], "brief": working(brief)}
@@ -146,6 +147,37 @@ def write(brief, parts) -> tuple:
             fixed[key] = _text(given[key])
             changed.append(f"fixed.{key}")
     return working({**out, "fixed": fixed}), changed          # a part emptied falls away
+
+
+def mark(brief, marks, facts) -> tuple:
+    """The brief with lines it rests on marked, as a reply of the Architect's says (analyst/architect.py). `marks`:
+    [{"line", "mark", "lookup", "why"}], a line named word for word. `facts`: what the lookups made so far found, by
+    number: (the line of the brief the lookup was made for, what it found as the host wrote it, whether that is a
+    result). "holds" and "does not hold" stand only on a lookup made for the line that gave a result, and the fact
+    beside the line is that lookup's own; given without one, the mark is passed over and the line stays as it is. A
+    line that "cannot be checked" has the reason given beside it. Returns the brief and the lines that changed, as
+    the page names them."""
+    out = working(brief)
+    lines = out.get("rests_on", [])
+    changed = []
+    for m in marks if isinstance(marks, list) else []:
+        m = m if isinstance(m, dict) else {}
+        at = next((i for i, a in enumerate(lines) if a["text"] == _text(m.get("line"))), None)
+        if at is None or m.get("mark") not in MARKS:
+            continue
+        k = m.get("lookup")
+        about, fact, result = facts.get(k, ("", "", False)) if isinstance(k, int) and not isinstance(k, bool) else ("", "", False)
+        if m["mark"] == "cannot be checked":
+            note = _text(m.get("why"))
+        elif result and about == lines[at]["text"]:
+            note = fact
+        else:
+            continue
+        new = {**{key: v for key, v in lines[at].items() if key != "note"}, "mark": m["mark"], **({"note": note} if note else {})}
+        if new != lines[at]:
+            lines[at] = new
+            changed += [f"rests_on.{at}"] if f"rests_on.{at}" not in changed else []
+    return working(out), changed
 
 
 def latest(framing: dict) -> dict:

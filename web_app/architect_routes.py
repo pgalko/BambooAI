@@ -1,7 +1,7 @@
-"""The brief before an analysis (docs/ARCHITECT_DESIGN.md §2.6, §2.9, §2.12): a question asked with the Architect on
-opens a framing run on the thread's record; the Architect then fills its brief from the question and asks for what is
-missing, one exchange a call; every change to the brief is kept as a version. The analysis then continues that run
-through /query, which names it as run_id.
+"""The brief before an analysis (docs/ARCHITECT_DESIGN.md §2.6, §2.9, §2.12, §2.13): a question asked with the
+Architect on opens a framing run on the thread's record; the Architect then fills its brief from the question, asks
+for what is missing and checks what the brief rests on against the data, one exchange a call; every change to the
+brief is kept as a version. The analysis then continues that run through /query, which names it as run_id.
 
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
 month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say)."""
@@ -47,8 +47,9 @@ def architect_open():
 @architect_bp.route('/architect/say', methods=['POST'])
 @requires_auth
 def architect_say():
-    """One exchange with the Architect: {thread_id, chain_id, text} - no text on its first turn - as a stream that
-    ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no reply was kept."""
+    """One exchange with the Architect: {thread_id, chain_id, text} - no text on its first turn, nor when it goes on
+    after a round of lookups - as a stream that ends on {"architect": {"framing": ...}}, or {"architect": {"error":
+    ...}} when no reply was kept."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400

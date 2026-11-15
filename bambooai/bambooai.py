@@ -1236,8 +1236,9 @@ class BambooAI:
 
     def architect_say(self, thread_id, run_id, text=None):
         """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
-        first turn - and its reply, taken into the brief and the conversation. The calls are the run's own: logged
-        under its chain as the Architect's, and charged with its analysis - or when the instance is torn down, if no
+        first turn, nor when it goes on after its lookups - and its reply, taken into the brief and the conversation;
+        the lookups a reply asks for are answered here (_architect_look). The calls are the run's own: logged under
+        its chain as the Architect's, and charged with its analysis - or when the instance is torn down, if no
         analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
         architect.Failed with the reason to show."""
         from analyst import architect
@@ -1252,7 +1253,7 @@ class BambooAI:
         self._framed.add(self.chain_id)
         try:
             run.framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
-                                             self.notebook, run, text, data=self._data_description())
+                                             self.notebook, run, text, data=self._data_description(), look=self._architect_look)
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
             run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
@@ -1265,6 +1266,22 @@ class BambooAI:
             except Exception:                                  # noqa: BLE001
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
+
+    def _architect_look(self, lookups):
+        """A round of the Architect's lookups (analyst/lookup.py), answered where the analysis' cells run: one
+        host-written script through the executor, over the frame loaded now and the files beside it. It leaves nothing
+        behind: no names in the analysis' kernel, no files. One answer to a lookup; where the script did not run,
+        each lookup is refused in words."""
+        from analyst import lookup
+        files = {os.path.basename(p): p for p in (self.auxiliary_datasets or []) if p}
+        try:
+            _, out, error, _, _ = self.executor.execute(self.output_manager, self.kill_signal, lookup.script(lookups, files),
+                                                        self.df, self.df_id, None, persist_df=False, timeout=60)
+        except Exception as exc:                               # noqa: BLE001
+            out, error = "", str(exc)
+        if error:
+            logger.warning("The Architect's lookups did not run: %s", str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
+        return lookup.read(out, len(lookups))
 
     def _on_thread(self, thread_id):
         """The instance on this thread: its record in hand; a kernel that held another thread's names is dropped."""

@@ -232,8 +232,9 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
-    # the Architect (docs/ARCHITECT_DESIGN.md §2.11, §2.12): a question typed with the switch on, the conversation that fills
-    # its brief, a line changed by hand, the analysis started from it, the report against the brief, the thread map
+    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.13): a question typed with the switch on, the conversation that fills
+    # its brief, the check of what it rests on against the data, a line changed by hand, the analysis started from it, the
+    # report against the brief, the thread map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):
@@ -257,14 +258,19 @@ def story(w, mod, dataset, questions):
         w.shot("architect_first_question")
         p.click("#streamOutput .ar-choice")
         said(2)
-        p.fill("#queryInput", "C does better than A because the C plots looked greener last season.")
+        p.fill("#queryInput", "C does better than A because the C plots got the most rain.")
         p.wait_for_timeout(200)
         w.shot("architect_answer_typed")
         p.click("#submitQuery")
         said(3)
+        write("rests_on.+", "Each regime has the same number of plots.")
+        write("rests_on.+", "The C plots looked greener last season.")
         p.fill("#queryInput", "C yields at least 0.3 t/ha more than A.")
         p.click("#submitQuery")
-        said(4)
+        said(5)                                              # it says it is checking, the data is looked up, and it goes on with the marks
+        w.shot("architect_checked")
+        p.click("#streamOutput .ar-choice")                  # Keep it
+        said(6)
         w.shot("architect_ready")
         write("also_check.+", "Rainfall differed between the C and A plots.")
         write("fixed.comparison", "regime C against regime A, within soil type")

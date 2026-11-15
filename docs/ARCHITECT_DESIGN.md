@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.10 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297)
+# The Architect and memory from saved analyses — design v0.11 (2026-11-15; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, and checks what the brief rests on, 0298)
 
 Release 2.8 does three things.
 
@@ -106,6 +106,8 @@ Proposed:
 A lookup checks an anchor. It may count, list or total what is there: which columns, which period, how many
 sessions, where the gaps are, hours a week. It may not compare, model or test. Anything more goes into the brief for
 the Analyst.
+
+Built: §2.13.
 
 ### 2.5 Handing over
 
@@ -293,8 +295,8 @@ proposals. A brief that carries saved analyses or lines set aside shows them as 
 
 ### 2.12 The Architect talks — built (0297, 2026-11-15)
 
-The Architect fills the brief from the question and asks for what is missing. It makes no lookups yet (0298) and
-reads no saved analyses (0302).
+The Architect fills the brief from the question and asks for what is missing. Its lookups are §2.13; it reads no
+saved analyses yet (0303).
 
 **One exchange, one call.** `analyst/architect.py`. An exchange is the coach's message - none on the Architect's
 first turn - and its reply. The Architect reads (`prompt()`): the data's description, as the Analyst gets it; the
@@ -352,8 +354,74 @@ inside the folded row above the run.
 last one, and the Architect keeps what the new question leaves standing. Where the Analyst had stopped and asked,
 the coach's answer is the question: the Architect changes the part it settles.
 
-Not in this patch: lookups and marks (0298); proposals to tick, which arrive with the first thing the Architect
-brings in on its own (0298); saved analyses (0302); a way to stop a reply in flight.
+Not in this patch: lookups and marks (§2.13); proposals to tick, which arrive with the first thing the Architect
+brings in on its own (0299); saved analyses (0303); a way to stop a reply in flight.
+
+### 2.13 Lookups and marks — built (0298, 2026-11-15)
+
+The Architect checks what the brief rests on against the data, and marks each line by what was found. It still
+brings in nothing of its own: that is the next patch (§7).
+
+**A lookup** (`analyst/lookup.py`) is a count, a list or a total - of the main table, or of a file beside it. It
+takes conditions (a column is a value, or lies in a range) and a split: by a column, or over time by week, month or
+year. The vocabulary is closed (`clean()`): an average, a comparison or a test is not in it, and a request outside
+it is refused in words. Each lookup names the line of the brief it checks, word for word; one that names anything
+else is refused.
+
+**Where it runs.** The host writes one program for a round of lookups (`script()`) and runs it where the analysis'
+cells run: through the executor, hosted or local (`BambooAI._architect_look`). Names and values reach the program as
+data inside one JSON text, never as code. It only reads, and leaves nothing behind: no name in the analysis' kernel,
+no file. What the data cannot give is refused in words, with what is there: a column or a file that does not exist,
+a total of text, a split over time on a column without dates.
+
+**What it finds** is one line (`found()`): what was asked, then the numbers.
+
+    total of load by stage: first 140 · second 112 · third 126
+    values of day: 84 different, 2026-01-05 to 2026-03-29
+    values of tool: 2 different: old, new
+
+- A list says how many different values a column has, with the lowest and the highest, or the names.
+- A split over time shows a period with no rows as 0, so a gap is seen. A week is named by its Monday.
+- Text counts as dates only when written year first: 05/03/2026 could be either day, and stays text. A time is read
+  on the clock it was written in, whatever zone follows it. Up to a day is through that day.
+- A result that would not fit on a line of the brief - more than forty groups, more than 600 characters - is
+  refused, never cut: a list cut short would hide the group that matters.
+
+**In the conversation.** A reply may ask for lookups, six at most (`lookups`). The host answers them at once, and
+the round joins the conversation as a turn of its own: each lookup under its number, with the line it was made for,
+what it found, and whether that is a result (`Run.framing`, a turn whose `who` is `check`). One exchange is still
+one model call. The page then asks the Architect again with nothing said, and that reply gives the marks. After one
+message of the coach's the data is looked up in two rounds at most: the second is for what the first refused. The
+lookups are numbered through the whole brief, so a mark names one of any round. A brief now takes twenty replies at
+most; a round is not a reply.
+
+**The marks** (`brief.mark()`). A reply marks a line `holds`, `does not hold` or `cannot be checked` (`marks`).
+`holds` and `does not hold` stand only on a lookup made for that line that gave a result, and the fact beside the
+line is the host's own line, never the model's words. Given without such a lookup, the mark is passed over, and the
+line stays unchecked. `cannot be checked` is the Architect's own statement, kept with the reason it gives. Whether a
+fact settles a line is the model's judgement; the numbers are not. A reply that marks makes a version "after
+checking the data". The Analyst reads each line with what it is worth (§2.10), and does not rely on one that does
+not hold.
+
+**Its instructions.** When nothing is left to ask, the lines that show no mark are checked, in two replies. First
+the lookups, for each line the data can settle, with one sentence saying so. Then the marks: a line the data cannot
+settle is one that cannot be checked, with the reason in a few words. Where a line does not hold, the Architect says
+which and what was found, and asks whether the coach keeps what they think or changes it, with those two as
+choices. Then it says the brief is ready.
+
+**On the page.** The round is one row of the conversation, as the pane shows a tool's: CHECK data, how many things
+were looked up, the seconds; what each found is the row's title. The Brief tab shows the marks and the facts as
+§2.11 says, a fact in red where the line does not hold. A line the coach changes loses its mark, and is checked
+again at the next exchange.
+
+**The planted cases** (§4). A false premise of each kind - a stage that was not the largest, a period the data does
+not cover, a tool that changed - ends, before any analysis, with the line marked *does not hold* and the data's
+numbers beside it (`test_analyst.py`; the lookups run in a kernel, as in the local edition). The stack's walk plants
+one in an answer the coach types, beside a line that holds and one that cannot be checked.
+
+Not in this patch: what the Architect brings in on its own - other explanations to tick (0299), a fact from the
+data as a line of its own; a mark on what is fixed - a period the data does not cover is caught by the Analyst,
+which stops and asks (§2.10); saved analyses (0303); a way to stop a reply in flight.
 
 ## 3. Memory from saved analyses
 
@@ -481,13 +549,14 @@ repository and the dev box only.
 | 0295 | The brief, in the engine: stored with its run; the Analyst follows it, and stops and asks where it cannot; the report gains *Against the brief* and *Did not fit* (§2.10). | built |
 | 0296 | The brief, on the page: the switch, the Brief tab, changing lines in place, versions, Start analysis, the two report parts, the box's mark on the map. The coach fills the brief by hand (§2.11). | built |
 | 0297 | The Architect talks: it fills the brief from the question and asks for what is missing, one question a message, with choices to click (§2.12). | built |
-| 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. | |
-| 0299 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
-| 0300 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
-| 0301 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
-| 0302 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
-| 0303 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
-| 0304 | Release 2.8.0. | |
+| 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. The marks (§2.13). | built |
+| 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own. | |
+| 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
+| 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
+| 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
+| 0303 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
+| 0304 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
+| 0305 | Release 2.8.0. | |
 
 ## 8. Not in this release
 

@@ -1733,6 +1733,57 @@ try:
           _r_open.status_code == 403 and _r_open.get_json()["message"].startswith("You need $0.010 per query") and _r_say.status_code == 403 and _r_say.get_json()["error"] == "authorization_failed"
           and len(state["calls"]) == _n7 and _auth["counted"] == [True, False, True] and len(BAMBOO.notebook.runs) == _runs9 + 1 and str(_op6["chain_id"]) in BAMBOO.notebook.runs,
           (_r_open.status_code, _r_say.status_code, _auth["counted"]))
+    # ---- lookups (0298, §2.13): a reply asks, the host answers through the executor, and the next reply marks the lines by what was found
+    from analyst import lookup as _lk
+    _c6 = _op6["chain_id"]
+    _size, _hours = "The two arms are the same size.", "B has the more hours."
+    _aux6 = os.path.join(work, "more.csv")
+    pd.DataFrame({"arm": ["B", "B", "A"], "h": [1.5, 2, 4]}).to_csv(_aux6, index=False)
+    _aux_was, BAMBOO.auxiliary_datasets = BAMBOO.auxiliary_datasets, [_aux6]
+    _sizes = " · ".join(f"{k} {v}" for k, v in sorted(BAMBOO.df["arm"].value_counts().items()))
+    _frame_was, _kernel_was = BAMBOO.df.copy(), BAMBOO._kernel
+    state["architect"] = [json.dumps({"brief": {"rests_on": [_size, _hours]}, "say": "Checking this against the data.",
+                                      "lookups": [{"about": _size, "op": "count", "by": "arm"}, {"about": _hours, "op": "total", "column": "h", "by": "arm", "data": "datasets/u1/more.csv"},
+                                                  {"about": _size, "op": "total", "column": "nothing"}, {"about": _size, "op": "median", "column": "x"}]})]
+    _n12 = len(state["calls"])
+    while not q.empty(): q.get()
+    _st12, _ln12 = _say({"thread_id": "1077", "chain_id": _c6})
+    _run6 = BAMBOO.notebook.runs[str(_c6)]
+    _check12 = _run6.framing["turns"][-1]
+    check("/architect/say, a reply that asks for lookups: the host answers them in one script through the executor, over the frame loaded now and a file beside it named by its name alone, and the round is the "
+          "conversation's last turn - what each lookup found on one line, a lookup the data refuses and a request that is no lookup in words. One model call; the frame and the analysis' kernel are as they were",
+          _st12 == 200 and _ln12[-1] == {"architect": {"framing": _run6.framing}} and [t["who"] for t in _run6.framing["turns"]] == ["architect", "check"] and len(state["calls"]) == _n12 + 1
+          and _check12["found"] == [{"k": 1, "about": _size, "fact": f"rows by arm: {_sizes}", "ran": True}, {"k": 2, "about": _hours, "fact": "total of h by arm, in more.csv: A 4 · B 3.5", "ran": True},
+                                    {"k": 3, "about": _size, "fact": "total of nothing: not looked up - there is no column nothing: the columns are " + ", ".join(BAMBOO.df.columns), "ran": False},
+                                    {"k": 4, "about": _size, "fact": "not looked up - a lookup is a count, a list or a total", "ran": False}]
+          and _sizes.startswith("A ") and " · B " in _sizes and BAMBOO.df.equals(_frame_was) and BAMBOO._kernel is _kernel_was and _run6.status == "framing", (_ln12[-1], _sizes))
+    state["architect"] = [json.dumps({"say": "One line does not hold: A has the more hours, 4 against 3.5. Do you keep what you think, or change it?", "choices": ["Keep it", "Change it"],
+                                      "marks": [{"line": _size, "mark": "holds", "lookup": 1}, {"line": _hours, "mark": "does not hold", "lookup": 2}]})]
+    _st13, _ln13 = _say({"thread_id": "1077", "chain_id": _c6})
+    _user13 = state["architect_seen"][-1][3]
+    _file13 = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][str(_c6)]
+    check("/architect/say, with nothing said after a round: the Architect reads what the lookups found, and the marks it gives are a version made from a check against the data - each line with the host's own "
+          "fact beside it - kept on the record; the brief is still one being framed",
+          _st13 == 200 and _user13.endswith(f"Architect: Checking this against the data.\nLookups:\n1. about \"{_size}\" - rows by arm: {_sizes}\n2. about \"{_hours}\" - total of h by arm, in more.csv: A 4 · B 3.5\n"
+                                            f"3. about \"{_size}\" - total of nothing: not looked up - there is no column nothing: the columns are " + ", ".join(BAMBOO.df.columns) + "\n"
+                                            f"4. about \"{_size}\" - not looked up - a lookup is a count, a list or a total\n\nReply with the JSON object.")
+          and (_run6.framing["versions"][-1]["by"], _run6.framing["versions"][-1]["why"], _run6.framing["versions"][-1]["changed"]) == ("architect", "check", ["rests_on.0", "rests_on.1"])
+          and _run6.framing["versions"][-1]["brief"]["rests_on"] == [{"text": _size, "source": "person", "mark": "holds", "note": f"rows by arm: {_sizes}"},
+                                                                    {"text": _hours, "source": "person", "mark": "does not hold", "note": "total of h by arm, in more.csv: A 4 · B 3.5"}]
+          and [t["who"] for t in _run6.framing["turns"]] == ["architect", "check", "architect"] and _run6.framing["turns"][-1]["choices"] == ["Keep it", "Change it"]
+          and _file13["framing"] == _run6.framing and _file13["status"] == "framing", (_user13[-500:], _run6.framing["versions"][-1]))
+    _exec_was = BAMBOO.executor.execute
+    _one = [{"op": "count"}, {"op": "list", "column": "arm"}]
+    try:
+        BAMBOO.executor.execute = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("the executor is away"))
+        _down = BAMBOO._architect_look(_one)
+        BAMBOO.executor.execute = lambda *a, **k: (None, "a line of noise", "Traceback: it failed", [], [])
+        _failed13 = BAMBOO._architect_look(_one)
+    finally:
+        BAMBOO.executor.execute = _exec_was
+    check("the host's lookups never fail the exchange: an executor that cannot be reached, or a script that did not run, refuses each lookup in words",
+          _down == _failed13 == [{"refused": "the data could not be reached"}] * 2 and BAMBOO._architect_look(_one)[0] == {"value": len(BAMBOO.df)}, (_down, _failed13))
+    BAMBOO.auxiliary_datasets = _aux_was
     # another thread: the instance follows the conversation there
     state["architect"] = ['{"say": "What will you do differently depending on the answer?"}']
     _st10, _ln10 = _say({"thread_id": _op3["thread_id"], "chain_id": _op3["chain_id"]})
@@ -1741,7 +1792,7 @@ try:
           "no analysis has no EARLIER part; a reply that writes nothing makes no version",
           _st10 == 200 and BAMBOO.notebook.thread_id == str(_op3["thread_id"]) and str(BAMBOO.log_and_call_manager.thread_id) == str(_op3["thread_id"]) and BAMBOO._kernel is None
           and "EARLIER" not in _user10 and "QUESTION:\nSomething else, elsewhere\n\nBRIEF (version 1):" in _user10 and len(_ln10[-1]["architect"]["framing"]["versions"]) == 1
-          and [t["who"] for t in _ln10[-1]["architect"]["framing"]["turns"]] == ["architect"] and BAMBOO._framed == {int(_c2), int(_op3["chain_id"])}, (_st10, BAMBOO.notebook.thread_id, _user10[:200], BAMBOO._framed))
+          and [t["who"] for t in _ln10[-1]["architect"]["framing"]["turns"]] == ["architect"] and BAMBOO._framed == {int(_c2), int(_c6), int(_op3["chain_id"])}, (_st10, BAMBOO.notebook.thread_id, _user10[:200], BAMBOO._framed))
     # the analysis of a brief the Architect talked in: one chain on the log, charged once; a brief never run is charged when the instance goes
     import time as _time
     _opened, _before = _frun2.created, _time.time()
@@ -1754,9 +1805,10 @@ try:
     check("the analysis of a brief the Architect talked in: the same chain - on the log the Architect's five calls, then the analyst's own under its seat, so its first turn is its seat's first call; the chain is "
           "charged once, when the analysis ends, and is no longer waiting to be; the run's clock starts with the analysis, not with the brief",
           _ran2.status == "answered" and _ran2.brief["decision"] == "Keep B" and _ran2.brief["version"] == 3 and _log11[:5] == ["Architect"] * 5 and "Architect" not in _log11[5:] and _log11[5] == "Investigator"
-          and _charged == [int(_c2)] and BAMBOO._framed == {int(_op3["chain_id"])} and _ran2.created >= _before > _opened and len(_ran2.framing["turns"]) == 3, (_ran2.status, _log11, _charged, BAMBOO._framed))
+          and _charged == [int(_c2)] and BAMBOO._framed == {int(_c6), int(_op3["chain_id"])} and _ran2.created >= _before > _opened and len(_ran2.framing["turns"]) == 3, (_ran2.status, _log11, _charged, BAMBOO._framed))
     BAMBOO.cleanup()
-    check("a brief the Architect talked in and no analysis followed: its calls are charged when the instance is torn down, once", _charged == [int(_c2), int(_op3["chain_id"])] and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
+    check("a brief the Architect talked in and no analysis followed: its calls are charged when the instance is torn down, once",
+          _charged[0] == int(_c2) and sorted(_charged[1:]) == sorted([int(_c6), int(_op3["chain_id"])]) and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
     BAMBOO.log_and_call_manager.charge_for_completed_query = _keep_charge
     state["script"], state["i"] = _keep_script, _keep_i
     sys.modules["app"] = _app_was

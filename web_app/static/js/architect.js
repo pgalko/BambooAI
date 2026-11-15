@@ -1,11 +1,12 @@
-// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11, §2.12; 2026-11-15). A
+// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11-§2.13; 2026-11-15). A
 // question typed with the switch on is framed before it is analysed: the server opens a framing run on the thread's
 // record (POST /architect/open) and the page shows it as a chain of its own, the conversation in the left pane and
 // its brief on a Brief tab. The Architect fills the brief from the question and asks for what is missing, one
 // exchange a call (POST /architect/say, a stream); while such a chain is on screen the composer is the conversation's
-// input. The coach also changes the brief where it stands; every change kept is one more version, stored by the
-// server (POST /architect/brief). Start analysis continues the same chain (/query with run_id), so the question is
-// one box on the thread map.
+// input. Where a reply had the data looked up, the round is a row of the conversation and the Architect goes on at
+// once, with the marks. The coach also changes the brief where it stands; every change kept is one more version,
+// stored by the server (POST /architect/brief). Start analysis continues the same chain (/query with run_id), so the
+// question is one box on the thread map.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
@@ -26,9 +27,9 @@
         standing: 'Chance, measurement error, how the cases were chosen',
         would: 'You would change your mind if:',
         why: { question: 'from your question', last: 'from the last brief', person: 'changed by you',
-               architect: { question: 'the Architect, from your question', answer: 'the Architect, from your answer' } },
+               architect: { question: 'the Architect, from your question', answer: 'the Architect, from your answer', check: 'the Architect, after checking the data' } },
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
-        noReply: 'The Architect did not reply',
+        noReply: 'The Architect did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
@@ -221,13 +222,22 @@
             const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
             return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + choices + '</div>';
         },
-        // the conversation: the question, then what was said. o: {live: the last message's choices can be clicked,
-        // sent: a message on its way, waiting: the Architect is replying}
+        // a round of lookups, as the pane shows a tool's row: how many gave a result, how many did not, the seconds;
+        // what each found is the row's title, a line to a lookup
+        checked(turn) {
+            const found = turn.found || [], ran = found.filter(f => f.ran).length;
+            return '<div class="sp-row tool read" title="' + esc(found.map(f => f.fact).join('\n')) + '"><span>✓</span><span class="in">' + WORDS.check + '</span>' +
+                '<span class="out">' + WORDS.lookedUp(ran) + (ran < found.length ? ' · ' + WORDS.notLookedUp(found.length - ran) : '') + '</span>' +
+                '<span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span></div>';
+        },
+        // the conversation: the question, then what was said and what was looked up. o: {live: the last message's
+        // choices can be clicked, sent: a message on its way, waiting: the Architect is replying}
         talk(entry, o) {
             o = o || {};
             const turns = turnsOf(entry.framing);
             return build.you(entry.queryText) +
-                turns.map((t, i) => t.who === 'architect' ? build.said(t, entry.chain_id, o.live && !o.waiting && i === turns.length - 1) : build.you(t.text)).join('') +
+                turns.map((t, i) => t.who === 'check' ? build.checked(t)
+                    : t.who === 'architect' ? build.said(t, entry.chain_id, o.live && !o.waiting && i === turns.length - 1) : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>' : '');
         },
@@ -348,8 +358,9 @@
         });
         return out;
     }
-    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. Resolves to
-    // whether a reply was kept; when none was, the brief stands as it did and the reason is said.
+    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. Where the
+    // reply had the data looked up, the Architect goes on at once: one more exchange, with nothing said. Resolves to
+    // whether the last reply was kept; when one was not, the brief stands as it did and the reason is said.
     function exchange(entry, text) {
         if (busy || !entry || entry.status !== 'framing') return Promise.resolve(false);
         busy = true;
@@ -366,6 +377,8 @@
                 return false;
             }).catch(() => { say(WORDS.noReply + ': ' + WORDS.unreachable + '.'); return false; }).then(kept => {
                 busy = false; talking = null;
+                const turns = turnsOf(entry.framing);
+                if (kept && turns.length && turns[turns.length - 1].who === 'check') return exchange(entry, '');
                 draw();
                 const input = byId('queryInput');
                 if (!kept && text && inView() && input && !input.value) input.value = text;      // what was typed is not lost

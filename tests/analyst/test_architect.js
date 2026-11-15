@@ -132,10 +132,11 @@ check('the brief of a run that has started is read, not changed, at its last ver
   ran.getAttribute('data-state') === 'run' && ran.querySelector('.ar-ver .step b').textContent === 'v3' && ran.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step'
   && !ran.querySelector('.ar-foot') && lineOf(ran, 'fixed.period').querySelector('.tx').textContent === 'left to the Analyst');
 const whyOf = v => el(b.brief({ versions: [F1.versions[0], v] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent;
-check('the first version of a follow-up says where it came from; a version of the Architect\'s says what it was made from - the question, or an answer',
+check('the first version of a follow-up says where it came from; a version of the Architect\'s says what it was made from - the question, an answer, or a check against the data',
   el(b.brief({ versions: [{ n: 1, by: 'person', changed: ['from the last brief'], brief: FULL }] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent === 'from the last brief'
   && whyOf({ n: 2, by: 'architect', why: 'question', changed: [], brief: FULL }) === 'the Architect, from your question'
-  && whyOf({ n: 2, by: 'architect', why: 'answer', changed: [], brief: FULL }) === 'the Architect, from your answer' && whyOf({ n: 2, by: 'architect', changed: [], brief: FULL }) === 'the Architect, from your answer');
+  && whyOf({ n: 2, by: 'architect', why: 'answer', changed: [], brief: FULL }) === 'the Architect, from your answer' && whyOf({ n: 2, by: 'architect', changed: [], brief: FULL }) === 'the Architect, from your answer'
+  && whyOf({ n: 2, by: 'architect', why: 'check', changed: [], brief: FULL }) === 'the Architect, after checking the data');
 
 // ------------------------------------------------------------ the conversation
 const ASK = { who: 'architect', text: 'What will you do differently depending on the answer?', choices: ['Keep one arm', 'Keep <both>'], v: 1, cost: 0.004, call: 1 };
@@ -159,6 +160,22 @@ check('each message of the Architect\'s has the button to the prompt it received
 const mid = el(b.talk(TALK, { live: true, sent: 'B above A by <2>', waiting: true }));
 check('a message on its way is shown at once, as text, and under it the Architect is reading',
   same(msgs(mid).slice(-2), ['ar-msg you|YouB above A by <2>', 'ar-msg arch wait|Architectreading…']), mid.innerHTML);
+// a round of lookups
+const CHECK = { who: 'check', found: [{ k: 1, about: 'B looked better', fact: 'rows by arm: A 3 · B <3>', ran: true }, { k: 2, about: 'B looked better', fact: 'total of "y": not looked up - there is no column y', ran: false }], secs: 2.4 };
+const rowOf = turn => el(b.checked(turn)).querySelector('.sp-row');
+check('a round of lookups is one row of the conversation, as the pane shows a tool\'s: CHECK data, how many things were looked up and how many were not, the seconds; what each found is the row\'s title, a line to a lookup, as text',
+  rowOf(CHECK).className === 'sp-row tool read' && rowOf(CHECK).textContent === '✓CHECK data1 thing looked up · 1 not2 s'
+  && b.checked(CHECK).includes(' title="rows by arm: A 3 · B &lt;3&gt;\ntotal of &quot;y&quot;: not looked up - there is no column y"') && !rowOf(CHECK).querySelector('3')
+  && rowOf({ who: 'check', found: [CHECK.found[0], CHECK.found[0], CHECK.found[0]], secs: 0.2 }).textContent === '✓CHECK data3 things looked up1 s'
+  && rowOf({ who: 'check', found: [CHECK.found[1]], secs: 61.5 }).textContent === '✓CHECK data0 things looked up · 1 not62 s' && rowOf({ who: 'check' }).textContent === '✓CHECK data0 things looked up1 s', b.checked(CHECK));
+const KEEP = { who: 'architect', text: 'One line does not hold. Keep it, or change it?', choices: ['Keep it', 'Change it'], v: 2, cost: 0.01, call: 5 };
+const ROUND = { chain_id: 71, queryText: 'Is B above A?', framing: { versions: F1.versions, turns: [{ who: 'person', text: 'B well above A' }, { who: 'architect', text: 'Checking this against the data.', v: 1, call: 4 }, CHECK, KEEP] } };
+const round = b.talk(ROUND, { live: true }), between = el(b.talk({ chain_id: 71, queryText: 'q', framing: { turns: ROUND.framing.turns.slice(0, 3) } }, { live: true }));
+check('the row stands in the conversation where the round was made: after the message that asked for it, before the one that marks the lines - whose choices are the ones to click; with the round the last thing said, there is nothing to click',
+  round.indexOf('Checking this against the data.') < round.indexOf('class="sp-row tool read"') && round.indexOf('class="sp-row tool read"') < round.indexOf('One line does not hold.')
+  && same(el(round).querySelectorAll('.ar-choice').map(c => c.textContent), ['Keep it', 'Change it']) && el(round).querySelectorAll('.sp-row').length === 1 && el(round).querySelectorAll('.ar-msg').length === 4
+  && between.querySelectorAll('.ar-choice').length === 0 && between.querySelectorAll('.sp-row').length === 1
+  && el(b.fold(ROUND)).querySelectorAll('.sp-detail .sp-row').length === 1 && el(b.fold(ROUND)).querySelectorAll('.sp-detail .ar-choice').length === 0, round);
 const paneOf = (e, o) => el(b.pane(e, o));
 check('the left pane of a brief not yet run: the strip says Architect, which version stands and what its calls have cost - nothing while that is under a cent; the conversation under it',
   paneOf(TALK).querySelector('.sp-strip').textContent === 'Architectbrief v1$0.02' && paneOf({ chain_id: 1, queryText: 'q', framing: { versions: F3.versions, turns: [ASK] } }).querySelector('.sp-strip').textContent === 'Architectbrief v3'
@@ -485,6 +502,38 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   A.tell('again'); await tick();
   check('the stream\'s edges: cut short after an error of the model layer\'s, that error is said; the model\'s text as it arrives is never taken for a reply or a reason; an error on the way that the call got past says nothing - the closing message is what counts',
     cutShort === 'Provider error 402: the provider account is out of credit.' && onlyTraffic === 'The Architect did not reply.' && toasts.length === quietly && JSON.stringify(entry.framing) === stood, toasts.slice(-3));
+  // a reply that had the data looked up: the round is a row of the conversation, and the Architect goes on at once, with nothing said
+  $('queryInput').value = '';
+  held(); n = calls.length;
+  A.tell('B well above A'); await tick();
+  const asking = JSON.parse(JSON.stringify(entry.framing));
+  asking.turns = asking.turns.concat([{ who: 'person', text: 'B well above A' }, { who: 'architect', text: 'Checking this against the data.', v: asking.versions.length, cost: 0.01, call: 9 }, CHECK]);
+  reply([200, stream({ framing: asking })]); await tick();
+  const goesOn = { calls: calls.slice(n), pane: pane().slice(-3), rows: $('streamOutput').querySelectorAll('.sp-row').length, lock: locks[locks.length - 1], choices: $('streamOutput').querySelectorAll('.ar-choice').length };
+  const marking = JSON.parse(JSON.stringify(asking));
+  marking.versions.push({ n: marking.versions.length + 1, by: 'architect', why: 'check', changed: ['rests_on.0'],
+                          brief: Object.assign({}, latest().brief, { rests_on: [{ text: 'B looked better', source: 'person', mark: 'does not hold', note: 'rows by arm: A 3 · B 3' }] }) });
+  marking.turns.push({ who: 'architect', text: 'One line does not hold. Keep it, or change it?', choices: ['Keep it', 'Change it'], v: marking.versions.length, cost: 0.01, call: 10 });
+  reply([200, stream({ framing: marking })]); await tick();
+  const line0 = lineOf(brief(), 'rests_on.0');
+  check('a reply that had the data looked up: the round is a row under its message, and the Architect is asked again at once with nothing said - the pane says it is reading, the composer stays held, nothing to click',
+    same(goesOn.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'B well above A' }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && same(goesOn.pane, ['you|YouB well above A', 'arch|Architect⌘Checking this against the data.', 'arch wait|Architectreading…']) && goesOn.rows === 1 && goesOn.choices === 0
+    && same(goesOn.lock, ['lock', 'The Architect is replying']), goesOn);
+  check('the reply after the round: one more version, made after checking the data - the line with its mark and, in red, the fact beside it; the question whether to keep or change, with its choices; no further call, and the composer is the conversation\'s again',
+    calls.length === n + 2 && same(entry.framing, marking) && brief().querySelector('.why').textContent === 'the Architect, after checking the data' && line0.className === 'ar-line changed'
+    && line0.querySelector('.mk.no').textContent === '✕' && line0.querySelector('.fact.no').textContent === 'rows by arm: A 3 · B 3'
+    && same($('streamOutput').querySelectorAll('.ar-choice').map(c => c.textContent), ['Keep it', 'Change it']) && $('streamOutput').querySelectorAll('.sp-row').length === 1
+    && same(locks[locks.length - 1], ['unlock']) && $('queryInput').value === '' && $('queryInput').placeholder === 'Answer, or say what to change', [calls.slice(n), pane().slice(-2)]);
+  held(); n = calls.length;
+  A.tell('and the other line?'); await tick();
+  const again = JSON.parse(JSON.stringify(entry.framing));
+  again.turns = again.turns.concat([{ who: 'person', text: 'and the other line?' }, { who: 'architect', text: 'Checking.', v: again.versions.length, call: 11 }, CHECK]);
+  reply([200, stream({ framing: again })]); await tick();
+  reply([200, stream({ error: 'The Architect\'s reply could not be read (it holds no JSON object).' })]); await tick();
+  check('the Architect not going on after a round: the reason is said, and the conversation stands with the round as its last thing - the coach\'s message was taken, so it does not come back into the composer, which is theirs again; nothing is asked a third time',
+    calls.length === n + 2 && toasts[toasts.length - 1] === 'The Architect\'s reply could not be read (it holds no JSON object).' && same(entry.framing, again)
+    && pane()[pane().length - 1] === 'arch|Architect⌘Checking.' && $('streamOutput').querySelectorAll('.sp-row').length === 2 && $('queryInput').value === '' && same(locks[locks.length - 1], ['unlock']), [calls.slice(n), toasts.slice(-1), pane().slice(-2)]);
   // the Architect replying while the coach looks elsewhere
   $('queryInput').value = '';
   held();

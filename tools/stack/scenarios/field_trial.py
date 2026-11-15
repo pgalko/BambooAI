@@ -55,6 +55,16 @@ ARCHITECT_ASKS = (("decision", "What will you do differently depending on the an
                   ("thinks", "What do you think is going on, and what makes you think so?"),
                   ("expects", "What do you expect to see?"))
 ARCHITECT_READY = "The brief is ready: start the analysis, or change a line."
+# the check against the data (docs/ARCHITECT_DESIGN.md §2.13): what the scripted Architect looks up for a line the brief
+# rests on, by a word of the line - the planted cases - and what it says around the round
+ARCHITECT_CHECKING = "Checking this against the data."
+ARCHITECT_LOOKS = (("rain", {"op": "total", "column": "rainfall_mm", "by": "regime"}),          # "The C plots got the most rain."
+                   ("same number", {"op": "count", "by": "regime"}),                             # "Each regime has the same number of plots."
+                   ("seasons", {"op": "list", "column": "season"}),                              # "The trial ran for ten seasons."
+                   ("same soil", {"op": "list", "column": "soil"}))                              # "All plots are on the same soil."
+ARCHITECT_UNRECORDED = "nothing loaded records it"
+ARCHITECT_KEEP = ["Keep it", "Change it"]
+ARCHITECT_NOW = "What do you think is going on now, and what makes you think so?"
 
 
 def make_dataset(path, seed=20260909):
@@ -100,6 +110,20 @@ def _brief(user):
     return {"decision": one("Decision"), "expects": one("What they expect to see"), "would_change": one("What would change their mind"),
             "also": [ln[2:].strip() for ln in (also.group(1).splitlines() if also else []) if not ln.rstrip().endswith("[always]")],
             "fixed": dict(re.findall(r"^- (comparison|measure|period): (.*)$", block, re.M))}
+
+
+def _holds(line, fact, numbers):
+    """Whether a planted line holds against what its lookup found: the regime the line names has the largest number of
+    all; every group has the same number; the list has as many different values as the line says, in a word."""
+    words = {"one": 1, "same": 1, "three": 3, "six": 6, "ten": 10}
+    if "most" in line:
+        named = re.search(r"\b([ABC])\b", line)
+        return bool(named) and numbers.get(named.group(1)) == max(numbers.values())
+    if "same number" in line:
+        return len(set(numbers.values())) == 1
+    said = next((n for word, n in words.items() if re.search(rf"\b{word}\b", line)), None)
+    different = re.search(r": (\d+) different", fact)
+    return said == (int(different.group(1)) if different else 1)
 
 
 def _first_number(text, default):
@@ -299,14 +323,18 @@ class Scenario:
     def architect(self, user):
         """The Architect's reply, read off its prompt (analyst/architect.py). On its first turn it writes what the
         question states: the two regimes it compares, or - where the analyst had stopped and asked - the measure the
-        person's answer names. After that the person's last message goes, as they gave it, into the part that was
-        asked for ("... because ..." also gives what the view rests on; "The measure is ..." changes what is fixed;
-        "skip" leaves the part empty). Then it asks for the next part still empty and not yet asked for, with two
-        choices where the question names two courses, and says the brief is ready when nothing is left."""
+        person's answer names. After that the person's last message goes, as they gave it, into the part the Architect
+        had just asked for ("... because ..." also gives what the view rests on; "The measure is ..." changes what is
+        fixed; "skip" leaves the part empty). Then it asks for the next part still empty and not yet asked for, with
+        two choices where the question names two courses. When nothing is left to ask it checks the lines the brief
+        rests on that show no mark: a lookup for each line a word of which it knows (ARCHITECT_LOOKS), then - the
+        results before it - a mark for each, and where a line does not hold the question whether to keep the view or
+        change it. With every line marked it says the brief is ready."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(")
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
-        talk = re.findall(r"^(Architect|Person): (.*)$", find(r"^CONVERSATION:\n(.*?)\n\nReply with"), re.M)
+        said_so_far = find(r"^CONVERSATION:\n(.*?)\n\nReply with")
+        talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
         asked = [key for key, ask in ARCHITECT_ASKS if ("Architect", ask) in talk]
         pair = re.search(r"regime (\w)\b.*\bregime (\w)\b", question)
         writes = {}
@@ -317,20 +345,48 @@ class Scenario:
             if pair and empty("fixed.comparison"):
                 writes["fixed"] = {"comparison": f"regime {pair.group(1)} against regime {pair.group(2)}"}
         elif talk[-1][0] == "Person":
-            said = talk[-1][1].strip()
+            said, before = talk[-1][1].strip(), talk[-2][1] if len(talk) > 1 and talk[-2][0] == "Architect" else ""
+            part = next((key for key, ask in ARCHITECT_ASKS + (("thinks", ARCHITECT_NOW),) if ask == before), None)
             measure = re.match(r"(?i)the measure is (.+?)\.?$", said)
             if measure:
                 writes["fixed"] = {"measure": measure.group(1)}
-            elif asked and said.lower() != "skip":
-                if asked[-1] == "thinks" and " because " in said:
+            elif said == ARCHITECT_KEEP[1]:
+                return json.dumps({"say": ARCHITECT_NOW})
+            elif part and said.lower() != "skip":
+                if part == "thinks" and " because " in said:
                     view, ground = said.split(" because ", 1)
                     writes.update(thinks=view.strip() + ".", rests_on=[ground.strip()[:1].upper() + ground.strip()[1:]])
                 else:
-                    writes[asked[-1]] = said
+                    writes[part] = said
         nxt = next(((key, ask) for key, ask in ARCHITECT_ASKS if key not in asked and key not in writes and empty(key)), None)
-        reply = {"brief": writes, "say": nxt[1] if nxt else ARCHITECT_READY}
-        if nxt and nxt[0] == "decision" and pair:
-            reply["choices"] = [f"Switch to regime {pair.group(1)}", f"Keep regime {pair.group(2)}"]
+        if nxt:
+            reply = {"brief": writes, "say": nxt[1]}
+            if nxt[0] == "decision" and pair:
+                reply["choices"] = [f"Switch to regime {pair.group(1)}", f"Keep regime {pair.group(2)}"]
+            return json.dumps(reply)
+        # nothing left to ask: the lines the brief rests on that show no mark are checked, then the brief is ready
+        rests = re.search(r"^rests_on:\n((?:- .*\n)+)", user, re.M)
+        lines = re.findall(r"^- (.*?)( \[(?:holds|does not hold|cannot be checked)\b.*\])?$", rests.group(1) if rests else "", re.M)
+        open_lines = [text for text, mark in lines if not mark] + writes.get("rests_on", [])
+        found = {about: fact for about, fact in re.findall(r'^\d+\. about "(.*)" - (.*)$', said_so_far, re.M)}      # the last lookup made for a line
+        looked = bool(re.search(r'^\d+\. about ".*" - .*\Z', said_so_far, re.M))      # a round of lookups is the last thing in the conversation
+        asks = [{"about": text, **look} for text in open_lines for look in [next((l for word, l in ARCHITECT_LOOKS if word in text.lower()), None)] if look]
+        if asks and not looked:
+            return json.dumps({"brief": writes, "say": ARCHITECT_CHECKING, "lookups": asks})
+        numbers = {about: {k: float(v.replace(",", "")) for k, v in re.findall(r"(\w+) (\d[\d,]*(?:\.\d+)?)(?= ·|$)", fact.split(": ", 1)[-1])} for about, fact in found.items()}
+        marks, failed = [], []
+        for text in open_lines:
+            fact, k = found.get(text, ""), next((int(n) for n, about in reversed(re.findall(r'^(\d+)\. about "(.*)" - ', said_so_far, re.M)) if about == text), None)
+            if not fact or "not looked up" in fact:
+                marks.append({"line": text, "mark": "cannot be checked", "why": ARCHITECT_UNRECORDED})
+                continue
+            holds = _holds(text, fact, numbers[text])
+            marks.append({"line": text, "mark": "holds" if holds else "does not hold", "lookup": k})
+            if not holds:
+                failed.append(f"{text.rstrip('.')} ({fact.split(': ', 1)[-1]})")
+        reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY}
+        if failed:
+            reply.update(say=f"{'One line does' if len(failed) == 1 else 'Some lines do'} not hold: {'; '.join(failed)}. Keep what you think, or change it?", choices=ARCHITECT_KEEP)
         return json.dumps(reply)
 
     # ------------------------------------------------------------ the promoter (routines, docs/ROUTINES_DESIGN.md)
