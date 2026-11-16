@@ -21,8 +21,6 @@ let selectedText = '';
 let autoScroll = true;
 let initialScrollTop = 0;
 let previewElement = null;
-let answerTabInteractive = false;
-let answerTabExplore = false;      // the seedling's page: no PDF, no Simplified (2026-09-08)
 let answerTabSynthesis = false;
 let auxiliaryDatasetCount = 0;
 const MAX_AUXILIARY_DATASETS = Number(window.MAX_AUXILIARY_DATASETS) || 10;   // the app's one limit (web_app/app.py, derived from the loaders' kinds plus room for uploads), set on the page by the template (2026-10-16); the fallback is for a page served without it
@@ -319,6 +317,11 @@ function continueAppInitialization() {
     // The Architect (docs/ARCHITECT_DESIGN.md §2.8): the switch beside the mode control, the Brief tab's clicks
     if (typeof window.ArchitectUI !== 'undefined' && typeof window.ArchitectUI.initialize === 'function') {
         window.ArchitectUI.initialize();
+    }
+
+    // Next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on a finished analysis' closing card, the cards under it
+    if (typeof window.NextQuestionsUI !== 'undefined' && typeof window.NextQuestionsUI.initialize === 'function') {
+        window.NextQuestionsUI.initialize();
     }
 
     // Initialize Labels Manager

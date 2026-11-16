@@ -416,11 +416,12 @@ def walk_architect(page, st, mod, wa, edition, user):
     ran2 = brief_on_screen(page)
     done2 = thread_run(wa, user, tid, cid2)
     prompt2 = turn_prompt(page, 1)
-    check("the closing card's Brief link opens the brief the run was started with, to be read: v2, the measure as the Architect changed it; the record keeps that version on the run, with what the report said against it",
+    check("the closing card's Brief link opens the brief the run was started with, to be read: v2, the measure as the Architect changed it; the record keeps that version on the run, with what the report said against "
+          "it and the one result it said did not fit",
           ran2["state"] == "run" and ran2["v"] == "v2" and ran2["measure"] == "yield" and ran2["changed"] == ["fixed.measure"] and ran2["pens"] == 0 and not ran2["start"]
           and done2.get("status") == "answered" and done2.get("brief", {}).get("version") == 2 and done2["brief"]["fixed"]["measure"] == "yield"
           and done2.get("brief_outcome", {}).get("stated") is True and done2["brief_outcome"].get("expected") == want and done2["brief_outcome"].get("would_change") == seen
-          and len(done2["brief_outcome"].get("checks", [])) == 5 and done2["brief_outcome"].get("did_not_fit") == []
+          and len(done2["brief_outcome"].get("checks", [])) == 5 and len(done2["brief_outcome"].get("did_not_fit", [])) == 1 and done2["brief_outcome"]["did_not_fit"][0].startswith(mod.NEXT_MISFIT + ": ")
           and "BRIEF (agreed with the person before this run):" in prompt2 and "- measure: yield\n" in prompt2, (ran2, done2.get("brief_outcome"), prompt2[:300]))
 
     # the thread map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
@@ -451,6 +452,132 @@ def walk_architect(page, st, mod, wa, edition, user):
     check("a framed question is one query of the month's: counted when its brief opens - not at each exchange with the Architect, and not again when its analysis starts; a plain question counts when it runs "
           "(the self-hosted edition counts none)",
           steps == ([1, 0, 0, 1, 0, 1] if edition == "hosted" else [0] * 6), (counted, steps))
+    walk_next_questions(page, mod, wa, edition, user, tid, cid2)
+
+
+# ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, §2.15): the helpers of its section ----
+def sets_on_screen(page):
+    """The sets of next questions under the closing card, as the coach sees them: each set's level and head, each card's label, the lines it comes from (the label's title), its title, its
+    question, and the chain its mark opens once it was run."""
+    return page.evaluate("""() => [...document.querySelectorAll('#streamOutput .nq-set:not(.nq-wait)')].map(s => ({ at: s.dataset.set, level: s.dataset.level,
+        head: [...s.querySelectorAll('.nq-head .k, .nq-head .lv')].map(x => x.textContent), prompt: !!s.querySelector('.nq-head .sp-prompt'),
+        cards: [...s.querySelectorAll('.nq-card')].map(c => ({ from: c.querySelector('.from .l').textContent, lines: c.querySelector('.from').title, title: (c.querySelector('.tx b') || {}).textContent || '',
+            q: c.querySelector('.q').textContent, ran: c.classList.contains('ran') ? c.querySelector('.was').dataset.chain : '' })) }))""")
+
+
+def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
+    """A finished analysis carries a Next questions button on its closing card: it opens the five levels, and the one picked brings up to five questions as cards under the card, each from a line
+    the analysis left - the level's own lines first: at Follow emergence the misfit the report planted, at Test boundaries the lines the brief rests on that did not hold or could not be checked.
+    A question is changed and run with the Architect's switch on: a new analysis at once, under the one it follows, with no brief; its card is marked, and its box on the map says how it was made."""
+    rows0, month0 = len(usage_rows(wa, edition, user)), month_queries(page)
+    page.click("#prevResponse")
+    wait_text(page, "#chainPosition", "chain 2 of 3", 10000)
+    page.wait_for_selector('#streamOutput .sp-done [data-nq="open"]', timeout=10000)
+    card = page.evaluate("""() => ({ buttons: [...document.querySelectorAll('#streamOutput [data-nq="open"]')].map(b => b.textContent), inCard: !!document.querySelector('#streamOutput .sp-done .links + .nq-open .sp-next'),
+        plant: !!document.getElementById('suggestQuestions'), list: !!document.getElementById('nextLevels'), tab: document.querySelector('#tabContainer .tab.active').textContent })""")
+    page.click('#streamOutput [data-nq="open"]')
+    page.wait_for_selector("#nextLevels .it", state="visible", timeout=5000)
+    levels = page.evaluate("() => [...document.querySelectorAll('#nextLevels .it')].map(i => [i.dataset.level, i.querySelector('b').textContent, i.querySelector('span').textContent])")
+    check("the plant has left the composer: a finished analysis carries one Next questions button, on its closing card under the links; it opens the five levels, each a name and one plain line",
+          card["buttons"] == ["Next questions"] and card["inCard"] and not card["plant"] and not card["list"]
+          and levels == [["refine", "Refine focus", "the same question, narrower"], ["shift", "Shift angle", "another explanation of the result"], ["test", "Test boundaries", "what the result rests on"],
+                         ["blend", "Blend elements", "two findings together"], ["emergence", "Follow emergence", "what did not fit"]], (card, levels))
+
+    # a level picked: the questions, each from a line of the record - the level's own first
+    done = thread_run(wa, user, tid, cid2)
+    misfit = (done.get("brief_outcome", {}).get("did_not_fit") or [""])[0]
+    wide = re.search(r"t/ha on (\w+),", misfit)
+    page.click('#nextLevels .it[data-level="emergence"]')
+    page.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', timeout=20000)
+    s0 = sets_on_screen(page)
+    after0 = page.evaluate("""() => ({ list: getComputedStyle(document.getElementById('nextLevels')).display, tab: document.querySelector('#tabContainer .tab.active').textContent,
+        under: (document.querySelector('#streamOutput .sp-stream > .sp-done + .nq-set') || {}).dataset || {}, wait: document.querySelectorAll('#streamOutput .nq-wait').length })""")
+    first = s0[0]["cards"][0] if s0 and s0[0]["cards"] else {}
+    check("Follow emergence: five questions as cards under the closing card, the answer's side of the page as it was. The first comes from the misfit the report planted - the gap by soil, which the "
+          "coach's frame does not explain: its card says From did not fit, the report's own line behind the label, and asks about the soil where the gap is widest; the others come from the other lines "
+          "of the brief and the report, each saying which",
+          len(s0) == 1 and s0[0]["level"] == "emergence" and s0[0]["head"] == ["Next questions", "Follow emergence"] and s0[0]["prompt"] and len(s0[0]["cards"]) == 5
+          and misfit.startswith(mod.NEXT_MISFIT) and wide is not None and first.get("from") == "From did not fit" and first.get("lines") == misfit
+          and first.get("q") == f"Is regime C above regime A on {wide.group(1)} alone, on plot means of yield?" and first.get("title") == f"The {wide.group(1)} plots."
+          and [c["from"] for c in s0[0]["cards"][1:]] == ["From what was compared", "From the measure", "From also checked", "From also checked"]
+          and all(c["lines"] and not c["ran"] for c in s0[0]["cards"]) and after0 == {"list": "none", "tab": card["tab"], "under": {"set": "0", "level": "emergence"}, "wait": 0}, (s0, misfit, after0))
+    page.click('#streamOutput [data-nq="open"]')
+    page.click('#nextLevels .it[data-level="test"]')
+    page.wait_for_selector('#streamOutput .nq-set[data-set="1"] .nq-card', timeout=20000)
+    s1 = sets_on_screen(page)
+    rests = [c for c in (s1[1]["cards"] if len(s1) > 1 else []) if c["from"] == "From it rests on"]
+    check("Test boundaries, a second set under the first: its questions come first from what the brief rests on - the premise that did not hold, with the numbers the data gave, and the line that could "
+          "not be checked, with why - then from what would change the coach's mind; no question of the first set is asked again",
+          len(s1) == 2 and s1[0] == s0[0] and s1[1]["level"] == "test" and s1[1]["head"] == ["Next questions", "Test boundaries"] and len(s1[1]["cards"]) == 5
+          and [c["from"] for c in s1[1]["cards"][:3]] == ["From it rests on", "From it rests on", "From what would change your mind"]
+          and len(rests) == 2 and rests[0]["lines"].startswith("The C plots got the most rain. (does not hold: total of rainfall_mm by regime: ")
+          and rests[1]["lines"].endswith(f"(cannot be checked: {mod.ARCHITECT_UNRECORDED})") and rests[1]["q"].startswith("Does the answer change without this: ")
+          and not {c["q"] for c in s1[1]["cards"]} & {c["q"] for c in s0[0]["cards"]}, s1[1:])
+    page.click('#streamOutput .nq-set[data-set="1"] .nq-head .sp-prompt')
+    page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /SOURCES:/.test(u.textContent); }", timeout=15000)
+    read, instructions = page.inner_text("#userInstructions"), page.evaluate("() => document.getElementById('systemInstructions').textContent")
+    page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+    rec = thread_run(wa, user, tid, cid2).get("next_questions") or []
+    by_chain = {}
+    for r in usage_rows(wa, edition, user)[rows0:]:
+        by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
+    month1 = month_queries(page)
+    check("what the Architect read for the second set, through the set's button: its instructions for next questions, then the data, the analyses before, the question, the report whole, the brief as "
+          "the analyst received it, the questions proposed before, the level, and the lines numbered - what the brief rests on first, then the others",
+          instructions.lstrip().startswith("You propose the questions to analyse next.") and read.startswith("DATA:\n") and "\n\nEARLIER (the analyses this question follows, oldest first):\n[1] Q: " + mod.BRIEF_QUESTION in read and "\n\nREPORT:\n## Regime C is " in read and "\n## Did not fit\n" in read
+          and "\n\nBRIEF (agreed with the person before this run):\n" in read and "\n\nPROPOSED BEFORE:\n- " + first.get("q", "?") + "\n" in read
+          and "\n\nLEVEL: test - a question at this level tests what the result rests on, or where it stops holding\n\nSOURCES:\n1. Rests on: The C plots got the most rain. (does not hold: " in read
+          and "\nOther lines:\n" in read and read.index("\n3. Would change their mind: ") < read.index("\nOther lines:\n") < read.index(". Did not fit: " + misfit) and read.endswith("Reply with the JSON object."),
+          read[-1400:])
+    check("the two sets are kept with the analysis they follow, on its record: the level, each question with the lines it comes from, the chain its call was logged under. Each set was one call of the "
+          "Architect's under a chain of its own, which is no run of the thread - and a query of the month's (the self-hosted edition counts none)",
+          [s.get("level") for s in rec] == ["emergence", "test"] and [len(s.get("questions", [])) for s in rec] == [5, 5]
+          and rec[0]["questions"][0] == {"title": f"The {wide.group(1)} plots", "text": first.get("q"), "from": [{"kind": "misfit", "text": misfit}]}
+          and [q["from"][0]["kind"] for q in rec[1]["questions"][:3]] == ["anchor", "anchor", "would_change"] and not any("ran" in q for s in rec for q in s["questions"])
+          and sorted(by_chain) == sorted(str(s.get("chain")) for s in rec) and all(v == ["Architect"] for v in by_chain.values())
+          and not any(thread_run(wa, user, tid, s.get("chain")) for s in rec) and month1 - month0 == (2 if edition == "hosted" else 0), (rec[:1], by_chain, month0, month1))
+
+    # a question changed, then run - with the Architect's switch on: an analysis at once, as it stands
+    changed = f"Is regime C above regime A on {wide.group(1)} plots alone, season by season?"
+    page.click("#architectSwitch")
+    page.fill("#queryInput", "typed by the coach, not sent")
+    page.click('#streamOutput .nq-set[data-set="0"] .nq-card[data-k="0"] .pen')
+    page.fill("#streamOutput .nq-input", changed)
+    page.click('#streamOutput .nq-set[data-set="0"] .nq-card[data-k="0"] .go')
+    wait_text(page, "#chainPosition", "chain 4 of 4", 60000)
+    wait_run_end(page, 4)
+    page.wait_for_function("() => responses.length === 4 && !responses[3].status", timeout=60000)
+    ran = page.evaluate("""() => ({ first: (document.querySelector('#streamOutput .sp-stream > *') || {}).className, row: (document.querySelector('#streamOutput .nq-from') || {}).textContent,
+        behind: (document.querySelector('#streamOutput .nq-from') || {}).title, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent), fold: !!document.querySelector('#streamOutput .ar-fold'),
+        on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), typed: document.getElementById('queryInput').value, button: document.querySelectorAll('#streamOutput .sp-done [data-nq="open"]').length })""")
+    cid4 = page.evaluate("() => currentData.chain_id")
+    fourth, followed = thread_run(wa, user, tid, cid4), thread_run(wa, user, tid, cid2)
+    month2 = month_queries(page)
+    check("a question changed and run: a new analysis at once, though the Architect's switch is on - no brief on the page, none on the run - under the analysis it follows, asking what the coach made of "
+          "the question. Its pane opens on the row that says it was a next question, at which level and from what; what the coach was typing in the composer is still there; the new analysis has a Next "
+          "questions button of its own. On the record the question is marked with the chain it started, and it is a query of the month's as any analysis is",
+          ran["first"] == "nq-from" and ran["row"] == "Next question·Follow emergence·From did not fit" and ran["behind"] == misfit and "Brief" not in ran["tabs"] and "Answer" in ran["tabs"] and not ran["fold"]
+          and ran["on"] == "true" and ran["typed"] == "typed by the coach, not sent" and ran["button"] == 1
+          and fourth.get("status") == "answered" and fourth.get("question") == changed and str(fourth.get("parent")) == str(cid2) and fourth.get("brief") == {} and fourth.get("framing") == {}
+          and [q.get("ran") for q in followed["next_questions"][0]["questions"]] == [str(cid4), None, None, None, None] and followed["next_questions"][0]["questions"][0]["text"] == first.get("q")
+          and not any("ran" in q for q in followed["next_questions"][1]["questions"]) and month2 - month1 == (1 if edition == "hosted" else 0), (ran, fourth.get("parent"), followed["next_questions"][0]["questions"][0], month2))
+    page.evaluate("showWorkflowMap()")
+    page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
+    boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--fork')])")
+    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    page.click("#prevResponse")
+    page.click("#prevResponse")
+    wait_text(page, "#chainPosition", "chain 2 of 4", 10000)
+    page.wait_for_selector("#streamOutput .nq-card.ran", timeout=10000)
+    back = sets_on_screen(page)
+    page.click("#streamOutput .nq-card.ran .was")
+    wait_text(page, "#chainPosition", "chain 4 of 4", 10000)
+    page.click("#architectSwitch")
+    check("the thread map gained one box - the five questions are none, the one that was run is one, under the analysis it follows - and it says next question; no box is a fork. Back on the analysis "
+          "the sets are as they were kept: the question as the coach changed it, without the title it came with, marked as run - and the mark opens the analysis it started",
+          boxes == [["Architect", False], ["Architect", False], ["", False], ["next question", False]] and len(back) == 2
+          and back[0]["cards"][0] == {"from": "From did not fit", "lines": misfit, "title": "", "q": changed, "ran": str(cid4)} and back[0]["cards"][1:] == s0[0]["cards"][1:] and back[1] == s1[1]
+          and page.evaluate("() => String(currentData.chain_id)") == str(cid4), (boxes, back[0]["cards"][:1]))
 
 
 def turn_prompt(page, turn):
@@ -461,6 +588,14 @@ def turn_prompt(page, turn):
     page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
     page.wait_for_timeout(200)
     return text
+
+
+def footer_time(record, note, words):
+    """The run dialog's footer against the routine's record: it says how long the last run took - the check, with no
+    run yet - and nothing where that was under a second."""
+    r = json.load(open(record))
+    took = (r["runs"][-1] if r["runs"] else r["versions"][-1]["run_zero"])["elapsed"]
+    return note.startswith(words) if took >= 1 else note == ""
 
 
 def main():
@@ -954,8 +1089,8 @@ def main():
             rd = page.evaluate("""() => ({ title: document.querySelector('#routineRunModal .ui-dlg-h .title').textContent, fit: (document.querySelector('#routineRunModal .rt-fit') || {}).textContent || null,
                 data: document.querySelector('#routineRunModal .rt-row[data-row="data"]').textContent, rows: [...document.querySelectorAll('#routineRunModal .rt-row')].map(r => r.dataset.row), regime: (document.querySelector('#routineRunModal [data-key="regime"]') || {}).value,
                 compare: [...document.querySelectorAll('#routineRunModal input[name="rt-compare"]')].map(i => [i.value, i.checked]), runOn: !document.querySelector('#routineRunModal [data-act="run"]').disabled, note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })""")
-            check("the run dialog (§16.1): the rows Data, File, Inputs - the data loaded now (field_trial.csv) the choice, nothing said about its fit since it fits, the regime input with its default B; no Compare row with run 0 the only run (one choice is no choice); the footer the time of the check; Run enabled",
-                  "Regime contrast" in rd["title"] and rd["fit"] is None and "The data loaded now · field_trial.csv" in rd["data"] and rd["rows"] == ["data", "file", "inputs"] and rd["regime"] == "B" and rd["compare"] == [] and rd["runOn"] and rd["note"].startswith("the check on the original data took "), rd)
+            check("the run dialog (§16.1): the rows Data, File, Inputs - the data loaded now (field_trial.csv) the choice, nothing said about its fit since it fits, the regime input with its default B; no Compare row with run 0 the only run (one choice is no choice); the footer the time of the check (nothing where it took under a second); Run enabled",
+                  "Regime contrast" in rd["title"] and rd["fit"] is None and "The data loaded now · field_trial.csv" in rd["data"] and rd["rows"] == ["data", "file", "inputs"] and rd["regime"] == "B" and rd["compare"] == [] and rd["runOn"] and footer_time(rdirs[0], rd["note"], "the check on the original data took "), rd)
             page.click("#routineRunModal [data-act='run']")
             page.wait_for_function("() => document.getElementById('routineRunModal').style.display === 'none' && /run 1/.test(document.getElementById('chainPosition').textContent)", timeout=30000)
             live = page.evaluate("() => ({ pos: document.getElementById('chainPosition').textContent, locked: document.getElementById('queryInput').disabled, pill: getComputedStyle(document.getElementById('saveButton')).display, arrows: [document.getElementById('prevResponse').disabled, document.getElementById('nextResponse').disabled] })")
@@ -1014,7 +1149,7 @@ def main():
             page.click("#routinesModal [data-act='run']")
             page.wait_for_selector("#routineRunModal .rt-row[data-row='compare']", timeout=30000)
             cmp_choices = page.evaluate("() => ({ choices: [...document.querySelectorAll('#routineRunModal input[name=\"rt-compare\"]')].map(i => [i.value, i.checked]), note: document.querySelector('#routineRunModal .ui-dlg-f .note').textContent })")
-            check("the run dialog after run 1 has the Compare row - the run before (on) and run 0 - and the footer the last run's time", cmp_choices["choices"] == [["previous", True], ["zero", False]] and cmp_choices["note"].startswith("the last run took "), cmp_choices)
+            check("the run dialog after run 1 has the Compare row - the run before (on) and run 0 - and the footer the last run's time (nothing where it took under a second)", cmp_choices["choices"] == [["previous", True], ["zero", False]] and footer_time(rdirs[0], cmp_choices["note"], "the last run took "), cmp_choices)
             page.fill("#routineRunModal [data-key='regime']", "C")
             page.click("#routineRunModal [data-act='run']")
             wait_position(page, "3 of 3", 180000)

@@ -252,8 +252,11 @@ boots_b = np.array([adj_diff(plot_means, a='A', b='C', rng=rng_b) for _ in range
 lo_b, hi_b = np.percentile(boots_b, [2.5, 97.5])
 rain = plot_means.groupby('regime')['rainfall_mm'].mean()
 raw = plot_means.groupby('regime')['yield_t_ha'].mean()
+by_soil = {s: g[g.regime == 'C']['yield_t_ha'].mean() - g[g.regime == 'A']['yield_t_ha'].mean() for s, g in plot_means.groupby('soil')}
+widest, narrowest = max(by_soil, key=by_soil.get), min(by_soil, key=by_soil.get)
 print(f"BRIEF_DIFF={est_b:.3f} BRIEF_LO={lo_b:.3f} BRIEF_HI={hi_b:.3f}")
 print(f"RAIN_C={rain['C']:.1f} RAIN_A={rain['A']:.1f} RAW_DIFF={raw['C'] - raw['A']:.3f}")
+print(f"GAP_WIDE={by_soil[widest]:.3f} SOIL_WIDE={widest} GAP_NARROW={by_soil[narrowest]:.3f} SOIL_NARROW={narrowest}")
 RESULT('yield, regime C vs A within soil type, plot means', est_b, lo_b, hi_b, 't/ha', 'C higher')"""
 
 CELL_BRIEF_COLUMNS = """# The brief fixes the measure: which columns does the data have for it?
@@ -282,11 +285,20 @@ SEARCH_DIGEST = (
 SEARCH_LINKS = [{"link": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
                 {"link": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
 
-IDEAS = """1. **Season by regime**: Does the B-A advantage hold in every season, or is it carried by one or two wet seasons?
-2. **Rainfall as a covariate**: Does adjusting for rainfall change the within-soil B-A estimate, and by how much?
-3. **Dose-response in loam**: Within loam alone, is the B effect larger than the pooled estimate suggests?
-4. **Plot-level consistency**: What share of plots under B beat the soil-matched A mean in at least five of six seasons?
-5. **C on sand**: Is regime C's small overall effect hiding a real advantage on sand plots?"""
+# next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Architect asks from a line of each kind, as the prompt names the
+# kinds (analyst/next_questions.py SAID) - a title, and the question around the line's own words
+NEXT_MISFIT = "The gap is not the same on every soil"        # the misfit the briefed report plants, from the gap by soil its cell printed
+NEXT_FROM = {"Did not fit": ("What did not fit", "What lies behind this: {t}?"),
+             "Rests on": ("What it rests on", "Does the answer change without this: {t}?"),
+             "Would change their mind": ("The other result", "How close did the result come to this: {t}?"),
+             "Also checked": ("Another explanation", "Does this hold in each season taken alone: {t}?"),
+             "Proposed, not tested": ("A proposal", "Is this so: {t}?"),
+             "Fixed, what was compared": ("The comparison", "What is the gap in each season, for {t}?"),
+             "Fixed, the measure": ("The measure", "Does the answer hold on each season's {t}?"),
+             "Fixed, the period": ("The period", "Does the answer hold in each half of {t}?"),
+             "Asked": ("The question", "Season by season: {t}?"),
+             "Found": ("The answer", "Does this hold in every season: {t}?"),
+             "Found earlier": ("An earlier answer", "Does this still hold: {t}?")}
 
 
 class Scenario:
@@ -297,8 +309,6 @@ class Scenario:
     def reply(self, system, user):
         if user.startswith("Rewrite the technical report"):
             return "", self.rewrite(user)
-        if "Propose five follow-up questions" in user:
-            return "", IDEAS
         if "infographic" in user[:400].lower() or "infographic" in system[:400].lower():
             return "", ""
         if system.startswith("You are the reviewer"):
@@ -316,6 +326,8 @@ class Scenario:
             return self.analyst(user)
         if system.startswith("You are the Architect"):
             return "", self.architect(user)
+        if system.startswith("You propose the questions to analyse next"):
+            return "", self.next_questions(user)
         if system.startswith("You are drawing the figures"):
             return "", self.figures(user)
         if system.startswith("You are the Reader"):
@@ -399,6 +411,31 @@ class Scenario:
         if failed:
             reply.update(say=f"{'One line does' if len(failed) == 1 else 'Some lines do'} not hold: {'; '.join(failed)}. Keep what you think, or change it?", choices=ARCHITECT_KEEP)
         return json.dumps(reply)
+
+    # ------------------------------------------------------------ next questions (docs/ARCHITECT_DESIGN.md §2.7)
+    def next_questions(self, user):
+        """The questions that could follow an analysis, read off the prompt (analyst/next_questions.py): one from each
+        line under SOURCES in the order given - the level's own lines come first there - as far as five go. A question
+        is the line's own words in the sentence its kind has (NEXT_FROM); the planted misfit gets the question it calls
+        for, on the soil where the gap is widest. A question already proposed for the analysis is not asked again. At
+        the level that joins two findings each question joins the answer with one other line."""
+        level = (re.search(r"^LEVEL: (\w+) - ", user, re.M) or [None, ""])[1]
+        listed = user.split("\nSOURCES:\n", 1)[-1].split("\n\nReply with", 1)[0]
+        lines = [(int(n), kind, text) for n, kind, text in re.findall(r"^(\d+)\. ([^:]+): (.*)$", listed, re.M)]
+        before = re.findall(r"^- (.*)$", (re.search(r"^PROPOSED BEFORE:\n((?:- .*\n)+)", user, re.M) or [None, ""])[1], re.M)
+        bare = lambda text: re.sub(r"\s*\[cell \d+\]\.?\s*$", "", text).rstrip(".?")
+        def question(kind, text):
+            wide = re.search(r"t/ha on (\w+),", text) if text.startswith(NEXT_MISFIT) else None
+            if wide:
+                return {"title": f"The {wide.group(1)} plots", "question": f"Is regime C above regime A on {wide.group(1)} alone, on plot means of yield?"}
+            title, sentence = NEXT_FROM[kind]
+            return {"title": title, "question": sentence.format(t=bare(text))}
+        if level == "blend":
+            answer = next(n for n, kind, _ in lines if kind == "Found")
+            return json.dumps({"questions": [{"title": "Two findings", "question": f"Does one explain the other: the answer, and this - {bare(text)}?", "from": [answer, n]}
+                                             for n, kind, text in lines if n != answer][:5]})
+        asked = [{**question(kind, text), "from": [n]} for n, kind, text in lines]
+        return json.dumps({"questions": [q for q in asked if q["question"] not in before][:5]})
 
     # ------------------------------------------------------------ the promoter (routines, docs/ROUTINES_DESIGN.md)
     def promoter(self, user, system=""):
@@ -527,6 +564,9 @@ class Scenario:
     def report_brief(self, user, q, b):
         d, lo, hi = (_grab(user, k) for k in ("BRIEF_DIFF", "BRIEF_LO", "BRIEF_HI"))
         rain_c, rain_a, raw = _grab(user, "RAIN_C"), _grab(user, "RAIN_A"), _grab(user, "RAW_DIFF")
+        soils = re.search(r"GAP_WIDE=(-?[\d.]+) SOIL_WIDE=(\w+) GAP_NARROW=(-?[\d.]+) SOIL_NARROW=(\w+)", user)
+        # a result the person's frame does not explain: the gap by soil, as the cell printed it
+        misfit = f"- {NEXT_MISFIT}: {float(soils.group(1)):.3f} t/ha on {soils.group(2)}, {float(soils.group(3)):.3f} on {soils.group(4)} [cell {{cell}}]" if soils else "- Nothing."
         nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
         cell = max(nos) if nos else 1
         if d is None:
@@ -548,7 +588,7 @@ class Scenario:
                 f"- chance: the interval {'excludes' if lo > 0 or hi < 0 else 'includes'} zero [cell {cell}]\n"
                 "- measurement error: cannot tell - the data does not say how yield was measured\n"
                 "- how the cases compared came to be chosen: the regimes were not assigned at random; soil type is held fixed, nothing else\n\n"
-                "## Did not fit\n\n- Nothing.\n\n"
+                "## Did not fit\n\n" + misfit.format(cell=cell) + "\n\n"
                 f"## How it was established\n\nPlot means first, then C minus A within each soil type, weighted by the plots compared; a 500-draw bootstrap over plots [cell {cell}].")
         return _report("The cell printed the comparison the brief fixes and the rainfall of both regimes; the report says how the result stands against the brief.",
                        _note(q, est=f"C-A {d:.3f} t/ha [{lo:.3f}, {hi:.3f}]", held="soil type (stratified), as the brief fixes", plan="report", names="df, plot_means, adj_diff, est_b"), body)

@@ -40,6 +40,11 @@ class FakeModels:
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             return state["architect"].pop(0) if state.get("architect") else '{"say": "The brief is ready: start the analysis, or change a line."}'
+        if messages[0]["content"].startswith("You propose the questions to analyse next"):
+            state.setdefault("next_seen", []).append((agent, kw, chain_id, messages[0]["content"], user))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["next"].pop(0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
@@ -590,6 +595,12 @@ check("retired (S10): /query reads no user_code or dataset_mappings and carries 
 _sig = _insp.signature(B.BambooAI.pd_agent_converse).parameters
 check("retired (S10): pd_agent_converse has no user_code or replay parameter and the question is never seeded with code",
       "user_code" not in _sig and "replay" not in _sig and "supplied this code to run first" not in _insp.getsource(B.BambooAI.pd_agent_converse), list(_sig))
+# the analyst's ideas path and the Explore tab are retired with next questions (2.8, docs/ARCHITECT_DESIGN.md §2.7): /query reads no level,
+# the instance and the session have no ideas run, and an answer is sent without the flag that made it an Explore page
+from bambooai.web_output_manager import WebOutputManager as _WOM
+check("retired (2.8): /query reads no branching_cv and sends no canned question, pd_agent_converse takes no ideas, neither the instance nor the session has an ideas run, and display_results takes no explore",
+      "branching_cv" not in _app_src and "User requested variations" not in _app_src and "ideas" not in _sig and not hasattr(B.BambooAI, "_ideas_run") and not hasattr(B.Session, "ideas")
+      and "explore" not in _insp.signature(_WOM.display_results).parameters, list(_sig))
 
 # follow-up on the same thread, standing on run1: the kernel is reused (d is still defined)
 state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("And again?")
@@ -782,20 +793,11 @@ check("the page route: a bad offset is a 400", dr.dataframe_page()[1] == 400 if 
 BAMBOO.pd_agent_converse(action="reset"); BAMBOO.cleanup()
 check("reset drops the kernel and the notebook handle", BAMBOO._kernel is None and BAMBOO.notebook is None)
 shutil.rmtree(work, ignore_errors=True)
-# ---- the seedling's answer carries the explore flag; a normal answer does not ----
+# ---- the app's smaller paths: what DATA says of auxiliary files, the pricing preflight, the output manager's events ----
 try:
     import json as _json, queue as _queue
     from bambooai.web_output_manager import WebOutputManager
     _om = WebOutputManager(); _om.output_queue = _queue.Queue()
-    _om.display_results(chain_id="c1", answer="1. **A**: q?", explore=True)
-    _events = []
-    while not _om.output_queue.empty(): _events.append(_json.loads(_om.output_queue.get()))
-    _ans = [e for e in _events if e.get('type') == 'answer']
-    _om.display_results(chain_id="c2", answer="## report")
-    _events2 = []
-    while not _om.output_queue.empty(): _events2.append(_json.loads(_om.output_queue.get()))
-    _ans2 = [e for e in _events2 if e.get('type') == 'answer']
-    check("explore: the seedling's answer event carries explore=True; a report's does not", _ans and _ans[0].get('explore') is True and _ans2 and 'explore' not in _ans2[0], (_ans[:1], _ans2[:1]))
     # auxiliary files in DATA (2026-10-07): described with their first rows; without a primary they are the data
     os.chdir(tempfile.mkdtemp())                    # an earlier check removed the working directory the constructor writes logs/ into
     _auxdir = tempfile.mkdtemp(); _laps = os.path.join(_auxdir, "laps.csv"); _ath = os.path.join(_auxdir, "athletes.csv")
@@ -1303,7 +1305,7 @@ try:
     check("generated datasets are not a right-pane tab: display_results sends no generated_datasets payload (the pane's pills carry the files, 2026-10-06)",
           not any(e.get('type') == 'generated_datasets' for e in _events3) and any(e.get('type') == 'answer' for e in _events3), [e.get('type') for e in _events3])
 except Exception as exc:                                     # noqa: BLE001
-    check("explore: the seedling's answer event carries explore=True; a report's does not", False, repr(exc))
+    check("the app's smaller paths: the checks ran", False, repr(exc))
 # ---- the infographic's YAML is mended before parsing; the infographic is a synthesis's only ----
 try:
     import importlib.util as _ilu, yaml as _yaml
@@ -1822,9 +1824,82 @@ try:
           "charged once, when the analysis ends, and is no longer waiting to be; the run's clock starts with the analysis, not with the brief",
           _ran2.status == "answered" and _ran2.brief["decision"] == "Keep B" and _ran2.brief["version"] == 3 and _log11[:5] == ["Architect"] * 5 and "Architect" not in _log11[5:] and _log11[5] == "Investigator"
           and _charged == [int(_c2)] and BAMBOO._framed == {int(_c6), int(_op3["chain_id"])} and _ran2.created >= _before > _opened and len(_ran2.framing["turns"]) == 3, (_ran2.status, _log11, _charged, BAMBOO._framed))
+    # ---- next questions (0300, §2.7, §2.15): a set for a finished analysis is one call of the Architect's, under a chain of its own
+    from analyst import next_questions as _nq
+    def _next(payload):
+        r = _wac.post("/architect/next", json=payload)
+        return r.status_code, [json.loads(ln) for ln in r.get_data(as_text=True).splitlines() if ln.strip()]
+    _thread_file = lambda: json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"]
+    state["next"] = [json.dumps({"questions": [{"title": "Chance", "question": "Does the gap hold on a second draw?", "from": [1]}, {"title": "Each half", "question": "Is B above A in each half?", "from": [2, 1]}]})]
+    state["next_seen"] = []
+    _lines20, _own20 = _nq.sources(BAMBOO.notebook, _ran2, "shift")
+    _p20 = _nq.prompt(BAMBOO.notebook, _ran2, "shift", _lines20, _own20, BAMBOO._data_description())
+    BAMBOO.kill_signal = True; BAMBOO._stop_event.set()                       # a run stopped earlier left the signal set
+    _n20, _chain20, _charged20, _runs20, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, list(_charged), len(BAMBOO.notebook.runs), []
+    _st20, _ln20 = _next({"thread_id": "1077", "chain_id": _c2, "level": "shift"})
+    _seat20, _kw20, _on20, _sys20, _user20 = state["next_seen"][-1]
+    _set20 = _ran2.next_questions[0] if _ran2.next_questions else {}
+    check("/architect/next: a stream that ends on the set and its place. One model call - the instructions for next questions and the prompt for the level, on the analyst's seat at a lowered effort, logged as "
+          "the Architect's under a chain of its own, which is no run of the thread - and that chain is charged at once; the query is counted. The level's own line comes first among the lines",
+          _st20 == 200 and _ln20[-1] == {"next": {"set": _set20, "at": 0}} and len(state["calls"]) == _n20 + 1 and _seat20 == "Investigator" and _kw20.get("label") == "Architect"
+          and _kw20.get("reasoning_effort") == ("low", "medium") and _sys20 == _nq.SYSTEM and _user20 == _p20 and _own20 == 1 and _lines20[0] == {"kind": "check", "text": "Chance: not examined."}
+          and "\n\nLEVEL: shift - a question at this level puts another explanation of the same result to the test\n\nSOURCES:\n1. Also checked: Chance: not examined.\nOther lines:\n2. " in _user20
+          and _on20 not in (int(_c2), _chain20) and str(_on20) not in BAMBOO.notebook.runs and len(BAMBOO.notebook.runs) == _runs20 and _logged(_on20) == ["Architect"] and _logged(_c2) == _log11
+          and _charged == _charged20 + [_on20] and _auth["counted"] == [True], (_st20, _ln20[-1], _seat20, _kw20, _on20, _charged[len(_charged20):], _auth["counted"], _user20[-500:]))
+    _cost20 = float((BAMBOO.log_and_call_manager.token_summary.get(_on20) or {}).get("total_cost") or 0)
+    check("the set is kept with the analysis it follows, on the record: its level, each question with its title and the lines it comes from as the record has them, what its one call cost - the cost "
+          "logged under its own chain, not the instance's - and the chain the call was logged under. The instance is where it was - its own chain, no stop signal left",
+          {k: v for k, v in _set20.items() if k not in ("at", "cost")} == {"level": "shift", "chain": _on20, "questions": [
+              {"title": "Chance", "text": "Does the gap hold on a second draw?", "from": [_lines20[0]]}, {"title": "Each half", "text": "Is B above A in each half?", "from": [_lines20[1], _lines20[0]]}]}
+          and _cost20 > 0 and _set20["cost"] == round(_cost20, 4) != round(BAMBOO._chain_cost(), 4) and _thread_file()[str(_c2)]["next_questions"] == [_set20] and BAMBOO.chain_id == _chain20 and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set(),
+          (_set20, BAMBOO.chain_id, _chain20))
+    state["next"] = [json.dumps({"questions": [{"question": "Does the answer hold with the first rows left out?", "from": [1, 2]}]})]
+    _st21, _ln21 = _next({"thread_id": "1077", "chain_id": str(_c2), "level": "blend"})
+    _on21, _user21 = state["next_seen"][-1][2], state["next_seen"][-1][4]
+    check("a second set for the same analysis: its place is the next, its call has a chain of its own, charged in its turn, and its prompt names the questions proposed before",
+          _st21 == 200 and _ln21[-1]["next"]["at"] == 1 and _ln21[-1]["next"]["set"] == _ran2.next_questions[1] and _ran2.next_questions[1]["level"] == "blend" and _ran2.next_questions[1]["chain"] == _on21
+          and _on21 != _on20 and _charged == _charged20 + [_on20, _on21] and "\n\nPROPOSED BEFORE:\n- Does the gap hold on a second draw?\n- Is B above A in each half?\n\nLEVEL: blend - " in _user21
+          and len(_thread_file()[str(_c2)]["next_questions"]) == 2, (_ln21[-1], _on21, _user21[-400:]))
+    state["next"] = ["no", "still no"]
+    _n22 = len(state["calls"])
+    _st22, _ln22 = _next({"thread_id": "1077", "chain_id": _c2, "level": "emergence"})
+    _on22 = state["next_seen"][-1][2]
+    _n23 = len(state["calls"])
+    _st23, _ln23 = _next({"thread_id": "1077", "chain_id": "999999", "level": "refine"})
+    _st24, _ln24 = _next({"thread_id": "1077", "chain_id": _c6, "level": "refine"})
+    _r25 = [_wac.post("/architect/next", json=p).status_code for p in ({"thread_id": "1077", "chain_id": _c2, "level": "deeper"}, {"thread_id": "1077", "chain_id": _c2}, {"thread_id": "1077", "level": "refine"},
+                                                                         {"chain_id": _c2, "level": "refine"}, {"thread_id": "1077", "chain_id": _c2, "level": 3})]
+    _auth["counted"], _auth["refuse"] = [], ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
+    _r26 = _wac.post("/architect/next", json={"thread_id": "1077", "chain_id": _c2, "level": "refine"})
+    _auth["refuse"] = None
+    check("/architect/next, no set made: a reply unreadable twice ends on the reason, its two calls logged under their chain and charged, and nothing is kept; a chain that is not on the record, or is a brief "
+          "not yet run, ends on that in words, with no call and no charge; a level that is not one of the five, and a request without its thread, chain or level, are refused outright; a refusal of the "
+          "account's is passed on, with no call",
+          _st22 == 200 and _ln22[-1] == {"next": {"error": "The Architect's reply could not be read (it holds no JSON object)."}} and _n23 == _n22 + 2 and _logged(_on22) == ["Architect"] * 2
+          and _charged == _charged20 + [_on20, _on21, _on22] and len(_ran2.next_questions) == 2
+          and _ln23[-1] == _ln24[-1] == {"next": {"error": "This analysis is no longer on record: nothing can follow from it."}} and _r25 == [400] * 5
+          and _r26.status_code == 403 and _r26.get_json()["message"].startswith("You need $0.010") and _auth["counted"] == [True] and len(state["calls"]) == _n23 and len(_charged) == len(_charged20) + 3,
+          (_ln22[-1], _ln23[-1], _ln24[-1], _r25, _r26.status_code, len(state["calls"]) - _n23))
+    # a candidate that is run: an analysis under the one it follows, with no brief; the candidate is marked on the record
+    state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# In each half\n\n## Answer\nB is above A in both halves.\n"])
+    BAMBOO.pd_agent_converse(question="Is B above A in each half?", thread_id="1077", chain_id=_c2, mode="deep", candidate=(0, 1))
+    while not q.empty(): q.get()
+    _cand = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    _marks27 = [[qn.get("ran") for qn in s["questions"]] for s in _ran2.next_questions]
+    state.update(i=0)
+    BAMBOO.pd_agent_converse(question="Again?", thread_id="1077", chain_id=_c2, mode="deep", candidate=(7, 0))
+    state.update(i=0)
+    BAMBOO.pd_agent_converse(question="On its own?", thread_id="1077", chain_id=None, mode="deep", candidate=(0, 0))
+    while not q.empty(): q.get()
+    check("a next question that is run: an analysis of its own under the one it follows, with no brief and no framing; on the record the question is marked with the chain it started, and the other is not. A "
+          "place that names no question marks nothing, nor does a run that follows no chain - each still runs",
+          _cand.parent == str(_c2) and _cand.status == "answered" and _cand.question == "Is B above A in each half?" and _cand.brief == {} and _cand.framing == {}
+          and _marks27 == [[None, _cand.id], [None]] and _thread_file()[str(_c2)]["next_questions"][0]["questions"][1]["ran"] == _cand.id
+          and [[qn.get("ran") for qn in s["questions"]] for s in _ran2.next_questions] == _marks27 and BAMBOO.notebook.runs[str(BAMBOO.chain_id)].status == "answered", (_cand.parent, _marks27, _cand.brief))
+    _charged28 = list(_charged)
     BAMBOO.cleanup()
     check("a brief the Architect talked in and no analysis followed: its calls are charged when the instance is torn down, once",
-          _charged[0] == int(_c2) and sorted(_charged[1:]) == sorted([int(_c6), int(_op3["chain_id"])]) and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
+          _charged28[0] == int(_c2) and sorted(_charged[len(_charged28):]) == sorted([int(_c6), int(_op3["chain_id"])]) and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
     BAMBOO.log_and_call_manager.charge_for_completed_query = _keep_charge
     state["script"], state["i"] = _keep_script, _keep_i
     sys.modules["app"] = _app_was

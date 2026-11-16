@@ -333,60 +333,6 @@
                                 <span>Architect</span>
                             </button>
                             
-                            <!-- Grow Ideas -->
-                            <button
-                                id="suggestQuestions"
-                                type="button"
-                                class="icon-button filter-icon suggest-questions disabled"
-                                title="Grow New Ideas"
-                                >
-                                <!-- Icon from Tabler Icons (tabler.io) -->
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                    <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                    <path d="M12 20l0 -10"></path>
-                                </svg>
-                            </button>
-
-                            <!-- Branching CV Icons Popup -->
-                            <div id="branchingSliderPopup" class="branching-slider-popup">
-                                <button class="branching-icon" data-value="5" title="Follow emergence - pursue interesting patterns that appeared unexpectedly in our investigation">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                        <path d="M12 20l0 -10"></path>
-                                    </svg>
-                                </button>
-                                <button class="branching-icon" data-value="4" title="Blend elements - combine two aspects from our current exploration in a new way">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                        <path d="M12 20l0 -10"></path>
-                                    </svg>
-                                </button>
-                                <button class="branching-icon" data-value="3" title="Test boundaries - explore what happens at the edges of our current assumptions">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                        <path d="M12 20l0 -10"></path>
-                                    </svg>
-                                </button>
-                                <button class="branching-icon" data-value="2" title="Shift angle - examine the same subject from a different perspective or framework">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                        <path d="M12 20l0 -10"></path>
-                                    </svg>
-                                </button>
-                                <button class="branching-icon" data-value="1" title="Refine focus - adjust scope, granularity, or specific parameters within the same inquiry">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M12 10a6 6 0 0 0 -6 -6h-3v2a6 6 0 0 0 6 6h3"></path>
-                                        <path d="M12 14a6 6 0 0 1 6 -6h3v1a6 6 0 0 1 -6 6h-3"></path>
-                                        <path d="M12 20l0 -10"></path>
-                                    </svg>
-                                </button>
-                            </div>
-
                         </div>
                     
                         <!-- Submit button -->
@@ -732,6 +678,7 @@
     <script src="{{ url_for('static', filename='js/codebook.js') }}"></script>
     <script src="{{ url_for('static', filename='js/code-map.js') }}"></script>
     <script src="{{ url_for('static', filename='js/architect.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/next-questions.js') }}"></script>
 
     <!-- Other modules - Load after core modules -->
     <script src="{{ url_for('static', filename='js/integrations/sweatstack.js') }}"></script>

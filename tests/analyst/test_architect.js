@@ -607,8 +607,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   // ---- the page's hooks, from the source ----
   const root = path.join(__dirname, '..', '..', 'web_app'), js = f => fs.readFileSync(path.join(root, 'static', 'js', f), 'utf8'), css = f => fs.readFileSync(path.join(root, 'static', 'css', f), 'utf8');
   const html = fs.readFileSync(path.join(root, 'templates', 'index.html'), 'utf8'), qp = js('query-processing.js'), wm = js('workflow-management.js'), cr = js('content-rendering.js');
-  check('index.html: the switch sits after the mode control, before the plant; architect.js is loaded after the modules it leans on; the app starts it',
-    html.indexOf('id="architectSwitch"') > html.indexOf('id="modeParams"') && html.indexOf('id="architectSwitch"') < html.indexOf('id="suggestQuestions"')
+  check('index.html: the switch sits after the mode control, in the composer\'s row of icons; architect.js is loaded after the modules it leans on; the app starts it',
+    html.indexOf('id="architectSwitch"') > html.indexOf('id="modeParams"') && html.indexOf('id="architectSwitch"') < html.indexOf('id="submitQuery"')
     && /<button id="architectSwitch" type="button" class="ar-switch" aria-pressed="false" title="Architect: write a brief before the analysis runs">/.test(html)
     && html.indexOf('js/architect.js') > html.indexOf('js/code-map.js') && html.indexOf('js/architect.js') > html.indexOf('js/routines.js') && js('core.js').includes('window.ArchitectUI.initialize();'));
   check('the send: only the composer\'s own send is framed (the button, Ctrl+Enter); with a brief not yet run on screen what is typed is said to the Architect and nothing else starts; a brief\'s analysis names its run and where it attached',
@@ -631,9 +631,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     graph.includes("var made = window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
     && graph.includes("if (resp && resp.chain_id && made !== 'not run') {"));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
-  check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and the answer\'s card in tabs.css; the plant is out of reach while a brief not yet run is on screen',
+  check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and the answer\'s card in tabs.css',
     shell.includes('.left-panel .icon-row .ar-switch.on {') && shell.includes('#workflowMapModal .wf-node-made {') && shell.includes('#workflowMapModal .wf-node--notrun {')
-    && shell.includes('body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer-events: none; }')
     && paneCss.includes('#streamOutput .ar-msg {') && paneCss.includes('#streamOutput .ar-msg.arch {') && paneCss.includes('#streamOutput .ar-msg.wait {') && paneCss.includes('#streamOutput .ar-choice {')
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')

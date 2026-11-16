@@ -55,12 +55,15 @@ id the usage rows carry; the route joins them (step 2). **The thread file does n
 saved as a favourite is deleted at the next sign-in (`web_app/cleanup.py`, the app's standing behaviour), which is
 why the product owner's dialog named 15 of his 334 analyses (2026-10-31). So since 0257 the host also writes the
 **usage ledger**, `storage/<user>/usage_ledger.jsonl`: one line per run as it ends (`NotebookStore.record`, from
-`pd_agent_converse`'s closing block and the ideas run) - the chain, the thread, and `run_facts(run)`: the question,
+`pd_agent_converse`'s closing block; since 2.8 also at each exchange with the Architect while a brief is written)
+- the chain, the thread, and `run_facts(run)`: the question,
 the title, the mode, the status and the replay's verdict, the cells and figures, when it started and how long it
 took wall to wall. A few hundred bytes a run, never touched by the cleanup; the route reads the thread file when
 it is there and the line when it is not. Analyses from before the ledger whose thread is gone show as *An analysis
 that was not saved*, mode *not recorded*, no outcome. A routine's run makes no model call and has no row; the
-Promoter's Save-as-routine call has its own billing chain. What the call was *for* (a cell, the report, the
+Promoter's Save-as-routine call has its own billing chain, and so has a set of next questions (2.8,
+`docs/ARCHITECT_DESIGN.md` §2.15): the Architect's one call, made after the analysis' own chain is settled. What the
+call was *for* (a cell, the report, the
 review, the replay) is not kept and not needed yet: the seat says most of it.
 
 ## 3. The route (step 2, built in 0256: `web_app/usage_routes.py`)
@@ -84,8 +87,8 @@ immediately before it. The answer:
   time, tokens per second (out over model time); a model's provider and list price per million from the
   configuration (`LLM_CONFIG.json`, the user's or the box's; nothing when it has no entry);
 - `analyses`: the ledger, one entry per chain of the period, newest first: when (UTC), the thread, the kind
-  (`analysis`, `ideas`, or - for a chain the thread store does not know - `routine` for the Promoter's Save-as-routine
-  call, `context` for the Coder's pass, `reading`, `memory` - the Knowledge Distiller's calls, a seat retired with 2.8 - or `other`), the question and the title, the mode, the
+  (`analysis`, `ideas` - a run of the ideas path, retired with 2.8 - or, for a chain the thread store does not know, `routine` for the Promoter's Save-as-routine
+  call, `next` for a set of next questions, `context` for the Coder's pass, `reading`, `memory` - the Knowledge Distiller's calls, a seat retired with 2.8 - or `other`), the question and the title, the mode, the
   cells and figures, the outcome (`answered`, `reproduced`, `differed`, `replay failed`, `failed at cell n`,
   `refused`, `stopped`, `asked`, `running`), the wall time (first turn to last), the calls, tokens, cache, time,
   cost, compute, the cost per seat, and `saved` - whether the chain's favourite file exists, since the page opens a

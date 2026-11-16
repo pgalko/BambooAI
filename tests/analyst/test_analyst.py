@@ -1131,25 +1131,6 @@ p2 = seen_s["prompts"][1]
 check("search view: a digest past the 12,000-character safety cap is cut from the middle - its head and its last line both in the prompt, the marker naming SHOW SEARCH 1 - the record keeps it whole, the count left is shown",
       "SOURCED CLAIMS:" in p2 and "the last line survives" in p2 and "omitted from the middle for length; SHOW SEARCH 1 for all" in p2 and "searches left in this run: 3" in p2 and len(srch[0].stdout) > 13000, p2[-400:])
 check("SHOW SEARCH 1 re-opens the whole digest", len(nb7.render_search(r7.id, 1)) > 13000 and "--- search 1: query 0 ---" in nb7.render_search(r7.id, 1))
-# ---- ideas: five next questions from one call, no cells, recorded as a chain ----
-IDEAS_REPLY = ("###THINKING###\nfive questions\n###NOTE###\n- Plan: REPORT\n###ACTION###\nREPORT\nThe thread has two pieces so far.\n\n1. **Split by port**: How many survivors boarded at each port?\n2. **First departure**: Does boarding at the first port change survival?\n"
-               "3. **Missing ports**: Did the two passengers without a port survive?\n4. **Mix inside survivors**: Is the port mix among survivors the table's mix?\n5. **A useful grouping?**: Does port separate outcomes more than chance?\n\nThese stay close to the count.")
-IDEAS_LIST = ("1. **Split by port**: How many survivors boarded at each port?\n2. **First departure**: Does boarding at the first port change survival?\n"
-              "3. **Missing ports**: Did the two passengers without a port survive?\n4. **Mix inside survivors**: Is the port mix among survivors the table's mix?\n5. **A useful grouping?**: Does port separate outcomes more than chance?")
-ideas_seen = {}
-def ideas_llm(system, user, **hints):
-    ideas_seen['user'] = user; return IDEAS_REPLY, {"cost": 0.004}
-k9 = PersistentKernel(df=df); nb9 = Notebook("t9")
-try:
-    base = Session(k9, nb9, thread_llm_factory(["###NOTE###\n" + NOTE5 + "\n###ACTION###\nREPORT\n## r\n\nOf 891 rows, 342 survived."]), data_description="File: titanic.csv").run("How many survived?", budget=Budget(turns=2, dollars=1.0))
-    sess9 = Session(k9, nb9, ideas_llm, data_description="File: titanic.csv")
-    r9 = sess9.ideas(4, parent=base.id, run_id="ideas1")
-    check("ideas: one model call with its own system prompt, over the thread's ledger and the data, at the asked level; no cells; the report is the five items and nothing else",
-          r9.status == "answered" and r9.report == IDEAS_LIST and not r9.cells() and [t.kind for t in r9.turns] == ["ideas"] and "variation level 4" in ideas_seen['user'] and "How many survived?" in ideas_seen['user'] and "File: titanic.csv" in ideas_seen['user'] and nb9.runs["ideas1"].parent == base.id, (r9.status, [t.kind for t in r9.turns]))
-    check("ideas: a later chain's ledger names the ideas chain with its conclusion", "[run 2] Q: User requested variations of the enquiry (level 4)" in nb9.render_ancestry(Session(k9, nb9, ideas_llm, data_description="d").nb.new_run("next", parent="ideas1").id))
-finally:
-    k9.cleanup()
-
 # ---- a cell_start event precedes every cell run (the executor chip shows Executing) ----
 events10 = []
 k10 = PersistentKernel(df=df); nb10 = Notebook("t10")
@@ -2413,6 +2394,157 @@ finally:
 check("a run under a brief with proposals: the analyst is given only what the person accepted - in its prompt, with what it would show, and on the run's own brief; the proposal left unticked is nowhere",
       _srun.status == "answered" and _srun.brief["also_check"] == [{"text": "The seasons differ.", "shows": "the same gap in each", "source": "architect", "accepted": True}]
       and "Also check:\n- The seasons differ: it would show the same gap in each\n- chance [always]" in _sseen[0] and all("The two arms differ in size" not in u for u in _sseen), (_srun.status, _srun.brief, _sseen[0][:600] if _sseen else None))
+
+# ---- next questions (0300, docs/ARCHITECT_DESIGN.md §2.7, §2.15): after a finished analysis, five questions at a level the person picks - each from
+# a line the analysis left on record, the level's own lines first; kept with the run they follow
+import time as _time_n
+from analyst import next_questions as nq
+_nn = Notebook("n")
+_n0 = _nn.new_run("What is in the table?"); _n0.status = "answered"; _n0.report = "# T\n\n## Answer\nThe table has two arms of six rows each."
+_nold = _nn.new_run("User requested variations of the enquiry (level 3)", parent=_n0.id); _nold.status = "answered"      # the retired ideas path's run, in a thread made before 2.8
+_nold.report = "1. **One**: a question?"; _nold.turns = [Turn(kind="ideas", text=_nold.report)]
+_nask = _nn.new_run("Is B above A, on protein?", parent=_nold.id); _nask.status = "asked"; _nask.turns = [Turn(kind="ask", text="No column records protein. Use y?")]
+_n1 = _nn.new_run("Is B above A?", parent=_nask.id); _n1.status = "answered"
+_nlast = {"question": _n1.question, "decision": "Keep B or A", "thinks": "B is better.",
+          "rests_on": [{"text": "Both arms have six rows.", "mark": "holds", "note": "rows by arm: A 6 · B 6"}, {"text": "B was run later.", "mark": "does not hold", "note": "values of day: 2 different"},
+                       {"text": "The scale was the same.", "mark": "cannot be checked", "note": "nothing loaded records it"}, "Nobody changed the feed."],
+          "expects": "B is 0.3 above A.", "would_change": "A gap under 0.1.",
+          "also_check": [{"text": "the season"}, {"text": "The two arms differ in size", "shows": "the gap narrows with size held fixed", "source": "architect", "accepted": True},
+                         {"text": "Left unticked", "source": "architect", "accepted": False}],
+          "fixed": {"measure": "y", "period": "the first half"}}
+_n1.framing = briefs.version({}, _nlast)
+_n1.brief = briefs.agreed(briefs.latest(_n1.framing))
+_n1.report = ("# B is above A\n\n## Answer\nB is 0.4 above A [cell 1]. The gap holds in both halves.\n\n## Against the brief\n- Expected: met - 0.4 [cell 1]\n- Would change their mind: not seen\n"
+              "- the season: the same gap in each [cell 2]\n- The two arms differ in size: cannot tell\n- chance: unlikely [cell 1]\n\n## Did not fit\n- The gap is twice as wide in the second half [cell 3]\n"
+              "- Two rows have no day\n\n## How it was established\nA difference of means.")
+_n1.brief_outcome = briefs.outcome(_n1.report)
+_nk = lambda lines: [l["kind"] for l in lines]
+_nrec = nq.record(_nn, _n1)
+_nmisfit = {"kind": "misfit", "text": "The gap is twice as wide in the second half [cell 3]"}
+_nopen = {"kind": "anchor", "text": "The scale was the same. (cannot be checked: nothing loaded records it)"}
+check("next_questions.record: the lines an analysis leaves, each with its kind - what its brief fixed, what was also checked, what the Architect proposed and the person left unticked, each line the brief rests "
+      "on that was not found to hold with how it stands, what would change the person's mind with the report's verdict, what did not fit, what was asked and found, and what the analyses before it found - the "
+      "newest first, an analysis that stopped on a question and a run of the retired ideas path not among them. A line that holds, and an explanation the person accepted, are not lines of their own; "
+      "what was found is the report's opening sentences, never a heading, whether or not an empty line follows the heading",
+      _nrec == [{"kind": "measure", "text": "y"}, {"kind": "period", "text": "the first half"}, {"kind": "check", "text": "the season: the same gap in each [cell 2]"},
+                {"kind": "check", "text": "The two arms differ in size: cannot tell"}, {"kind": "check", "text": "chance: unlikely [cell 1]"}, {"kind": "proposal", "text": "Left unticked"},
+                {"kind": "anchor", "text": "B was run later. (does not hold: values of day: 2 different)"}, _nopen, {"kind": "anchor", "text": "Nobody changed the feed. (not checked)"},
+                {"kind": "would_change", "text": "A gap under 0.1. (not seen)"}, _nmisfit, {"kind": "misfit", "text": "Two rows have no day"},
+                {"kind": "asked", "text": "Is B above A?"}, {"kind": "found", "text": "B is 0.4 above A [cell 1]. The gap holds in both halves."},
+                {"kind": "earlier", "text": "The table has two arms of six rows each."}], _nrec)
+_nbare = Notebook("b"); _nb0 = _nbare.new_run("  How many   rows?\n"); _nb0.status = "answered"; _nb0.report = "## Answer\nTwelve."
+_nmany = Notebook("m"); _nprev = None
+for _i in range(8):
+    _nprev = _nmany.new_run(f"q{_i}", parent=_nprev.id if _nprev else None); _nprev.status = "answered"; _nprev.report = f"## Answer\nFinding {_i}."
+_nprev.brief = {"would_change": "x " * 300}; _nprev.brief_outcome = {"checks": [f"c{_i}" for _i in range(9)], "did_not_fit": [f"m{_i}" for _i in range(9)]}
+_nmr = nq.record(_nmany, _nprev)
+check("next_questions.record: an analysis without a brief leaves what was asked and what was found, each on one line; a list of the record is read six lines deep and a line 400 characters long, so a long "
+      "thread or a long report does not fill the prompt - the six analyses before, the newest first",
+      nq.record(_nbare, _nb0) == [{"kind": "asked", "text": "How many rows?"}, {"kind": "found", "text": "Twelve."}]
+      and [l["text"] for l in _nmr if l["kind"] == "check"] == [f"c{_i}" for _i in range(6)] and [l["text"] for l in _nmr if l["kind"] == "misfit"] == [f"m{_i}" for _i in range(6)]
+      and [l["text"] for l in _nmr if l["kind"] == "earlier"] == [f"Finding {_i}." for _i in (6, 5, 4, 3, 2, 1)] and len(next(l["text"] for l in _nmr if l["kind"] == "would_change")) == 400, _nmr)
+_nsrc = {level: nq.sources(_nn, _n1, level) for level in nq.LEVELS}
+check("next_questions.sources: a level's own lines come first, as the record has them, and the others follow in the record's order; how many are the level's own is said. Refine focus reads what was fixed "
+      "and the question, shift angle what was also checked and what was proposed and not tested, test boundaries what the brief rests on and what would change the person's mind, blend elements the "
+      "findings of the thread, follow emergence what did not fit; without a brief only what the thread itself holds is a level's own",
+      list(nq.LEVELS) == ["refine", "shift", "test", "blend", "emergence"] == list(nq.OWN)
+      and {level: (_nk(lines[:own]), own) for level, (lines, own) in _nsrc.items()}
+          == {"refine": (["measure", "period", "asked"], 3), "shift": (["check", "check", "check", "proposal"], 4), "test": (["anchor", "anchor", "anchor", "would_change"], 4),
+              "blend": (["found", "earlier"], 2), "emergence": (["misfit", "misfit"], 2)}
+      and all(lines[own:] == [l for l in _nrec if l["kind"] not in nq.OWN[level]] and len(lines) == len(_nrec) for level, (lines, own) in _nsrc.items())
+      and _nsrc["emergence"][0][0] == _nmisfit and _nsrc["test"][0][1] == _nopen
+      and {level: nq.sources(_nbare, _nb0, level)[1] for level in nq.LEVELS} == {"refine": 1, "shift": 0, "test": 0, "blend": 1, "emergence": 0}
+      and all(kind in nq.SAID for kinds in nq.OWN.values() for kind in kinds) and set(_nk(_nrec)) <= set(nq.SAID), {level: (_nk(lines), own) for level, (lines, own) in _nsrc.items()})
+_n1.next_questions = [{"level": "refine", "questions": [{"title": "t", "text": f"Asked before {_i}?", "from": []} for _i in range(20)], "cost": 0.0, "at": 0.0},
+                      {"level": "shift", "questions": [{"title": "t", "text": f"Asked after {_i}?", "from": []} for _i in range(10)], "cost": 0.0, "at": 0.0}]
+_nlines, _nown = _nsrc["emergence"]
+_np = nq.prompt(_nn, _n1, "emergence", _nlines, _nown, data="`df`: 12 rows\narm: categorical\ny: numeric")
+_npb = nq.prompt(_nbare, _nb0, "shift", *nq.sources(_nbare, _nb0, "shift"))
+_npr = nq.prompt(_nbare, _nb0, "refine", *nq.sources(_nbare, _nb0, "refine"))
+check("next_questions.prompt: what the model reads for a set, what does not change from level to level first - the data, the analyses before, the question, the report whole, the brief as the analyst "
+      "received it - then the questions proposed for this analysis before, the newest twenty-five, the level with what a question at it does, and the lines numbered, the level's own first and the others "
+      "under a heading of their own. A run without a brief, without earlier analyses or earlier sets has none of those blocks; where no line or every line is the level's own there is no second heading",
+      _np.startswith("DATA:\n`df`: 12 rows\narm: categorical\ny: numeric\n\nEARLIER (the analyses this question follows, oldest first):\n[1] Q: What is in the table?\n")
+      and "\n\nQUESTION:\nIs B above A?\n\nREPORT:\n" + _n1.report + "\n\n" + briefs.render(_n1.brief) + "\n\nPROPOSED BEFORE:\n- Asked before 5?\n" in _np
+      and "- Asked before 4?" not in _np and "- Asked after 9?\n\nLEVEL: emergence - a question at this level follows what the analysis did not explain\n\nSOURCES:\n"
+          "1. Did not fit: The gap is twice as wide in the second half [cell 3]\n2. Did not fit: Two rows have no day\nOther lines:\n3. Fixed, the measure: y\n4. Fixed, the period: the first half\n"
+          "5. Also checked: the season: the same gap in each [cell 2]\n" in _np
+      and _np.endswith("14. Found: B is 0.4 above A [cell 1]. The gap holds in both halves.\n15. Found earlier: The table has two arms of six rows each.\n\nReply with the JSON object.")
+      and "Left unticked" not in briefs.render(_n1.brief) and "\n8. Proposed, not tested: Left unticked\n9. Rests on: B was run later. (does not hold: values of day: 2 different)\n" in _np
+      and "\n12. Would change their mind: A gap under 0.1. (not seen)\n13. Asked: Is B above A?\n" in _np
+      and _npb == "QUESTION:\nHow many   rows?\n\nREPORT:\n## Answer\nTwelve.\n\nLEVEL: shift - a question at this level puts another explanation of the same result to the test\n\nSOURCES:\n1. Asked: How many rows?\n2. Found: Twelve.\n\nReply with the JSON object."
+      and "SOURCES:\n1. Asked: How many rows?\nOther lines:\n2. Found: Twelve.\n\n" in _npr and "Other lines:" not in nq.prompt(_nbare, _nb0, "refine", [{"kind": "asked", "text": "q"}], 1), (_np[-1500:], _npb))
+_nj = lambda questions: json.dumps({"questions": questions})
+_nq1 = nq.parse("Here:\n```json\n" + _nj([{"title": "  The  second half ", "question": " Is the gap wider\n in the second half? ", "from": [1]}, {"question": "From a bare number?", "from": 3},
+                                            {"question": "No line named?"}, {"question": "A line that is not there?", "from": [16]}, {"question": "Not a number?", "from": ["1", 1.0, True, 0, -1]},
+                                            {"title": "again", "question": "Is the gap wider in the second half?", "from": [2]}, {"title": "x", "from": [1]}, "only words",
+                                            {"question": "Two lines, one given twice?", "from": [2, 2, 15, 4]}]) + "\n```", 15, 2)
+def _nraises(reply, lines=15, own=2, pair=False):
+    try:
+        nq.parse(reply, lines, own, pair)
+    except arch.Unreadable as exc:
+        return str(exc)
+check("next_questions.parse: a question with its title, its text on one line and the numbers of the lines it comes from - given as a list or as one number, each a whole number of a line that is there, "
+      "named once, two at most. A question that names no such line is left out, as are one without a text and one given twice; a set holds five. A reply with no question that stands cannot be read, nor "
+      "one whose questions all come from other lines where the level has lines of its own; where the level has none, any line will do; a reply that holds no JSON object is unreadable as the Architect's is",
+      _nq1 == [{"title": "The second half", "text": "Is the gap wider in the second half?", "from": [1]}, {"title": "", "text": "From a bare number?", "from": [3]},
+               {"title": "", "text": "Two lines, one given twice?", "from": [2, 15]}]
+      and len(nq.parse(_nj([{"question": f"q{_i}", "from": [1]} for _i in range(7)]), 3, 1)) == 5 == nq.QUESTIONS
+      and [len(x) for q in nq.parse(_nj([{"title": "t" * 90, "question": "q" * 900, "from": [1]}]), 1, 1) for x in (q["title"], q["text"])] == [60, 600]
+      and _nraises(_nj([{"question": "q", "from": [9]}, {"question": "", "from": [1]}]), 3, 1) == nq.NO_LINE == _nraises('{"questions": {"question": "q", "from": [1]}}') == _nraises("{}") == _nraises('{"questions": 5}')
+      and _nraises(_nj([{"question": "q", "from": [3]}, {"question": "r", "from": [4, 5]}])) == nq.NOT_OWN and nq.parse(_nj([{"question": "q", "from": [3, 2]}]), 15, 2)[0]["from"] == [3, 2]
+      and nq.parse(_nj([{"question": "q", "from": [2]}]), 2, 0) == [{"title": "", "text": "q", "from": [2]}] and _nraises("no object here") == "it holds no JSON object", (_nq1, _nraises("{}")))
+check("next_questions.parse, where a question joins two lines: one that names a single line is left out, and a line named twice is one line",
+      nq.parse(_nj([{"question": "one line", "from": [1]}, {"question": "the same twice", "from": [2, 2]}, {"question": "two lines", "from": [1, 3]}]), 3, 2, pair=True) == [{"title": "", "text": "two lines", "from": [1, 3]}]
+      and _nraises(_nj([{"question": "one line", "from": [1]}]), 3, 2, pair=True) == nq.NO_LINE, None)
+_n1.next_questions = []
+_nfit = _nj([{"title": "The second half", "question": "Is the gap wider in the second half?", "from": [1]}, {"title": "The answer", "question": "Does the gap hold with the two rows left out?", "from": [14, 2]}])
+_nllm, _nseen = _arch_llm([_nfit], {"cost": 0.0123456})
+_nset = nq.propose(_nllm, _nn, _n1, "emergence", data="`df`: 12 rows")
+_ntest = nq.propose(_arch_llm([_nj([{"question": "Was the same scale used for both arms?", "from": [2]}])])[0], _nn, _n1, "test")
+check("next_questions.propose: one call - the instructions, the prompt for the level, the lowered effort - and the set as it is kept: its level, each question with the lines it comes from as the record "
+      "has them, what the call cost, when. On a thread with a planted misfit and a line that could not be checked, the level that reads each returns a question from it; the run itself is not touched",
+      len(_nseen) == 1 and _nseen[0][0] == nq.SYSTEM and _nseen[0][1] == nq.prompt(_nn, _n1, "emergence", _nlines, _nown, "`df`: 12 rows") and _nseen[0][2] == {"effort": arch.EFFORT}
+      and {k: v for k, v in _nset.items() if k != "at"} == {"level": "emergence", "cost": 0.0123, "questions": [
+          {"title": "The second half", "text": "Is the gap wider in the second half?", "from": [_nmisfit]},
+          {"title": "The answer", "text": "Does the gap hold with the two rows left out?", "from": [{"kind": "found", "text": "B is 0.4 above A [cell 1]. The gap holds in both halves."}, {"kind": "misfit", "text": "Two rows have no day"}]}]}
+      and abs(_nset["at"] - _time_n.time()) < 60 and _ntest["level"] == "test" and _ntest["questions"] == [{"title": "", "text": "Was the same scale used for both arms?", "from": [_nopen]}]
+      and _n1.next_questions == [], (_nset, _ntest))
+_nllm2, _nseen2 = _arch_llm([_nj([{"question": "From another line?", "from": [5]}]), _nfit])
+_nset2 = nq.propose(_nllm2, _nn, _n1, "emergence")
+_nllm3, _nseen3 = _arch_llm(["no", "still no"])
+_nllm4, _nseen4 = _arch_llm(["x"], {"cost": 0.002, "declined": "cyber"})
+def _nfails(llm, level="emergence"):
+    try:
+        nq.propose(llm, _nn, _n1, level)
+    except arch.Failed as exc:
+        return str(exc), exc.calls, round(exc.cost, 4)
+check("next_questions.propose, a reply that cannot be taken: where the level has lines of its own and no question comes from one, the reply is asked for once more, with what was wrong, and the second "
+      "reply's cost is counted in; a reply unreadable twice, or one the model declined, fails in words for the person, with the calls it made; a blend that joins no two lines fails the same way",
+      len(_nseen2) == 2 and _nseen2[1][1] == _nseen2[0][1] + "\n\n" + arch.AGAIN.format(problem=nq.NOT_OWN) and _nset2["cost"] == 0.008 and len(_nset2["questions"]) == 2
+      and _nfails(_nllm3) == (arch.UNREAD.format(problem="it holds no JSON object"), 2, 0.008) and len(_nseen3) == 2
+      and _nfails(_nllm4) == (arch.DECLINED.format(category="cyber"), 1, 0.002) and len(_nseen4) == 1
+      and _nfails(_arch_llm([_nj([{"question": "One finding only?", "from": [1]}])] * 2)[0], "blend") == (arch.UNREAD.format(problem=nq.NO_LINE), 2, 0.008), (_nfails(_arch_llm(["no", "no"])[0]), _nset2))
+_n1.next_questions = [_nset, _ntest]
+_nran = [nq.ran(_n1, at, 77) for at in ((0, 1), [1, 0], (2, 0), (0, 2), (-1, 0), (0, -1), (True, 0), ("0", 0), (0,), None, 0)]
+_nfile = Notebook.from_dict(json.loads(json.dumps(_nn.to_dict())))
+_nolder = Notebook.from_dict({"thread_id": "o", "runs": {"1": {"id": "1", "parent": None, "question": "q"}}})
+check("next_questions.ran: a question that was run is marked with the chain it started, by the place of its set and its own place in it; a place that is not there - past the end, before the start, not a "
+      "whole number, not a pair - marks nothing. The sets are kept with the run in the thread's file, and a run from before has none",
+      _nran == [True, True] + [False] * 9 and _n1.next_questions[0]["questions"][1]["ran"] == "77" and _n1.next_questions[1]["questions"][0]["ran"] == "77" and "ran" not in _n1.next_questions[0]["questions"][0]
+      and _nfile.runs[_n1.id].next_questions == _n1.next_questions and _nolder.runs["1"].next_questions == [], (_nran, _nfile.runs[_n1.id].next_questions))
+_ntexts = {"the instructions for next questions": nq.SYSTEM}
+_nsys = " ".join(nq.SYSTEM.split())
+for _k, _t in enumerate(_authored_strings("analyst/next_questions.py")):
+    _ntexts[f"analyst/next_questions.py string {_k}"] = _t
+check("the instructions for next questions: what the model does and does not, the reply's form, every block its prompt can hold named under what it receives, five questions asked for as a set holds five; "
+      "and the standing rules hold for its texts - none of the tested tasks' vocabulary, no section named for thinking or reasoning - in the instructions and in every string of the module",
+      _nsys.startswith("You propose the questions to analyse next.") and "You do not analyse, compute or answer." in _nsys and '{"questions": [{"title": "...", "question": "...", "from": [1]}]}' in _nsys
+      and all(f"- {block}" in _nsys for block in ("DATA:", "EARLIER:", "QUESTION and REPORT:", "BRIEF:", "PROPOSED BEFORE:", "LEVEL:", "SOURCES:")) and "`Other lines`" in _nsys and "`blend`" in _nsys
+      and "five questions" in _nsys and "One JSON object and nothing else" in _nsys and len(nq.SYSTEM) < 2500
+      and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ntexts.items() if _DOMAIN.search(t)}
+      and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", nq.SYSTEM),
+      ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ntexts.items() if _DOMAIN.search(t)}, len(nq.SYSTEM)))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

@@ -1302,7 +1302,7 @@ def query():
     thread_id = request.json['thread_id']
     chain_id = request.json['chain_id']
     image = request.json.get('image')
-    branching_cv = request.json.get('branching_cv')
+    candidate = request.json.get('next')     # {set, k}: the next question of the chain this one follows that it was started from (architect_routes.py)
     synthesis = request.json.get('synthesis', False)
     run_id = request.json.get('run_id')      # the framing run this analysis continues (architect_routes.py): it runs under that run's brief
 
@@ -1322,9 +1322,7 @@ def query():
 
     # the v1 edit-and-run and the dataset-mapped replay (a chain seeded with its own script, the two canned sentences)
     # are retired (2026-10-11, docs/ROUTINES_DESIGN.md S10): a routine's run is how a chain runs again
-    if branching_cv:
-        user_input = "User requested variations of the enquiry"      # the seedling: the analyst's ideas path (2026-09-08)
-    elif synthesis:
+    if synthesis:
         # The SAME canned request the automatic end-of-run synthesis sends,
         # from one shared constant - so the button is a re-run of exactly
         # what auto_explore already produced, never a second dialect.
@@ -1342,8 +1340,8 @@ def query():
             max_investigations=max_investigations,
             synthesis=synthesis,
             mode=mode,
-            ideas=branching_cv,
             run_id=run_id,
+            candidate=(candidate.get('set'), candidate.get('k')) if isinstance(candidate, dict) else None,
         )
 
     thread = threading.Thread(target=run_bamboo_ai)

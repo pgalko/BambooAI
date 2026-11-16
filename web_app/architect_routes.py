@@ -4,11 +4,15 @@ for what is missing and checks what the brief rests on against the data, one exc
 brief is kept as a version. The analysis then continues that run through /query, which names it as run_id.
 
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
-month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say)."""
+month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say).
+
+After a finished analysis the person may ask for the questions that could follow it, at one of five levels (§2.7,
+§2.15): one call of the Architect's, which is a query of its own - authorised, counted and charged like one."""
 from flask import Blueprint, jsonify, request, session
 
 from analyst.architect import Failed
 from analyst.brief import QUESTION_CHARS
+from analyst.next_questions import LEVELS
 from auth import requires_auth
 from logger_config import get_logger
 from routines_routes import _stream
@@ -70,6 +74,31 @@ def architect_say():
         if framing is None:
             return {'architect': {'error': 'This brief can no longer be changed: its analysis has started.'}}
         return {'architect': {'framing': framing}}
+    return _stream(instance, work)
+
+
+@architect_bp.route('/architect/next', methods=['POST'])
+@requires_auth
+def architect_next():
+    """A set of next questions for a finished analysis: {thread_id, chain_id, level} as a stream that ends on
+    {"next": {"set": ..., "at": its place among the analysis' sets}}, or {"next": {"error": ...}} when none was made."""
+    data = request.json or {}
+    if data.get('thread_id') is None or data.get('chain_id') is None or not isinstance(data.get('level'), str) or data['level'] not in LEVELS:
+        return jsonify({'error': 'The thread, the chain and one of the five levels are needed.'}), 400
+    refused = _app().query_refusal()
+    if refused is not None:
+        return refused
+    instance = _instance()
+
+    def work():
+        try:
+            asked = instance.next_questions(data['thread_id'], data['chain_id'], data['level'])
+        except Failed as exc:
+            return {'next': {'error': str(exc)}}
+        except Exception as exc:                             # noqa: BLE001
+            logger.exception("architect: next questions failed")
+            return {'next': {'error': f'The questions could not be written: {str(exc)[:300]}'}}
+        return {'next': asked or {'error': 'This analysis is no longer on record: nothing can follow from it.'}}
     return _stream(instance, work)
 
 

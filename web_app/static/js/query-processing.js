@@ -34,12 +34,13 @@ function initializeMainQuerySubmission() {
     }
 }
 
-// options.typed: the composer's own send; options.framed: the chain whose brief is being started (architect.js)
+// options.typed: the composer's own send; options.framed: the chain whose brief is being started (architect.js);
+// options.next: the next question the analysis is started from (next-questions.js) - run as it stands, with no brief
 function handleQuerySubmit(options = {}) {
-    const { branching_cv, synthesis, image, typed, framed } = options;
+    const { synthesis, image, typed, framed, next } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
-    const query = framed ? String(framed.queryText || '').trim() : queryInput.value.trim();
+    const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());
     
     // If normal query is running, clicking submit = stop
     if (queryRunning && !autoExploreRunning) {
@@ -53,9 +54,10 @@ function handleQuerySubmit(options = {}) {
         return;
     }
     
-    if (!query && !branching_cv && !synthesis) {
+    if (!query && !synthesis) {
         return;
     }
+    if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;      // a set of next questions is being written: nothing starts beside it
 
     if (window.ArchitectUI && !framed) {
         // a brief not yet run is on screen: what is typed is said to the Architect, and nothing else starts from it
@@ -104,9 +106,10 @@ function handleQuerySubmit(options = {}) {
     }
     if (typeof beginLiveChain === 'function') beginLiveChain(framed);   // the running chain is navigable from now on (2026-09-09)
     if (framed) window.ArchitectUI.started(framed);
+    if (next) window.NextQuestionsUI.started(next);
 
-    // Clear and reset input (only if not synthesis)
-    if (!synthesis) {
+    // Clear and reset input (not for a synthesis, nor for a next question: neither was typed there)
+    if (!synthesis && !next) {
         queryInput.value = '';
         queryInput.style.height = 'auto';
     }
@@ -125,7 +128,7 @@ function handleQuerySubmit(options = {}) {
         max_iterations: autoExploreIterations
     };
 
-    if (branching_cv) requestBody.branching_cv = branching_cv;
+    if (next) requestBody.next = { set: next.set, k: next.k };      // the server marks it as run on the analysis it follows
     if (synthesis) requestBody.synthesis = true;
     if (image) requestBody.image = image;
     if (framed) requestBody.run_id = framed.chain_id;   // the analysis continues the run its brief was written in
@@ -149,7 +152,7 @@ function handleQuerySubmit(options = {}) {
                 reason: errorData.reason
             };
             showQueryLimitModal(errorData.message, details);
-            if (!framed) queryInput.value = query;
+            if (!framed && !next) queryInput.value = query;
 
             // Reset state
             queryRunning = false;
@@ -244,6 +247,7 @@ function processChunk(chunk) {
                     // map is drawn from the record instead of a parent computed here.
                     if ('parent_chain_id' in data) lastActiveChainId = data.parent_chain_id;
                     if (typeof paneIds === 'function') paneIds(data);
+                    if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);      // the run is on: the question that started it is marked on its card
                 }
                 else if (data.type === "html") { /* the search seam's SERP preview: retired, nothing renders it (2026-09-06) */ }
                 else if (data.type === "pane_run_start")  { if (typeof paneRunStart === 'function') paneRunStart(data); }
@@ -315,7 +319,6 @@ function processChunk(chunk) {
                     
                     console.log(`Right panel data detected: ${data.type}`, data);
                     if (typeof createOrUpdateTab === 'function') {
-                        if (data.type === 'answer' && data.explore) { answerTabInteractive = true; answerTabExplore = true; }   // the seedling's five questions (2026-09-08)
                         createOrUpdateTab(data.type, data.data, data.id, data.format);
                     }
                 } else if (data.text) {

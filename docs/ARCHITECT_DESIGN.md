@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.12 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, and proposes other explanations, 0299)
+# The Architect and memory from saved analyses — design v0.13 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300)
 
 Release 2.8 does three things.
 
@@ -127,9 +127,9 @@ The engine's side of this is built: §2.10.
 - A changed anchor loses its mark until it is checked again.
 - A fact from a lookup and a passage from a saved analysis cannot be changed. They can be left out.
 
-### 2.7 Next questions: the sapling in the Architect (agreed, details proposed)
+### 2.7 Next questions: the sapling in the Architect (agreed; built in 0300, §2.15)
 
-How the sapling works until then:
+How the sapling worked until then:
 
 - A plant button beside the question box, live once a thread has an analysis. Hovering shows five levels: refine
   focus, shift angle, test boundaries, blend elements, follow emergence.
@@ -154,7 +154,7 @@ What changes (agreed):
 - The candidates are kept with the analysis they follow, not as a chain of their own. A candidate that was run is
   marked on its card.
 
-Proposed:
+Proposed, and built as §2.15 says:
 
 - Each level reads its own part of the brief and the report, and each question says what it comes from:
 
@@ -459,6 +459,77 @@ has started, the box only shows.
 Not in this patch: a fact from the data as a line of its own; a proposal for what is fixed; accepting by saying so -
 the Architect can then write the line as the coach's own, with `drop` and `also_check`.
 
+### 2.15 Next questions — built (0300, 2026-11-16)
+
+After a finished analysis the coach can ask for the questions that could follow it (§2.7). The plant button has left
+the question box; the Analyst's ideas path and the Explore tab are gone.
+
+**The lines an analysis leaves** (`next_questions.record()`). A question comes from a line on the record, each line
+with its kind:
+
+| Kind | The line |
+|---|---|
+| comparison, measure, period | what the brief fixed |
+| check | a line of the report's part *Against the brief*, other than the two verdicts |
+| proposal | an explanation the Architect proposed and the coach did not tick |
+| anchor | a line the brief rests on that was not found to hold, with how it stands |
+| would_change | what would change the coach's mind, with the report's verdict |
+| misfit | a line of the report's part *Did not fit* |
+| asked, found | the question, and the report's opening sentences |
+| earlier | what an analysis before it on the thread found |
+
+A list is read six lines deep. An analysis without a brief leaves what was asked and found, and what the analyses
+before it found.
+
+**The five levels.** Each reads its own lines first (`OWN`), then the others:
+
+| Level | Its own lines |
+|---|---|
+| Refine focus | what was fixed, and the question |
+| Shift angle | what was also checked, and what was proposed and not ticked |
+| Test boundaries | what the brief rests on, and what would change the coach's mind |
+| Blend elements | what this analysis found, and what the ones before it found |
+| Follow emergence | what did not fit |
+
+**One call** (`next_questions.propose()`), on the Architect's seat at a lowered effort, with instructions of its own
+(`analyst/next_questions.md`). It reads the data's description, the analyses before, the question, the report whole,
+the brief as the Analyst received it, the questions proposed for this analysis before, the level, and the lines,
+numbered - the level's own first. It replies with up to five questions, each with a short title and the number of
+the line it comes from; at Blend elements, the two lines it joins. In code:
+
+- A question that names no line is left out, as is one given twice. A set holds five at most.
+- At Blend elements a question that names fewer than two lines is left out.
+- Where the level has lines of its own, one question at least comes from one. A reply that does not is asked for
+  once more, then the call fails in words.
+- The origin shown with a question is the record's own line, never the model's words.
+
+Whether a question is a good one is the model's judgement, and the live test's.
+
+**Kept with the analysis** (`Run.next_questions`). Each set as it was asked for: its level, its questions with the
+lines they come from, what the call cost, and the chain the call was logged under. The questions are not a run and
+not a chain of the thread.
+
+**Money.** The analysis' own chain is settled when it ends, so the call has a chain of its own on the usage record,
+charged when the call ends, as Save as routine's proposal is. It is a query for the account's purposes: authorised
+and counted as one (`POST /architect/next`). The usage record names such a chain *Next questions*.
+
+**On the page** (`next-questions.js`). The closing card of a finished analysis has a **Next questions** button; one
+kept from before the button existed gets it when it is shown again. The button opens the five levels, a name and one
+plain line each. The questions of the level picked are cards under the closing card: where each comes from - the
+line itself behind the label - its title and text, a pencil and an arrow. A set can be asked for at every level, and
+again; each stays. The cards are part of the analysis' own pane, kept with the chain as the rest of the pane is.
+
+**A question that is run.** The arrow starts a new analysis at once, under the one it follows (`/query` with
+`next`): no brief, and the Architect's switch does not apply. The pencil changes the question first; a changed
+question loses its title. The run's pane opens on a row that says it was a next question, at which level and from
+what. On the record and on its card the question is marked with the chain it started; on the thread map the run is
+one box, marked *next question* (§2.9). While a set is being written no analysis starts, and the other way round.
+
+**Old threads.** A sapling chain made before this patch keeps its box on the map, as a fork. Its Explore page still
+shows its five questions; they can be read, not run. Nothing follows from such a chain.
+
+Not in this patch: a way to stop a set in flight; next questions saved with a favourite saved earlier (0304).
+
 ## 3. Memory from saved analyses
 
 ### 3.1 What counts (agreed)
@@ -587,7 +658,7 @@ repository and the dev box only.
 | 0297 | The Architect talks: it fills the brief from the question and asks for what is missing, one question a message, with choices to click (§2.12). | built |
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. The marks (§2.13). | built |
 | 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own (§2.14). | built |
-| 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go. | |
+| 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go (§2.15). | built |
 | 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
 | 0303 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |

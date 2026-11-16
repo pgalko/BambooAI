@@ -232,12 +232,6 @@ async function saveCurrentResponse(explicitParentChainId = null) {
     
     endLiveChain(newResponse);
 
-    // Enable suggest questions after first response
-    const suggestQuestions = document.getElementById('suggestQuestions');
-    if (suggestQuestions) {
-        suggestQuestions.classList.remove('disabled');
-    }
-    
     try {
         await localforage.setItem('responses', responses);
         console.log('Responses saved successfully with chain_id:', currentData.chain_id);
@@ -319,6 +313,7 @@ function loadResponseContent(response) {
     // Reattach all event listeners lost during innerHTML restore
     reattachRestoredListeners();
     if (window.ArchitectUI) window.ArchitectUI.restore(response);   // a brief not yet run is drawn from its versions
+    if (window.NextQuestionsUI) window.NextQuestionsUI.restore(response);   // a finished analysis has its Next questions button, and the set on its way
 }
 
 

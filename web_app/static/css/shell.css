@@ -98,7 +98,7 @@
 
 /* ---- the composer (2026-09-08): one card; the dataset chips above it; the mode as a segmented control ----
    No script changed: #queryInput, #uploadButton + .attach-menu (hover), #modeSwitch + #modeSliderPopup with the
-   .mode-option buttons setMode() toggles (the popup is simply always shown, inline), #suggestQuestions,
+   .mode-option buttons setMode() toggles (the popup is simply always shown, inline),
    #submitQuery with its airplane/globe/stop icons and query-running / auto-explore-* classes. */
 .left-panel .input-area { display: flex; flex-direction: column; gap: 0; padding: 8px 12px 10px; border-top: 1px solid var(--border-color); background: var(--bg-primary); }
 .left-panel .input-row { display: block; margin: 0; padding: 0; width: auto; }
@@ -130,7 +130,6 @@
 .left-panel .icon-row .ar-switch:hover { color: var(--text-primary); }
 .left-panel .icon-row .ar-switch.on { color: var(--c-model); border-color: var(--chip-model-border); background: var(--accent-bg-hover); }
 .left-panel .icon-row .ar-switch svg { width: 14px; height: 14px; }
-body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer-events: none; }   /* a brief not yet run is on screen: nothing follows from it but its own analysis */
 /* the send / stop button */
 .left-panel #submitQuery { position: absolute; right: 8px; bottom: 8px; top: auto; left: auto; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 6px; border: none; background: var(--c-model); color: var(--bg-primary); display: grid; place-items: center; cursor: pointer; transition: none; box-shadow: none; }
 .left-panel #submitQuery:hover { background: var(--accent-hover); color: var(--bg-primary); transform: none; }
@@ -143,7 +142,7 @@ body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer
 .left-panel #submitQuery.query-running .stop-icon, .left-panel #submitQuery.auto-explore-running .stop-icon { display: block; }
 .left-panel #submitQuery.auto-explore-active { background: var(--auto-explore-color); color: #fff; }
 .left-panel #submitQuery:disabled { opacity: .35; }
-/* the attach menu (hover-opened) and the ideas popover */
+/* the attach menu (hover-opened) */
 .left-panel .attach-menu-container { position: relative; }
 .left-panel .attach-menu { position: absolute; bottom: 100%; left: 0; top: auto; margin-bottom: 4px; min-width: 200px; padding: 6px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); z-index: 50; }
 .left-panel .attach-menu::after { display: none; }
@@ -153,12 +152,6 @@ body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer
 .left-panel .attach-option svg, .left-panel .attach-option img { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 .left-panel .upload-limit-message { font-size: var(--fs-small); color: var(--text-quaternary); padding: 6px 10px 2px; }
 .left-panel .upload-limit-message:empty { display: none; }
-.left-panel #branchingSliderPopup { position: absolute; bottom: auto; left: 0; top: 0; display: none; gap: 2px; padding: 4px; border: 1px solid var(--border-color); border-radius: var(--r-3); background: var(--bg-secondary); box-shadow: var(--shadow-dialog); z-index: 50; }
-.left-panel #branchingSliderPopup::after { display: none; }
-.left-panel #branchingSliderPopup::before { content: ''; display: block; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px; }
-.left-panel #branchingSliderPopup .branching-icon { width: 30px; height: 30px; border: none; border-radius: 6px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; }
-.left-panel #branchingSliderPopup .branching-icon:hover, .left-panel #branchingSliderPopup .branching-icon.active { background: var(--bg-tertiary); color: var(--c-model); }
-.left-panel #branchingSliderPopup .branching-icon svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.8; }
 
 /* ---- the left pane's stream aligns with the composer ---- */
 .left-panel .content-area { padding: 0; }
@@ -214,7 +207,7 @@ body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer
 #content-answer .simplified-text, #content-answer .pdf-text { font-size: var(--fs-small); }
 
 /* the answer page's key figure (the run's best estimate, written by the closing card) and its citation chips */
-#content-answer .markdown-content > h1:first-child, #content-answer .markdown-content > h2:first-child { padding-right: 160px; }
+#content-answer .markdown-content > h1:first-child, #content-answer .markdown-content > h2:first-child, #content-answer .markdown-content > p:first-child { padding-right: 160px; }   /* clear of the toolbar */
 #content-answer .answer-key { max-width: 78ch; margin: 0 0 14px; padding: 10px 14px; border: 1px solid var(--chip-model-border); border-left: 3px solid var(--c-model); border-radius: var(--r-2); background: var(--accent-bg); }
 #content-answer .answer-key .label { display: block; font-size: var(--fs-small); font-weight: 600; color: var(--text-tertiary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 3px; }
 #content-answer .answer-key .value { font-size: 15px; font-weight: 600; color: var(--text-primary); line-height: 1.4; font-variant-numeric: tabular-nums; }
@@ -485,6 +478,10 @@ body.ar-framing .left-panel .icon-row .suggest-questions { opacity: .35; pointer
 .save-menu .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
 .save-menu .it span { font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
 .save-menu .it.done { cursor: default; } .save-menu .it.done:hover { background: none; } .save-menu .it.done b { color: var(--c-model); }
+.save-menu.nq-menu { min-width: 330px; }      /* the five levels of next questions (next-questions.js): a name and its one line, side by side */
+.save-menu.nq-menu::before { display: none; }
+.save-menu.nq-menu .it { flex-direction: row; align-items: baseline; gap: 14px; }
+.save-menu.nq-menu .it b { flex: 0 0 118px; }
 
 /* ---- the Documents pill (2026-10-03, docs/DOCUMENTS_DESIGN.md D53-D54): one pill for the thread's documents, blue so it
    reads apart from the green dataset pills. The spinner and "parsing name…" while a file is parsed; the refusal sentence

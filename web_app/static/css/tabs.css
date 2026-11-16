@@ -182,27 +182,16 @@
 #content-answer .answer-key .value { font-size: 16px; }
 #content-answer .answer-provenance { font-size: var(--fs-meta); }
 
-/* ---- the Explore page (2026-09-08): the seedling's five questions as cards you can edit and run ----
-   content-rendering.js turns the numbered list into .interactive-pill cards (number, content, a hidden textarea,
-   an edit button, a send icon) and toggles .editing on a card while its text is being changed. */
+/* ---- an Explore page kept from before 2.8 (the retired ideas path): its five questions as cards, to be read. Nothing
+   makes these cards any more, and nothing runs them: the questions that follow an analysis are in the left pane (pane.css). */
 #content-answer .interactive-pills-container { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 0; max-width: 92ch; }
-#content-answer .interactive-pill { display: grid; grid-template-columns: 26px 1fr auto auto; align-items: start; gap: 10px; padding: 12px 12px 12px 14px; margin: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); cursor: pointer; transition: none; transform: none; box-shadow: none; }
-#content-answer .interactive-pill:hover { border-color: var(--chip-model-border); background: var(--bg-secondary); transform: none; box-shadow: none; }
-#content-answer .interactive-pill:active { transform: none; }
-#content-answer .interactive-pill.editing { border-color: var(--c-model); cursor: default; }
-#content-answer .pill-number { width: 22px; height: 22px; margin: 1px 0 0; border: 1px solid var(--chip-model-border); border-radius: 50%; background: none; color: var(--c-model); font-size: var(--fs-small); font-weight: 600; display: grid; place-items: center; }
-#content-answer .pill-content { font-size: 14px; line-height: 1.5; color: var(--text-primary); margin: 0; padding: 0; }
-#content-answer .pill-content strong { font-weight: 600; color: var(--text-primary); }
+#content-answer .interactive-pill { display: grid; grid-template-columns: 26px 1fr; align-items: start; gap: 10px; padding: 12px 12px 12px 14px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); }
+#content-answer .pill-number { width: 22px; height: 22px; margin: 1px 0 0; border: 1px solid var(--chip-model-border); border-radius: 50%; color: var(--c-model); font-size: var(--fs-small); font-weight: 600; display: grid; place-items: center; }
+#content-answer .pill-content { display: block !important; font-size: 14px; line-height: 1.5; color: var(--text-primary); }      /* a card kept while it was being changed shows its question, not the box */
+#content-answer .pill-content strong { font-weight: 600; }
 #content-answer .pill-content p { margin: 0; }
-#content-answer .pill-edit-input { grid-column: 2; width: 100%; box-sizing: border-box; min-height: 84px; margin: 0; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 14px; line-height: 1.5; resize: vertical; }
-#content-answer .pill-edit-input:focus { outline: none; border-color: var(--text-tertiary); }
-#content-answer .pill-edit-btn, #content-answer .pill-icon { width: 26px; height: 26px; margin: 0; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; opacity: 1; transition: none; }
-#content-answer .pill-edit-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-#content-answer .pill-icon { color: var(--c-model); }
-#content-answer .interactive-pill:hover .pill-icon { color: var(--c-model); transform: none; }
-#content-answer .pill-edit-btn svg, #content-answer .pill-icon svg { width: 14px; height: 14px; fill: currentColor; }
-#content-answer .interactive-pill.editing .pill-icon { color: var(--c-model); }
-#content-answer > h3 { display: none; }   /* 'Explore:' / 'Synthesis:' - the tab already says it */
+#content-answer .pill-edit-input, #content-answer .pill-edit-btn, #content-answer .pill-icon { display: none !important; }
+#content-answer > h3 { display: none; }   /* 'Synthesis:' (and 'Explore:' on a page kept from before 2.8) - the tab already says it */
 #content-answer .interactive-pills-container + p, #content-answer .markdown-content > p:first-child { color: var(--text-secondary); }
 
 /* ---- folded from graph-controls.css: the mermaid diagram frame in the Investigation tab ---- */

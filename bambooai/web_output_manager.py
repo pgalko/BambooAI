@@ -225,7 +225,7 @@ class WebOutputManager(OutputManager):
                         plan=None, code=None, answer=None, 
                         simplified_answer=None,
                         plot_jsons=None, review=None, 
-                        generated_datasets=None, code_exec_results=None, explore=False, report_head=None):
+                        generated_datasets=None, code_exec_results=None, report_head=None):
         from bambooai import utils
         
         if self.web_mode:
@@ -267,10 +267,7 @@ class WebOutputManager(OutputManager):
                 ('code_exec_results', code_exec_results)      # generated datasets are the pane's pills, not a tab (2026-10-06: the tab was empty)
             ]:
                 if data:
-                    payload = {'type': data_type, 'data': data, 'chain_id': chain_id}
-                    if explore and data_type == 'answer':
-                        payload['explore'] = True          # the seedling's five questions: the Explore tab (2026-09-08)
-                    self.output_queue.put(json.dumps(payload))
+                    self.output_queue.put(json.dumps({'type': data_type, 'data': data, 'chain_id': chain_id}))
 
             if plot_jsons:
                 for plot_json in plot_jsons:

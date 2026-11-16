@@ -204,13 +204,7 @@ function createOrUpdateTab(type, data, id = null, format = null) {
         // Determine tab name based on mode
         let tabName;
         if (type === 'answer') {
-            if (answerTabSynthesis) {
-                tabName = 'Synthesis';
-            } else if (answerTabInteractive) {
-                tabName = 'Explore';
-            } else {
-                tabName = 'Answer';
-            }
+            tabName = answerTabSynthesis ? 'Synthesis' : 'Answer';
         } else if (type === 'plan') {
             // Renamed 2026-08-30 (user ruling): this tab holds the
             // INVESTIGATION's briefing; the single-shot YAML plan it was
@@ -241,7 +235,7 @@ function createOrUpdateTab(type, data, id = null, format = null) {
         tabContent.className = 'tab-content';
         contentOutput.appendChild(tabContent);
     }
-    if (type === 'answer') tab.textContent = answerTabInteractive ? 'Explore' : (answerTabSynthesis ? 'Synthesis' : 'Answer');   // the label follows the kind of answer (2026-09-08)
+    if (type === 'answer') tab.textContent = answerTabSynthesis ? 'Synthesis' : 'Answer';   // the label follows the kind of answer (2026-09-08)
 
     updateTabContent(type, data, id, format);
     activateTab(type);
@@ -347,36 +341,18 @@ async function updateTabContent(type, data, id = null, format = null) {
         case 'answer': {
             console.log('Processing answer case');
         
-            // Change header text based on mode
-            let headerText;
-            if (answerTabSynthesis) {
-                headerText = 'Synthesis';
-            } else if (answerTabInteractive) {
-                headerText = 'Explore';
-            } else {
-                headerText = type.charAt(0).toUpperCase() + type.slice(1);
-            }
             // The default 'Answer:' label is gone (user ruling
             // 2026-08-29), but the heading ELEMENT stays, empty: the PDF
             // and Simplified buttons anchor to the tab's first h3, and
             // removing it outright sent them to the first markdown
-            // heading mid-page. The dual-summary Synthesis/Explore
-            // labels stay as they were.
-            content = (answerTabSynthesis || answerTabInteractive)
-                ? `<h3>${headerText}:</h3>`
-                : '<h3 class="answer-tab-anchor"></h3>';
+            // heading mid-page. The Synthesis label stays as it was.
+            content = answerTabSynthesis ? '<h3>Synthesis:</h3>' : '<h3 class="answer-tab-anchor"></h3>';
             
             // First protect LaTeX content
             const { text: protectedContent, placeholders } = protectLatexDelimiters(data);
             
             // Parse markdown
             let parsedContent = marked.parse(protectedContent);
-            
-            // Process interactive items if needed (not for synthesis)
-            if (answerTabInteractive) {
-                parsedContent = transformNumberedListToInteractivePills(parsedContent);
-                answerTabInteractive = false;
-            }
             
             // Transform chain ID references to clickable links (for synthesis)
             parsedContent = transformChainIdReferences(parsedContent);
@@ -405,17 +381,13 @@ async function updateTabContent(type, data, id = null, format = null) {
                 if (contentElement) {
                     renderLatex(contentElement);
                     
-                    // Add event listeners to the interactive pills if they exist
-                    attachPillEventListeners(contentElement);
-                    
                     // Add event listeners to chain ID references
                     attachChainRefListeners(contentElement);
                     
-                    // Add PDF export button and simplified summary button to answer tab (not for the Explore page)
-                    if (typeof handleAnswerTabUpdate === 'function' && !(typeof answerTabExplore !== 'undefined' && answerTabExplore)) {
+                    // Add PDF export button and simplified summary button to answer tab
+                    if (typeof handleAnswerTabUpdate === 'function') {
                         handleAnswerTabUpdate();
                     }
-                    if (typeof answerTabExplore !== 'undefined') answerTabExplore = false;
                 }
             }, 100);
             
@@ -864,176 +836,6 @@ function renderLatex(element) {
 }
 
 //--------------------
-//  INTERACTIVE PILLS
-//--------------------
-
-function transformNumberedListToInteractivePills(htmlContent) {
-    // Create a temporary container to manipulate the HTML
-    const tempContainer = document.createElement('div');
-    tempContainer.innerHTML = htmlContent;
-    
-    // Find all ordered lists that might contain the numbered items
-    const orderedLists = tempContainer.querySelectorAll('ol');
-    
-    // Process each list
-    orderedLists.forEach(list => {
-        // Create a container for the interactive pills
-        const pillsContainer = document.createElement('div');
-        pillsContainer.className = 'interactive-pills-container';
-        
-        // Process each list item
-        const listItems = list.querySelectorAll('li');
-        listItems.forEach((item, index) => {
-            // Extract the clean text content for data-query
-            const rawQuery = item.textContent.trim();
-            // Store a clean version of the query without nested quotes
-            const cleanQuery = rawQuery.replace(/['"]/g, '').replace(/\s+/g, ' ').trim();
-            
-            // Create a pill element
-            const pill = document.createElement('div');
-            pill.className = 'interactive-pill';
-            // Store sanitized query as data attribute
-            pill.setAttribute('data-query', cleanQuery);
-            pill.innerHTML = `
-                <span class="pill-number">${index + 1}</span>
-                <span class="pill-content">${item.innerHTML}</span>
-                <textarea class="pill-edit-input" style="display: none;">${cleanQuery}</textarea>
-                <button class="pill-edit-btn" title="Edit query">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                    </svg>
-                </button>
-                <span class="pill-icon">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                    </svg>
-                </span>
-            `;
-            
-            pillsContainer.appendChild(pill);
-        });
-        
-        // Replace the original list with our pills container
-        list.parentNode.replaceChild(pillsContainer, list);
-    });
-    
-    return tempContainer.innerHTML;
-}
-
-function attachPillEventListeners(contentElement) {
-    const pills = contentElement.querySelectorAll('.interactive-pill');
-    
-    pills.forEach(pill => {
-        const editBtn = pill.querySelector('.pill-edit-btn');
-        const editInput = pill.querySelector('.pill-edit-input');
-        const pillContent = pill.querySelector('.pill-content');
-        const pillIcon = pill.querySelector('.pill-icon');
-        
-        // Edit button click handler
-        editBtn.addEventListener('click', function(e) {
-            e.stopPropagation(); // Prevent pill click event
-            
-            const isEditing = pill.classList.contains('editing');
-            
-            if (!isEditing) {
-                // Enter edit mode
-                pill.classList.add('editing');
-                pillContent.style.display = 'none';
-                editInput.style.display = 'block';
-                editInput.focus();
-                editInput.select();
-                
-                // Auto-resize textarea
-                editInput.style.height = 'auto';
-                editInput.style.height = editInput.scrollHeight + 'px';
-                
-                // Change edit icon to save icon
-                editBtn.innerHTML = `
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
-                    </svg>
-                `;
-            } else {
-                // Save and exit edit mode
-                const newQuery = editInput.value.trim();
-                if (newQuery) {
-                    pill.setAttribute('data-query', newQuery);
-                    // Update the visible content with plain text
-                    pillContent.textContent = newQuery;
-                }
-                
-                pill.classList.remove('editing');
-                pillContent.style.display = 'block';
-                editInput.style.display = 'none';
-                
-                // Change save icon back to edit icon
-                editBtn.innerHTML = `
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                    </svg>
-                `;
-            }
-        });
-        
-        // Auto-resize textarea on input
-        editInput.addEventListener('input', function() {
-            this.style.height = 'auto';
-            this.style.height = this.scrollHeight + 'px';
-        });
-        
-        // Input keyboard handlers
-        editInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                e.preventDefault();
-                editBtn.click(); // Save with Ctrl+Enter
-            } else if (e.key === 'Escape') {
-                e.preventDefault();
-                // Cancel edit without saving
-                editInput.value = pill.getAttribute('data-query');
-                editBtn.click();
-            }
-        });
-        
-        // Prevent all events from bubbling up from textarea
-        editInput.addEventListener('click', function(e) {
-            e.stopPropagation();
-        });
-        
-        // CRITICAL: Stop mouseup from bubbling to prevent selection popup
-        editInput.addEventListener('mouseup', function(e) {
-            e.stopPropagation();
-        });
-        
-        // Pill click handler (for submitting query)
-        pill.addEventListener('click', function(e) {
-            // Don't submit if in edit mode or clicking the edit button
-            if (pill.classList.contains('editing') || e.target.closest('.pill-edit-btn')) {
-                return;
-            }
-            
-            const query = this.getAttribute('data-query');
-            
-            // Set the query to the input field
-            const queryInput = document.getElementById('queryInput');
-            if (queryInput) {
-                queryInput.value = query;
-                
-                // Submit the query
-                if (typeof handleQuerySubmit === 'function') {
-                    handleQuerySubmit();
-                }
-                
-                // Scroll to the top of the output area
-                const streamOutput = document.getElementById('streamOutput');
-                if (streamOutput) {
-                    streamOutput.scrollTop = 0;
-                }
-            }
-        });
-    });
-}
-
-//--------------------
 //  CODE TAB
 //--------------------
 
@@ -1172,9 +974,6 @@ function handleSimplifiedSummaryToggle() {
             
             // Re-render LaTeX
             renderLatex(answerContent);
-            
-            // Re-attach pill listeners if any
-            attachPillEventListeners(answerContent);
         }
         currentData.summaryViewMode = 'technical';
     }

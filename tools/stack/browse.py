@@ -9,7 +9,8 @@
 The story: cold page -> the dataset uploaded through the file input -> the question typed ->
 Deep run (screenshots while it runs and when it completes) -> each right-pane tab -> the
 simplified view -> a follow-up on the warm kernel -> the chain navigation -> the thread map ->
-the seedling (Explore) -> Save as favourite -> Saved workflows -> the settings dialogs.
+Save as favourite -> Saved workflows -> the settings dialogs -> a question framed with the
+Architect, its analysis, and the next questions that follow it.
 Page errors and console errors are written to <out>/console.txt; a non-empty errors list makes
 the exit status 1, so the walk doubles as a smoke test.
 """
@@ -182,21 +183,6 @@ def story(w, mod, dataset, questions):
     p.click("#workflowMapModal .workflow-close")
     p.wait_for_timeout(300)
 
-    # the seedling: five next questions
-    # the seedling is a hover menu: hover the button, then click a variation level
-    if p.query_selector("#suggestQuestions"):
-        p.hover("#suggestQuestions")
-        p.wait_for_selector("#branchingSliderPopup", state="visible", timeout=5000)
-        p.wait_for_timeout(300)
-        w.shot("explore_menu")
-        p.click("#branchingSliderPopup .branching-icon[data-value='3']")
-        w.wait_text("#chainPosition", "chain 3 of 3", 60000)
-        w.wait_text(".sp-done", "Run complete", 60000)
-        p.wait_for_timeout(900)
-        w.shot("explore")
-        p.click("#prevResponse")
-        p.wait_for_timeout(500)
-
     # Save: the pill's menu, then Save as favourite - one click
     if p.query_selector("#saveButton"):
         p.click("#saveButton")
@@ -315,6 +301,33 @@ def story(w, mod, dataset, questions):
         w.shot("architect_map")
         p.click("#workflowMapModal .workflow-close")
         p.wait_for_timeout(300)
+        # next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on the closing card, the levels, the cards of one level, a
+        # question run as it stands - the switch still on - and the analysis it follows with the card marked
+        w.js("activateTab('answer')")
+        p.click('#streamOutput .sp-done [data-nq="open"]')
+        p.wait_for_selector("#nextLevels .it", state="visible", timeout=5000)
+        p.wait_for_timeout(300)
+        w.shot("next_levels")
+        p.click('#nextLevels .it[data-level="emergence"]')
+        p.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', timeout=30000)
+        p.wait_for_timeout(500)
+        w.shot("next_cards")
+        followed = p.evaluate("() => responses.length")
+        p.click('#streamOutput .nq-set[data-set="0"] .nq-card[data-k="0"] .go')
+        p.wait_for_function("(n) => responses.length === n + 1 && !responses[n].status", arg=followed, timeout=180000)
+        w.js("activateTab('answer')")
+        p.wait_for_timeout(600)
+        w.shot("next_run")
+        p.click("#railMapButton")
+        p.wait_for_timeout(900)
+        w.shot("next_map")
+        p.click("#workflowMapModal .workflow-close")
+        p.wait_for_timeout(300)
+        p.click("#prevResponse")
+        p.wait_for_selector("#streamOutput .nq-card.ran", timeout=10000)
+        w.js("activateTab('answer'); const s = document.getElementById('streamOutput'); s.scrollTop = s.scrollHeight;")
+        p.wait_for_timeout(400)
+        w.shot("next_card_run")
         p.click("#architectSwitch")
 
 

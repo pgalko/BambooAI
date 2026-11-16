@@ -12,7 +12,6 @@ function initializeUIControls() {
     initializePanelCollapse();
     initializeNavigationButtons();
     initializeModeSwitch();
-    initializeSuggestQuestions();
     initializeTextareaResize();
     initializeKeyboardShortcuts();
     initializeGenericToast();
@@ -488,69 +487,6 @@ function initializeModeSwitch() {
     let stored = null;
     try { stored = sessionStorage.getItem('analystMode'); } catch (e) { /* ignore */ }
     setMode(stored || 'deep');
-}
-
-//--------------------
-//  SUGGEST QUESTIONS
-//--------------------
-
-function initializeSuggestQuestions() {
-    const suggestQuestions = document.getElementById('suggestQuestions');
-    const branchingSliderPopup = document.getElementById('branchingSliderPopup');
-    const branchingIcons = document.querySelectorAll('.branching-icon');
-    
-    if (!suggestQuestions) {
-        console.warn('Suggest questions element not found');
-        return;
-    }
-    
-    // Show popup on hover
-    suggestQuestions.addEventListener('mouseenter', function() {
-        branchingSliderPopup.style.display = 'flex';
-        // anchored to the button (2026-09-08): just above it, left-aligned, no gap to lose the hover across
-        branchingSliderPopup.style.left = suggestQuestions.offsetLeft + 'px';
-        branchingSliderPopup.style.top = (suggestQuestions.offsetTop - branchingSliderPopup.offsetHeight - 2) + 'px';
-        branchingSliderPopup.style.bottom = 'auto';
-    });
-    
-    // Hide popup when leaving both button and popup
-    suggestQuestions.addEventListener('mouseleave', function() {
-        setTimeout(() => {
-            if (!branchingSliderPopup.matches(':hover') && !suggestQuestions.matches(':hover')) {
-                branchingSliderPopup.style.display = 'none';
-            }
-        }, 100);
-    });
-    
-    branchingSliderPopup.addEventListener('mouseleave', function() {
-        setTimeout(() => {
-            if (!branchingSliderPopup.matches(':hover') && !suggestQuestions.matches(':hover')) {
-                branchingSliderPopup.style.display = 'none';
-            }
-        }, 100);
-    });
-    
-    // Handle icon clicks
-    branchingIcons.forEach(icon => {
-        icon.addEventListener('click', function(e) {
-            e.stopPropagation();
-            const branchingCvValue = parseInt(this.getAttribute('data-value'));
-            const queryInput = document.getElementById('queryInput');
-            
-            if (!queryInput) return;
-            
-            // Clear the input and submit with selected branching_cv
-            queryInput.value = 'User requested variations of the enquiry';
-            
-            if (typeof handleQuerySubmit === 'function') {
-                handleQuerySubmit({branching_cv: branchingCvValue});
-            }
-            answerTabInteractive = true;
-            
-            // Hide the popup after submission
-            branchingSliderPopup.style.display = 'none';
-        });
-    });
 }
 
 //--------------------

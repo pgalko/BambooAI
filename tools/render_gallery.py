@@ -32,6 +32,7 @@ STATES = {
     'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation, one line open (§2.11)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
+    'next_questions': ARCHITECT + "galleryArchitect.next();",          # next questions under a finished analysis: a set of cards, one run, and the levels open (§2.15)
 }
 
 def render_all(out, light=False):

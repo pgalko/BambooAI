@@ -289,7 +289,8 @@
         // how a chain's question was made, for its box on the thread map (§2.9)
         if (!r) return '';
         if (r.status === 'framing') return 'not run';
-        return r.framing || /id="tab-brief"/.test(r.tabContent || '') ? 'Architect' : '';
+        if (r.framing || /id="tab-brief"/.test(r.tabContent || '')) return 'Architect';
+        return window.NextQuestionsUI && window.NextQuestionsUI.made(r) ? 'next question' : '';
     }
     function framingInView() { const r = responses[currentResponseIndex]; return !!(r && r.status === 'framing'); }
 

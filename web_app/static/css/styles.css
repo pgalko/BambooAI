@@ -1137,31 +1137,11 @@
 .mode-params .iter-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .mode-params .iter-value { min-width: 16px; text-align: center; font-weight: 600; }
 
-.icon-button.suggest-questions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--accent-color);
-    cursor: pointer;
-    font-size: 12px;
-    transition: opacity 0.2s;
-}
-
-.icon-button.suggest-questions.disabled {
-    opacity: 1;
-    pointer-events: none;
-    color: var(--text-tertiary);
-}
-
-.icon-button.suggest-questions:hover {
-    opacity: 0.8;
-}
-
-/* Branching CV Icons Popup */
+/* A popup over the composer's icon row: the mode control's (shell.css shows that one inline) */
 .branching-slider-popup {
     position: absolute;
     bottom: calc(100% + 10px);
-    left: 70px; /* Positioned to align with suggest questions button */
+    left: 70px;
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
     border-radius: 8px;
@@ -1196,57 +1176,6 @@
     border-bottom: 1px solid var(--border-color);
 }
 
-.branching-icon {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--text-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px;
-    border-radius: 4px;
-    transition: all 0.2s;
-    width: 100%;
-}
-
-/* Size scaling from smallest to largest */
-.branching-icon[data-value="1"] svg {
-    width: 14px;
-    height: 14px;
-}
-
-.branching-icon[data-value="2"] svg {
-    width: 16px;
-    height: 16px;
-}
-
-.branching-icon[data-value="3"] svg {
-    width: 18px;
-    height: 18px;
-}
-
-.branching-icon[data-value="4"] svg {
-    width: 20px;
-    height: 20px;
-}
-
-.branching-icon[data-value="5"] svg {
-    width: 22px;
-    height: 22px;
-}
-
-.branching-icon svg {
-    stroke: currentColor;
-    fill: none;
-    transition: all 0.2s;
-}
-
-.branching-icon:hover {
-    background: var(--bg-tertiary);
-    color: var(--accent-color);
-}
-
 /* Dark theme adjustments */
 [data-theme="dark"] .branching-slider-popup {
     background: var(--bg-secondary);
@@ -1256,15 +1185,6 @@
 [data-theme="dark"] .branching-slider-popup::after {
     background: var(--bg-secondary);
     border-color: var(--border-color);
-}
-
-[data-theme="dark"] .branching-icon {
-    color: var(--text-secondary);
-}
-
-[data-theme="dark"] .branching-icon:hover {
-    color: var(--accent-color);
-    background: var(--bg-tertiary);
 }
 
 
@@ -2383,193 +2303,6 @@ code.language-json {
 #contentOutput:hover,
 #contentOutput *:hover {
     scrollbar-color: var(--text-stream) transparent !important;
-}
-
-/* Interactive Pills Container */
-.interactive-pills-container {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    margin: 15px 0;
-    width: 100%;
-}
-
-/* Interactive Pill Style */
-.interactive-pill {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    background-color: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    color: var(--text-primary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 1px 3px var(--shadow-color);
-    position: relative;
-    overflow: hidden;
-}
-
-.interactive-pill:hover {
-    background-color: var(--link-hover-bg);
-    border-color: var(--accent-color);
-    transform: translateY(-1px);
-    box-shadow: 0 3px 6px var(--shadow-color);
-}
-
-.interactive-pill:active {
-    transform: translateY(0);
-    box-shadow: 0 1px 2px var(--shadow-color);
-}
-
-/* Pill Number */
-.pill-number {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 20px;
-    height: 20px;
-    background-color: transparent;
-    color: var(--accent-color);
-    border: 1.5px solid var(--accent-color);
-    border-radius: 50%;
-    font-weight: normal;
-    margin-right: 12px;
-    flex-shrink: 0;
-}
-
-/* Pill Content */
-.pill-content {
-    flex: 1;
-    font-size: 14px;
-    line-height: 1.4;
-}
-
-/* Ensure links within pills don't interfere with pill clicking */
-.pill-content a {
-    pointer-events: none;
-}
-
-/* Bold text in pills */
-.pill-content strong {
-    color: var(--accent-color);
-    font-weight: 600;
-}
-
-/* Pill Icon */
-.pill-icon {
-    margin-left: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    color: var(--accent-color);
-    opacity: 0.7;
-    transition: opacity 0.2s;
-    flex-shrink: 0;
-}
-
-.interactive-pill:hover .pill-icon {
-    opacity: 1;
-}
-
-.pill-icon svg {
-    width: 18px;
-    height: 18px;
-    fill: currentColor;
-}
-
-/* Dark theme adjustments */
-[data-theme="dark"] .interactive-pill {
-    background-color: var(--bg-tertiary);
-    border-color: var(--border-color);
-}
-
-[data-theme="dark"] .interactive-pill:hover {
-    background-color: var(--link-hover-bg);
-    border-color: var(--accent-color);
-}
-
-[data-theme="dark"] .pill-number {
-    border-color: var(--accent-color);
-    color: var(--accent-color);
-}
-
-/* Edit button styling */
-.pill-edit-btn {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    margin-left: 8px;
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: var(--accent-color);
-    opacity: 0.6;
-    transition: opacity 0.2s;
-    padding: 2px;
-    flex-shrink: 0;
-}
-
-.interactive-pill:hover .pill-edit-btn {
-    display: flex;
-}
-
-.pill-edit-btn:hover {
-    opacity: 1;
-}
-
-.pill-edit-btn svg {
-    width: 16px;
-    height: 16px;
-    fill: currentColor;
-}
-
-/* Edit textarea styling */
-.pill-edit-input {
-    flex: 1;
-    font-size: 14px;
-    line-height: 1.4;
-    padding: 4px 8px;
-    background-color: var(--bg-primary);
-    border: 1px solid var(--accent-color);
-    border-radius: 4px;
-    color: var(--text-primary);
-    font-family: inherit;
-    outline: none;
-    resize: none;
-    overflow: hidden;
-    min-height: 20px;
-}
-
-/* Editing state */
-.interactive-pill.editing {
-    background-color: var(--link-hover-bg);
-    border-color: var(--accent-color);
-}
-
-.interactive-pill.editing .pill-edit-btn {
-    display: flex;
-    opacity: 1;
-    color: var(--success-color, var(--accent-color));
-}
-
-.interactive-pill.editing .pill-icon {
-    display: none;
-}
-
-.interactive-pill.editing:hover {
-    transform: none;
-}
-
-/* Dark theme adjustments */
-[data-theme="dark"] .pill-edit-input {
-    background-color: var(--bg-secondary);
-    border-color: var(--accent-color);
-    color: var(--text-primary);
 }
 
 .keyboard-shortcut {

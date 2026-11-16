@@ -251,5 +251,18 @@ check("prices(): the configuration's per-thousand prices as per-million, the pro
       UR.prices({"model_properties": {"m": {"prompt_tokens": 0.003, "completion_tokens": 0.015, "cache_read_tokens": 0.0003}}, "agent_configs": [{"agent": "Analyst", "details": {"model": "m", "provider": "anthropic"}}]})
       == {"m": {"in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write": None, "provider": "anthropic"}})
 
+# the Architect's calls (2.8): while a brief is written they are in the chain of that brief's run, which the record knows - an analysis, not run where
+# none followed; a set of next questions is a chain of its own that the record does not know, named by the seat that spent on it
+_fr = nb9.new_run("Is the second half heavier?", run_id="f1"); _fr.status = "framing"
+nbs.record(nb9, _fr)
+_arow = lambda chain, minute: UR._call({"id": minute, "timestamp": f"2026-10-25 01:{minute:02d}:00", "agent": "Architect", "model": "m-big", "chain_id": chain, "prompt_tokens": 3000, "completion_tokens": 200,
+                                         "elapsed_time": 3.0, "cost": 0.01})
+_aled = {e["chain"]: e for e in UR._ledger([_arow("f1", 1), _arow("f1", 2), _arow("n1", 3)], {"f1": "t9", "n1": "t9"}, STORAGE)}
+check("_ledger(): the Architect's calls in a brief's own chain are that analysis' - not run, where none followed; a chain of its calls that the record does not know is a set of next questions, grouped "
+      "with the other chains that are not analyses",
+      (_aled["f1"]["kind"], _aled["f1"]["question"], _aled["f1"]["outcome"], _aled["f1"]["calls"]) == ("analysis", "Is the second half heavier?", "not run", 2)
+      and (_aled["n1"]["kind"], _aled["n1"]["question"], _aled["n1"]["calls"], _aled["n1"]["cells"], _aled["n1"]["thread"]) == ("next", "Next questions", 1, None, "t9")
+      and UR.mode_label(_aled["n1"]) == "Other" and _aled["n1"]["seats"] == {"Architect": 0.01}, _aled)
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

@@ -1,7 +1,7 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.14): the Architect's first
+// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15): the Architect's first
 // question, its reply awaited, a brief after the conversation with a line being changed by hand, what the brief rests on
-// checked against the data with an explanation proposed, and a report against a brief. An invented field trial, as the
-// stack's scenario has it.
+// checked against the data with an explanation proposed, a report against a brief, and the next questions under a
+// finished analysis. An invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const BRIEF = { question: Q, decision: 'Switch the clay plots to regime C next season, or keep A.', thinks: 'C does better than A.',
@@ -39,7 +39,22 @@ window.galleryArchitect = (function () {
     '<li>Rainfall differed between the C and A plots: mean rainfall was 421.3 mm on the C plots and 418.9 mm on the A plots</li><li>chance: the interval includes zero</li>' +
     '<li>measurement error: cannot tell - the data does not say how yield was measured</li><li>how the cases compared came to be chosen: the regimes were not assigned at random</li></ul>' +
     '<h2>Did not fit</h2><ul><li>Nothing.</li></ul>';
+  // the questions that could follow: one set, its first question run
+  const MISFIT = { kind: 'misfit', text: 'The gap is not the same on every soil: 0.242 t/ha on clay, 0.149 on sand [cell 2]' };
+  const NEXT = { level: 'emergence', cost: 0.021, chain: 1763203390, questions: [
+    { title: 'The clay plots', text: 'Is regime C above regime A on clay alone, on plot means of yield?', from: [MISFIT], ran: '1763203400' },
+    { title: 'Rain in the dry seasons', text: 'Does the gap between regime C and regime A hold in the three driest seasons?', from: [{ kind: 'check', text: 'Rainfall differed between the C and A plots: mean rainfall was 421.3 mm on the C plots and 418.9 mm on the A plots' }] },
+    { title: 'What it rests on', text: 'Did the C plots get more rain than the A plots in any single season?', from: [{ kind: 'anchor', text: RAIN + ' (does not hold: ' + RAIN_FACT + ')' }] },
+    { title: 'The answer and the soil', text: 'Is the gap within soil type the same in early and late seasons?', from: [{ kind: 'found', text: 'On plot means within soil type, regime C yields 0.112 t/ha against regime A.' }, MISFIT] }] };
   return {
+    next() {         // under a finished analysis' closing card: a set of questions - where each comes from, one already run - and the list of levels open by the button
+      const pane = document.getElementById('streamOutput');
+      responses = [{ chain_id: 1763203380, thread_id: 1763203300, parentChainId: null, queryText: Q, streamOutput: '' }]; currentResponseIndex = 0;      // the chain on screen is a finished one
+      NextQuestionsUI.dress(pane);
+      pane.querySelector('.sp-stream').insertAdjacentHTML('beforeend', NextQuestionsUI.build.set(NEXT, 0));
+      pane.scrollTop = pane.scrollHeight;
+      pane.querySelector('[data-nq="open"]').click();
+    },
     talk() { show(first); },      // the Architect's first turn: what the question states is in the brief, and its first question has two choices
     reading() {      // a message on its way: shown at once, the Architect reading, the composer held
       const entry = show(first);

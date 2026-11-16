@@ -116,7 +116,7 @@ def purpose_of(turn: "Turn", width: int = 110) -> str:
 
 @dataclass
 class Turn:
-    kind: str                       # cell | show | names | search | read | ask | report | rewrite | review | error (recall: in runs made before 2.8)
+    kind: str                       # cell | show | names | search | read | ask | report | rewrite | review | error (recall, ideas: in runs made before 2.8)
     note: str = ""                  # the note as rewritten this turn
     thinking: str = ""              # free text before the note, if any
     code: str = ""                  # CELL: the code that ran
@@ -160,6 +160,8 @@ class Run:
     framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Architect: {versions: [{n, by, changed, why, brief}],
                                                   # turns: [{who, text, choices, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}], calls,
                                                   # proposed} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14); {} for a run not framed
+    next_questions: List[dict] = field(default_factory=list)   # the sets of questions proposed to follow this run, as they were asked for (analyst/next_questions.py):
+                                                  # [{level, questions: [{title, text, from: [{kind, text}], ran: the chain it started}], cost, at, chain}]
 
     @property
     def note(self) -> str:
@@ -403,7 +405,9 @@ class Notebook:
         text = (run.report or run.rewrite or "").strip()
         if not text:
             return "(no report)" if run.status != "asked" else "(asked the person a question)"
-        paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip() and not p.strip().startswith("#")]
+        # a heading is not the conclusion, whether or not an empty line follows it (2026-11-16: "## Answer" with its text on
+        # the next line had made the whole paragraph a heading, and the ledger said "(no report)")
+        paras = [p.strip() for p in re.split(r"\n\s*\n", re.sub(r"(?m)^#.*$", "", text)) if p.strip()]
         if not paras:
             return "(no report)"
         first = re.sub(r"\s+", " ", paras[0])

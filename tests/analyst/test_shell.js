@@ -18,8 +18,9 @@ const shell = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'stati
 check('shell.css: no drawer rules remain', !shell.includes('.menu-popup'));
 // ---- the composer ----
 const comp = root.querySelector('.input-area');
-check('composer: every id the scripts address is present (input, upload, files, mode switch + popup + params, ideas, submit); Save has left it',
-  ['queryInput', 'uploadButton', 'primaryFile', 'auxiliaryFile', 'modeSwitch', 'modeSliderPopup', 'modeParams', 'iterationsValue', 'suggestQuestions', 'branchingSliderPopup', 'submitQuery', 'uploadLimitMessage'].every(id => comp.querySelector('#' + id)) && !comp.querySelector('#saveButton'));
+check('composer: every id the scripts address is present (input, upload, files, mode switch + popup + params, submit); Save has left it, and the plant with its popover (2.8: next questions are on the closing card)',
+  ['queryInput', 'uploadButton', 'primaryFile', 'auxiliaryFile', 'modeSwitch', 'modeSliderPopup', 'modeParams', 'iterationsValue', 'submitQuery', 'uploadLimitMessage'].every(id => comp.querySelector('#' + id)) && !comp.querySelector('#saveButton')
+  && !comp.querySelector('#suggestQuestions') && !comp.querySelector('#branchingSliderPopup'));
 check('composer: the three mode options and the send button\'s three icons are still there for setMode() and setQueryRunning()',
   comp.querySelectorAll('#modeSliderPopup .mode-option').length === 3 && ['airplane-icon', 'globe-icon', 'stop-icon'].every(c => comp.querySelector('#submitQuery .' + c)));
 check('composer: no hint line, no chips inside it (they moved to the bar)', !comp.querySelector('.composer-hint') && !comp.querySelector('#datasetStatusPillsContainer'));
@@ -37,7 +38,6 @@ check('ui-controls.js: the menu toggle is a no-op without the drawer', uc.includ
 // ---- v42 ----
 check('rail: the gear sits at the bottom of the rail with its menu opening to the right, on hover or click, bridged', root.querySelector('.rail .rail-gap') && shell.includes('.rail .settings-popup { position: absolute; left: 100%; bottom: 0;') && shell.includes('.rail .settings-container:hover .settings-popup, .rail .settings-container:focus-within .settings-popup { display: flex; }'));
 check('top bar: the executor status is a dot and a word, coloured by state', shell.includes('.topbar .container-status::before') && shell.includes('.topbar .container-status.status-ready, .topbar .container-status.status-online { color: var(--c-model)'));
-check('ui-controls.js: the ideas popover is anchored to its button when shown', uc.includes("branchingSliderPopup.style.left = suggestQuestions.offsetLeft + 'px'"));
 check('top bar: a chip\'s remove icon inherits the chip\'s colour', shell.includes('.topbar .dataset-status-pill .dataset-pill-remove-icon { color: inherit;'));
 check('answer tab: the Simplified/Technical toggle and the PDF button are styled as small buttons on one toolbar line', shell.includes('#content-answer .simplified-summary-btn, #content-answer .pdf-export-btn {') && shell.includes('#content-answer .tab-header-container h3 { display: none; }'));
 // ---- v43 ----
@@ -77,10 +77,14 @@ const wg = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static',
 check('workflowGraph.js: a node click navigates and closes the drawer; the controls sit on the frame, the graph fits it, hover shows the chain\'s basics; workflow-management.js writes the subtitle', wg.includes("if (drawer) drawer.style.display = 'none'") && wg.includes('var controlsHost = mapContainer.parentElement') && wg.includes('function fitToFrame(') && wg.includes("class=\"wf-info-row\"") && !wg.includes('renderPlotlyPreview(plotData)') && wm.includes("document.getElementById('mapDrawerSub')"));
 check('shell.css: zoom at the frame\'s top-left, expand at its top-right; the hover basics styled', shell.includes('#workflowMapModal .wf-zoom-controls { position: absolute; left: 10px; top: 10px;') && shell.includes('#workflowMapModal .wf-fullscreen-btn { position: absolute; right: 10px; top: 10px;') && shell.includes('#workflowMapModal .wf-info {'));
 check('shell.css: the drawer, the graph and its controls are styled; workflow-map.css is retired (its variation pills kept)', shell.includes('#workflowMapModal.map-drawer {') && shell.includes('#workflowMapModal .wf-node--active') && shell.includes('.variation-pill') && !html.includes("css/workflow-map.css"));
-// ---- v48: the Explore page ----
+// ---- v48: the Explore page - retired with the analyst's ideas path (2.8); a page kept from before is still read ----
 const qp = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'query-processing.js'), 'utf8'); const core = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');
-check('explore: an answer flagged explore becomes the Explore tab (interactive cards) and gets no PDF or Simplified buttons', qp.includes("if (data.type === 'answer' && data.explore) { answerTabInteractive = true; answerTabExplore = true; }") && core.includes('let answerTabExplore = false;') && cr.includes("!(typeof answerTabExplore !== 'undefined' && answerTabExplore)") && cr.includes("tab.textContent = answerTabInteractive ? 'Explore'"));
-check('tabs.css: the Explore cards are styled (number, title, question, edit, run)', tabsCss.includes('#content-answer .interactive-pill {') && tabsCss.includes('#content-answer .pill-edit-input {') && tabsCss.includes('#content-answer > h3 { display: none; }'));
+check('explore, retired: no answer is flagged for an Explore page and no level is sent with a query; the Answer tab is the answer or the synthesis; the code that made the cards and ran them is gone',
+  !qp.includes('data.explore') && !qp.includes('branching_cv') && !core.includes('answerTabExplore') && !core.includes('answerTabInteractive') && !cr.includes('answerTabInteractive') && !cr.includes('InteractivePills')
+  && !cr.includes('attachPillEventListeners') && cr.includes("tab.textContent = answerTabSynthesis ? 'Synthesis' : 'Answer';") && !uc.includes('branchingSliderPopup'));
+check('tabs.css: an Explore page kept from before still reads as cards (number, title, question), and what changed or ran a card is hidden',
+  tabsCss.includes('#content-answer .interactive-pill {') && tabsCss.includes('#content-answer .pill-edit-input, #content-answer .pill-edit-btn, #content-answer .pill-icon { display: none !important; }')
+  && tabsCss.includes('#content-answer .pill-content { display: block !important;') && tabsCss.includes('#content-answer > h3 { display: none; }'));
 // ---- v50 ----
 const cs = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'container-status.js'), 'utf8');
 check('executor chip: a cell_start event turns it to Executing and a cell end or run end turns it back', qp.includes('data.type === "pane_cell_start"') && qp.includes("setExecuting(true)") && qp.split("setExecuting(false)").length >= 3 && cs.includes("el.className = 'container-status status-execution'"));

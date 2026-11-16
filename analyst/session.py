@@ -172,10 +172,6 @@ FIGURES_FAILED = ("YOUR LAST CELL FAILED - it was rolled back (attempt {k} of {n
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
                              # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
-IDEAS_SYSTEM = ("You propose the next questions for a data analysis thread. You know the dataset and the chains so far from the "
-                "message. You do not run code and you do not analyse; you write five follow-up questions at the variation level asked, "
-                "as a numbered list, each item a short bold title, a colon, and the question - and nothing else around the list.")
-
 REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader who has never studied statistics and "
                 "does not know this dataset: the answer first in everyday words, then what it depends on and what it "
                 "does not mean, then how it was checked, then what to do next. Explain each idea the first time it "
@@ -872,65 +868,6 @@ class Session:
         return "\n\n".join(parts)
 
     # ----- the loop ----------------------------------------------------------
-    # ---- ideas: five next questions, one model call, no cells (2026-09-08) ----
-    IDEAS_LEVELS = {1: "refine the focus - scope, granularity or a parameter within the same enquiry",
-                    2: "shift the angle - the same subject from a different perspective or framework",
-                    3: "test the boundaries - what happens at the edges of the current assumptions",
-                    4: "blend two elements already in the thread in a new way",
-                    5: "follow what emerged unexpectedly in the investigation"}
-
-    @staticmethod
-    def _ideas_list(text: str) -> str:
-        """The five items and nothing else: whatever the model wrapped around them (a reply in the
-        contract's three-section form, an opening paragraph, a closing remark) is dropped."""
-        text = text or ""
-        if "###ACTION###" in text:                                  # the analyst's format slipped in
-            text = text.split("###ACTION###", 1)[1]
-            text = re.sub(r"^\s*REPORT\s*", "", text)
-        items, cur = [], None
-        for line in text.splitlines():
-            m = re.match(r"^\s*(\d+)[.)]\s+(.*)$", line)
-            if m:
-                if cur: items.append(cur)
-                cur = m.group(2).strip()
-            elif cur is not None and line.strip():
-                cur += " " + line.strip()
-            elif cur is not None and not line.strip():
-                items.append(cur); cur = None
-        if cur: items.append(cur)
-        items = [i for i in items if i][:5]
-        return "\n".join(f"{n}. {i}" for n, i in enumerate(items, 1))
-
-    def ideas(self, level: int, parent: Optional[str] = None, run_id: Optional[str] = None, question: str = "", mode: str = "") -> Run:
-        """Five follow-up questions one step from the thread, at the asked variation level.
-        A single model call over the thread's ledger and the data description: no cells,
-        no replay, no rewrite. The run is recorded like any other, so the map shows it."""
-        level = max(1, min(5, int(level or 3)))
-        run = self.nb.new_run(question or f"User requested variations of the enquiry (level {level})", parent, run_id=run_id)
-        run.mode = mode                                       # the host's label (Ideas), for the code map's one line (2026-10-20)
-        self._save()
-        self.emit({"type": "turn_start", "run": run.id, "turn": 1, "of": 1})
-        t0 = time.time()
-        ledger = self.nb.render_ancestry(run.id) if parent else ""
-        prompt = (f"DATA:\n{self.data_description}\n\n" + (ledger + "\n\n" if ledger else "") +
-                  "TASK: Propose five follow-up questions for this thread, all at variation level " + str(level) + ": " + self.IDEAS_LEVELS[level] + ".\n"
-                  "Each is ONE step from where the thread is now: built from elements already present in the chains and the data, "
-                  "answerable with this dataset, specific enough to run as the next chain. Prefer subtle over dramatic; small shifts reveal large insights.\n"
-                  "Reply with the five as a numbered list and NOTHING else - no introduction, no closing remark, no headings, no notes. "
-                  "Each item: **a short title** then a colon and the question in one or two sentences. Plain text; no LaTeX.")
-        text, usage = self.llm(IDEAS_SYSTEM, prompt)
-        text = self._ideas_list(text)
-        cost = (usage or {}).get("cost", 0.0)
-        self.emit({"type": "turn_end", "run": run.id, "turn": 1, "kind": "ideas", "thinking": "", "note": "", "code": "",
-                   "elapsed": round(time.time() - t0, 1), "cost": cost})
-        run.turns.append(Turn(kind="ideas", text=text, usage=dict(usage or {}),
-                              note="- Question as understood: five next questions for the thread\n- Names: (no cells; the kernel is untouched)"))
-        run.report = text if text else "(no ideas returned)"
-        run.status = "answered" if text else "failed"
-        self._save()
-        self.emit({"type": "run_end", "run": run.id, "status": run.status})
-        return run
-
     def run(self, question: str, parent: Optional[str] = None, budget: Budget = Budget(),
             run_id: Optional[str] = None, data: Optional[dict] = None, image: Optional[str] = None, mode: str = "",
             brief: Optional[dict] = None) -> Run:

@@ -58,10 +58,8 @@ def _line(value, chars: int) -> str:
     return re.sub(r"\s+", " ", value).strip()[:chars] if isinstance(value, str) else ""
 
 
-def parse(text: str) -> dict:
-    """The reply's JSON object, fenced or bare: {"brief": the parts it writes, "say": its message, "choices": [...],
-    "lookups": what it asks of the data, "marks": the marks it gives, "propose": the explanations it proposes}.
-    Raises Unreadable."""
+def reply_object(text: str) -> dict:
+    """The JSON object a reply holds, fenced or bare. Raises Unreadable."""
     t = (text or "").strip()
     fenced = re.search(r"```(?:json)?\s*(\{.*\})\s*```", t, re.S)
     if fenced:
@@ -77,6 +75,14 @@ def parse(text: str) -> dict:
         raise Unreadable(f"its JSON does not parse: {exc}") from exc
     if not isinstance(obj, dict):
         raise Unreadable("it is not a JSON object")
+    return obj
+
+
+def parse(text: str) -> dict:
+    """What a reply of the Architect's says: {"brief": the parts it writes, "say": its message, "choices": [...],
+    "lookups": what it asks of the data, "marks": the marks it gives, "propose": the explanations it proposes}.
+    Raises Unreadable."""
+    obj = reply_object(text)
     say = _line(obj.get("say"), SAY_CHARS)
     if not say:
         raise Unreadable('it has no "say"')
@@ -186,6 +192,23 @@ def _grounded(proposal, data: str) -> bool:
     return bool(column) and bool(re.search(r"(?<!\w)" + re.escape(column) + r"(?!\w)", data or ""))
 
 
+def ask(llm: Callable, system: str, user: str, read: Callable) -> tuple:
+    """One reply of the model's, as `read` takes it in. A reply that cannot be read is asked for once more. Returns
+    what was read, the calls made and what they cost; raises Failed."""
+    problem, calls, cost = "", 0, 0.0
+    for attempt in range(2):
+        reply, usage = llm(system, user if not attempt else user + "\n\n" + AGAIN.format(problem=problem), effort=EFFORT)
+        usage = usage or {}
+        calls, cost = calls + 1, cost + float(usage.get("cost") or 0.0)
+        if usage.get("declined"):
+            raise Failed(DECLINED.format(category=usage["declined"]), calls, cost)
+        try:
+            return read(reply), calls, cost
+        except Unreadable as exc:
+            problem = CUT if usage.get("truncated") else str(exc)
+    raise Failed(UNREAD.format(problem=problem), calls, cost)
+
+
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None) -> dict:
     """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
     after a round of lookups - and its reply. A reply that cannot be read is asked for once more. Returns the framing
@@ -204,21 +227,7 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     if said:
         turns.append({"who": "person", "text": said})
     brief = briefs.latest(framing) or {"question": run.question}
-    user = prompt(run.question, brief, turns, data, earlier(nb, run.id))
-    got, problem, calls, cost = None, "", 0, 0.0
-    for attempt in range(2):
-        reply, usage = llm(SYSTEM, user if not attempt else user + "\n\n" + AGAIN.format(problem=problem), effort=EFFORT)
-        usage = usage or {}
-        calls, cost = calls + 1, cost + float(usage.get("cost") or 0.0)
-        if usage.get("declined"):
-            raise Failed(DECLINED.format(category=usage["declined"]), calls, cost)
-        try:
-            got = parse(reply)
-            break
-        except Unreadable as exc:
-            problem = CUT if usage.get("truncated") else str(exc)
-    if got is None:
-        raise Failed(UNREAD.format(problem=problem), calls, cost)
+    got, calls, cost = ask(llm, SYSTEM, prompt(run.question, brief, turns, data, earlier(nb, run.id)), parse)
     facts = {f["k"]: (f["about"], f["fact"], f["ran"]) for t in turns if t.get("who") == "check" for f in t.get("found", [])}
     made_before = int(framing.get("proposed") or 0)
     proposals = [p for p in got["propose"] if _grounded(p, data)][:max(0, PROPOSALS - made_before)]

@@ -147,6 +147,42 @@
   proposes one explanation with its marks, from the `soil` column (`ARCHITECT_PROPOSES`), and says it can be ticked
   while it is not (`ARCHITECT_TICK`); the scripted Analyst answers it from the gap with and without soil held fixed.
   *Not there:* a fact from the data as a line of its own; proposals for what is fixed. Not run against a live model.
+  **0300 (2026-11-16): next questions** (the design's §2.7, §2.15). The sapling is the Architect's now; the Analyst's
+  ideas path (`Session.ideas`, `_ideas_run`, `/query`'s `branching_cv`), the plant button with its popover and the
+  Explore tab are gone. *The engine,* `analyst/next_questions.py` with instructions of its own
+  (`next_questions.md`): `record()` is the lines an analysis leaves, each `{kind, text}` - what its brief fixed, the
+  report's lines against the brief and of *Did not fit*, a proposal left unticked, a line the brief rests on that was
+  not found to hold, what would change the coach's mind, what was asked and found, what the analyses before found;
+  `sources()` puts the level's own lines first (`OWN`, five levels: refine, shift, test, blend, emergence);
+  `propose()` is one call (`architect.ask`, the call with one more attempt, now shared with `exchange()`; the JSON
+  reading is `architect.reply_object`) whose reply names each question's line by number - `parse()` leaves out a
+  question that names none, wants two lines at blend, and refuses a reply none of whose questions comes from the
+  level's own lines where it has any. `Run.next_questions` keeps the sets; `ran()` marks a question with the chain it
+  started. `Notebook.conclusion` now skips a heading whether or not an empty line follows it (a report whose text
+  sat right under `## Answer` had read "(no report)" in the ledger). *The host.* `BambooAI.next_questions(thread,
+  run, level)`: the call on the Architect's seat, logged as the Architect's under a chain of its own
+  (`_llm(chain=...)` - the instance's chain is left alone, so an exchange in a brief may be in flight beside it),
+  charged in its `finally`; `pd_agent_converse(candidate=(set, k))` marks the question on the parent's record.
+  *Routes.* `POST /architect/next` (authorised and counted as a query; a stream that ends on `{"next": {"set",
+  "at"}}` or `{"next": {"error"}}`); `/query` takes `next: {set, k}`. The usage record names a chain of the
+  Architect's that the thread store does not know *Next questions* (`_OTHER`). *The page,*
+  `web_app/static/js/next-questions.js`: `dress()` puts the button on a finished analysis' closing card (at the
+  run's end, and when a chain kept from before is shown again); the levels are a list by the button (`.save-menu
+  .nq-menu`); a set is cards in the analysis' own pane, kept with the chain (`entry.streamOutput`, the page's
+  store) - never an editor left open or a set still on its way; the arrow calls `handleQuerySubmit({next})`, which
+  is not typed, so the switch does not apply; the live chain carries `next`, its pane opens on the row `.nq-from`,
+  and the stream's id line marks the card (`ran()`); `ArchitectUI.mark()` says *next question* by that row.
+  `holds()` keeps an analysis from starting while a set is being written. A page of the old Explore tab kept in a
+  favourite shows its questions, read-only (`tabs.css`); the map's fork box stays for such chains. The stack's
+  scripted report under a brief now plants one misfit - the gap by soil, from a line its cell prints
+  (`NEXT_MISFIT`) - and `Scenario.next_questions` asks one question from each line in the order given
+  (`NEXT_FROM`). The walk's two checks of the run dialog's footer now follow the routine's recorded time
+  (`footer_time`): the footer says nothing for a run under a second, and a machine that fast had failed them. An
+  answer that opens with a paragraph is kept clear of the Answer tab's two buttons, as one that opens with a heading
+  was (`shell.css`).
+  *Not there:* a way to stop a set in flight; sets added after a favourite was saved are in the
+  page's copy, and in the favourite once it is saved again. *Seen and left:* a query refused for the balance leaves
+  its running placeholder among the chains (an empty box on the map), as it did before. Not run against a live model.
 - **Published.** 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -223,8 +259,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (301/239/31/28/18/49/44/72/33/261/60/93/27/30/37/15/88/1/1 Python; 62/7/50/72/24/174/14/25/4/15/67/41/92 JS; 2,075 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (170 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (309/244/31/28/18/49/44/72/33/261/60/93/27/31/37/15/88/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/92/27 JS; 2,115 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (177 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.

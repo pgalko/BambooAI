@@ -187,7 +187,7 @@ class BambooAI:
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
     def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
-             effort=None, label: str = None, **hints):
+             effort=None, label: str = None, chain=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
@@ -202,14 +202,18 @@ class BambooAI:
         order of preference, the first the model accepts (the analyst's report
         turn and its second attempts, 2026-10-18); the usage says the effort the
         call was asked at. `label` is the name the call is logged under when
-        it is not the seat's (the Architect on the analyst's seat)."""
+        it is not the seat's (the Architect on the analyst's seat). `chain` is
+        the chain the call is logged and counted under when it is not the
+        instance's own: a call made beside the analyses (next questions),
+        which leaves the instance's chain alone."""
         if self.kill_signal or self._stop_event.is_set():
             raise ExecutionInterrupted("stopped by the user")
-        before = self._chain_cost()
+        chain = self.chain_id if chain is None else chain
+        before = self._chain_cost(chain)
         content = user if not image else [{"type": "text", "text": user}, {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image}}]
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
-                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=self.chain_id,
+                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=chain,
                                reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}),
                                **({"label": label} if label else {}))
         if isinstance(text, tuple):
@@ -221,12 +225,14 @@ class BambooAI:
         meta = prompt_cache.last_meta()
         # a request the provider's classifier declined before any text (2026-10-08: the Claude 5.5 family's stop_reason
         # "refusal"; the adapter records the category so the session can say what happened rather than "no valid action")
-        return text or "", {"cost": max(0.0, self._chain_cost() - before), "truncated": bool(meta.get("truncated")),
+        return text or "", {"cost": max(0.0, self._chain_cost(chain) - before), "truncated": bool(meta.get("truncated")),
                             "declined": meta.get("declined") or "", "effort": meta.get("seat_effort") or ""}
 
-    def _chain_cost(self):
+    def _chain_cost(self, chain=None):
+        """What the calls logged under a chain have cost so far: the instance's own chain, or the one given."""
+        chain = self.chain_id if chain is None else chain
         ts = self.log_and_call_manager.token_summary
-        summary = ts.get(self.chain_id) or ts.get(str(self.chain_id)) or {}
+        summary = ts.get(chain) or ts.get(str(chain)) or {}
         return float(summary.get('total_cost', 0.0) or 0.0)
 
     # ---------------------------------------------------------------- kernel
@@ -1085,26 +1091,6 @@ class BambooAI:
         if q is not None and data:
             q.put(json.dumps({'type': kind, 'data': data, 'chain_id': self.chain_id}))
 
-    def _ideas_run(self, question, level, parent, parent_for_ui):
-        """The seedling (2026-09-08): five next questions from one model call - no cells, no replay,
-        no rewrite, no infographic - shown in the Explore tab, and recorded as a chain so the map shows the fork."""
-        self._mode_label = "Ideas"
-        if self.webui:
-            self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui)
-            self._pane('pane_run_start', mode="Ideas", of=1, dollars=0.1)
-        session = Session(None, self.notebook, self._llm, store=self.store, emit=self._emit, search=None,
-                          data_description=self._data_description())
-        run = session.ideas(int(level), parent=parent, run_id=str(self.chain_id), question=question or "", mode="Ideas")
-        try:
-            self.store.record(self.notebook, run)                # the usage ledger's line (2026-10-31)
-        except Exception:                                      # noqa: BLE001
-            logger.warning("The ideas run's ledger line was not kept", exc_info=True)
-        self._pane('pane_run_end', status=run.status, turns=1, of=1, cells=0, failed=0, cost=self._chain_cost(), seconds=0,
-                   replay_status='', replay_line='', plots=0, files=[])
-        self.output_manager.display_results(chain_id=self.chain_id, answer=run.report, explore=True)
-        logger.info("Ideas run %s finished: level %s, status=%s, cost=$%.3f", run.id, level, run.status, self._chain_cost())
-        return None
-
     def _notebook_view(self, run):
         """The Investigation tab: the run as a notebook (analyst/render.py)."""
         from analyst.render import notebook_html
@@ -1267,6 +1253,32 @@ class BambooAI:
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
 
+    def next_questions(self, thread_id, run_id, level):
+        """One set of next questions for a finished analysis, at a level (analyst/next_questions.py): one model call on
+        the Architect's seat, logged as the Architect's under a chain of its own - the analysis' chain is settled - and
+        charged when it ends, as Save as routine's proposal is. The set is kept with the run. Returns {"set", "at": its
+        place among the run's sets}, or None when the run is not a finished analysis on the record; raises
+        architect.Failed with the reason to show."""
+        from analyst import next_questions
+        self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
+        self._stop_event.clear()
+        self._on_thread(thread_id)
+        run = self.notebook.runs.get(str(run_id))
+        if run is None or run.status != "answered":
+            return None
+        seat, chain = self._architect_seat(), utils.next_chain_id()
+        try:
+            asked = next_questions.propose(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", chain=chain, **kw),
+                                           self.notebook, run, level, data=self._data_description())
+        finally:
+            try:
+                self.log_and_call_manager.charge_for_completed_query(chain)
+            except Exception:                                  # noqa: BLE001
+                logger.warning("The next questions' call was not charged", exc_info=True)
+        run.next_questions.append({**asked, "chain": chain})
+        self.store.save(self.notebook)
+        return {"set": run.next_questions[-1], "at": len(run.next_questions) - 1}
+
     def _architect_look(self, lookups):
         """A round of the Architect's lookups (analyst/lookup.py), answered where the analysis' cells run: one
         host-written script through the executor, over the frame loaded now and the files beside it. It leaves nothing
@@ -1292,10 +1304,12 @@ class BambooAI:
             self._drop_kernel()
 
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
-                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, ideas=None, brief=None,
-                          run_id=None):
+                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, brief=None,
+                          run_id=None, candidate=None):
         # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
         # run_id: the framing run the brief was written in (open_framing); the analysis continues it, under its id
+        # candidate: (the set, the question) by their places - the next question of the run this one follows that it was
+        # started from (analyst/next_questions.py); it is marked there as run
         self.kill_signal = False
         self._stop_event.clear()
 
@@ -1337,9 +1351,9 @@ class BambooAI:
                         "SHOW RUN k - or SHOW RUN 1 2 3 - re-opens them whole where the ledger's line is not enough. Do not re-derive what they established.")
         if not question:
             return None
-
-        if ideas:
-            return self._ideas_run(question, ideas, parent, parent_for_ui)
+        if candidate is not None and parent is not None:
+            from analyst import next_questions
+            next_questions.ran(self.notebook.runs[parent], candidate, self.chain_id)      # kept with the run's first save
 
         # budget preset. The brain's menu sends mode = quick | deep | adaptive (2026-09-05);
         # without it the legacy flags decide (auto_explore -> adaptive, planning -> deep).

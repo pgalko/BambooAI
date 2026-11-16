@@ -435,6 +435,7 @@
         const strip = p.querySelector('.sp-strip');
         if (strip) { const live = strip.querySelector('.live'); if (live) live.classList.add('idle'); }
         append(build.runEnd(r));
+        if (window.NextQuestionsUI) window.NextQuestionsUI.dress(p);      // a finished analysis: the Next questions button on its closing card
         // the same provenance under the answer, where the reader is (2026-09-08)
         const answer = (typeof liveTargets === 'function') ? liveTargets().content.querySelector('#content-answer') : document.getElementById('content-answer');
         if (answer && r.status === 'answered') {
