@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.17 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304)
+# The Architect and memory from saved analyses — design v0.18 (2026-11-16; released as 2.8.0, 0305; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304)
 
 Release 2.8 does three things.
 
@@ -908,7 +908,7 @@ repository and the dev box only.
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. Asked from the command line (§3.6). | built |
 | 0303 | Memory in the Architect: the row with its live count and Skip, the passages found in the brief to tick, Open, *Look in saved analyses* (§3.7). | built |
 | 0304 | The Analyst opens a saved analysis the brief names. The brief of a saved analysis is memory. The new seats in the templates and in Usage. README (§3.8). | built |
-| 0305 | Release 2.8.0. | |
+| 0305 | Release 2.8.0. | built |
 
 ## 8. Not in this release
 
