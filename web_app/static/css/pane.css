@@ -118,6 +118,9 @@
 #streamOutput .ar-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 #streamOutput .ar-choice { padding: 3px 12px; border: 1px solid var(--chip-model-border); border-radius: 999px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; text-align: left; cursor: pointer; }
 #streamOutput .ar-choice:hover { background: var(--accent-bg-hover); }
+#streamOutput .sp-row .ar-skip { flex-shrink: 0; padding: 0 9px; border: 1px solid var(--border-color); border-radius: 5px; background: none; font: inherit; font-size: 11px; line-height: 18px; color: var(--text-secondary); cursor: pointer; }   /* the saved analyses being read (0303) */
+#streamOutput .sp-row .ar-skip:not(:disabled):hover { border-color: var(--text-tertiary); color: var(--text-primary); }
+#streamOutput .sp-row .ar-skip:disabled { color: var(--text-quaternary); cursor: default; }
 /* ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, 2026-11-16): the button on a finished analysis' closing card; under the card the sets of questions, a card each - where it comes from, the question, a pencil and an arrow; and the row a run opens on when a question started it ---- */
 #streamOutput .sp-done .nq-open { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }
 #streamOutput .sp-next { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; font: inherit; font-size: 12.5px; color: var(--accent-color); cursor: pointer; }

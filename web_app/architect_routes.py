@@ -3,6 +3,9 @@ Architect on opens a framing run on the thread's record; the Architect then fill
 for what is missing and checks what the brief rests on against the data, one exchange a call; every change to the
 brief is kept as a version. The analysis then continues that run through /query, which names it as run_id.
 
+An exchange may have the person's saved analyses read (§3.7): the stream then carries how far the reading is, the
+person can skip it (/architect/skip), and a saved analysis the brief names can be read whole (/architect/saved).
+
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
 month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say).
 
@@ -51,9 +54,10 @@ def architect_open():
 @architect_bp.route('/architect/say', methods=['POST'])
 @requires_auth
 def architect_say():
-    """One exchange with the Architect: {thread_id, chain_id, text} - no text on its first turn, nor when it goes on
-    after a round of lookups - as a stream that ends on {"architect": {"framing": ...}}, or {"architect": {"error":
-    ...}} when no reply was kept."""
+    """One exchange with the Architect: {thread_id, chain_id, text, look} - no text on its first turn, nor when it
+    goes on after a round of lookups or a reading of the saved analyses; `look` when the person asks for the saved
+    analyses - as a stream that ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no
+    reply was kept. While the saved analyses are read the stream carries {"type": "architect_saved", "read", "of"}."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400
@@ -65,7 +69,7 @@ def architect_say():
 
     def work():
         try:
-            framing = instance.architect_say(data['thread_id'], data['chain_id'], text)
+            framing = instance.architect_say(data['thread_id'], data['chain_id'], text, asked=data.get('look') is True)
         except Failed as exc:
             return {'architect': {'error': str(exc)}}
         except Exception as exc:                             # noqa: BLE001
@@ -75,6 +79,33 @@ def architect_say():
             return {'architect': {'error': 'This brief can no longer be changed: its analysis has started.'}}
         return {'architect': {'framing': framing}}
     return _stream(instance, work)
+
+
+@architect_bp.route('/architect/skip', methods=['POST'])
+@requires_auth
+def architect_skip():
+    """The person no longer waits for the saved analyses: the reading in flight ends before its next call, and the
+    exchange goes on without it."""
+    _instance().skip_saved()
+    return jsonify({'skipped': True}), 200
+
+
+@architect_bp.route('/architect/saved/<thread_id>/<run_id>', methods=['GET'])
+@requires_auth
+def architect_saved(thread_id, run_id):
+    """A saved analysis as memory holds it, to read beside a brief that names it: {id, when, kind, question, title,
+    report, marks, data: {name, period, person}, cells: [{n, code}]} - whose data it ran on is from the thread's
+    record, the view holding no name. 404 when it is no longer saved."""
+    from analyst import memory
+    from analyst.notebook import NotebookStore, subject_name_of
+    storage = _app().user_path('storage')
+    run = next((r for r in memory.view(storage)['runs'] if r['thread'] == str(thread_id) and r['run'] == str(run_id)), None)
+    if run is None:
+        return jsonify({'error': 'This analysis is no longer among your saved ones.'}), 404
+    record = NotebookStore(storage).read(run['thread']).runs.get(run['run'])
+    return jsonify({**{k: run[k] for k in ("id", "when", "kind", "question", "title", "report", "marks")},
+                    "data": {"name": run["data"]["name"], "period": run["data"]["period"], "person": subject_name_of(record.data if record else None)},
+                    "cells": [{"n": c["n"], "code": c["code"]} for c in run["cells"]]}), 200
 
 
 @architect_bp.route('/architect/next', methods=['POST'])

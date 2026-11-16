@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.15 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, and its reader, 0302)
+# The Architect and memory from saved analyses — design v0.16 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, and memory in the Architect, 0303)
 
 Release 2.8 does three things.
 
@@ -573,6 +573,8 @@ is read by a program a model writes, not pasted into a prompt.
 - A finding across all saved analyses comes as a choice ("threshold was defined two ways: 9 times this, 3 times
   that").
 
+Built: §3.7.
+
 ### 3.4 Rules (agreed)
 
 - A method may carry over. Old numbers stay history about old data. Old code is read, not run.
@@ -718,6 +720,69 @@ executor's one kernel, so it is not run beside an analysis of the same user.
 **Not there:** memory in the Architect and on the page, where its cost joins the turn's (0303); the two seats in
 the templates and in Usage (0304).
 
+### 3.7 Memory in the Architect — built (0303, 2026-11-16)
+
+The reader of §3.6, asked from the conversation: `analyst/architect.py`, `analyst/brief.py`, and the page's
+`architect.js`.
+
+**When the saved analyses are read.**
+
+- *A question that follows no analysis.* The Architect asks for it, once: with its lookups, or, where there is
+  nothing to look up, in place of saying that the brief is ready (`"recall": true` in its reply). It is told how
+  many saved analyses the coach has (`SAVED: 12`), and asks only where there are some.
+- *A follow-up.* Only the coach asks (decision 19).
+- *The coach's button*, on any brief that can still be changed: **Look in saved analyses**, under the brief's
+  parts. It is there while the coach has saved analyses. The request is said in the conversation and the reading
+  starts at once; the Architect replies after it.
+- One reading after a message of the coach's, two in a brief. Then the button goes.
+
+**What the reader is given.** The question and the brief as it stands. No model writes a question for it. Its caps
+are those of §3.6.
+
+**While it reads.** A row in the conversation, in the place of the Architect's wait: *SAVED analyses · looking
+through 12*, then *reading 5 of 9* as the second model goes through the runs it was given. The composer is held and
+says that the saved analyses are being read. **Skip** ends the reading before its next call: the row then says
+*skipped*, and the Architect goes on. A reading that could not be made says why in its row; the Architect's reply
+before it stands.
+
+**What comes back.** A turn of the conversation: the passages, the finding across the analyses, how many are saved
+and how many were read, what was dropped, the seconds and the cost. Its row reads *2 passages found · read 9 of
+12 · 38 s*; the passages and the finding show on hover. The next exchange, with nothing said, gives it to the
+Architect.
+
+**In the brief.** Code puts the passages under **From saved analyses**, each with an empty box (decision 22), as
+one version: *the Architect, from your saved analyses*. A line shows the day and what was asked then, the passage,
+the reader's note, where it stands, whose data it ran on and which, and how it was saved. **Open** shows that
+analysis in a dialog over the page: its report, and the code of its cells folded under it. A cross leaves a passage
+out; its words cannot be changed (§2.6). Six passages at most, and one that is there is not added again.
+
+**Whose data.** The name beside a passage is for the coach. It is taken from the thread's record when the passages
+come back: the memory view holds no name, and no prompt carries this one. Where the data loaded now and the
+passage's run both name a person and the two differ, the brief keeps that too, and the Analyst is told *another
+person's data* - not whose. A passage is quoted as written, so a name inside it stays.
+
+**What the Architect does with them.** It says how many were found and that the coach ticks the ones to test. It
+writes nothing from a passage into another part of the brief and marks no line by one: an earlier result is a
+claim for the analysis to test. Where the saved analyses went more than one way on something the brief leaves open
+under *Fixed before the run*, it asks which way, with the ways as choices.
+
+**What the Analyst receives.** The ticked passages and no other, in its BRIEF block, under *Saved analyses the
+person chose (earlier results: claims to test, not evidence)*: the day, what was asked, where the passage stands,
+the passage, the data, and that it is another person's where it is. The run keeps them on its brief. Its
+contract says what such a passage is: a method may carry over; a number is history about the data it ran on, and
+no result of this run.
+
+**The money.** The reader's calls are logged under the brief's own chain, as *Memory Reader* and *Memory Pieces*,
+and are charged with it, as the Architect's are.
+
+**The routes.** `POST /architect/say` takes `look: true` for the coach's request, and its stream carries the count
+as the reading goes. `POST /architect/skip`. `GET /architect/saved/<thread>/<run>` gives one saved analysis as
+memory holds it; one that is saved no more is not found. The framing keeps how many saved analyses the coach had
+at the last exchange (`saved`), which is how the page knows whether to offer the button.
+
+**Not there:** the Analyst reads the passage, not yet the analysis it comes from: opening what the brief names,
+the brief saved with a saved analysis, and the two seats in the templates and in Usage are 0304.
+
 ## 4. How we will know it works
 
 **The Architect** (agreed in substance)
@@ -798,8 +863,8 @@ repository and the dev box only.
 | 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go (§2.15). | built |
 | 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model (§3.5). | built |
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. Asked from the command line (§3.6). | built |
-| 0303 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
-| 0304 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
+| 0303 | Memory in the Architect: the row with its live count and Skip, the passages found in the brief to tick, Open, *Look in saved analyses* (§3.7). | built |
+| 0304 | The Analyst opens a saved analysis the brief names. Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
 | 0305 | Release 2.8.0. | |
 
 ## 8. Not in this release

@@ -233,13 +233,15 @@ ans = reader.answer(view, {"found": [{"run": "600/601", "where": "report", "quot
                                      {"run": "400/401", "where": "cell 1", "quote": "def best_mean(x, n):", "note": "a step, not a saved run"},
                                      {"run": "no/such", "where": "report", "quote": "anything at all", "note": ""},
                                      {"run": "100/101", "where": "cell 1", "quote": "best_mean(df.power,  1800) * 0.95", "note": "the same passage again"}, "not an item"]}, judged)
-check("answer(): a passage stands where its quote stands in its run, and carries its run's id, thread, when, kind, question, title and marks, and the place code found it in - not one a model names; a run "
-      "whose chain is broken says so; the note is bounded",
+check("answer(): a passage stands where its quote stands in its run, and carries its run's id, thread, when, kind, question, title and marks, the data it ran on - its name, its period, whose it is by the "
+      "handle - and the place code found it in, not one a model names; a run whose chain is broken says so; the note is bounded",
       [f["id"] for f in ans["found"]] == ["600/601", "100/101"] and ans["found"][0] == {"id": "600/601", "thread": "600", "run": "601", "when": by["600/601"]["when"], "kind": "analysis",
                                                                                          "question": "Is the threshold stable over the season?", "title": "Stable within 5 W", "marks": ["picked"],
-                                                                                         "broken": True, "where": "report", "quote": "stays within 5 W over the season",
+                                                                                         "data": {"name": "", "period": "", "subject": ""}, "broken": True, "where": "report",
+                                                                                         "quote": "stays within 5 W over the season",
                                                                                          "note": ("It was checked over a season. " + "x" * 400)[:300]}
-      and "broken" not in ans["found"][1] and (ans["found"][1]["where"], ans["found"][1]["note"]) == ("cell 1", "the method"), ans["found"])
+      and "broken" not in ans["found"][1] and (ans["found"][1]["where"], ans["found"][1]["note"]) == ("cell 1", "the method")
+      and ans["found"][1]["data"] == {"name": "sessions.csv", "period": "2026-03-01 to 2026-05-31", "subject": "subject 2"}, ans["found"])
 check("answer(): what does not stand is dropped and counted - a quote that is not there, a run that is not memory (an earlier step, an id that is none), what is no item; a passage given twice is one",
       ans["dropped"] == 4 and ans["across"] is None, ans["dropped"])
 ten = reader.answer(view, {"found": [{"run": "100/101", "where": "report", "quote": q} for q in ("The threshold", "threshold is taken", "is taken as 95%", "taken as 95% of", "95% of the best", "of the best 30-minute",
@@ -374,6 +376,32 @@ check("the caps: the second model's calls are bounded over the whole question - 
 llm, pieces, sent = models([("", {"cost": 0.01, "declined": "cyber"})])
 res = reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0)
 check("a reply the model declined ends the work, with the reason", res["failed"] == "The model declined to reply (cyber)." and res["found"] == [] and res["calls"]["reader"] == 1, res["failed"])
+# ---- the brief with the question; being skipped; the count as the second model reads ----
+llm, pieces, sent = models(['ANSWER\n{"found": []}'])
+reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0, brief="\nBRIEF (version 2):\ndecision: keep or drop the block\nfixed.measure: (empty)\n")
+check("the brief the person is writing stands in the reader's prompt after the question, as it was given; without one the prompt has no such part",
+      sent["reader"][0][1].startswith(f"QUESTION:\n{QUESTION}\n\nBRIEF (version 2):\ndecision: keep or drop the block\nfixed.measure: (empty)\n\nSAVED RUNS: 7 (id | day | marks | question)\n")
+      and "BRIEF" not in first, sent["reader"][0][1][:300])
+llm, pieces, sent = models([cell("print(1)")])
+res = reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0, stop=lambda: True)
+check("skipped before the first reply: no model is called, and the result says that the person skipped it", res["failed"] == "The person skipped it." and sent["reader"] == [] and res["found"] == []
+      and res["calls"] == {"reader": 0, "pieces": 0}, res["failed"])
+reader.BATCH_CHARS, reader.piece = 250, lambda view, run, parts: f"=== {run['id']} ===".ljust(100, ".")
+asks, counts = iter([False, False, True]), []
+llm, pieces, sent = models(['JUDGE\n{"runs": "all", "question": "q?"}', 'ANSWER\n{"found": []}'], [rows(), rows()])
+res = reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0, stop=lambda: next(asks, True), on_read=lambda n, of: counts.append((n, of)))
+check("skipped while the second model reads: its next call is not made, the runs it did not reach stay unread, and the reader is not asked again - nothing is found, and the result says why",
+      res["failed"] == "The person skipped it." and res["calls"] == {"reader": 1, "pieces": 1} and len(res["steps"][0]["read"]) == 2 and counts == [(2, 7)] and res["coverage"]["judged"] == 2, res)
+counts = []
+llm, pieces, sent = models(['JUDGE\n{"runs": "all", "question": "q?"}', 'ANSWER\n{"found": []}'], ["no json", rows(), rows(), rows(), rows()])
+res = reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0, stop=lambda: False, on_read=lambda n, of: counts.append((n, of)))
+some, named = [], [r["id"] for r in view["runs"][:3]]
+llm, pieces, sent = models(["JUDGE\n" + json.dumps({"runs": named, "question": "q?"}), 'ANSWER\n{"found": []}'], [rows(), rows()])
+reader.read(QUESTION, view, kernel, llm, pieces, clock=lambda: 1000.0, on_read=lambda n, of: some.append((n, of)))
+reader.BATCH_CHARS, reader.piece = _batch, _piece
+check("the count as the second model reads: after each batch that was read, how many of the runs asked about are read - of the three named, not of all that are saved",
+      counts == [(2, 7), (4, 7), (6, 7), (7, 7)] and res["failed"] == "" and some == [(2, 3), (3, 3)], (counts, some))
+
 llm, pieces, sent = models([])
 res = reader.read(QUESTION, {**view, "runs": [], "not_read": {"older": 2}}, None, llm, pieces, clock=lambda: 1000.0)
 check("nothing saved is nothing to read: no sandbox is used and no model is called - an empty result at no cost, with what the view does not read",
@@ -575,14 +603,15 @@ for _k, _t in enumerate(re.findall(r'"((?:[^"\\\n]|\\.){12,})"', _src)):
 _sys, _pcs = " ".join(reader.SYSTEM.split()), " ".join(reader.PIECES.split())
 check("the instructions: the reader's say what it is for, its three actions with their forms, what SAVED holds and the rules; the second model's its one reply; neither names a domain, and neither uses the words "
       "the engine's instructions keep out",
-      _sys.startswith("You look things up in a person's saved analyses.") and "You do not analyse data, and you do not answer the question." in _sys
+      _sys.startswith("You look things up in a person's saved analyses.") and "You do not analyse data, and you do not answer the question." in _sys and "QUESTION is what the person asks. BRIEF, where there is one, is what they have said about it so far" in _sys
+      and "Passages it lists under `saved` were found before: return others." in _sys
       and all(w in _sys for w in ("`CELL`", "`JUDGE`", "`ANSWER`", '`SAVED["runs"]`', '`SAVED["steps"]`', "`JUDGED`", "Quote exactly", "an empty answer is an answer", "A number cannot", "They never run code taken from it",
                                   "its latest answer from the second model is shown with it", "those of the earlier steps right before it that are not saved themselves",
                                   "each `{run, answer, quote, where}`", "`where` is the place code found the quote in", "cite such a cell under the run"))
       and '{"found": [{"run": "<id>", "quote": "...", "note": "..."}], "across": {"topic": "...", "groups": [{"label": "...", "runs": ["<id>"]}]}}' in _sys
       and '{"runs": ["<id>", "<id>"], "parts": ["report", "code"], "question": "..."}' in _sys and '{"answers": [{"run": "<id>", "answer": "...", "quote": "..."}]}' in _pcs
       and "one that is not there word for word is dropped" in _sys and "an answer whose quote is not there is dropped" in _pcs and "YOUR QUESTION" in _pcs
-      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 4500 and len(reader.PIECES) < 1200
+      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 4600 and len(reader.PIECES) < 1200
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}
       and not [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}, [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],

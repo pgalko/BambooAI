@@ -106,6 +106,7 @@ class BambooAI:
         self.store = NotebookStore(self._user_storage())
         self.notebook = None
         self._framed = set()             # the chains the Architect talked in whose analysis has not run: their calls are not charged yet
+        self._skip_saved = threading.Event()      # the person no longer waits for the saved analyses to be read (the Architect's row, Skip)
 
         # The kernel: one per thread, kept warm between runs; rehydrated on a branch.
         self._kernel = None
@@ -1231,16 +1232,18 @@ class BambooAI:
         self.store.save(nb)
         return run.framing
 
-    def architect_say(self, thread_id, run_id, text=None):
+    def architect_say(self, thread_id, run_id, text=None, asked=False):
         """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
         first turn, nor when it goes on after its lookups - and its reply, taken into the brief and the conversation;
-        the lookups a reply asks for are answered here (_architect_look). The calls are the run's own: logged under
-        its chain as the Architect's, and charged with its analysis - or when the instance is torn down, if no
-        analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
+        the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
+        (_architect_recall) where the reply asks for it or - `asked` - the person did. The calls are the run's own:
+        logged under its chain as the Architect's, and charged with its analysis - or when the instance is torn down,
+        if no analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
         architect.Failed with the reason to show."""
-        from analyst import architect
+        from analyst import architect, memory
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
+        self._skip_saved.clear()
         self._on_thread(thread_id)
         run = self.notebook.runs.get(str(run_id))
         if run is None or run.status != "framing":
@@ -1250,7 +1253,8 @@ class BambooAI:
         self._framed.add(self.chain_id)
         try:
             run.framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
-                                             self.notebook, run, text, data=self._data_description(), look=self._architect_look)
+                                             self.notebook, run, text, data=self._data_description(), look=self._architect_look,
+                                             recall=self._architect_recall, asked=asked, saved=len(memory.view(self._user_storage())["runs"]))
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
             run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
@@ -1264,19 +1268,57 @@ class BambooAI:
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
 
-    def memory_read(self, question, on_step=None, chain=None, caps=None):
+    def _architect_recall(self, question, brief):
+        """The person's saved analyses read for a brief (memory_read), under the framing run's chain: the calls are
+        the run's own, as the Architect's are. The pane is told as it goes - how many are saved, how many the second
+        model has read - and the person can skip it (skip_saved). A reading that could not be made is a result that
+        says why: the Architect's reply stands either way."""
+        seen = lambda read, of: self._pane('architect_saved', read=read, of=of)      # noqa: E731
+        try:
+            result = self.memory_read(question, chain=self.chain_id, brief=brief, stop=self._skip_saved.is_set, on_read=seen)
+            self._whose(result["found"])
+            return result
+        except ExecutionInterrupted:
+            raise
+        except Exception as exc:                               # noqa: BLE001
+            logger.exception("The saved analyses could not be read for the brief")
+            return {"failed": f"The saved analyses could not be read: {str(exc).strip().splitlines()[-1][:200] if str(exc).strip() else type(exc).__name__}"}
+
+    def _whose(self, found):
+        """Whose data each passage's run ran on, for the person to read: the name on the run's load, taken from the
+        thread's record - the memory view holds no name - and whether that is another person than the one whose
+        data is loaded now. Where either load names nobody, neither is said."""
+        from analyst.notebook import subject_id_of, subject_name_of
+        here, threads = subject_id_of(self._data_record(light=True)), {}
+        for f in found:
+            if f["thread"] not in threads:
+                threads[f["thread"]] = self.store.read(f["thread"])
+            run = threads[f["thread"]].runs.get(f["run"])
+            data = run.data if run is not None else None
+            there = subject_id_of(data)
+            f["data"] = {**f["data"], "person": subject_name_of(data), "other": bool(here and there and there != here)}
+
+    def skip_saved(self):
+        """The person no longer waits for the saved analyses: the reading in flight ends before its next call."""
+        self._skip_saved.set()
+
+    def memory_read(self, question, on_step=None, chain=None, caps=None, brief="", stop=None, on_read=None):
         """What the person's saved analyses hold that bears on a question (analyst/reader.py; docs/ARCHITECT_DESIGN.md
         §3.6). The view is brought up to date and put in a sandbox of its own - a kernel without a frame - and the
         reader's model reads it there, with a second model on pieces, under the reader's caps (`caps` changes
         some). The calls are logged as the memory's, under `chain` (one of its own where none is given) and, for
         the usage rows, the current thread or one minted here; charging them is the caller's. On an executor the
         sandbox takes the place of the thread's kernel, which the next analysis restores from the record. Where
-        nothing is saved, no sandbox starts and no model is called. Returns the reader's result."""
+        nothing is saved, no sandbox starts and no model is called. `brief` is the brief being written for the
+        question, as text; `stop()` says the person no longer waits; `on_read(read, of)` is told how many runs are
+        saved and, as the second model goes, how many it has read. Returns the reader's result."""
         from analyst import memory, reader
         chain = utils.next_chain_id() if chain is None else chain
         if not self.log_and_call_manager.thread_id:
             self.log_and_call_manager.thread_id = str(self.thread_id or utils.next_thread_id())
         view = reader.sandbox_view(memory.refresh(self._user_storage()))
+        if on_read:
+            on_read(0, len(view["runs"]))
         seat, second = self._memory_seats()
         kernel = None
         try:
@@ -1286,7 +1328,8 @@ class BambooAI:
                 kernel = self._new_kernel(frame=False)
             return reader.read(question, view, kernel,
                                lambda system, user, **kw: self._llm(system, user, seat=seat, label="Memory Reader", chain=chain, **kw),
-                               lambda system, user: self._llm(system, user, seat=second, label="Memory Pieces", chain=chain), caps=caps, on_step=on_step)
+                               lambda system, user: self._llm(system, user, seat=second, label="Memory Pieces", chain=chain), caps=caps, on_step=on_step,
+                               brief=brief, stop=stop, on_read=on_read)
         finally:
             try:
                 if kernel is not None:

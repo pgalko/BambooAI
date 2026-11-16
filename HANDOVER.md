@@ -246,6 +246,49 @@
   page (0303); the two seats in the templates and in Usage (0304). *Known:* the second model's batches run one
   after another, so the 120 seconds bound how many runs a question about all of them reads. Not run against a live
   model: the first live runs are from the command line.
+  **0303 (2026-11-16): memory in the Architect** (the design's §3.7). The reader of 0302 is asked from the
+  conversation. *The engine.* `architect.exchange(..., recall, asked, saved)`: the Architect's reply may carry
+  `"recall": true` (`parse`), honoured on a question that follows no analysis; `asked` is the person's own request
+  and is served at once - their message, then the reading, with no model call before it; one reading after a
+  message of the person's, `READINGS` (2) in a brief (`_readings`). `recall(question, the BRIEF block)` is the
+  host's; `_read()` takes the result into the framing: `briefs.remember()` puts the passages in the brief under
+  `saved`, not accepted, six at most and none twice, as a version by the Architect with `why: memory`, and the
+  reading is a turn `{who: memory, found, across, of, read, dropped, failed, secs, cost}` (`_recall`), which the
+  next exchange reads in CONVERSATION (`recalled`). The prompt gains `SAVED: n` where the person has saved
+  analyses, and the framing keeps `saved`. `briefs.agreed()` gives the Analyst the accepted passages only;
+  `render()` writes them under *Saved analyses the person chose (earlier results: claims to test, not evidence)*,
+  and the Analyst's contract for a run under a brief (`contract_brief.md`) says what such a passage is.
+  `architect.md`: rule 8 and the section *Looking in the saved analyses*. *The reader* (`analyst/reader.py`):
+  `read(..., brief, stop, on_read)` - the brief stands in its prompt after the question, `stop()` is asked before
+  each reply and each call of the second model (`SKIPPED`), `on_read(read, of)` follows the second model through a
+  JUDGE; a passage carries the data its run ran on. *The host.* `BambooAI.architect_say(thread, run, text, asked)`
+  passes `_architect_recall`, which reads under the framing run's chain (so the calls are charged with it), tells
+  the pane as it goes (`architect_saved` events: `read`, `of`) and turns any failure into a result that says why;
+  `skip_saved()` sets the flag `architect_say` clears at its start. `_whose()` says whose data each passage's run
+  ran on - the name on the run's load, from the thread's record (`notebook.subject_name_of`), since the view holds
+  no name - and whether that is another person than the one whose data is loaded now; the brief keeps both
+  (`person`, `other`), the page shows the name, the Analyst's block says *another person's data*, and no model
+  reads the name. *The routes* (`web_app/architect_routes.py`):
+  `/architect/say` takes `look: true`; `POST /architect/skip`; `GET /architect/saved/<thread>/<run>` gives one saved
+  analysis from the kept view, 404 where it is saved no more. *The page* (`architect.js`): `build.passage`,
+  `build.recalled`, `build.reading`, `build.savedDialog`; `readStream()` hands over each JSON line as it arrives;
+  `exchange(entry, text, look)` follows the count, and goes on with nothing said after a round of lookups or a
+  reading; *Look in saved analyses* shows while `framing.saved` is above zero, the brief can be changed and fewer
+  than two readings were made; Skip can be pressed once the server has sent its first count; the held composer says
+  the saved analyses are being read; a skipped reading's row says *skipped* (the page knows it by the reader's
+  sentence, `SKIPPED`). The dialog is `#savedAnalysisModal` (`dialogs.css`). The brief's sticky foot now covers the
+  mark of a changed line that scrolls under it (`tabs.css`). *The stack.* The scripted Architect asks for the
+  saved analyses once on a first question; `saved_reader` and `saved_pieces` stand in for the two models; a second
+  reading takes `SAVED_SLOW` seconds over its first reply, so the walk can skip it. The walk: `walk_architect`
+  meets one saved analysis that holds nothing on its question; `walk_saved` saves the framed analysis and frames
+  `SAVED_QUESTION` in a new workflow - the count told to the Architect, the row live and done, the passages in the
+  brief, a tick, Open (the dialog on screen), the coach's own reading skipped, the usage rows, the Analyst's BRIEF
+  block. The gallery has two more scenes (`architect_saving`, `architect_saved`), and the stack's story
+  (`tools/stack/browse.py`) five more pictures. Tests: `test_analyst.py` 317 (+8), `test_reader.py` 64 (+4),
+  `test_app_path.py` 258 (+7), `test_architect.js` 102 (+10); the battery 2,269; the walk 188, and 181 of 185 in
+  the local edition (the four old failures). *Not there:* the Analyst reads the passage, not yet the analysis
+  it comes from - opening what the brief names was planned here and is the first piece of 0304, with the brief
+  saved with a saved analysis and the two seats in the templates and in Usage. Not run against a live model.
 - **Published.** 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -322,8 +365,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (309/251/31/28/18/49/44/72/34/261/60/93/27/31/37/15/88/57/60/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/92/27 JS; 2,240 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (183 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (317/258/31/28/18/49/44/72/34/261/60/93/27/31/37/15/88/57/64/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/102/27 JS; 2,269 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (188 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.

@@ -67,11 +67,20 @@ def split_sentences(text: str) -> List[str]:
     return out
 
 
+def _subject(d: Optional[dict]) -> dict:
+    load = (d or {}).get("load") or {}
+    return load.get("subject") if isinstance(load.get("subject"), dict) else {}
+
+
 def subject_id_of(d: Optional[dict]) -> str:
     """Whose data a record is, by the source's own id of the person on its load (2026-10-29); "" when the load names none
     (an upload, a race, a record from before the subject was kept)."""
-    load = (d or {}).get("load") or {}
-    return str(((load.get("subject") or {}) if isinstance(load.get("subject"), dict) else {}).get("id") or "")
+    return str(_subject(d).get("id") or "")
+
+
+def subject_name_of(d: Optional[dict]) -> str:
+    """That person's name, as the load has it; "" when the load names none."""
+    return str(_subject(d).get("name") or "")
 
 
 def data_signature(d: Optional[dict]) -> str:

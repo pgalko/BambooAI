@@ -17,6 +17,7 @@ against what the brief expects, with a line for each Also check. A brief that fi
 import json
 import os
 import re
+import time
 
 import numpy as np
 import pandas as pd
@@ -69,6 +70,13 @@ ARCHITECT_NOW = "What do you think is going on now, and what makes you think so?
 # data has, and what it adds to its last message while the proposal is unticked
 ARCHITECT_PROPOSES = {"text": "The C plots sit on other soil than the A plots", "shows": "the gap narrows within a soil type", "column": "soil"}
 ARCHITECT_TICK = " What I proposed under Also check can be ticked."
+# the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Architect says while they are read, and when passages were found
+ARCHITECT_LOOKING = "I am looking in your saved analyses."
+ARCHITECT_FOUND = " What your saved analyses hold is in the brief, to tick."
+SAVED_JUDGE = "What was compared, and what was found?"
+SAVED_NOTE = "An earlier analysis that names what this question asks about."
+SAVED_QUESTION = "Is regime C still worth switching to from regime A?"      # a question the briefed analysis, once saved, bears on
+SAVED_SLOW = 3.0                 # seconds the reader takes over the first reply of a second reading: time for the walk to press Skip
 
 
 def make_dataset(path, seed=20260909):
@@ -332,6 +340,10 @@ class Scenario:
             return "", self.figures(user)
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
+        if system.startswith("You look things up in a person's saved analyses"):
+            return "", self.saved_reader(user)
+        if system.startswith("You read saved analyses for another model"):
+            return "", self.saved_pieces(user)
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user, system)
         return "", "OK"
@@ -348,7 +360,9 @@ class Scenario:
         results before it - a mark for each, and where a line does not hold the question whether to keep the view or
         change it. With the marks it proposes another explanation, from a column the data has (ARCHITECT_PROPOSES).
         With every line marked it says the brief is ready - and, while its proposal is unticked, that it can be
-        ticked."""
+        ticked. On a question that follows no analysis, where the person has saved analyses, it has them read once:
+        with its lookups, or in the place of saying that the brief is ready; right after the reading it says, with
+        the brief ready, that what they hold is in the brief."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(")
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
@@ -388,10 +402,15 @@ class Scenario:
         lines = re.findall(r"^- (.*?)( \[(?:holds|does not hold|cannot be checked)\b.*\])?$", rests.group(1) if rests else "", re.M)
         open_lines = [text for text, mark in lines if not mark] + writes.get("rests_on", [])
         found = {about: fact for about, fact in re.findall(r'^\d+\. about "(.*)" - (.*)$', said_so_far, re.M)}      # the last lookup made for a line
-        looked = bool(re.search(r'^\d+\. about ".*" - .*\Z', said_so_far, re.M))      # a round of lookups is the last thing in the conversation
+        since = said_so_far[max(said_so_far.rfind("\nArchitect: "), said_so_far.rfind("\nPerson: "), 0):]      # what came back after the last thing said
+        looked = bool(re.search(r'^\d+\. about ".*" - ', since, re.M))             # a round of lookups
+        read_now = "\nSaved analyses" in since                                      # a reading of the saved analyses
+        recall = bool(re.search(r"^SAVED: \d+$", user, re.M)) and "EARLIER (" not in user and "\nSaved analyses" not in "\n" + said_so_far
         asks = [{"about": text, **look} for text in open_lines for look in [next((l for word, l in ARCHITECT_LOOKS if word in text.lower()), None)] if look]
         if asks and not looked:
-            return json.dumps({"brief": writes, "say": ARCHITECT_CHECKING, "lookups": asks})
+            return json.dumps({"brief": writes, "say": ARCHITECT_CHECKING, "lookups": asks, **({"recall": True} if recall else {})})
+        if recall and not asks:
+            return json.dumps({"brief": writes, "say": ARCHITECT_LOOKING, "recall": True})
         numbers = {about: {k: float(v.replace(",", "")) for k, v in re.findall(r"(\w+) (\d[\d,]*(?:\.\d+)?)(?= ·|$)", fact.split(": ", 1)[-1])} for about, fact in found.items()}
         marks, failed = [], []
         for text in open_lines:
@@ -405,12 +424,53 @@ class Scenario:
                 failed.append(f"{text.rstrip('.')} ({fact.split(': ', 1)[-1]})")
         proposes = bool(marks) and ARCHITECT_PROPOSES["text"] not in user and re.search(r"^soil: ", user, re.M) is not None
         unticked = proposes or f"- {ARCHITECT_PROPOSES['text']} [proposed by you, not accepted]" in user
-        reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY + (ARCHITECT_TICK if unticked else "")}
+        holds_some = read_now and re.search(r'^- \S+ ".*": ".*"', since, re.M) is not None      # the reading just made found passages
+        reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY + (ARCHITECT_TICK if unticked else "") + (ARCHITECT_FOUND if holds_some else "")}
         if proposes:
             reply["propose"] = [ARCHITECT_PROPOSES]
         if failed:
             reply.update(say=f"{'One line does' if len(failed) == 1 else 'Some lines do'} not hold: {'; '.join(failed)}. Keep what you think, or change it?", choices=ARCHITECT_KEEP)
         return json.dumps(reply)
+
+    # ------------------------------------------------------------ the saved analyses (docs/ARCHITECT_DESIGN.md §3.6, §3.7)
+    def saved_reader(self, user):
+        """The reader's reply, read off its prompt (analyst/reader.py): first a cell that lists the saved runs whose
+        question, title or report holds a word of the question; then - where it listed any - a question to the second
+        model about them; then its answer: the second model's quote for each run, and, where it answered for more
+        than one, the runs grouped by its answer. Where the cell lists none, the answer is empty. A second reading -
+        the brief it is given holds passages already - takes its time over the first reply (SAVED_SLOW)."""
+        question = (re.search(r"^QUESTION:\n(.*?)\n\n", user, re.S | re.M) or [None, ""])[1]
+        words = sorted({w for w in re.findall(r"[a-z]{5,}", question.lower())} - {"which", "there", "their", "about", "would", "should", "better", "still"})
+        if "\n[1] CELL\n" not in user:
+            if re.search(r"^saved:$", user, re.M):
+                time.sleep(SAVED_SLOW)
+            return ("CELL\n```python\nwords = " + repr(words) + "\nhits = [r['id'] for r in SAVED['runs'] if any(w in (r['question'] + ' ' + r['title'] + ' ' + r['report']).lower() for w in words)]\n"
+                    "print(hits)\n```")
+        if "] JUDGE " not in user:
+            listed = re.search(r"^PRINTED:\n(\[.*\])$", user, re.M)
+            hits = json.loads(listed.group(1).replace("'", '"')) if listed else []
+            return "JUDGE\n" + json.dumps({"runs": hits, "parts": ["report"], "question": SAVED_JUDGE}) if hits else 'ANSWER\n{"found": []}'
+        rows = re.findall(r'^- (\S+) \| [^|]+ \| ([^|]+) \| "(.*)"$', user, re.M)
+        answer = {"found": [{"run": run, "quote": quote, "note": SAVED_NOTE} for run, _, quote in rows]}
+        if len(rows) > 1:
+            ways = {}
+            for run, said, _ in rows:
+                ways.setdefault(said.strip(), []).append(run)
+            answer["across"] = {"topic": "What was compared", "groups": [{"label": label, "runs": runs} for label, runs in ways.items()]}
+        return "ANSWER\n" + json.dumps(answer)
+
+    def saved_pieces(self, user):
+        """The second model's reply, read off its prompt: for each analysis given, what its title says, with the
+        first sentence of its report under the title as the quote - word for word, so it stands."""
+        answers = []
+        for run, body in re.findall(r"^=== (\S+) ===\n(.*?)(?=^=== \S+ ===\n|\nReply with the JSON object\.)", user, re.S | re.M):
+            title = (re.search(r"^TITLE: (.*)$", body, re.M) or [None, ""])[1]
+            report = body.split("\nREPORT:\n", 1)[1] if "\nREPORT:\n" in body else ""
+            line = next((ln.strip() for ln in report.splitlines() if ln.strip() and not ln.lstrip().startswith(("#", "|", "-", ">", "*"))), "")
+            quote = re.split(r"(?<=[.!?])\s", line, maxsplit=1)[0][:300]
+            if len(quote) >= 8:
+                answers.append({"run": run, "answer": " ".join(title.split()[:8]) or "it reports a comparison", "quote": quote})
+        return json.dumps({"answers": answers})
 
     # ------------------------------------------------------------ next questions (docs/ARCHITECT_DESIGN.md §2.7)
     def next_questions(self, user):

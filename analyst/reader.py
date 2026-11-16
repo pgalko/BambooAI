@@ -38,6 +38,7 @@ LAST = "This is your last reply: ANSWER now, with what you have."
 NO_ANSWER = "The reader gave no answer within its limits: {replies} of {turns} replies, {seconds:.0f} s, ${cost:.2f}."
 NO_SANDBOX = "The saved analyses could not be put in the sandbox: {error}"
 DECLINED = "The model declined to reply ({category})."
+SKIPPED = "The person skipped it."
 
 
 def _line(value, chars: int) -> str:
@@ -80,12 +81,13 @@ def place_of(view: dict, run: dict, quote: str) -> Optional[str]:
 
 
 # ------------------------------------------------------------------ the reader's prompt and reply
-def prompt(question: str, view: dict, steps: list, said: str) -> str:
-    """What the reader reads for one reply: the question, the saved runs in a line each, the steps so far with what
-    each brought, and `said`: where the work stands and what is asked now."""
+def prompt(question: str, view: dict, steps: list, said: str, brief: str = "") -> str:
+    """What the reader reads for one reply: the question - with the brief the person is writing for it, where there
+    is one - the saved runs in a line each, the steps so far with what each brought, and `said`: where the work
+    stands and what is asked now."""
     runs = view["runs"]
     lines = [f"{r['id']} | {r['when'][:10]} | {', '.join(r['marks']) or '-'} | {_line(r['question'] or 'Synthesis: ' + r['title'], 160)}" for r in runs[:INDEX]]
-    parts = [f"QUESTION:\n{question.strip()}",
+    parts = [f"QUESTION:\n{question.strip()}", *([brief.strip()] if brief.strip() else []),
              f"SAVED RUNS: {len(runs)}" + (f", the newest {INDEX} listed" if len(runs) > INDEX else "") + " (id | day | marks | question)\n" + "\n".join(lines)]
     for k, step in enumerate(steps, 1):
         if step["action"] == "cell":
@@ -152,14 +154,14 @@ def piece(view: dict, run: dict, parts: list) -> str:
     return text if len(text) <= PIECE_CHARS else text[:PIECE_CHARS] + "\n... (cut here: the rest was not read)"
 
 
-def judge(view: dict, asked: dict, call: Callable, room: Callable) -> dict:
+def judge(view: dict, asked: dict, call: Callable, room: Callable, on_read: Optional[Callable] = None) -> dict:
     """The second model's answers to one question about the runs asked for, in few large batches: {"asked", "runs":
     how many were asked about, "unknown": the ids asked for that are no saved analyses, "read": the ids of those it
     read, "rows": [{run, answer, quote, where}], "dropped"}. A row stands only where its run was in the batch and
     its quote stands in that run - `where` is the place code found it in; the others are dropped and counted.
     `call(system, user)` gives the model's text; `room()` says whether the caps leave room for one more call, and
     where they do not, the runs not yet read stay unread. A batch whose reply cannot be read is asked for once
-    more."""
+    more. `on_read(read, of)` is told after each batch how many of the runs asked about are read."""
     by_id = {r["id"]: r for r in view["runs"]}
     named = list(by_id) if asked["runs"] == "all" else list(dict.fromkeys(asked["runs"]))
     runs = [by_id[i] for i in named if i in by_id]
@@ -182,6 +184,8 @@ def judge(view: dict, asked: dict, call: Callable, room: Callable) -> dict:
         if answers is None:
             continue
         out["read"] += [run["id"] for run, _ in batch]
+        if on_read:
+            on_read(len(out["read"]), len(runs))
         here = {run["id"]: run for run, _ in batch}
         for a in answers:
             a = a if isinstance(a, dict) else {}
@@ -197,7 +201,7 @@ def judge(view: dict, asked: dict, call: Callable, room: Callable) -> dict:
 # ------------------------------------------------------------------ the answer, checked
 def answer(view: dict, obj: dict, judged: list) -> dict:
     """The reader's answer as it stands against the view: {"found": the passages - each with its run's id, thread,
-    when, kind, question, title and marks, and where, quote, note - "across": {topic, groups: [{label, runs: [{run,
+    when, kind, question, title and marks, the data it ran on (name, period, subject), and where, quote, note - "across": {topic, groups: [{label, runs: [{run,
     answer, quote, where}]}]} or None, "dropped": what did not stand}. A passage stands where its quote stands in
     its run, and `where` is the place code found it in. A run stands in a group where the second model answered for
     it with a quote that stood - `judged` holds those rows, and the latest for a run is the one shown - and it
@@ -211,8 +215,8 @@ def answer(view: dict, obj: dict, judged: list) -> dict:
         if not where:
             dropped += 1
         elif (run["id"], quote) not in [(f["id"], f["quote"]) for f in found]:
-            found.append({**{k: run[k] for k in ("id", "thread", "run", "when", "kind", "question", "title", "marks")}, **({"broken": True} if run.get("broken") else {}),
-                          "where": where, "quote": quote, "note": _line(item.get("note"), NOTE_CHARS)})
+            found.append({**{k: run[k] for k in ("id", "thread", "run", "when", "kind", "question", "title", "marks")}, "data": {k: run["data"][k] for k in ("name", "period", "subject")},
+                          **({"broken": True} if run.get("broken") else {}), "where": where, "quote": quote, "note": _line(item.get("note"), NOTE_CHARS)})
     across, rows, placed = obj.get("across") if isinstance(obj.get("across"), dict) else {}, {}, set()
     for row in judged:
         rows[row["run"]] = row
@@ -231,18 +235,21 @@ def answer(view: dict, obj: dict, judged: list) -> dict:
 
 # ------------------------------------------------------------------ the loop
 def read(question: str, view: dict, kernel, llm: Callable, pieces: Callable, caps: Optional[dict] = None, on_step: Optional[Callable] = None,
-         clock: Callable = time.time) -> dict:
+         clock: Callable = time.time, brief: str = "", stop: Optional[Callable] = None, on_read: Optional[Callable] = None) -> dict:
     """One question put to the saved analyses. `kernel` is the sandbox - a kernel of its own, which gets the view
     under SAVED here; where nothing is saved it is not used, and no model is called. `llm(system, user, effort=)` is
     the reader's model and `pieces(system, user)` the second one, each returning (text, {"cost", "declined"}).
     Returns {"found", "across", "dropped", "coverage": {runs, judged, not_read}, "steps", "calls": {reader, pieces},
     "cost", "seconds", "failed": why there is no answer, or ""}. The caps bound the reader's replies, the second
     model's calls, and the time and the money of both; when the time or the money is spent, or the last reply is
-    due, the reader is told to answer with what it has."""
+    due, the reader is told to answer with what it has. `brief` is the brief the person is writing for the question,
+    as text; `stop()` says the person no longer waits for it - it is asked before each call, and the work ends there
+    with nothing found; `on_read(read, of)` follows the second model through the runs."""
     caps, started = {**CAPS, **(caps or {})}, clock()
     steps, judged, read_runs, spent = [], [], set(), {"reader": 0, "pieces": 0, "cost": 0.0}
     over = lambda: clock() - started >= caps["seconds"] or spent["cost"] >= caps["dollars"]      # noqa: E731
-    room = lambda: spent["pieces"] < caps["calls"] and not over()                                # noqa: E731
+    halted = lambda: bool(stop and stop())                                                       # noqa: E731
+    room = lambda: spent["pieces"] < caps["calls"] and not over() and not halted()               # noqa: E731
 
     def second(system: str, user: str) -> str:
         text, usage = pieces(system, user)
@@ -264,10 +271,12 @@ def read(question: str, view: dict, kernel, llm: Callable, pieces: Callable, cap
     if error:
         return done(failed=NO_SANDBOX.format(error=exception_line(error)))
     for turn in range(1, caps["turns"] + 1):
+        if halted():
+            return done(failed=SKIPPED)
         last = turn == caps["turns"] or over()
         said = LAST if last else (f"Reply {turn} of {caps['turns']}. The second model has taken {spent['pieces']} of {caps['calls']} calls; "
                                   f"${caps['dollars'] - spent['cost']:.2f} and {int(caps['seconds'] - (clock() - started))} s are left. Reply with one action.")
-        reply, usage = llm(SYSTEM, prompt(question, view, steps, said), effort=caps["effort"])
+        reply, usage = llm(SYSTEM, prompt(question, view, steps, said, brief), effort=caps["effort"])
         spent["reader"], spent["cost"] = spent["reader"] + 1, spent["cost"] + float((usage or {}).get("cost") or 0.0)
         if (usage or {}).get("declined"):
             return done(failed=DECLINED.format(category=usage["declined"]))
@@ -285,7 +294,7 @@ def read(question: str, view: dict, kernel, llm: Callable, pieces: Callable, cap
             shown = "\n".join(x for x in ((out or "").rstrip(), (err or "").rstrip()) if x)
             note({"action": "cell", "code": body, "out": shown if len(shown) <= OUT_CHARS else shown[:OUT_CHARS] + f"\n... ({len(shown) - OUT_CHARS:,} more characters not shown)"})
         elif action == "judge":
-            got = judge(view, body, second, room)
+            got = judge(view, body, second, room, on_read)
             read_runs.update(got["read"])
             judged += got["rows"]
             kernel.execute("import json\nJUDGED = json.loads(" + repr(json.dumps(judged)) + ")")

@@ -12,12 +12,14 @@ prompt says so.
      "would_change": "...",      what would change their mind
      "also_check": [{"text": "...", "shows": "...", "source": "architect", "accepted": false}],     other explanations, and what each would show
      "fixed": {"comparison": "...", "measure": "...", "period": "..."},             fixed before the run
-     "saved": [{"when": "...", "question": "...", "passage": "...", "data": "...", "period": "..."}],
+     "saved": [{"thread": "...", "run": "...", "when": "...", "question": "...", "passage": "...", "where": "...", "note": "...", "marks": "...", "data": "...", "period": "...",
+                "person": "...", "other": true, "accepted": false}],                 passages of saved analyses; `other`: of another person's data than the one loaded
      "set_aside": ["..."]}       considered and dropped
 
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
 nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
-person's own carries neither. normalise() brings what a caller sends into this shape, agreed() is the brief as the
+person's own carries neither. A passage of a saved analysis is there as the reader found it (remember()), and says
+whether the person accepted it. normalise() brings what a caller sends into this shape, agreed() is the brief as the
 analyst receives it, render() writes the BRIEF block of the prompt, and outcome() reads back what a report says
 against the brief. While a brief is being written it is kept as versions on its run (version(), latest()); write()
 takes in what a reply of the Architect's names, and mark() the marks it gives after its lookups.
@@ -30,7 +32,7 @@ from typing import Optional
 SOURCES = ("person", "architect", "data", "saved", "result")      # who a line comes from; an earlier result is a claim, not a fact
 MARKS = ("holds", "does not hold", "cannot be checked")
 FIXED = ("comparison", "measure", "period")
-SAVED = ("when", "question", "passage", "data", "period", "thread", "run")
+SAVED = ("thread", "run", "when", "question", "passage", "where", "note", "marks", "data", "period", "person")
 TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
 MAX = {"rests_on": 6, "also_check": 4, "saved": 6, "set_aside": 8}      # bounds on what a prompt carries, not the design's counts
@@ -80,9 +82,9 @@ def normalise(brief) -> dict:
     fixed = {k: _text(v) for k, v in (brief.get("fixed") if isinstance(brief.get("fixed"), dict) else {}).items() if k in FIXED and _text(v)}
     saved = []
     for s in brief.get("saved") if isinstance(brief.get("saved"), list) else []:
-        s = {k: _text(v) for k, v in s.items() if k in SAVED and _text(v)} if isinstance(s, dict) else {}
-        if s.get("passage") or s.get("question"):
-            saved.append(s)
+        entry = {k: _text(s.get(k)) for k in SAVED if _text(s.get(k))} if isinstance(s, dict) else {}
+        if entry.get("passage") or entry.get("question"):
+            saved.append({**entry, **({"other": True} if s.get("other") is True else {}), "accepted": s.get("accepted") is True})
     aside = [_text(x) for x in (brief.get("set_aside") if isinstance(brief.get("set_aside"), list) else []) if _text(x)]
     for key, value in (("rests_on", anchors), ("also_check", rivals), ("fixed", fixed), ("saved", saved), ("set_aside", aside)):
         if value:
@@ -97,11 +99,13 @@ def normalise(brief) -> dict:
 
 
 def agreed(brief) -> dict:
-    """The brief as the analyst receives it: in its known shape, without what the Architect proposed and the person
-    did not accept."""
+    """The brief as the analyst receives it: in its known shape, without what the Architect proposed, or the reader
+    found in the saved analyses, and the person did not accept."""
     brief = brief if isinstance(brief, dict) else {}
     lines = brief.get("also_check") if isinstance(brief.get("also_check"), list) else []
-    return normalise({**brief, "also_check": [r for r in lines if not (isinstance(r, dict) and r.get("source") == "architect" and r.get("accepted") is not True)]})
+    saved = brief.get("saved") if isinstance(brief.get("saved"), list) else []
+    return normalise({**brief, "also_check": [r for r in lines if not (isinstance(r, dict) and r.get("source") == "architect" and r.get("accepted") is not True)],
+                      "saved": [s for s in saved if isinstance(s, dict) and s.get("accepted") is True]})
 
 
 def working(brief) -> dict:
@@ -161,6 +165,26 @@ def write(brief, parts) -> tuple:
             fixed[key] = _text(given[key])
             changed.append(f"fixed.{key}")
     return working({**out, "fixed": fixed}), changed          # a part emptied falls away
+
+
+def remember(brief, found) -> tuple:
+    """The brief with passages of saved analyses added, as the reader found them (analyst/reader.py, the `found` of
+    its result): each with its run, the day, what was asked, the passage word for word and where it stands, the
+    reader's note, the run's marks and the data it ran on - with whose it is and whether that is another person than
+    the one whose data is loaded, where the host said so - not accepted: only the person accepts one. A passage that
+    is there already is not added again, and a brief holds MAX["saved"] in all. Returns the brief and the entries
+    added, as the page names them."""
+    out = working(brief)
+    saved, changed = list(out.get("saved", [])), []
+    for f in found if isinstance(found, list) else []:
+        entry = {"thread": f["thread"], "run": f["run"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "passage": f["quote"], "where": f["where"],
+                 "note": f["note"], "marks": ", ".join(f["marks"]), "data": f["data"]["name"], "period": f["data"]["period"], "person": f["data"].get("person")}
+        entry = {k: _text(v) for k, v in entry.items() if _text(v)}
+        same = lambda s: all(s.get(k) == entry.get(k) for k in ("thread", "run", "passage"))      # noqa: E731
+        if len(saved) < MAX["saved"] and not any(same(s) for s in saved):
+            saved.append({**entry, **({"other": True} if f["data"].get("other") is True else {}), "accepted": False})
+            changed.append(f"saved.{len(saved) - 1}")
+    return working({**out, "saved": saved}), changed
 
 
 def mark(brief, marks, facts) -> tuple:
@@ -241,9 +265,9 @@ def render(brief: dict) -> str:
     if brief.get("saved"):
         lines.append("Saved analyses the person chose (earlier results: claims to test, not evidence):")
         for s in brief["saved"]:
-            where = ", ".join(x for x in (s.get("data"), s.get("period")) if x)
-            lines.append("- " + " ".join(x for x in (s.get("when"), f"\"{s['question']}\"" if s.get("question") else "") if x)
-                         + (f": \"{s['passage']}\"" if s.get("passage") else "") + (f" ({where})" if where else ""))
+            ran_on = ", ".join(x for x in (s.get("data"), s.get("period"), "another person's data" if s.get("other") else "") if x)
+            lines.append("- " + " ".join(x for x in (s.get("when"), f"\"{s['question']}\"" if s.get("question") else "") if x) + (f", in its {s['where']}" if s.get("where") else "")
+                         + (f": \"{s['passage']}\"" if s.get("passage") else "") + (f" ({ran_on})" if ran_on else ""))
     if brief.get("set_aside"):
         lines.append("Set aside (considered and dropped): " + "; ".join(brief["set_aside"]))
     return "\n".join(lines)

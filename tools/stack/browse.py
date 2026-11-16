@@ -330,6 +330,54 @@ def story(w, mod, dataset, questions):
         w.shot("next_card_run")
         p.click("#architectSwitch")
 
+    # the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the framed analysis saved, then a question it bears
+    # on framed in a workflow of its own - what the reading found, a passage ticked, the analysis it comes from opened, a
+    # second reading asked for by the coach and skipped
+    saved_question = getattr(mod, "SAVED_QUESTION", None)
+    if brief_question and saved_question and p.query_selector("#architectSwitch"):
+        p.click("#saveButton")
+        p.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+        p.click("#saveMenu .it[data-act='favourite']")
+        p.wait_for_function("() => document.getElementById('saveButton').classList.contains('saved')", timeout=30000)
+        p.wait_for_timeout(2000)                             # the memory view follows behind the save
+        w.js("handleNewConversation()")
+        p.wait_for_url("**/?new=true", timeout=60000)
+        p.wait_for_selector("#queryInput", state="visible", timeout=60000)
+        p.app_ready()
+        p.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+        p.set_input_files("#primaryFile", dataset)
+        p.wait_for_selector(".primary-dataset-pill", timeout=60000)
+        p.wait_for_timeout(500)
+        p.click("#architectSwitch")
+        p.fill("#queryInput", saved_question)
+        p.click("#submitQuery")
+        p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+        said(1)
+        p.click("#streamOutput .ar-choice >> nth=1")
+        said(2)
+        for n in (3, 5):                                     # two parts skipped; then it says it is looking, the saved analyses are read, and it goes on
+            p.fill("#queryInput", "skip")
+            p.click("#submitQuery")
+            said(n)
+        w.shot("saved_found")
+        versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
+        p.click('#content-brief .ar-line.ar-saved .tick')
+        p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
+        p.wait_for_timeout(300)
+        w.shot("saved_ticked")
+        p.click('#content-brief .ar-line.ar-saved [data-ar="open"]')
+        p.wait_for_function("() => { const m = document.getElementById('savedAnalysisModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
+        p.wait_for_timeout(400)
+        w.shot("saved_open")
+        p.click("#savedAnalysisModal .ui-dlg-h .x")
+        p.click('#content-brief [data-ar="look"]')
+        p.wait_for_selector("#streamOutput .sp-row.pending .ar-skip:not([disabled])", timeout=15000)
+        w.shot("saved_looking")
+        p.click("#streamOutput .sp-row.pending .ar-skip")
+        said(6)
+        w.shot("saved_skipped")
+        p.click("#architectSwitch")
+
 
 def main():
     ap = argparse.ArgumentParser()

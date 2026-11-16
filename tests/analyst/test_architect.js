@@ -12,9 +12,10 @@ const { makeDocument } = require(path.join(__dirname, 'minidom.js'));
 const doc = makeDocument(); global.document = doc;
 const calls = []; let answers = {};
 // the scripted server: an answer is [status, body] - the body an object, or the text of a stream - 'down', or a promise of one
-global.window = { authService: { fetch: async (url, opts) => { const body = JSON.parse(opts.body); calls.push([url, body]);
+global.window = { authService: { fetch: async (url, opts) => { const body = opts && opts.body ? JSON.parse(opts.body) : null; calls.push([url, body]);
   const a = await (typeof answers[url] === 'function' ? answers[url](body) : answers[url]);
   if (a === 'down') throw new Error('offline');
+  if (a && a.body) return a;                                  // a response whose body arrives as a stream
   const [status, json] = a || [200, {}];
   return { ok: status < 400, status, json: async () => json, text: async () => (typeof json === 'string' ? json : JSON.stringify(json)) }; } } };
 const store = {}; global.sessionStorage = { getItem: k => (k in store ? store[k] : null), setItem: (k, v) => { store[k] = String(v); } };
@@ -43,6 +44,12 @@ require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'architect.j
 const A = window.ArchitectUI, b = A.build;
 const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
 const el = html => { const d = doc.createElement('div'); d.innerHTML = html; return d; };
+function liveBody() {
+  const queue = []; let waiting = null;
+  const push = part => { if (waiting) { const w = waiting; waiting = null; w(part); } else queue.push(part); };
+  return { ok: true, status: 200, body: { getReader: () => ({ read: () => (queue.length ? Promise.resolve(queue.shift()) : new Promise(res => { waiting = res; })) }) },
+           send: text => push({ value: Buffer.from(text, 'utf8'), done: false }), end: () => push({ value: undefined, done: true }) };
+}
 const tick = async () => { for (let i = 0; i < 6; i++) await new Promise(r => setImmediate(r)); };
 const same = (x, y) => JSON.stringify(x) === JSON.stringify(y);
 
@@ -94,11 +101,16 @@ check('what is fixed: a part set or cleared by its name; the last one cleared re
 // ------------------------------------------------------------ the Brief tab
 const F1 = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B above A?' } }] };
 const t1 = el(b.brief(F1, { chain: 71, state: 'framing' })), root1 = t1.querySelector('.ar-brief');
-check('an empty brief: the question as the title with its pencil; v1 "from your question", both arrows off; the parts in the brief\'s order',
+const h3s = root => root.querySelectorAll('h3').map(h => h.textContent).join('|');
+check('an empty brief: the question as the title with its pencil; v1 "from your question", both arrows off; the parts in the brief\'s order - with From saved analyses and its button last where the framing '
+  + 'says the coach has saved analyses, and neither where it says none',
   root1.querySelector('h1.ar-line.ar-q .tx').textContent === 'Is B above A?' && root1.querySelector('h1 .pen[data-ar="edit"]') && root1.querySelector('h1').getAttribute('data-path') === 'question'
   && root1.querySelector('.ar-ver .step b').textContent === 'v1' && root1.querySelector('.ar-ver .why').textContent === 'from your question'
   && root1.querySelectorAll('.ar-ver [data-ar="step"]').every(x => x.hasAttribute('disabled'))
-  && root1.querySelectorAll('h3').map(h => h.textContent).join('|') === 'Decision|What you think|It rests on|You expect|Also check|Fixed before the run', t1.innerHTML);
+  && h3s(root1) === 'Decision|What you think|It rests on|You expect|Also check|Fixed before the run' && !root1.querySelector('[data-ar="look"]')
+  && !el(b.brief(Object.assign({ saved: 0 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
+  && h3s(el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' }))) === 'Decision|What you think|It rests on|You expect|Also check|Fixed before the run|From saved analyses'
+  && el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]').textContent === 'Look in saved analyses', t1.innerHTML);
 check('an empty brief: every part reads "not said yet" and opens on a click; what is fixed reads "left to the Analyst"; the standing checks are one line marked "always", never changed; a rival is added under it; Start analysis at the foot',
   ['decision', 'thinks', 'rests_on.+', 'expects', 'would_change'].every(p => { const t = root1.querySelector('.ar-line[data-path="' + p + '"] .tx'); return t.textContent === 'not said yet' && t.className === 'tx open' && t.getAttribute('data-ar') === 'edit'
     && t.getAttribute('role') === 'button' && t.getAttribute('tabindex') === '0'; })
@@ -194,6 +206,67 @@ check('a round of lookups is one row of the conversation, as the pane shows a to
   && b.checked(CHECK).includes(' title="rows by arm: A 3 · B &lt;3&gt;\ntotal of &quot;y&quot;: not looked up - there is no column y"') && !rowOf(CHECK).querySelector('3')
   && rowOf({ who: 'check', found: [CHECK.found[0], CHECK.found[0], CHECK.found[0]], secs: 0.2 }).textContent === '✓CHECK data3 things looked up1 s'
   && rowOf({ who: 'check', found: [CHECK.found[1]], secs: 61.5 }).textContent === '✓CHECK data0 things looked up · 1 not62 s' && rowOf({ who: 'check' }).textContent === '✓CHECK data0 things looked up1 s', b.checked(CHECK));
+// the saved analyses (0303, §3.7): a reading's row, live and done; the passages in the brief
+const PASSAGE = { thread: '7', run: '8', when: '2026-03-02', question: 'Was B above A in <spring>?', passage: 'B led A by 3 units', where: 'report', note: 'The same comparison, a season earlier.',
+                  marks: 'picked, routine', data: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>', other: true, accepted: false };
+const MEMORY = { who: 'memory', found: [{ id: '7/8', when: '2026-03-02', question: 'Was B above A in <spring>?', where: 'report', quote: 'B led A by 3 units', note: 'n' },
+                                         { id: '7/9', when: '2026-04-02', question: 'Synthesis: Two arms', where: 'cell 2', quote: 'gap = b - a', note: '' }],
+                 across: { topic: 'How the gap was taken', groups: [{ label: 'B minus A', runs: [{ run: '7/8' }, { run: '7/9' }] }, { label: 'the ratio', runs: [{ run: '5/6' }] }] },
+                 of: 12, read: 9, dropped: 1, failed: '', secs: 41.3, cost: 0.07, v: 3 };
+const memRow = turn => el(b.recalled(turn)).querySelector('.sp-row');
+check('a reading of the saved analyses is one row of the conversation: SAVED analyses, how many passages were found and how many of the saved runs were read, the seconds; the passages and the count to each way '
+  + 'across them are the row\'s title, as text',
+  memRow(MEMORY).className === 'sp-row tool read' && memRow(MEMORY).textContent === '✓SAVED analyses2 passages found · read 9 of 1241 s'
+  && memRow(MEMORY).getAttribute('title') === '2026-03-02 · Was B above A in <spring>?: "B led A by 3 units"\n2026-04-02 · Synthesis: Two arms: "gap = b - a"\nHow the gap was taken: 2 × B minus A; 1 × the ratio'
+  && memRow(Object.assign({}, MEMORY, { found: MEMORY.found.slice(0, 1), across: null, read: 0 })).textContent === '✓SAVED analyses1 passage found · 12 saved41 s'
+  && memRow({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 }).textContent === '✓SAVED analysesnothing found · read 12 of 121 s', b.recalled(MEMORY));
+check('a reading that was not made is marked as one that did not run: its row says that the coach skipped it, or why it could not be made; a reading in flight shows how far it is - looking, looking through the saved runs, reading so many of them - with Skip, '
+  + 'which can be pressed once the server has said how many are saved',
+  memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).className === 'sp-row tool read skipped'
+  && memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).textContent === '–SAVED analysesskipped3 s'
+  && memRow({ who: 'memory', found: [], failed: 'The saved analyses could not be read: the executor is <away>', secs: 0.4 }).textContent === '–SAVED analysesnot read · The saved analyses could not be read: the executor is <away>1 s'
+  && el(b.reading({ read: 0, of: null })).querySelector('.sp-row.tool.read.pending').textContent === 'SAVED analyseslookingSkip'
+  && el(b.reading({ read: 0, of: null })).querySelector('.ar-skip').hasAttribute('disabled') && !el(b.reading({ read: 0, of: 12 })).querySelector('.ar-skip').hasAttribute('disabled')
+  && el(b.reading({ read: 0, of: 12 })).querySelector('.out').textContent === 'looking through 12' && el(b.reading({ read: 5, of: 12 })).querySelector('.out').textContent === 'reading 5 of 12'
+  && el(b.reading({ read: 1, of: 12 })).querySelector('.out').textContent === 'reading 1 of 12'
+  && el(b.reading({ read: 5, of: 12 })).querySelector('button.ar-skip[data-ar="skip"]').textContent === 'Skip' && el(b.reading({ read: 5, of: 12 })).querySelector('.live'), b.reading({ read: 5, of: 12 }));
+const FM = { versions: [F1.versions[0], { n: 2, by: 'architect', why: 'memory', changed: ['saved.0'], brief: { question: 'Is B above A?', saved: [PASSAGE, Object.assign({}, PASSAGE, { run: '9', accepted: true, note: '', marks: '' })] } }],
+             turns: [{ who: 'architect', text: 'Looking.' }, MEMORY], saved: 12 };
+const tm = el(b.brief(FM, { chain: 71, state: 'framing' })), p0 = lineOf(tm, 'saved.0'), p1 = lineOf(tm, 'saved.1');
+check('a passage of a saved analysis in the brief: a box to tick, not ticked until the coach accepts it; the day and what was asked then, the passage, the reader\'s note, where it stands, whose data it ran on and which; Open with '
+  + 'its thread and run; a cross to leave it out and no pencil; the line that is new is marked, and the version says it is the Architect\'s, from the saved analyses',
+  p0.className === 'ar-line ar-saved changed' && p0.querySelector('.tick').className === 'tick' && p0.querySelector('.tick').getAttribute('aria-checked') === 'false' && p0.querySelector('.tick').getAttribute('data-ar') === 'tick'
+  && p0.querySelector('.tx').textContent === '2026-03-02 · Was B above A in <spring>?B led A by 3 unitsThe same comparison, a season earlier.report · First <Person> · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
+  && p0.querySelector('.fact.quote').textContent === 'B led A by 3 units' && p0.querySelector('.fact.said').textContent === 'The same comparison, a season earlier.'
+  && p0.querySelector('[data-ar="open"]').textContent === 'Open' && p0.querySelector('[data-ar="open"]').getAttribute('data-thread') === '7' && p0.querySelector('[data-ar="open"]').getAttribute('data-run') === '8'
+  && p0.querySelector('.drop[data-ar="drop"]') && !p0.querySelector('.pen') && p0.querySelector('.src.mem').textContent === 'saved analysis'
+  && p1.className === 'ar-line ar-saved' && p1.querySelector('.tick').className === 'tick on' && !p1.querySelector('.fact.said') && p1.querySelector('.fact.from').textContent === 'report · First <Person> · spring.csv · 2026-03-01 to 2026-05-31'
+  && el(b.passage({ edit: true, changed: [] }, 'saved.0', Object.assign({}, PASSAGE, { person: '' }))).querySelector('.fact.from').textContent === 'report · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
+  && tm.querySelector('.ar-ver .why').textContent === 'the Architect, from your saved analyses', tm.innerHTML);
+const twice = Object.assign({}, FM, { turns: FM.turns.concat([MEMORY]) });
+const ro = el(b.brief(FM, { chain: 71, state: 'run' }));
+check('Look in saved analyses stands under the passages while the brief can be changed, the coach has saved analyses and they were read fewer than twice - the passages stay either way; in a brief that has '
+  + 'run, and in an older version, the box cannot be clicked and nothing can be left out - Open stays',
+  tm.querySelector('button.ar-look[data-ar="look"]').textContent === 'Look in saved analyses' && !el(b.brief(twice, { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
+  && !ro.querySelector('[data-ar="look"]') && lineOf(ro, 'saved.0').querySelector('.tick').hasAttribute('disabled') && !lineOf(ro, 'saved.0').querySelector('.tick').getAttribute('data-ar')
+  && !lineOf(ro, 'saved.0').querySelector('.drop') && lineOf(ro, 'saved.0').querySelector('[data-ar="open"]')
+  && !el(b.brief(FM, { chain: 71, state: 'framing', shown: 1 })).querySelector('[data-ar="look"]')
+  && !el(b.brief(Object.assign({}, FM, { saved: 0 }), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
+  && lineOf(el(b.brief(Object.assign({}, FM, { saved: 0 }), { chain: 71, state: 'framing' })), 'saved.0'), ro.innerHTML);
+const BS = { question: 'q', saved: [PASSAGE, Object.assign({}, PASSAGE, { run: '9' })] };
+check('tick() accepts a passage of a saved analysis, or takes the tick back; apply() leaves one out and never changes its text; the brief passed in is not altered',
+  A.tick(BS, 'saved.1').brief.saved[1].accepted === true && A.tick(BS, 'saved.1').brief.saved[0].accepted === false && same(A.tick(BS, 'saved.1').changed, ['saved.1'])
+  && A.tick(A.tick(BS, 'saved.0').brief, 'saved.0').brief.saved[0].accepted === false && A.tick(BS, 'saved.5') === null
+  && same(A.apply(BS, 'saved.0', '').brief.saved.map(x => x.run), ['9']) && same(A.apply(BS, 'saved.0', ''), { brief: { question: 'q', saved: [BS.saved[1]] }, changed: ['saved'], removed: 0 })
+  && !('saved' in A.apply({ question: 'q', saved: [PASSAGE] }, 'saved.0', '').brief) && A.apply(BS, 'saved.0', 'other words') === null && A.apply(BS, 'saved.7', '') === null
+  && BS.saved.length === 2 && BS.saved[1].accepted === false);
+const dlg = el(b.savedDialog({ id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: '# B led\n\nB led A by <3> units.', marks: ['picked', 'routine'],
+                              data: { name: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>' }, cells: [{ n: 1, code: 'gap = b - a  # <b>' }] }));
+check('a saved analysis opened beside the brief: a dialog with what was asked, the day, whose data it ran on and which, and how it was saved; the report, and under it the code of its cells, folded, as text',
+  dlg.querySelector('.ui-dlg.lg[role="dialog"] .ui-dlg-h .title').textContent === 'Was B above A in <spring>?' && dlg.querySelector('.ui-dlg-h .sub').textContent === '2026-03-02 · First <Person> · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
+  && dlg.querySelector('.ui-dlg-h button.x[data-ar="shut"]') && dlg.querySelector('.ui-dlg-b pre').textContent.indexOf('B led A by <3> units.') >= 0
+  && dlg.querySelector('details.ar-code summary').textContent === 'Code' && dlg.querySelector('details.ar-code pre').textContent === 'gap = b - a  # <b>' && !dlg.querySelector('details.ar-code').hasAttribute('open')
+  && el(b.savedDialog({ question: '', title: 'A synthesis', report: 'r', cells: [] })).querySelector('.title').textContent === 'A synthesis' && !el(b.savedDialog({ report: 'r' })).querySelector('details'), dlg.innerHTML);
 const KEEP = { who: 'architect', text: 'One line does not hold. Keep it, or change it?', choices: ['Keep it', 'Change it'], v: 2, cost: 0.01, call: 5 };
 const ROUND = { chain_id: 71, queryText: 'Is B above A?', framing: { versions: F1.versions, turns: [{ who: 'person', text: 'B well above A' }, { who: 'architect', text: 'Checking this against the data.', v: 1, call: 4 }, CHECK, KEEP] } };
 const round = b.talk(ROUND, { live: true }), between = el(b.talk({ chain_id: 71, queryText: 'q', framing: { turns: ROUND.framing.turns.slice(0, 3) } }, { live: true }));
@@ -591,6 +664,89 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     elsewhere === 'The Architect is replying.' && calls.length === n && freeThere && untouched && pane()[pane().length - 1] === 'arch|Architect⌘The brief is ready: start the analysis, or change a line.'
     && lineOf(brief(), 'expects').querySelector('.tx').textContent === 'B above A by 3' && $('queryInput').placeholder === 'Answer, or say what to change', [elsewhere, freeThere, untouched, pane().slice(-1)]);
 
+  // the saved analyses read in an exchange (0303): the stream says how far the reading is, Skip, and the Architect goes on with nothing said
+  {
+  const live = liveBody();
+  answers['/architect/say'] = live; answers['/architect/skip'] = [200, { skipped: true }];
+  n = calls.length;
+  A.tell('Go on.'); await tick();
+  live.send('{"thought": "x", "chain_id": 71}\n'); await tick();
+  const early = !!$('streamOutput').querySelector('.sp-row.pending');      // the model's own traffic moves nothing
+  live.send('{"type": "architect_saved", "chain_id": 71, "read": 0, "of": 12}\n'); await tick();
+  const opened = $('streamOutput').querySelector('.sp-row.pending') ? $('streamOutput').querySelector('.sp-row.pending').textContent : '', holds = $('queryInput').placeholder;
+  const waitGone = !$('streamOutput').querySelector('.ar-msg.wait');
+  live.send('{"type": "architect_saved", "chain_id": 71, "read": 5, "of": 12}\n{"type": "archi'); await tick();
+  const mid = $('streamOutput').querySelector('.sp-row.pending .out').textContent;
+  doc.dispatch('click', $('streamOutput').querySelector('[data-ar="skip"]')); await tick();
+  const skipped = { call: calls[calls.length - 1], off: $('streamOutput').querySelector('[data-ar="skip"]').disabled === true };
+  const reading = JSON.parse(JSON.stringify(entry.framing));
+  reading.versions.push({ n: reading.versions.length + 1, by: 'architect', why: 'memory', changed: ['saved.0'], brief: Object.assign({}, latest().brief, { saved: [PASSAGE] }) });
+  reading.saved = 12;
+  reading.turns = reading.turns.concat([{ who: 'person', text: 'Go on.' }, { who: 'architect', text: 'I am looking in your saved analyses.', v: reading.versions.length - 1, cost: 0.01, call: 13 },
+                                        Object.assign({}, MEMORY, { v: reading.versions.length })]);
+  held();
+  live.send('tect_saved", "chain_id": 71, "read": 12, "of": 12}\n' + JSON.stringify({ architect: { framing: reading } }) + '\n'); live.end(); await tick();
+  const went = { calls: calls.slice(n), pane: pane().slice(-2), row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], pending: !!$('streamOutput').querySelector('.sp-row.pending'),
+                 line: lineOf(brief(), 'saved.0').className, why: brief().querySelector('.why').textContent };
+  const told = JSON.parse(JSON.stringify(reading));
+  told.turns.push({ who: 'architect', text: 'One passage is in the brief to tick. The brief is ready.', v: told.versions.length, cost: 0.01, call: 14 });
+  reply([200, stream({ framing: told })]); await tick();
+  check('a reply that has the saved analyses read: while they are read the pane shows a row in the place of the Architect\'s wait - how many are saved, then how many are read, a line of the stream cut in two '
+    + 'taken whole - the held composer says so, and Skip tells the server once; the reading done, its row stands under the Architect\'s message, the passage is in the brief, and the Architect is asked again with nothing said',
+    !early && opened === 'SAVED analyseslooking through 12Skip' && waitGone && holds === 'Your saved analyses are being read' && mid === 'reading 5 of 12' && same(skipped, { call: ['/architect/skip', {}], off: true })
+    && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.' }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓SAVED analyses2 passages found · read 9 of 1241 s' && !went.pending
+    && went.line === 'ar-line ar-saved changed' && went.why === 'the Architect, from your saved analyses' && same(entry.framing, told)
+    && pane()[pane().length - 1] === 'arch|Architect⌘One passage is in the brief to tick. The brief is ready.', [opened, mid, skipped, went]);
+  // the passage: ticked, opened, left out; the coach asks for the saved analyses
+  serve(); n = calls.length;
+  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('.tick')); await tick();
+  const accepted = { call: calls[n], box: lineOf(brief(), 'saved.0').querySelector('.tick').className, by: latest().by };
+  answers['/architect/saved/7/8'] = [200, { id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: 'B led A by 3 units.', marks: ['picked'], data: { name: 'spring.csv', period: '' }, cells: [] }];
+  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('[data-ar="open"]')); await tick();
+  const shown = { call: calls[calls.length - 1], title: $('savedAnalysisModal').querySelector('.title').textContent, display: $('savedAnalysisModal').style.display, sent: calls.length - n };
+  doc.dispatch('click', $('savedAnalysisModal').querySelector('.ui-dlg-h .x'));
+  const closed = $('savedAnalysisModal').style.display;
+  $('savedAnalysisModal').style.display = 'flex';
+  doc.dispatch('click', $('savedAnalysisModal'));
+  const beside = $('savedAnalysisModal').style.display;
+  answers['/architect/saved/7/8'] = [404, { error: 'This analysis is no longer among your saved ones.' }];
+  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('[data-ar="open"]')); await tick();
+  const gone = toasts[toasts.length - 1];
+  held(); n = calls.length;
+  doc.dispatch('click', brief().querySelector('[data-ar="look"]')); await tick();
+  const asked = { call: calls[n], said: pane().slice(-1), row: ($('streamOutput').querySelector('.sp-row.pending') || {}).textContent, wait: !!$('streamOutput').querySelector('.ar-msg.wait'),
+                  holds: $('queryInput').placeholder };
+  const looked = JSON.parse(JSON.stringify(entry.framing));
+  looked.turns = looked.turns.concat([{ who: 'person', text: 'Look in my saved analyses.' }, { who: 'memory', found: [], across: null, of: 12, read: 12, dropped: 0, failed: '', secs: 3.2, cost: 0.02, v: looked.versions.length }]);
+  reply([200, stream({ framing: looked })]); await tick();
+  const then = { call: calls[calls.length - 1], sent: calls.length - n, row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], said: pane().slice(-2) };
+  const closed2 = JSON.parse(JSON.stringify(looked));
+  closed2.turns.push({ who: 'architect', text: 'Nothing more was found.', v: closed2.versions.length, cost: 0.01, call: 15 });
+  reply([200, stream({ framing: closed2 })]); await tick();
+  serve(); n = calls.length;
+  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('.drop')); await tick();
+  check('the passage in the brief: a click on its box sends the brief with it accepted - a version of the coach\'s; Open asks the server for that analysis and shows it in a dialog, which closes on its cross or on a click beside it, and '
+    + 'says why when it is saved no more; the cross leaves the passage out. Look in saved analyses says so in the conversation and asks the server to read them: the row of the reading shows at once, with Skip, '
+    + 'in the place of the Architect\'s wait; the reading done, the Architect is asked with nothing said, and replies',
+    same(accepted.call[1].changed, ['saved.0']) && accepted.call[1].brief.saved[0].accepted === true && accepted.box === 'tick on' && accepted.by === 'person'
+    && same(shown, { call: ['/architect/saved/7/8', null], title: 'Was B above A in <spring>?', display: 'flex', sent: 2 }) && closed === 'none' && beside === 'none' && gone === 'This analysis is no longer among your saved ones.'
+    && same(asked, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Look in my saved analyses.', look: true }], said: ['you|YouLook in my saved analyses.'], row: 'SAVED analyseslookingSkip', wait: false,
+                     holds: 'Your saved analyses are being read' })
+    && same(then, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: null }], sent: 2, row: '✓SAVED analysesnothing found · read 12 of 123 s', said: ['you|YouLook in my saved analyses.', 'arch wait|Architectreading…'] })
+    && pane()[pane().length - 1] === 'arch|Architect⌘Nothing more was found.'
+    && same(calls[n][1].changed, ['saved']) && !('saved' in calls[n][1].brief) && !lineOf(brief(), 'saved.0'), [accepted, shown, closed, gone, asked, then, calls[n]]);
+  const parts = [];
+  const whole = await A.readStream({ text: async () => '{"a": 1}\n\nnot json\n{"b": 2}' }, d => parts.push(d));
+  const fed = liveBody(), parts2 = [];
+  const pending = A.readStream(fed, d => parts2.push(d));
+  fed.send('{"a": 1}\n{"b"'); fed.send(': 2}\n\n{"c": 3}'); fed.end();
+  const whole2 = await pending;
+  check('readStream: each JSON line of a body is handed over - as it arrives where the body is a stream, a line cut between two parts taken whole, the last line without its end too - and the whole body is returned; '
+    + 'a line that is no JSON is passed over',
+    same(parts, [{ a: 1 }, { b: 2 }]) && whole === '{"a": 1}\n\nnot json\n{"b": 2}' && same(parts2, [{ a: 1 }, { b: 2 }, { c: 3 }]) && whole2 === '{"a": 1}\n{"b": 2}\n\n{"c": 3}', [parts, parts2, whole2]);
+  }
+
   // a chain kept with its brief: the tab alone steps through the versions
   const done = { chain_id: 80, thread_id: 7, queryText: 'A framed question', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
                  contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(F3, { chain: 80, state: 'run' }) + '</div>', streamOutput: '' };
@@ -637,6 +793,12 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
     && tabsCss.includes('#content-answer .ar-against {') && tabsCss.includes('#content-answer .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-answer .ar-against .v.' + v + ' {')));
+  const engine = f => fs.readFileSync(path.join(root, '..', 'analyst', f), 'utf8'), own = js('architect.js');
+  check('the saved analyses: the page counts the readings of a brief as the engine does and knows a skipped reading by the reader\'s own sentence; the dialog of a saved analysis lies over the page, '
+    + 'the row\'s Skip is styled in pane.css, the passages in tabs.css',
+    engine('architect.py').includes('\nREADINGS = 2 ') && own.includes('const READINGS = 2;') && engine('reader.py').includes('\nSKIPPED = "The person skipped it."\n') && own.includes("const SKIPPED = 'The person skipped it.';")
+    && css('dialogs.css').includes('#savedAnalysisModal { display: none; position: fixed; inset: 0;') && own.includes("modal.id = 'savedAnalysisModal'; modal.className = 'ui-modal-plain';")
+    && paneCss.includes('#streamOutput .sp-row .ar-skip {') && tabsCss.includes('#content-brief .ar-saved .fact.quote {') && tabsCss.includes('#content-brief .ar-open, #content-brief .ar-look {'));
   finish();
 })().catch(e => { check('the module ran without throwing', false, e && e.stack); finish(); });
 

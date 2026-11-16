@@ -202,7 +202,8 @@ def walk_architect(page, st, mod, wa, edition, user):
     b4, t4 = brief_on_screen(page), talk_on_screen(page)
     row4 = page.evaluate("""() => { const rows = [...document.querySelectorAll('#streamOutput .sp-stream > *')], at = rows.findIndex(x => x.classList.contains('sp-row'));
         return { n: document.querySelectorAll('#streamOutput .sp-row').length, text: [...rows[at].children].map(c => c.textContent), title: rows[at].title,
-                 before: rows[at - 1].className, after: rows[at + 1].className, last: at + 1 === rows.length - 1 }; }""")
+                 before: rows[at - 1].className, saved: [...rows[at + 1].children].map(c => c.textContent), savedClass: rows[at + 1].className, after: rows[at + 2].className,
+                 last: at + 2 === rows.length - 1 }; }""")
     rain_fact, same_fact = "total of rainfall_mm by regime: A 100,448 · B 102,189 · C 100,570", "rows by regime: A 240 · B 240 · C 240"
     not_held = f"One line does not hold: {rain.rstrip('.')} ({rain_fact.split(': ')[1]}). Keep what you think, or change it?"
     its = [mod.ARCHITECT_PROPOSES["text"], mod.ARCHITECT_PROPOSES["shows"]]
@@ -212,14 +213,15 @@ def walk_architect(page, st, mod, wa, edition, user):
           and b2["decision"] == "Switch to regime C" and b2["changed"] == ["decision"], (t2, b2))
     check("an answer typed in the composer goes the same way, in the coach's words: what they think and what it rests on from one answer - a line not yet checked, with no mark",
           b3["v"] == "v4" and b3["thinks"] == "C does better than A." and b3["rests"] == rain and b3["changed"] == ["thinks", "rests_on.0"] and b3["anchors"] == [[rain, "", "", False]], b3)
-    check("with nothing left to ask the Architect checks what the brief rests on: it says so, the data is looked up - one row in the conversation, the two things looked up, what each found on hover - and it "
-          "goes on at once, with no word from the coach. The premise planted in the answer does not hold, and the brief shows it before any analysis: the mark, and in red the numbers the data gave; a line "
+    check("with nothing left to ask the Architect checks what the brief rests on: it says so, the data is looked up - one row in the conversation, the two things looked up, what each found on hover - the "
+          "saved analyses are read - a row of their own: the one that is saved holds nothing on this, so nothing is found and the brief gains nothing - and it goes on at once, with no word from the coach. The premise planted in the answer does not hold, and the brief shows it before any analysis: the mark, and in red the numbers the data gave; a line "
           "that holds has its fact too; a line nothing loaded records cannot be checked, and says why. One version, made after checking the data",
           b4["v"] == "v8" and b4["why"] == "the Architect, after checking the data" and b4["changed"] == ["rests_on.0", "rests_on.1", "rests_on.2", "also_check.0"] and b4["expects"] == expects and b4["would"] == "not said yet"
           and b4["anchors"] == [[rain, "does not hold", rain_fact, True], [same, "holds", same_fact, False], [green, "cannot be checked", mod.ARCHITECT_UNRECORDED, False]]
           and t4["said"] == [["You", mod.BRIEF_QUESTION], ["Architect", asks[0]], ["You", "Switch to regime C"], ["Architect", asks[1]], ["You", because], ["Architect", asks[2]], ["You", expects],
                              ["Architect", mod.ARCHITECT_CHECKING], ["Architect", not_held]] and t4["prompts"] == 5 and t4["choices"] == mod.ARCHITECT_KEEP and not t4["waiting"]
-          and row4["n"] == 1 and row4["text"][:3] == ["✓", "CHECK data", "2 things looked up"] and re.fullmatch(r"\d+ s", row4["text"][3]) and row4["title"] == rain_fact + "\n" + same_fact
+          and row4["n"] == 2 and row4["text"][:3] == ["✓", "CHECK data", "2 things looked up"] and re.fullmatch(r"\d+ s", row4["text"][3]) and row4["title"] == rain_fact + "\n" + same_fact
+          and row4["savedClass"] == "sp-row tool read" and row4["saved"][:3] == ["✓", "SAVED analyses", "nothing found · 1 saved"] and re.fullmatch(r"\d+ s", row4["saved"][3])
           and row4["before"] == "ar-msg arch" and row4["after"] == "ar-msg arch" and row4["last"], (b4, t4, row4))
     tell(page, choice=0)
     b_kept, t_kept = brief_on_screen(page), talk_on_screen(page)
@@ -253,7 +255,8 @@ def walk_architect(page, st, mod, wa, edition, user):
     counted.append(month_queries(page))         # seven exchanges later
     found9 = next((t.get("found", []) for t in f9.get("turns", []) if t["who"] == "check"), [])
     check("the record keeps every version with who made it and from what, the lines as the coach gave them with what the check found, and the conversation in order - the round of lookups a turn of its own, "
-          "each lookup under its number with the line it was made for; the run is still a brief - seven calls, all the Architect's, and none of the analyst's",
+          "each lookup under its number with the line it was made for, the reading of the saved analyses after it; the run is still a brief - seven calls of the Architect's, the reader's two under the "
+          "same chain, and none of the analyst's",
           rec9.get("status") == "framing"
           and [(v["by"], v.get("why")) for v in f9["versions"]] == [("person", None), ("architect", "question")] + [("architect", "answer")] * 2 + [("person", None)] * 2
                                                                     + [("architect", "answer"), ("architect", "check"), ("person", None), ("architect", "answer")] + [("person", None)] * 3
@@ -263,10 +266,12 @@ def walk_architect(page, st, mod, wa, edition, user):
           and last["brief"].get("rests_on") == [{"text": rain, "source": "person", "mark": "does not hold", "note": rain_fact}, {"text": same, "source": "person", "mark": "holds", "note": same_fact},
                                                 {"text": green, "source": "person", "mark": "cannot be checked", "note": mod.ARCHITECT_UNRECORDED}]
           and last["brief"].get("fixed") == {"comparison": typed[2][1], "measure": "protein content of the grain"}
-          and [t["who"] for t in f9["turns"]] == ["architect", "person"] * 3 + ["architect", "check", "architect", "person", "architect", "person", "architect"]
+          and [t["who"] for t in f9["turns"]] == ["architect", "person"] * 3 + ["architect", "check", "memory", "architect", "person", "architect", "person", "architect"]
+          and [(t["found"], t["across"], t["of"], t["read"], t["failed"]) for t in f9["turns"] if t["who"] == "memory"] == [([], None, 1, 0, "")]
           and found9 == [{"k": 1, "about": rain, "fact": rain_fact, "ran": True}, {"k": 2, "about": same, "fact": same_fact, "ran": True}]
           and [t.get("call") for t in f9["turns"] if t["who"] == "architect"] == [1, 2, 3, 4, 5, 6, 7] and f9.get("calls") == 7
-          and [(r["agent"], str(r["chain_id"])) for r in arch_rows] == [("Architect", str(cid))] * 7, (rec9.get("status"), f9.get("versions"), f9.get("turns"), arch_rows))
+          and [(r["agent"], str(r["chain_id"])) for r in arch_rows] == [("Architect", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Architect", str(cid))] * 3,
+          (rec9.get("status"), f9.get("versions"), f9.get("turns"), arch_rows))
     page.click('#content-brief [data-ar="step"][data-step="-1"]')
     b8 = brief_on_screen(page)
     page.click('#content-brief [data-ar="step"][data-step="1"]')
@@ -319,7 +324,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           "measure the data does not have, puts nothing in its place: it looks, then asks",
           a1["n"] == 1 and str(a1["chain"]) == str(cid) and a1["first"] == "sp-turn ar-fold" and a1["fold"].startswith("Architectbrief v13") and a1["cards"] == ["cell", "question"]
           and len(folded["said"]) == 13 and folded["said"][0] == ["You", mod.BRIEF_QUESTION] and folded["said"][-1] == ["Architect", mod.ARCHITECT_READY] and folded["choices"] == [] and folded["prompts"] == 7
-          and a1["checked"] == 1
+          and a1["checked"] == 2
           and "the data records none" in a1["answer"] and "Shall I use yield?" in a1["answer"] and a1["tabs"][0] == "Brief" and "Answer" in a1["tabs"], (a1, folded))
     check("the analyst read the brief under the question - what was agreed, what each line it rests on is worth after the check, the explanation the coach ticked with what it would show beside their own, the "
           "fixed parts, the part left to it - through its own first turn's button, the Architect's calls counted apart; the run keeps the version it was started with, the question asked, every version of "
@@ -328,7 +333,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           and f"What it rests on:\n- {rain} [checked against the data: does not hold - {rain_fact}]\n- {same} [checked against the data: holds - {same_fact}]\n- {green} [cannot be checked - {mod.ARCHITECT_UNRECORDED}]\n" in prompt1
           and f"Also check:\n- {its[0]}: it would show {its[1]}\n- Rainfall differed between the C and A plots.\n- chance [always]" in prompt1
           and asked.get("status") == "asked" and asked.get("brief", {}).get("version") == 13 and asked["brief"].get("fixed", {}).get("measure") == "protein content of the grain"
-          and len(asked.get("framing", {}).get("versions", [])) == 13 and len(asked["framing"].get("turns", [])) == 13
+          and len(asked.get("framing", {}).get("versions", [])) == 13 and len(asked["framing"].get("turns", [])) == 14
           and [t["kind"] for t in asked.get("turns", [])] == ["cell", "ask"], (asked.get("status"), asked.get("brief"), prompt1[:400]))
     check("after the run the Brief tab stays, to be read: its last version, no pencil, no Start analysis; the composer is the coach's own again, for the answer",
           kept["state"] == "run" and kept["v"] == "v13" and kept["pens"] == 0 and not kept["start"] and kept["measure"] == "protein content of the grain" and kept["anchors"] == b4["anchors"]
@@ -446,13 +451,14 @@ def walk_architect(page, st, mod, wa, edition, user):
           "as before: no brief on the page or on the run. On the usage record each framed chain holds the Architect's calls and its analysis' own, under the one chain; the plain one holds no call of the Architect's",
           boxes == [["Architect", False, True], ["Architect", False, True]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
           and "Brief →" not in plain["links"] and third.get("status") == "answered" and third.get("brief") == {} and third.get("framing") == {}
-          and by_chain.get(str(cid), [])[:7] == ["Architect"] * 7 and "Architect" not in by_chain.get(str(cid), [])[7:] and len(by_chain.get(str(cid), [])) > 7
+          and by_chain.get(str(cid), [])[:9] == ["Architect"] * 4 + ["Memory Reader"] * 2 + ["Architect"] * 3 and "Architect" not in by_chain.get(str(cid), [])[9:] and len(by_chain.get(str(cid), [])) > 9
           and by_chain.get(str(cid2), [])[:1] == ["Architect"] and "Architect" not in by_chain.get(str(cid2), [])[1:] and len(by_chain.get(str(cid2), [])) > 1
           and all("Architect" not in v for k, v in by_chain.items() if k not in (str(cid), str(cid2))), (boxes, plain, third.get("brief"), by_chain))
     check("a framed question is one query of the month's: counted when its brief opens - not at each exchange with the Architect, and not again when its analysis starts; a plain question counts when it runs "
           "(the self-hosted edition counts none)",
           steps == ([1, 0, 0, 1, 0, 1] if edition == "hosted" else [0] * 6), (counted, steps))
     walk_next_questions(page, mod, wa, edition, user, tid, cid2)
+    return tid, cid2
 
 
 # ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, §2.15): the helpers of its section ----
@@ -580,6 +586,161 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
           and page.evaluate("() => String(currentData.chain_id)") == str(cid4), (boxes, back[0]["cards"][:1]))
 
 
+# ---- the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the helpers of its section ----
+def saved_on_screen(page):
+    """The passages of saved analyses in the Brief tab, as the coach sees them: the box - ticked or not - the day and what was asked then, the passage, the reader's note, where it stands with
+    what it ran on and how it was saved, the analysis Open leads to; and the button that has the saved analyses read, while the brief offers it."""
+    return page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), text = (l, c) => (l.querySelector(c) || {}).textContent || '';
+        return { lines: [...r.querySelectorAll('.ar-line.ar-saved')].map(l => { const t = l.querySelector('.tx').cloneNode(true), open = l.querySelector('[data-ar="open"]');
+                     t.querySelectorAll('.fact').forEach(f => f.remove());
+                     return { path: l.dataset.path, box: l.querySelector('.tick').classList.contains('on') ? 'ticked' : 'unticked', asked: t.textContent, quote: text(l, '.fact.quote'), note: text(l, '.fact.said'),
+                              from: text(l, '.fact.from'), open: open ? [open.dataset.thread, open.dataset.run] : null, by: text(l, '.src') }; }),
+                 look: text(r, '[data-ar="look"]') }; }""")
+
+
+def saved_row(page):
+    """The last row of the conversation, as the coach sees it: its marks, its parts, what it shows on hover, and the message under it."""
+    return page.evaluate("""() => { const rows = [...document.querySelectorAll('#streamOutput .sp-stream > .sp-row')], r = rows[rows.length - 1];
+        return { n: rows.length, cls: r.className, text: [...r.children].map(c => c.textContent), title: r.title, after: (r.nextElementSibling || {}).className || '' }; }""")
+
+
+def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
+    """The analysis a brief started is saved, and a question it bears on is framed in a workflow of its own. The Architect is told how many analyses are saved; with nothing left to ask it has
+    them read. A row of the conversation says how far the reading is, then what it found, and the passages stand in the brief with empty boxes. The coach ticks one, opens the analysis it
+    comes from, asks for a second reading and skips it. Start analysis: the Analyst receives the ticked passage and no other."""
+    storage = os.path.join(wa, "storage", user)
+    page.click("#prevResponse")
+    page.click("#prevResponse")
+    wait_text(page, "#chainPosition", "chain 2 of 4", 10000)
+    page.click("#saveButton")
+    page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+    page.click("#saveMenu .it[data-act='favourite']")
+    page.wait_for_function("() => document.getElementById('saveButton').classList.contains('saved')", timeout=30000)
+    mem = kept_memory(storage, lambda v: any(r["run"] == str(cid2) and "picked" in r["marks"] for r in v["runs"]))
+    kept = {r["run"]: r for r in mem["runs"] if r["thread"] == str(tid)}
+    first = lambda report: re.split(r"(?<=[.!?])\s", next(ln for ln in report.splitlines() if ln.strip() and not ln.startswith("#")), maxsplit=1)[0]      # a report's opening sentence
+    framed, later = kept.get(str(cid2), {}), next((r for r in kept.values() if r["question"].startswith("Is regime C above regime A on ")), {})
+    quote, other = first(framed.get("report", "-")), first(later.get("report", "-"))
+    day, data = framed.get("when", "")[:10], framed.get("data", {}).get("name", "")
+
+    # a question the saved analysis bears on, in a workflow of its own: three answers, and nothing left to ask
+    page.evaluate("handleNewConversation()")
+    page.wait_for_url("**/?new=true", timeout=60000)
+    page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+    page.app_ready()
+    page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+    page.set_input_files("#primaryFile", st.dataset)
+    page.wait_for_selector(".primary-dataset-pill", timeout=60000)
+    page.wait_for_timeout(500)
+    rows0 = len(usage_rows(wa, edition, user))
+    page.click("#architectSwitch")
+    page.fill("#queryInput", mod.SAVED_QUESTION)
+    page.click("#submitQuery")
+    page.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+    architect_said(page, 1)
+    tid3, cid = page.evaluate("() => [currentData.thread_id, currentData.chain_id]")
+    page.click("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt")
+    page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000)
+    told = page.inner_text("#userInstructions")
+    page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+    before = saved_on_screen(page)
+    tell(page, choice=1)
+    tell(page, "skip")
+    page.evaluate("""() => { window.__savedRows = []; const pane = document.getElementById('streamOutput');
+        new MutationObserver(records => records.forEach(m => m.addedNodes.forEach(n => {
+            const row = n.nodeType !== 1 ? null : n.matches('.sp-row.pending') ? n : n.querySelector('.sp-row.pending');
+            const text = row ? [...row.children].map(c => c.textContent).filter(Boolean).join(' · ') : '';
+            if (text && window.__savedRows[window.__savedRows.length - 1] !== text) window.__savedRows.push(text);
+        }))).observe(pane, { childList: true, subtree: true }); }""")
+    tell(page, "skip", replies=2)
+    live, row, b1, t1, s1 = page.evaluate("() => window.__savedRows"), saved_row(page), brief_on_screen(page), talk_on_screen(page), saved_on_screen(page)
+    f1 = thread_run(wa, user, tid3, cid).get("framing", {})
+    m1 = next((t for t in f1.get("turns", []) if t["who"] == "memory"), {})
+    mine = next((k for k, line in enumerate(s1["lines"]) if line["open"] == [str(tid), str(cid2)]), 0)
+    check("a saved analysis is memory, and the Architect is told how many there are: SAVED, above the question, in what it read for its first message. With nothing left to ask - the coach skipped two "
+          "parts - it says that it is looking, and the saved analyses are read under the brief: a row of the conversation says how many are looked through, then how many the second model has read, "
+          "with Skip; done, the row says how many passages were found and how many of the saved analyses were read, the passages a line each on hover with what was found across them; the Architect "
+          "goes on at once, and says the brief is ready and that what the saved analyses hold is in it",
+          str(cid2) in kept and framed.get("marks") == ["picked"] and framed.get("question") == mod.BRIEF_ANSWER and f"\n\nSAVED: {len(mem['runs'])}\n\nQUESTION:\n{mod.SAVED_QUESTION}\n" in told
+          and before == {"lines": [], "look": "Look in saved analyses"}
+          and live == [f"SAVED analyses · looking through {len(mem['runs'])} · Skip", "SAVED analyses · reading 2 of 2 · Skip"]
+          and row["n"] == 1 and row["cls"] == "sp-row tool read" and row["text"][:3] == ["✓", "SAVED analyses", f"2 passages found · read 2 of {len(mem['runs'])}"] and re.fullmatch(r"\d+ s", row["text"][3])
+          and sorted(row["title"].split("\n")[:2]) == sorted([f'{day} · {mod.BRIEF_ANSWER}: "{quote}"', f'{day} · {later.get("question")}: "{other}"'])
+          and row["title"].split("\n")[2:] == ["What was compared: 2 × it reports a comparison"] and row["after"] == "ar-msg arch"
+          and t1["said"][-4:] == [["Architect", mod.ARCHITECT_ASKS[2][1]], ["You", "skip"], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_READY + mod.ARCHITECT_FOUND]]
+          and not t1["waiting"], (told[:300], before, live, row, t1["said"][-4:]))
+    check("the passages are in the brief under From saved analyses, as one version the Architect made from the saved analyses: each with an empty box - nothing accepted - the day and what was asked "
+          "then, the passage word for word as the saved report has it, the reader's note, where it stands, the data it ran on and how it was saved, and Open; the record keeps the reading as a turn of "
+          "the conversation, with what it cost",
+          b1["v"] == "v4" and b1["why"] == "the Architect, from your saved analyses" and b1["changed"] == ["saved.0", "saved.1"] and len(s1["lines"]) == 2 and quote in framed.get("report", "")
+          and s1["lines"][mine] == {"path": f"saved.{mine}", "box": "unticked", "asked": f"{day} · {mod.BRIEF_ANSWER}", "quote": quote, "note": mod.SAVED_NOTE, "from": f"report · {data} · picked",
+                                    "open": [str(tid), str(cid2)], "by": "saved analysis"}
+          and s1["lines"][1 - mine]["quote"] == other and s1["lines"][1 - mine]["box"] == "unticked" and s1["lines"][1 - mine]["from"] == f"report · {data} · alongside" and s1["look"] == "Look in saved analyses"
+          and [(v["by"], v.get("why")) for v in f1.get("versions", [])] == [("person", None), ("architect", "question"), ("architect", "answer"), ("architect", "memory")]
+          and [t["who"] for t in f1.get("turns", [])] == ["architect", "person"] * 3 + ["architect", "memory", "architect"]
+          and (len(m1.get("found", [])), m1.get("of"), m1.get("read"), m1.get("failed"), m1.get("dropped")) == (2, len(mem["runs"]), 2, "", 0) and m1.get("v") == 4
+          and [len(g["runs"]) for g in (m1.get("across") or {}).get("groups", [])] == [2]
+          and all(x.get("accepted") is False for x in f1["versions"][-1]["brief"].get("saved", [])), (b1, s1, m1))
+
+    # the coach ticks a passage and opens the analysis it comes from
+    page.click(f'#content-brief .ar-line[data-path="saved.{mine}"] .tick')
+    page.wait_for_function("() => { const r = document.querySelector('#content-brief .ar-brief'); return r && JSON.parse(r.dataset.framing).versions.length === 5; }", timeout=15000)
+    b2, s2 = brief_on_screen(page), saved_on_screen(page)
+    page.click(f'#content-brief .ar-line[data-path="saved.{mine}"] [data-ar="open"]')
+    page.wait_for_function("() => { const m = document.getElementById('savedAnalysisModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
+    dlg = page.evaluate("""() => { const m = document.getElementById('savedAnalysisModal'), box = m.querySelector('.ui-dlg').getBoundingClientRect();
+        const top = document.elementFromPoint(box.left + box.width / 2, box.top + 24), under = document.elementFromPoint(8, innerHeight / 2);      // what a click would reach: the dialog, and beside it the scrim
+        return { title: m.querySelector('.title').textContent, sub: m.querySelector('.sub').textContent,
+                 heads: [...m.querySelectorAll('.markdown-content h2')].map(h => h.textContent), text: m.querySelector('.markdown-content').textContent,
+                 code: (m.querySelector('.ar-code') || {}).textContent || '', folded: !(m.querySelector('.ar-code') || {}).open,
+                 seen: box.width > 400 && box.top >= 0 && box.bottom <= innerHeight && !!top && m.contains(top) && under === m }; }""")
+    page.click("#savedAnalysisModal .ui-dlg-h .x")
+    shut = page.evaluate("() => getComputedStyle(document.getElementById('savedAnalysisModal')).display")
+    check("the coach ticks a passage: one more version, theirs, the box ticked and the other left empty. Open shows the analysis the passage comes from in a dialog, beside the brief: what was asked, "
+          "the day, the data and how it was saved, the report with the passage in it, the code of its cells folded under it - on screen, over the page; its cross closes it, and the brief is as it was",
+          b2["v"] == "v5" and b2["why"] == "changed by you" and b2["changed"] == [f"saved.{mine}"] and [line["box"] for line in s2["lines"]] == (["ticked", "unticked"] if mine == 0 else ["unticked", "ticked"])
+          and dlg["title"] == mod.BRIEF_ANSWER and dlg["sub"] == f"{day} · {data} · picked" and "Against the brief" in dlg["heads"] and "Did not fit" in dlg["heads"] and quote in dlg["text"]
+          and "BRIEF_DIFF" in dlg["code"] and dlg["folded"] and dlg["seen"] and shut == "none" and brief_on_screen(page) == b2, (b2, s2, dlg, shut))
+
+    # a second reading, asked for by the coach - and skipped
+    said = page.evaluate("() => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length")
+    page.click('#content-brief [data-ar="look"]')
+    page.wait_for_selector("#streamOutput .sp-row.pending .ar-skip:not([disabled])", timeout=15000)
+    mid = page.evaluate("""() => { const s = document.querySelector('#streamOutput .sp-stream'), row = s.querySelector('.sp-row.pending');
+        return { last: [...s.querySelectorAll('.ar-msg')].pop().textContent, wait: !!s.querySelector('.ar-msg.wait'),
+                 row: [...row.children].map(c => c.textContent).filter(Boolean), under: row === s.lastElementChild,
+                 held: document.getElementById('queryInput').disabled && document.getElementById('queryInput').placeholder }; }""")
+    page.click("#streamOutput .sp-row.pending .ar-skip")
+    architect_said(page, said + 1)
+    row2, t2, s3, b3 = saved_row(page), talk_on_screen(page), saved_on_screen(page), brief_on_screen(page)
+    f2 = thread_run(wa, user, tid3, cid).get("framing", {})
+    m2 = [t for t in f2.get("turns", []) if t["who"] == "memory"]
+    rows = [(r["agent"], str(r["chain_id"])) for r in usage_rows(wa, edition, user)[rows0:]]
+    check("Look in saved analyses, the coach's own button in the brief: it is said in the conversation, and the reading starts at once - its row under the coach's words, with no message of the "
+          "Architect's before it, the composer held and saying why. Skip ends it: the row says it was skipped, the brief stands as it was, and the Architect goes on. Two readings to a brief: the button is "
+          "gone. On the usage record the brief's chain holds the Architect's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
+          mid == {"last": "YouLook in my saved analyses.", "wait": False, "row": ["SAVED analyses", f"looking through {len(mem['runs'])}", "Skip"], "under": True,
+                  "held": "Your saved analyses are being read"}
+          and row2["n"] == 2 and row2["cls"] == "sp-row tool read skipped" and row2["text"][:3] == ["–", "SAVED analyses", "skipped"] and row2["after"] == "ar-msg arch"
+          and t2["said"][-2:] == [["You", "Look in my saved analyses."], ["Architect", mod.ARCHITECT_READY]] and s3["look"] == "" and s3["lines"] == s2["lines"] and b3["v"] == "v5"
+          and [t["who"] for t in f2.get("turns", [])][-3:] == ["person", "memory", "architect"] and len(m2) == 2 and (m2[1]["failed"], m2[1]["found"]) == ("The person skipped it.", [])
+          and len(f2.get("versions", [])) == 5 and f2.get("calls") == 6
+          and rows[:9] == [("Architect", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Memory Pieces", str(cid)), ("Memory Reader", str(cid)), ("Architect", str(cid))]
+          and rows[9:] in ([("Architect", str(cid))], [("Memory Reader", str(cid)), ("Architect", str(cid))]), (mid, row2, t2["said"][-2:], rows, m2[1:], s3))
+
+    # Start analysis: the Analyst receives the passage the coach ticked, and no other
+    page.evaluate("setMode('deep')")
+    page.click('#content-brief [data-ar="start"]')
+    wait_run_end(page, 1)
+    page.wait_for_function("() => responses.length === 1 && !responses[0].status", timeout=60000)
+    prompt = turn_prompt(page, 1)
+    ran = thread_run(wa, user, tid3, cid)
+    fold = page.evaluate("() => [...document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read')].map(r => r.className)")
+    check("Start analysis: the Analyst is given the passage the coach ticked, in its BRIEF block - the day, what was asked then, where it stands, the passage, the data - as an earlier result to "
+          "test; the passage left unticked is nowhere in its prompt, nor on the run's own brief; the framing folds above the run with both readings' rows inside",
+          f'\nSaved analyses the person chose (earlier results: claims to test, not evidence):\n- {day} "{mod.BRIEF_ANSWER}", in its report: "{quote}" ({data})' in prompt and other not in prompt
+          and ran.get("status") == "answered" and [(x["run"], x["passage"], x["accepted"]) for x in ran.get("brief", {}).get("saved", [])] == [(str(cid2), quote, True)]
+          and fold == ["sp-row tool read", "sp-row tool read skipped"], (prompt[:900], ran.get("brief", {}).get("saved"), fold))
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')
@@ -1719,7 +1880,12 @@ def main():
             errs = errs + page.evaluate("window.__stackErrors || []")
 
             # the Architect (2026-11-15, docs/ARCHITECT_DESIGN.md §2.11), last and in a workflow of its own
-            walk_architect(page, st, mod, wa, edition, USER)
+            framed = walk_architect(page, st, mod, wa, edition, USER)
+            errs = errs + page.evaluate("window.__stackErrors || []")
+
+            # the saved analyses in the Architect (2026-11-16, docs/ARCHITECT_DESIGN.md §3.7): the analysis it framed is saved,
+            # and a question it bears on is framed in a workflow of its own
+            walk_saved(page, st, mod, wa, edition, USER, *framed)
             errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 
