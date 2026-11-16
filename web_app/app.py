@@ -113,6 +113,7 @@ except ImportError:
         from bambooai import documents
     else:
         raise ImportError("Could not find bambooai package. Please either install via pip or ensure you're running from the correct directory in the cloned repository.")
+from analyst import memory                               # the saved analyses as one view (docs/ARCHITECT_DESIGN.md §3.5)
 
 # Dynamic orchestration configuration
 APP_PORT = int(os.getenv('APP_PORT', 5001))
@@ -696,6 +697,7 @@ def initialize_user_session():
         
         # Run cleanup of user directories
         cleanup_user_on_auth(user_id)
+        memory.refresh_soon(os.path.join('storage', user_id))         # the saved analyses' view is brought up to date behind the sign-in
         
         # Get SweatStack status for authenticated user
         sweatstack_payload = {} 
@@ -1472,6 +1474,7 @@ def store_trajectory_favourites():
                 errors.append(str(chain_error))
                 continue
         
+        memory.refresh_soon(user_path('storage'))                     # what was saved joins the memory view
         return jsonify({
             'message': 'Trajectory saved successfully',
             'saved_count': saved_count,
@@ -1727,6 +1730,7 @@ def delete_thread(thread_id):
         shutil.rmtree(thread_path)
         logger.info(f"Deleted entire thread directory: {thread_id} ({len(chain_ids)} chains)")
         documents.remove_thread(user_path('storage', 'documents', str(thread_id)))      # its documents too
+        memory.refresh_soon(user_path('storage'))                     # it left memory with its files (memory.view); the kept view follows
         
         return jsonify({
             'message': f"Thread {thread_id} deleted successfully",
@@ -1767,6 +1771,7 @@ def delete_chain(thread_id, chain_id):
         if not remaining_files:
             os.rmdir(thread_dir)
             logger.info(f"Removed empty thread directory: {thread_id}")
+        memory.refresh_soon(user_path('storage'))
         
         return jsonify({
             'message': f"Chain {chain_id} deleted successfully",

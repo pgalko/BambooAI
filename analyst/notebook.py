@@ -22,6 +22,7 @@ Persistence is one JSON file per thread, rewritten after every turn.
 from __future__ import annotations
 
 import json
+import mmap
 import os
 import re
 import threading
@@ -579,6 +580,22 @@ class NotebookStore:
             return Notebook(str(thread_id))
         with open(f, encoding="utf-8") as fh:
             return Notebook.from_dict(json.load(fh))
+
+    def read(self, thread_id: str) -> Notebook:
+        """A thread's runs, for a reader that needs nothing else of the file. A thread begun in the design before this
+        one keeps its old chains in the file too, and they can be very large; the runs are written after them
+        (to_dict). So the file is read from its "runs" key on, and what stands before it is never parsed. A file with
+        no such key holds no run."""
+        f = self._file(thread_id)
+        if not os.path.exists(f) or not os.path.getsize(f):
+            return Notebook(str(thread_id))
+        with open(f, "rb") as fh, mmap.mmap(fh.fileno(), 0, access=mmap.ACCESS_READ) as m:
+            # a key of the top level sits one indent in: one space as save() writes it, two as the sign-in cleanup does
+            first = re.match(rb'\{\r?\n( +)"', m[:16])
+            indent = b"\n" + (first.group(1) if first else b" ")
+            at = m.rfind(indent + b'"runs": {')
+            tail = m[at + len(indent):] if at >= 0 else b""
+        return Notebook.from_dict({"thread_id": str(thread_id), "runs": json.loads(b"{" + tail)["runs"] if tail else {}})
 
     def save(self, nb: Notebook) -> None:
         f = self._file(nb.thread_id)

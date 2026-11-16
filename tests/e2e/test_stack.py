@@ -590,6 +590,20 @@ def turn_prompt(page, turn):
     return text
 
 
+def kept_memory(storage, until=lambda view: True, timeout=15.0):
+    """The memory view as the app keeps it for the user (analyst/memory.py), once `until` holds of it: the app brings
+    it up to date behind the request that changed what is saved, so the walk waits for it."""
+    if ROOT not in sys.path:
+        sys.path.append(ROOT)
+    from analyst import memory
+    end = time.time() + timeout
+    while True:
+        view = memory.view(storage)
+        if until(view) or time.time() > end:
+            return view
+        time.sleep(0.2)
+
+
 def footer_time(record, note, words):
     """The run dialog's footer against the routine's record: it says how long the last run took - the check, with no
     run yet - and nothing where that was under a second."""
@@ -625,6 +639,10 @@ def main():
             check("the workspace gate released and the chip reads " + {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute],
                   chip == {"orchestrator": "Ready", "local": "Local", "direct": "Docker"}[compute], chip)
             check("the pane is empty (the 'New workflow started' sentence is retired)", page.inner_text("#streamOutput").strip() == "", page.inner_text("#streamOutput"))
+            store_dir = os.path.join(workdir, "webapp", "storage", USER)
+            mem = kept_memory(store_dir, lambda v: v["built"] is not None)
+            check("the memory view is built behind the sign-in and kept under the user's storage (2.8): nothing is saved yet, so it holds no run",
+                  mem["built"] is not None and mem["runs"] == [] and os.path.exists(os.path.join(store_dir, "memory", "view.json")), mem)
 
             page.set_input_files("#primaryFile", st.dataset)
             page.wait_for_selector(".primary-dataset-pill", timeout=60000)
@@ -936,6 +954,18 @@ def main():
             check("Save trajectory saves the whole thread in one click (2.8): every chain stored alongside, none picked, no rating; the page says so and the map stays open",
                   traj["map"] and not traj["dialog"] and traj["marks"] == ["trajectory"] * 4 and len(traj_docs) == 4
                   and all(d.get("bookmark_type") == "trajectory" and "rank" not in d for d in traj_docs), (traj, [d.get("bookmark_type") for d in traj_docs]))
+            # what was saved is memory (2.8, docs/ARCHITECT_DESIGN.md §3.5): the view follows behind the save, from the thread's record
+            record = json.load(open(os.path.join(store_dir, "threads", traj["thread"] + ".json")))["runs"]
+            reported = sorted(c for c, r in record.items() if (r.get("report") or "").strip())
+            mem = kept_memory(store_dir, lambda v: len([r for r in v["runs"] if r["thread"] == traj["thread"]]) == len(reported))
+            mine = {r["run"]: r for r in mem["runs"] if r["thread"] == traj["thread"]}
+            check("what was saved is memory: behind the save the view holds the thread's chains - each stored alongside, with its question, its report and its cells' code from the record; "
+                  "a follow-up names the chain it was built on",
+                  sorted(mine) == reported and len(reported) == 4 and all(r["marks"] == ["alongside"] for r in mine.values())
+                  and all(r["question"] == record[c]["question"].strip() and r["report"] == record[c]["report"].strip()
+                          and [x["code"] for x in r["cells"]] == [t["code"] for t in record[c]["turns"] if t["kind"] == "cell" and t.get("cell_no") is not None and t.get("step") != "figures"]
+                          and r["path"][-1:] == ([f"{traj['thread']}/{record[c]['parent']}"] if record[c].get("parent") else []) for c, r in mine.items())
+                  and any(r["path"] for r in mine.values()) and any(r["cells"] for r in mine.values()), (reported, {c: (r["marks"], r["path"], len(r["cells"])) for c, r in mine.items()}))
             page.click("#workflowMapModal .workflow-close")
             page.wait_for_timeout(300)
 
@@ -954,6 +984,10 @@ def main():
             check("Save as favourite is one click (2.8): no dialog and no rating - the page says it is saved, the chain stored alongside becomes the one picked, and the pill stays, marked saved (its menu still offers Save as routine)",
                   saved["pill"][0] != "none" and "saved" in saved["pill"][1].split() and saved["pill"][2] == "Save" and "Saved as favourite" in saved["said"] and not saved["dialog"]
                   and fav4_doc.get("bookmark_type") == "individual" and "rank" not in fav4_doc, (saved, sorted(fav4_doc)[:14]))
+            mem = kept_memory(store_dir, lambda v: any(r["run"] == saved["chain"] and r["marks"] == ["picked"] for r in v["runs"]))
+            check("... and in memory the chain is the one picked, the others still alongside",
+                  {r["run"]: r["marks"] for r in mem["runs"] if r["thread"] == saved["thread"]} == {c: ["picked"] if c == saved["chain"] else ["alongside"] for c in reported},
+                  {r["run"]: r["marks"] for r in mem["runs"]})
 
             # Save as routine on chain 1 (docs/ROUTINES_DESIGN.md F1): the promoter (scripted) names the regime as the one
             # input, run zero runs through the real executor and reproduces the chain's RESULT line, the routine is stored
@@ -1014,6 +1048,10 @@ def main():
                   len(rdirs) == 1 and rj.get("current_version") == 1 and rj["versions"][0]["run_zero"]["verified"] and rj["versions"][0]["run_zero"]["status"] == "reproduced"
                   and [p["key"] for p in rj["versions"][0]["manifest"]["parameters"]] == ["regime"] and "INPUTS['regime']" in rj["versions"][0]["script"]
                   and rj["origin"]["thread_id"] == str(page.evaluate("() => currentData.thread_id")) and rj.get("purpose", "").startswith("the within-soil"), (len(rdirs), rj.get("versions", [{}])[0].get("run_zero")))
+            made_from = str((rj.get("origin") or {}).get("chain_id"))
+            mem = kept_memory(store_dir, lambda v: any(r["run"] == made_from and "routine" in r["marks"] and "picked" in r["marks"] for r in v["runs"]))
+            check("in memory the chain the routine was made from carries that mark, and is picked: Save as routine saved it",
+                  [r["marks"] for r in mem["runs"] if r["run"] == made_from] == [["picked", "routine"]], {r["run"]: r["marks"] for r in mem["runs"]})
             # one stored text (docs/ROUTINES_DESIGN.md §19, §22): the chain as written with the promoter's edit - the inspection cell, the prints and
             # the two tables only printed (tab, raw) included; the proof behind the verdict ran every statement (run zero), then only what the
             # tracked line and the two figures rest on, held to run zero's line and pictures (the matplotlib PNG, the Plotly figure by its data)
@@ -1574,9 +1612,29 @@ def main():
             tid = str(page.evaluate("() => currentData.thread_id"))
             docs_dir = os.path.join(wa, "storage", USER, "documents", tid)
             had_docs = os.path.isdir(docs_dir) and os.path.exists(os.path.join(docs_dir, "manifest.json"))
+            # memory (2.8): first one chain is removed from the saved workflow - the one a saved follow-up was built on - then the workflow
+            kept_file = os.path.join(store_dir, "memory", "view.json")
+
+            def kept_follows(left):                                 # the kept file, once `left` holds of it: it follows behind the request
+                t_k = time.time()
+                while not left(json.load(open(kept_file))["threads"]) and time.time() - t_k < 15:
+                    time.sleep(0.2)
+                return left(json.load(open(kept_file))["threads"])
+            mine = {r["id"] for r in kept_memory(store_dir)["runs"] if r["thread"] == tid}
+            base = next((p for r in kept_memory(store_dir)["runs"] if r["thread"] == tid for p in r["path"] if p in mine), "/")
+            status = page.evaluate("(c) => window.authService.fetch('/delete_chain/' + c, { method: 'DELETE' }).then(r => r.status)", base)
+            less = kept_memory(store_dir)                           # not waited for: the chain has left with its file
+            check("a chain removed from a saved workflow leaves memory at once (2.8): it is no run, and stays as the earlier step of the saved run built on it - its question and "
+                  "cells, not its report; the kept view follows behind the request",
+                  status == 200 and base in mine and base not in {r["id"] for r in less["runs"]} and sorted(less["steps"].get(base, {})) == ["cells", "question"]
+                  and kept_follows(lambda threads: base.split("/")[1] not in threads[tid]["sig"]["saved"]), (status, base, sorted(mine), sorted(less["steps"])))
+            remembered = [r["id"] for r in less["runs"] if r["thread"] == tid]
             status = page.evaluate("(t) => window.authService.fetch('/delete_thread/' + t, { method: 'DELETE' }).then(r => r.status)", tid)   # as the page does: its auth header rides along
             check("the thread's documents folder existed with its manifest, and deleting the thread removed it",
                   had_docs and status == 200 and not os.path.exists(docs_dir), (had_docs, status, os.path.exists(docs_dir)))
+            forgotten = [r["id"] for r in kept_memory(store_dir)["runs"] if r["thread"] == tid]              # not waited for either
+            check("a saved workflow that is deleted leaves memory at once (2.8), and the kept view follows behind the request",
+                  remembered and forgotten == [] and kept_follows(lambda threads: tid not in threads), (remembered, forgotten))
 
             # a routine without data (2026-11-14, docs/ROUTINES_DESIGN.md §24), last and in a workflow of its own: New workflow leaves
             # nothing loaded; a question that needs no data is answered from the values in its cell; Save as routine checks it like any

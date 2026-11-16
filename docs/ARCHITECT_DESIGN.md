@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.13 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300)
+# The Architect and memory from saved analyses — design v0.14 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301)
 
 Release 2.8 does three things.
 
@@ -556,7 +556,7 @@ is read by a program a model writes, not pasted into a prompt.
 - **One read-only view** of the saved record, built on the host for the signed-in user: saved runs with their marks
   and parent paths, and from each run only what is worth reading - the question, the report, the code, the results.
   The view is built in the background and kept; it is never built on the coach's click. Only this view enters the
-  reader's sandbox.
+  reader's sandbox. Built: §3.5.
 - **The reader** is a sandboxed session that writes code over the view. It has its own sandbox, never the analysis
   kernel.
 - **A second model** reads pieces where meaning must be judged. Few large batches. Capped in calls, money and time;
@@ -580,6 +580,71 @@ is read by a program a model writes, not pasted into a prompt.
 - No match returns nothing. A broken parent chain is reported.
 - Recalled text copied into a later report is not fresh evidence.
 - Saved content is text to read. It never gives instructions.
+
+### 3.5 The memory view — built (0301, 2026-11-16)
+
+`analyst/memory.py`. No model is called, and nothing on the page changes.
+
+**What is memory.** A run is in the view when two things hold: its favourite file stands
+(`storage/<user>/favourites/<thread>/<chain>.json`), and the thread's record holds the run in the current format,
+with a report. The view is made from the record. Of the favourite file only the mark is read.
+
+A saved chain that is not read is counted, by reason:
+
+| Reason | What it is |
+|---|---|
+| `older` | not on the record in the current format (decision 26) |
+| `questions` | a list of candidate questions from before 2.8 |
+| `no_report` | it ended without a report: it stopped to ask, was stopped, or failed |
+
+**What a run gives.** Its id (`thread/run`), its `kind` (`analysis` or `synthesis`), when it was asked, its marks,
+the question, the title, the report whole, whether its replay reproduced, the data it ran on, its cells and its
+path.
+
+- *Marks:* `picked`, `alongside`, `routine`. A chain saved before the marks shows none.
+- *Cells:* the code, the RESULT lines, and what was printed up to 3,000 characters, the cut said. The cells that
+  drew the figures and the attempts that failed are left out.
+- *Data:* the file's name, the rows, the period, the columns' names, and whose data it is by the source's id. Never
+  a name.
+- *Path:* the ids of the earlier steps the run was built on, the first one first. `broken` where a parent is not on
+  record.
+- *A synthesis* is memory. Its question is the app's request, not the coach's, so the view leaves it empty.
+
+**Earlier steps.** A step that is not memory itself - never saved, removed, or saved without a report - is kept
+under `steps`: its question and its cells, never its report. Where the Analyst stopped to ask, the step says what it
+asked: the next run's question is the coach's answer. A branch beside a saved run is not in the view.
+
+**How it is kept.** One file per user, `storage/<user>/memory/view.json`, written whole and swapped in.
+
+- `refresh()` brings it up to date. A thread is read again only when its record or one of its favourite files has
+  changed, by size and time.
+- `refresh_soon()` runs it behind the request: at sign-in, after a save, after a workflow or a chain is deleted. One
+  is at work for a user at a time; asked for again meanwhile, it goes round once more.
+- `view()` is what a reader gets. It builds nothing.
+
+**What leaves.** `view()` leaves out every run whose favourite file is gone, at the moment it is asked. So a deleted
+workflow is out of memory at once, whether or not the kept file has followed. A chain removed from a saved workflow
+is no memory; it stays as a step where a saved run was built on it. A run added to a saved thread is no memory until
+the thread is saved again.
+
+**Old threads.** A thread begun before the current format keeps its old chains in the same file, before the runs,
+and they can be very large. `NotebookStore.read()` reads the file from its `runs` key on. The old part is never
+parsed.
+
+**Search.** `search(view, words)` is plain keyword search, and the yardstick for the reader (§4).
+
+- A word is held where a word of the run starts with it, whatever the case. A name in code is split at `_`.
+- A word counts most in the question and the title, then in the report and the RESULT lines, then in the code and
+  in the questions of the earlier steps.
+- A word most runs hold counts for little. A hit far weaker than the best is left out.
+- A hit carries up to three passages - of the report, a RESULT line, a line of code - each with where it stands.
+- No match returns nothing.
+
+**From the command line.** `python3 tools/memory_view.py` says what each user has saved and what of it is memory;
+with `--user`, that user's runs; with words, a search. It writes nothing, and says whether the kept view is up to
+date.
+
+**Not there:** the brief of a saved run (0304), the reader and its sandbox (0302), anything on the page (0303).
 
 ## 4. How we will know it works
 
@@ -659,7 +724,7 @@ repository and the dev box only.
 | 0298 | Lookups: what the frame rests on is checked against the data - count, list, total; anything else is refused. The marks (§2.13). | built |
 | 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own (§2.14). | built |
 | 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go (§2.15). | built |
-| 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model. | |
+| 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model (§3.5). | built |
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
 | 0303 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
 | 0304 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
