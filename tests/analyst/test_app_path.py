@@ -45,6 +45,12 @@ class FakeModels:
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             return state["next"].pop(0)
+        if messages[0]["content"].startswith(("You look things up in a person's saved analyses", "You read saved analyses for another model")):
+            state.setdefault("memory_seen", []).append((agent, kw.get("label"), chain_id, messages[0]["content"], user))
+            state.setdefault("memory_effort", []).append(kw.get("reasoning_effort"))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["memory"].pop(0)
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
@@ -1906,5 +1912,130 @@ try:
 except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("the framing run through the routes and the instance: the checks ran", False, traceback.format_exc()[-900:])
+
+# ---- the reader of the saved analyses (0302, docs/ARCHITECT_DESIGN.md §3.6): the user's view in a sandbox of its own - a kernel without the frame - read by
+# the reader's model with a second model on pieces, the calls logged as the memory's under a chain of their own
+try:
+    from analyst import memory as _mem, reader as _rd
+    from analyst.notebook import Notebook as _NB, NotebookStore as _NBS
+    from _saved import add as _add, favourite as _favourite
+    _su = os.path.join(work, "storage", "u1")
+    _nb7 = _NB("7001")
+    _add(_nb7, "7002", "Is B higher than A?", report="# B exceeds A\n\nB exceeds A by 0.3 units [cell 1].", cells=[("m = df.groupby('arm')['x'].mean()\nprint(m)", "A 1.0\nB 1.3\n", ["difference: +0.3 units"])],
+         data={"df_id": "d7", "name": "trial.csv", "rows": 10, "date_range": "", "columns": [{"name": "x"}], "load": {"subject": {"id": "s-77", "name": "First Person"}}})
+    _NBS(_su).save(_nb7)
+    _favourite(_su, 7001, 7002)
+    _rid = "7001/7002"
+    _nb8 = _NB("8001")                                           # another user's saved analysis
+    _add(_nb8, "8002", "Is A higher than B?", report="# A exceeds B\n\nA exceeds B by far [cell 1].", cells=[("print(1)", "1\n", [])])
+    _NBS(os.path.join(work, "storage", "u2")).save(_nb8)
+    _favourite(os.path.join(work, "storage", "u2"), 8001, 8002)
+    state["memory"] = ["CELL\n```python\nprint([r['id'] for r in SAVED['runs']], 'df' in globals(), JUDGED, SAVED['runs'][0]['data']['subject'])\n```",
+                       'JUDGE\n{"runs": "all", "parts": ["report", "code"], "question": "Which arm is higher?"}',
+                       json.dumps({"answers": [{"run": _rid, "answer": "B is higher", "quote": "B exceeds A by", "where": "report"}, {"run": _rid, "answer": "made up", "quote": "A exceeds B by far", "where": "report"}]}),
+                       'ANSWER\n' + json.dumps({"found": [{"run": _rid, "where": "report", "quote": "B exceeds A by", "note": "The arms were compared before."},
+                                                           {"run": _rid, "where": "cell 1", "quote": "df.groupby('arm')['x'].mean()", "note": "How the means were taken."},
+                                                           {"run": _rid, "where": "report", "quote": "A exceeds B", "note": "not there"}],
+                                                 "across": {"topic": "Which arm is higher", "groups": [{"label": "B", "runs": [_rid]}]}})]
+    state["memory_seen"], state["memory_effort"] = [], []
+    _log = lambda: json.load(open(_runlog, encoding="utf-8"))
+    class _Held:
+        """The thread's kernel, as far as the instance handles it here."""
+        cleaned = 0
+
+        def cleanup(self):
+            _Held.cleaned += 1
+
+    _kernel_was, _tip_was = BAMBOO._kernel, BAMBOO._kernel_tip
+    BAMBOO._kernel = _held = _Held()
+    _steps, _log_before = [], len(_log())
+    _res = BAMBOO.memory_read("Is arm B still higher than arm A?", on_step=_steps.append)
+    _left_alone, _efforts = BAMBOO._kernel is _held and _Held.cleaned == 0, list(state["memory_effort"])
+    _seen_m = state["memory_seen"]
+    check("memory_read(): the reader works in a sandbox of its own - the user's view under SAVED and no other user's run, no frame, an empty JUDGED - and returns passages that stand in the saved run, a group "
+          "whose run the second model answered for, and its coverage; what does not stand is dropped - a sentence that stands only in another user's report among it; whose data the run ran on is a handle "
+          "there, and the source's id reaches neither model",
+          _res["failed"] == "" and _res["steps"][0]["out"] == f"['{_rid}'] False [] subject 1" and not [1 for _, _, _, _, u in _seen_m if "s-77" in u]
+          and [(f["id"], f["where"], f["quote"]) for f in _res["found"]] == [(_rid, "report", "B exceeds A by"), (_rid, "cell 1", "df.groupby('arm')['x'].mean()")]
+          and _res["across"]["groups"] == [{"label": "B", "runs": [{"run": _rid, "answer": "B is higher", "quote": "B exceeds A by", "where": "report"}]}] and _res["dropped"] == 1
+          and _res["steps"][1]["dropped"] == 1 and _res["coverage"]["judged"] == 1 and _res["coverage"]["runs"] == len(_mem.view(_su)["runs"]) and _steps == _res["steps"], _res)
+    check("memory_read(): the view is brought up to date and kept before it is read; no file of it is left among the user's datasets; the thread's own kernel is left as it was on this machine",
+          [r["id"] for r in _mem.view(_su)["runs"]] == [_rid] and not os.path.exists(os.path.join(work, "datasets", "u1", "memory")) and _left_alone)
+    _mlog = _log()[_log_before:]
+    check("memory_read(): the reader's calls run on the analyst's seat and the second model's on the fast seat where the config has one - here the analyst's - each logged under the memory's own name, all "
+          "under one chain that is not the instance's; the reader's replies are asked at a lowered effort, the second model's at its seat's own",
+          [(a, lbl) for a, lbl, _, _, _ in _seen_m] == [("Investigator", "Memory Reader"), ("Investigator", "Memory Reader"), ("Investigator", "Memory Pieces"), ("Investigator", "Memory Reader")]
+          and len({c for _, _, c, _, _ in _seen_m}) == 1 and _seen_m[0][2] != BAMBOO.chain_id and _seen_m[0][3] == _rd.SYSTEM and _seen_m[2][3] == _rd.PIECES
+          and [e["agent"] for e in _mlog] == ["Memory Reader", "Memory Reader", "Memory Pieces", "Memory Reader"] and len({e["chain_id"] for e in _mlog}) == 1
+          and round(_res["cost"], 4) == round(sum(e["cost"] for e in _mlog), 4) and _res["calls"] == {"reader": 3, "pieces": 1} and _efforts == [("low", "medium"), ("low", "medium"), None, ("low", "medium")],
+          ([(a, lbl, c) for a, lbl, c, _, _ in _seen_m], [e["agent"] for e in _mlog], _efforts))
+    _mode, _url, _new = BAMBOO.execution_mode, BAMBOO.executor_api_url, BAMBOO._new_kernel
+    _box, _made, _stopped = BAMBOO._new_kernel(frame=False), [], []      # the sandbox is still this machine's: only the instance's part is under test
+    _stop = _box.cleanup
+    _box.cleanup = lambda: _stopped.append(1) or _stop()
+    BAMBOO.execution_mode, BAMBOO.executor_api_url = "api", "http://executor.invalid"
+    BAMBOO._new_kernel = lambda frame=True: _made.append((frame, BAMBOO._kernel)) or _box
+    state["memory"] = ['ANSWER\n{"found": []}']
+    try:
+        BAMBOO.memory_read("q?")
+    finally:
+        BAMBOO.execution_mode, BAMBOO.executor_api_url, BAMBOO._new_kernel = _mode, _url, _new
+    check("memory_read(): on an executor, which holds one kernel, the thread's kernel is given up before the sandbox starts - the next analysis restores it from the record - and the sandbox has no frame; "
+          "the sandbox is stopped when the reading is over",
+          _Held.cleaned == 1 and _made == [(False, None)] and BAMBOO._kernel is None and BAMBOO._kernel_tip is None and _stopped == [1], (_Held.cleaned, _made, BAMBOO._kernel, _stopped))
+    BAMBOO._kernel, BAMBOO._kernel_tip = _kernel_was, _tip_was
+    _cfg = FakeModels.config
+    FakeModels.config = {**_cfg, "agent_configs": _cfg["agent_configs"] + [{"agent": "Reader", "details": {"model": "fake/model", "provider": "fake"}}]}
+    BAMBOO.models.config = FakeModels.config
+    _fast = BAMBOO._memory_seats()
+    state["memory"], state["memory_seen"] = ['JUDGE\n{"runs": "all", "question": "q?"}', '{"answers": []}', 'ANSWER\n{"found": []}'], []
+    BAMBOO.memory_read("q?")
+    _fast_seen = [(a, lbl) for a, lbl, _, _, _ in state["memory_seen"]]
+    FakeModels.config = {**_cfg, "agent_configs": _cfg["agent_configs"] + [{"agent": n, "details": {"model": "fake/model", "provider": "fake"}} for n in ("Reader", "Memory Reader", "Memory Pieces")]}
+    BAMBOO.models.config = FakeModels.config
+    _own = BAMBOO._memory_seats()
+    FakeModels.config = _cfg
+    BAMBOO.models.config = _cfg
+    check("the seats: the second model takes the Reader seat where the config has one - its calls run there and the reader's on the analyst's - and each takes a seat of its own name where the config has it",
+          _fast == ("Investigator", "Reader") and _fast_seen == [("Investigator", "Memory Reader"), ("Reader", "Memory Pieces"), ("Investigator", "Memory Reader")]
+          and _own == ("Memory Reader", "Memory Pieces") and BAMBOO._memory_seats() == ("Investigator", "Investigator"), (_fast, _fast_seen, _own))
+    _nb9 = _NB("7101")
+    _add(_nb9, "7102", "Does C match B?", report="# C matches B\n\nC and B agree within 0.1 units [cell 1].", cells=[("d = c - b", "0.1\n", ["difference: 0.1 units"])])
+    _NBS(_su).save(_nb9)
+    _favourite(_su, 7101, 7102)
+    os.remove(os.path.join(_su, "favourites", "7001", "7002.json"))      # the first workflow is removed: the kept view has not followed yet
+    state["memory"], state["memory_seen"] = ["CELL\n```python\nprint([r['id'] for r in SAVED['runs']])\n```",
+                                             'ANSWER\n' + json.dumps({"found": [{"run": _rid, "where": "report", "quote": "B exceeds A by", "note": "from a workflow removed since"}]})], []
+    _thread_was, _log_thread_was = BAMBOO.thread_id, BAMBOO.log_and_call_manager.thread_id
+    BAMBOO.thread_id = BAMBOO.log_and_call_manager.thread_id = None      # an instance that has run nothing yet
+    _res2 = BAMBOO.memory_read("q?", chain=4242)
+    _minted = BAMBOO.log_and_call_manager.thread_id
+    BAMBOO.thread_id, BAMBOO.log_and_call_manager.thread_id = _thread_was, "kept"
+    state["memory"] = ["CELL\n```python\nprint(1)\n```"]
+    _res3 = BAMBOO.memory_read("q?", chain=4243, caps={"turns": 1})
+    _kept = BAMBOO.log_and_call_manager.thread_id
+    BAMBOO.log_and_call_manager.thread_id = _log_thread_was
+    check("memory_read(): under a chain that is given, its calls are that chain's; a workflow removed since is not read - nothing of it is in the sandbox, and a passage from it does not stand; nothing found is "
+          "an answer; where the instance has no thread yet, one is minted for the usage rows, and a thread there is kept; a cap that is given reaches the reader",
+          [c for _, _, c, _, _ in state["memory_seen"]] == [4242, 4242, 4243] and _res2["steps"][0]["out"] == "['7101/7102']"
+          and (_res2["found"], _res2["failed"], _res2["dropped"], _res2["coverage"]["runs"]) == ([], "", 1, 1)
+          and isinstance(_minted, str) and _minted.isdigit() and _kept == "kept" and _res3["failed"].startswith("The reader gave no answer within its limits: 1 of 1 replies, ") and _res3["steps"] == [],
+          ([c for _, _, c, _, _ in state["memory_seen"]], _minted, _kept, _res2, _res3["failed"]))
+    os.remove(os.path.join(_su, "favourites", "7101", "7102.json"))      # nothing is saved now
+    _new, _started = BAMBOO._new_kernel, []
+    BAMBOO._new_kernel = lambda frame=True: _started.append(frame) or _new(frame=frame)
+    BAMBOO._kernel = _held2 = _Held()
+    _cleaned_before, state["memory"], state["memory_seen"] = _Held.cleaned, [], []
+    try:
+        _res4 = BAMBOO.memory_read("q?")
+    finally:
+        BAMBOO._new_kernel = _new
+    check("memory_read(): where nothing is saved, no sandbox starts, the thread's kernel stays and no model is called: an empty result at no cost",
+          (_res4["found"], _res4["across"], _res4["failed"], _res4["calls"], _res4["cost"], _res4["coverage"]["runs"]) == ([], None, "", {"reader": 0, "pieces": 0}, 0.0, 0)
+          and _started == [] and state["memory_seen"] == [] and BAMBOO._kernel is _held2 and _Held.cleaned == _cleaned_before, (_res4, _started))
+    BAMBOO._kernel, BAMBOO._kernel_tip = _kernel_was, _tip_was
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("the reader of the saved analyses through the instance: the checks ran", False, traceback.format_exc()[-1200:])
 
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

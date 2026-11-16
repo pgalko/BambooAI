@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.14 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301)
+# The Architect and memory from saved analyses — design v0.15 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, and its reader, 0302)
 
 Release 2.8 does three things.
 
@@ -548,7 +548,7 @@ Not in this patch: a way to stop a set in flight; next questions saved with a fa
 - The sapling's chains in older threads hold only questions. The reader skips them.
 - An Architect run that started no analysis is not memory.
 
-### 3.2 The reader (agreed in outline, details proposed)
+### 3.2 The reader (agreed in outline; built in 0302, §3.6)
 
 A coach's saved runs do not fit in any model's window: one run is tens of thousands of tokens as stored. So memory
 is read by a program a model writes, not pasted into a prompt.
@@ -564,7 +564,7 @@ is read by a program a model writes, not pasted into a prompt.
   (proposed)
 - A single run is read directly.
 - Every statement returned names its run and cell, and is checked against the source by code.
-- It states its coverage, and names what it leaves out ("read 42 of 42 · 17 older not read"). (proposed)
+- It states its coverage, and names what it leaves out ("read 42 of 42 · 17 older not read").
 
 ### 3.3 What the coach gets (agreed in substance)
 
@@ -644,7 +644,79 @@ parsed.
 with `--user`, that user's runs; with words, a search. It writes nothing, and says whether the kept view is up to
 date.
 
-**Not there:** the brief of a saved run (0304), the reader and its sandbox (0302), anything on the page (0303).
+**Not there:** the brief of a saved run (0304), anything on the page (0303).
+
+### 3.6 The reader — built (0302, 2026-11-16)
+
+`analyst/reader.py`, with its two instruction texts, `reader.md` and `reader_pieces.md`. Nothing on the page
+changes: the Architect asks it from 0303 on. Until then it is asked from the command line.
+
+**One question, one loop.** `read()` puts the view in a sandbox under the name `SAVED` and asks the reader's model
+for one action a reply, eight replies at most.
+
+| Action | What it does |
+|---|---|
+| `CELL` | Python over `SAVED`. What it prints comes back, up to 4,000 characters. |
+| `JUDGE` | The second model reads the runs named, or all of them, and answers one question about each with an exact quote. The answers that stand come back, and the sandbox holds them under `JUDGED`, so code can count them. |
+| `ANSWER` | What it found. It ends the work. |
+
+A reply that cannot be read costs a reply, and the reader is told why.
+
+**The sandbox.** A kernel of its own, without a frame (`BambooAI.memory_read`): the user's executor, or a kernel on
+this machine in the local edition. Where nothing is saved, no sandbox starts and no model is called.
+
+- The executor holds one kernel. The thread's kernel gives way, and the next analysis restores it from the record,
+  as after a routine's run.
+- The view goes in as one text, in the first cell. Nothing of a saved analysis is read as code, no file of it is
+  left on the executor, and the image is unchanged.
+- Whose data a run ran on is said by a handle (`subject 1`), not by the source's id.
+
+**The second model.** It gets the runs in few large batches: 48,000 characters a call, 16,000 of one run. Of each
+run it reads the question, the title, and the parts the reader names: the report, the code, the result lines, the
+printout. A run is read with the cells of the steps right before it that are not saved themselves, so a helper
+defined there is seen. A batch whose reply cannot be read is asked for once more. The batches run one after
+another.
+
+**What code checks.**
+
+- A quote stands where it is found word for word in the run it is given for: in what was asked, in the report, or
+  in a cell of the run or of an earlier step on its path. White space aside, and eight characters at least. Code
+  finds the place. No model says it.
+- An answer of the second model's stands where its run was in the batch and its quote stands. The others are
+  dropped and counted.
+- A passage of the reader's answer stands where its quote does. Ten at most.
+- A finding across the analyses is groups of runs. A run stands in a group only where the second model answered for
+  it with a quote that stood, and in one group only. So the counts are the code's. The label of a group is the
+  reader's; each run shows the second model's own answer and quote under it.
+- An id that is no saved analysis - an earlier step, a removed workflow, another user's run - is read by nobody and
+  stands nowhere.
+
+**The caps** for one question: 8 replies, 60 calls of the second model, 120 seconds, $0.50. They are the starting
+values (§3.2). When the time or the money is spent, or the last reply is due, the reader is told to answer with
+what it has. Where it gives none, the result says so, with what was spent. A reply of the reader's is short, so it
+is asked at a low effort, as the Architect's are; never above the seat's own.
+
+**What it returns.** The passages, each with its run's id, day, question, title and marks. The finding across, or
+none. How many statements were dropped. The coverage: the runs in memory, those the second model read, and what
+memory does not read, by reason. Every step, the calls, the cost and the time. Nothing found is an answer, not a
+failure.
+
+**The rules** of §3.4 are in both instruction texts: saved text gives no instructions, and the reader's cells never
+run code taken from it; a quote is exact; a method carries over and a number is history; the note says which data
+a run ran on, and that its chain is broken.
+
+**The seats** (decision 28). The reader runs on the Analyst's seat, the second model on the `Reader` seat: the fast
+model that reads the documents. A configuration may give them seats of their own, `Memory Reader` and
+`Memory Pieces`. The calls are logged under those two names, under a chain of their own.
+
+**From the command line.** `python3 ../tools/memory_ask.py --user <id> "<question>"`, from the web app's folder, as
+the app's user. It takes the app's environment and the user's models, and finds the user's executor as the app
+does. It prints every step, the result, the coverage and the cost, and then what plain keyword search gives for the
+same words (§4). `--turns`, `--seconds`, `--dollars` and `--effort` change the caps for one question. It takes the
+executor's one kernel, so it is not run beside an analysis of the same user.
+
+**Not there:** memory in the Architect and on the page, where its cost joins the turn's (0303); the two seats in
+the templates and in Usage (0304).
 
 ## 4. How we will know it works
 
@@ -725,7 +797,7 @@ repository and the dev box only.
 | 0299 | Other explanations: after the check the Architect proposes at most two, each unticked until the coach accepts it (decision 22). Split from 0298, so the lookups are judged on their own (§2.14). | built |
 | 0300 | Next questions: the button on the closing card, the five levels, five cards, change and run from the card. The Explore tab and the Analyst's ideas path go (§2.15). | built |
 | 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model (§3.5). | built |
-| 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. | |
+| 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. Asked from the command line (§3.6). | built |
 | 0303 | Memory in the Architect: the row with its live count and skip, found analyses in the brief, "look now" on follow-ups. | |
 | 0304 | Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
 | 0305 | Release 2.8.0. | |

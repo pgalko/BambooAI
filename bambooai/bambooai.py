@@ -179,6 +179,15 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Architect' if 'Architect' in agents else self._seat()
 
+    def _memory_seats(self):
+        """The seats the reader of the saved analyses runs on (docs/ARCHITECT_DESIGN.md, decision 28): the reader on
+        'Memory Reader' when the config carries one, else the analyst's seat; its second model on 'Memory Pieces',
+        else the 'Reader' seat - the fast model that reads the documents - else the analyst's. Either way the calls
+        are logged under those two names (_llm's `label`)."""
+        agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
+        return ('Memory Reader' if 'Memory Reader' in agents else self._seat(),
+                'Memory Pieces' if 'Memory Pieces' in agents else 'Reader' if 'Reader' in agents else self._seat())
+
     def _promoter_seat(self):
         """The seat Save as routine's one model call runs on (2026-10-10): 'Promoter' when the config carries one -
         its own model, effort and token allowance, since the reply is a JSON object of edits that a seat tuned for
@@ -236,21 +245,23 @@ class BambooAI:
         return float(summary.get('total_cost', 0.0) or 0.0)
 
     # ---------------------------------------------------------------- kernel
-    def _new_kernel(self):
+    def _new_kernel(self, frame=True):
+        """A fresh kernel: with the data loaded now, or - `frame=False` - without any, for the reader of the saved
+        analyses. On an executor it takes the place of the kernel there (force): the executor holds one."""
         if self.execution_mode == 'api' and self.executor_api_url:
             from bambooai.kernel_client import RemoteKernel
             try:
                 logger.info("Executor at %s: build %s", self.executor_api_url, (self.api_client.executor_build() if self.api_client else None) or "unknown (image before 2026-09-07)")
             except Exception:                                  # noqa: BLE001
                 pass
-            return RemoteKernel(base_url=self.executor_api_url, df_id=self.df_id, session_id=None, force=True,
-                                generated_dir=self._generated_dir())
+            return RemoteKernel(base_url=self.executor_api_url, df_id=self.df_id if frame else None, session_id=None, force=True,
+                                generated_dir=self._generated_dir() if frame else None)
         import sys
         here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         if os.path.join(here, 'delve') not in sys.path:
             sys.path.insert(0, os.path.join(here, 'delve'))
         from kernel import PersistentKernel
-        return PersistentKernel(df=self.df, generated_dir=self._generated_dir())
+        return PersistentKernel(df=self.df if frame else None, generated_dir=self._generated_dir() if frame else None)
 
     def _generated_dir(self):
         """The user's generated-datasets folder - the one /cache/inspect lists under Generated and the download route
@@ -1252,6 +1263,36 @@ class BambooAI:
             except Exception:                                  # noqa: BLE001
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
+
+    def memory_read(self, question, on_step=None, chain=None, caps=None):
+        """What the person's saved analyses hold that bears on a question (analyst/reader.py; docs/ARCHITECT_DESIGN.md
+        §3.6). The view is brought up to date and put in a sandbox of its own - a kernel without a frame - and the
+        reader's model reads it there, with a second model on pieces, under the reader's caps (`caps` changes
+        some). The calls are logged as the memory's, under `chain` (one of its own where none is given) and, for
+        the usage rows, the current thread or one minted here; charging them is the caller's. On an executor the
+        sandbox takes the place of the thread's kernel, which the next analysis restores from the record. Where
+        nothing is saved, no sandbox starts and no model is called. Returns the reader's result."""
+        from analyst import memory, reader
+        chain = utils.next_chain_id() if chain is None else chain
+        if not self.log_and_call_manager.thread_id:
+            self.log_and_call_manager.thread_id = str(self.thread_id or utils.next_thread_id())
+        view = reader.sandbox_view(memory.refresh(self._user_storage()))
+        seat, second = self._memory_seats()
+        kernel = None
+        try:
+            if view["runs"]:
+                if self.execution_mode == 'api' and self.executor_api_url:
+                    self._drop_kernel()                        # the executor holds one kernel: the thread's gives way knowingly
+                kernel = self._new_kernel(frame=False)
+            return reader.read(question, view, kernel,
+                               lambda system, user, **kw: self._llm(system, user, seat=seat, label="Memory Reader", chain=chain, **kw),
+                               lambda system, user: self._llm(system, user, seat=second, label="Memory Pieces", chain=chain), caps=caps, on_step=on_step)
+        finally:
+            try:
+                if kernel is not None:
+                    kernel.cleanup()
+            except Exception:                                  # noqa: BLE001
+                pass
 
     def next_questions(self, thread_id, run_id, level):
         """One set of next questions for a finished analysis, at a level (analyst/next_questions.py): one model call on

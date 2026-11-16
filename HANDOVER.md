@@ -207,6 +207,45 @@
   tool; the walk asks the app's own kept view after the sign-in, a save, a favourite, a routine, a chain removed and
   a workflow deleted. *Not there:* the brief of a saved run (0304), the reader and its sandbox (0302), the page
   (0303).
+  **0302 (2026-11-16): the memory reader** (the design's §3.6). Nothing on the page changes; the Architect asks it
+  from 0303 on. `analyst/reader.py`, with `reader.md` and `reader_pieces.md` (both in the package data).
+  `read(question, view, kernel, llm, pieces, caps, on_step)` puts the view in the sandbox as one text - the first
+  cell is `SAVED = json.loads('...')`, so nothing of a saved analysis is read as code and no file of it is left on
+  the executor - and asks the reader's model for one action a reply (`parse`; what stands before the action's word
+  is passed over). `CELL`: Python over `SAVED`, the printout cut at `OUT_CHARS`. `JUDGE` (`judge`): the second
+  model on the runs named or on all, in batches of `BATCH_CHARS`, `PIECE_CHARS` of a run (`piece`); a run is read
+  with the cells of the unsaved steps right before it (`before`); a batch whose reply cannot be read is asked for
+  once more; the answers that stand go back to the reader and into the sandbox as `JUDGED`. `ANSWER` (`answer`).
+  What code checks: a quote stands where it is found word for word in its run, and code says where (`place_of`,
+  `places`: what was asked, the report, a cell of the run or of an earlier step on its path; white space aside;
+  `QUOTE_MIN`) - no model names a place; an answer of
+  the second model's stands where its run was in the batch; a run stands in a group of the finding across only
+  where an answer stood for it - its latest is the one shown - and in one group only; what does not stand is
+  dropped and counted; an id that is no saved analysis is said (`unknown`) and stands nowhere. The label of a group
+  and the note of a passage are the reader's words, bounded. `CAPS`: 8 replies, 60 calls of the second model,
+  120 s, $0.50, and the effort a reply of the reader's is asked at (low, then medium: the seat's own can be far
+  higher); when the time or the money is spent, or the last reply is due, the reader is told to answer (`LAST`),
+  and where it gives none the result says so (`failed`) with what was spent. The result: `found`,
+  `across`, `dropped`, `coverage` (`runs`, `judged`, `not_read`), `steps`, `calls`, `cost`, `seconds`, `failed`.
+  `sandbox_view()` says whose data a run ran on by a handle. The host: `BambooAI.memory_read(question, on_step,
+  chain, caps)` - the view brought up to date (`memory.refresh`), a kernel of its own without a frame
+  (`_new_kernel(frame=False)`; on an executor the thread's kernel is dropped first, the executor holding one, and
+  the next analysis rehydrates it as after a routine's run), the reader on the analyst's seat and the second model
+  on the `Reader` seat (`_memory_seats`; `Memory Reader` and `Memory Pieces` where a config has them), the calls
+  logged under those two names and a chain of their own, the usage rows under the current thread or one minted.
+  Where nothing is saved no sandbox starts and no model is called. No executor image change. `tools/memory_ask.py --user <id> "<question>"`, from the web app's folder as the app's
+  user: it takes the app's environment (`environment()`: the box's four files in the order
+  `web_app/webapp_gunicorn.conf.py` loads them, then the `.env`), finds the user's executor as the app does
+  (`compute`), prints every step, the result, the coverage and the cost, then what plain keyword search gives for
+  the same words; `--turns`, `--seconds`, `--dollars`, `--effort`, `--quiet`. It takes the executor's one kernel, so it is not
+  run beside an analysis of the same user. `tests/analyst/test_reader.py` (60, in the battery: scripted replies, a
+  real kernel without a frame), `test_app_path.py` (+7: the instance's method, another user's run, a removed
+  workflow, the seats, the kernel on an executor, the thread for the usage rows, nothing saved), `test_executor_kernel.py` (+1: the frameless kernel with
+  force and the first cell through the executor's own routes, odd characters whole); `tests/analyst/_saved.py`
+  holds the builders `test_memory.py` and `test_reader.py` share. *Not there:* memory in the Architect and on the
+  page (0303); the two seats in the templates and in Usage (0304). *Known:* the second model's batches run one
+  after another, so the 120 seconds bound how many runs a question about all of them reads. Not run against a live
+  model: the first live runs are from the command line.
 - **Published.** 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -283,7 +322,7 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (309/244/31/28/18/49/44/72/33/261/60/93/27/31/37/15/88/57/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/92/27 JS; 2,172 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+- **The tests.** `run_battery.sh` (309/251/31/28/18/49/44/72/34/261/60/93/27/31/37/15/88/57/60/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/92/27 JS; 2,240 on 2026-11-16; the public CI runs the battery on every push); `tests/e2e/test_stack.py
   [--edition local] [--compute local|direct]` (183 hosted on 2026-11-16; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (37); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the

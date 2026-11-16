@@ -253,6 +253,26 @@ check("kernel: the 3.11 f-string scanner keeps the expressions and blanks the te
       [_masked(t) for t in _FS] == ["         {host} {port}    ", "               {b:>{w}}   ", "  {        }      ", "          {a}            "],
       [_masked(t) for t in _FS])
 
+# the reader's sandbox on the executor (0302, docs/ARCHITECT_DESIGN.md §3.6), with the image as it is: a kernel starts without a frame in the place of the
+# one there, and the reader's first cell puts the view in it as one text - a saved analysis that names a restricted module does not have the cell refused,
+# and one with quotes, a backslash, a line separator or half a character pair arrives as it was
+from analyst import reader as _reader  # noqa: E402
+_held = (c.post("/kernel/start", json={"df_id": "t1"}).get_json() or {}).get("session_id")
+_view = {"format": 1, "built": 1.0, "runs": [{"id": "7/8", "question": "q?", "report": "It said: import subprocess; eval('x') \"quoted\" and a \\ backslash.\nA second line. na\u00efve \u2013 \u2028\ud83d"}], "steps": {}, "not_read": {}}
+_full = c.post("/kernel/start", json={"df_id": None})
+_box = c.post("/kernel/start", json={"df_id": None, "force": True}).get_json() or {}
+try:
+    _pre = c.post("/kernel/execute", json={"session_id": _box.get("session_id"), "code": _reader.PRELUDE.format(view=json.dumps(_view, ensure_ascii=False))}).get_json() or {}
+    _cell = c.post("/kernel/execute", json={"session_id": _box.get("session_id"), "code": "r = SAVED['runs'][0]['report']\nprint([x['id'] for x in SAVED['runs']], JUDGED, 'df' in globals(), r.split(chr(10))[1][:14], len(r), [hex(ord(c)) for c in r[-3:]])"}).get_json() or {}
+    _old = c.post("/kernel/execute", json={"session_id": _held, "code": "print(1)"})
+    check("executor: a kernel without a frame takes the place of the one the executor holds (and is refused without force); the reader's first cell puts the view in it - no frame, an empty JUDGED, the text of "
+          "a saved analysis whole, character for character, though it names restricted modules - and the kernel that gave way is gone; no file of the view is left in the executor's folders",
+          _full.status_code == 429 and _box.get("session_id") and _box.get("reused") is False and _box.get("shape") is None and not _pre.get("error")
+          and (_cell.get("stdout") or "").strip() == f"['7/8'] [] False A second line. {len(_view['runs'][0]['report'])} ['0x20', '0x2028', '0xd83d']" and _old.status_code in (404, 410) and not os.path.exists(os.path.join("datasets", "u9", "memory")),
+          (_full.status_code, _box, _pre.get("error"), _cell, _old.status_code))
+finally:
+    c.post("/kernel/stop", json={"session_id": _box.get("session_id")})
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)
