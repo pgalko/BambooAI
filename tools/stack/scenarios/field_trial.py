@@ -605,6 +605,8 @@ class Scenario:
     def briefed(self, user, q, turn, forced):
         b = _brief(user)
         measure = b["fixed"].get("measure", "")
+        if turn == 1 and not forced and "\nSaved analyses the person chose" in user:      # the brief names a saved analysis: it is opened first (SHOW SAVED 1)
+            return _action("The brief names a saved analysis. I open it before computing anything.", _note(q, plan="read the saved analysis; then the fixed comparison", names="df"), "SHOW SAVED 1")
         # the measure the brief fixes is not in the data - unless the person's answer to that question, which stands where
         # the two differ, names the one to use
         answered = "BRIEF (agreed before your question" in user and "yield" in q.lower()
@@ -616,7 +618,7 @@ class Scenario:
                            _note(q, doubts="the fixed measure is not in the data", plan="ask the person"),
                            "ASK The brief fixes the measure as protein content, and the data records none: its columns are plot_id, regime, soil, season, "
                            "rainfall_mm and yield_t_ha. The comparison the brief fixes can be made on yield_t_ha. Shall I use yield?")
-        if forced or "BRIEF_DIFF=" in user:
+        if forced or re.search(r"BRIEF_DIFF=-?\d", user):      # this chain's cell printed it: a saved analysis shown holds the line of code, not a number
             return self.report_brief(user, q, b)
         return _cell("The brief fixes the comparison and the measure: regime C against A within soil type, on plot means of yield. One cell computes it, with the rainfall of the two regimes' plots for the check the brief names.",
                      _note(q, held="soil type (stratified), as the brief fixes", plan="the fixed comparison; then report against the brief", names="df, plot_means, adj_diff, est_b"), CELL_BRIEF)

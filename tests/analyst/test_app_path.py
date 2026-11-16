@@ -1913,6 +1913,7 @@ try:
     _su3 = os.path.join(work, "storage", "u1")
     _nbm = _NB3("7301")
     _add3(_nbm, "7302", "Was B above A in spring?", report="# B led in spring\n\nB led A by 3 units [cell 1].", cells=[("gap = b - a", "3\n", ["gap: 3 units"])],
+          brief={"decision": "keep the taller arm", "fixed": {"measure": "height"}, "version": 1},
           data={"df_id": "d", "name": "spring.csv", "rows": 9, "date_range": "2026-03-01 to 2026-05-31", "columns": [{"name": "x"}], "load": {"source": "s", "subject": {"id": "p-9", "name": "First Person"}}})
     _NBS3(_su3).save(_nbm)
     _favm = _fav3(_su3, 7301, 7302)
@@ -1965,12 +1966,24 @@ try:
           and "First Person" not in state["architect_seen"][-1][3]
           and (_sm["framing"]["versions"][-1]["by"], _sm["framing"]["versions"][-1]["changed"]) == ("person", ["saved.0"])
           and _bf.render(_bf.agreed(_sm["framing"]["versions"][-1]["brief"])).splitlines()[-2:] == ["Saved analyses the person chose (earlier results: claims to test, not evidence):",
-              f'- {_kept_m["when"]} "Was B above A in spring?", in its report: "B led A by 3 units" (spring.csv, 2026-03-01 to 2026-05-31, another person\'s data)'], (state["architect_seen"][-1][3][-500:], _sm))
+              f'1. {_kept_m["when"]} "Was B above A in spring?" (spring.csv, 2026-03-01 to 2026-05-31, another person\'s data): in its report "B led A by 3 units"'], (state["architect_seen"][-1][3][-500:], _sm))
     _one = _wac.get("/architect/saved/7301/7302")
-    check("/architect/saved: a saved analysis as memory holds it, to read beside the brief that names it - the question, the report, the code of its cells, how it was saved, the data it ran on and whose it is; one that is not saved is not found, nor is a saved one asked for under another thread",
+    _nbp = _NB3("7401")                                          # a saved analysis built on a step that is not saved: for the moment of one request
+    _add3(_nbp, "7402", "How is the gap taken?", report="# A helper\n\nDefined [cell 1].", cells=[("def gap(a, b):\n    return b - a", "", [])])
+    _add3(_nbp, "7403", "And in autumn?", parent="7402", report="# Level in autumn\n\nThe arms are level [cell 2].", cells=[("g = gap(a, b)", "0\n", ["gap: 0 units"])])
+    _NBS3(_su3).save(_nbp)
+    _favp = _fav3(_su3, 7401, 7403)
+    _mem3.refresh(_su3)
+    _built = _wac.get("/architect/saved/7401/7403").get_json()
+    os.remove(_favp)
+    _mem3.refresh(_su3)
+    check("/architect/saved: a saved analysis as memory holds it, to read beside the brief that names it - the question, the brief it ran under, the report, the code of its cells, how it was saved, the data it ran on and whose it is; the cells are those along its thread up to its own, an earlier step's with them, as a passage's place counts them; one that is not saved is not found, nor is a saved one asked for under another thread",
           _one.status_code == 200 and {k: _one.get_json()[k] for k in ("id", "question", "title", "report", "marks", "data")} == {"id": "7301/7302", "question": "Was B above A in spring?", "title": "B led in spring",
               "report": "# B led in spring\n\nB led A by 3 units [cell 1].", "marks": ["picked"], "data": {"name": "spring.csv", "period": "2026-03-01 to 2026-05-31", "person": "First Person"}}
-          and _one.get_json()["cells"] == [{"n": 1, "code": "gap = b - a"}] and _wac.get("/architect/saved/7301/9999").status_code == 404 and _wac.get("/architect/saved/1077/" + str(_c2)).status_code == 404
+          and _one.get_json()["cells"] == [{"n": 1, "code": "gap = b - a"}] and _one.get_json()["brief"] == "Decision: keep the taller arm\nFixed before the run:\n- measure: height"
+          and (_built["cells"], _built["brief"]) == ([{"n": 1, "code": "def gap(a, b):\n    return b - a"}, {"n": 2, "code": "g = gap(a, b)"}], "")
+          and _wac.get("/architect/saved/7401/7403").status_code == 404 and len(_mem3.view(_su3)["runs"]) == 1
+          and _wac.get("/architect/saved/7301/9999").status_code == 404 and _wac.get("/architect/saved/1077/" + str(_c2)).status_code == 404
           and _wac.get("/architect/saved/1077/7302").status_code == 404, _one.get_json())
     _pane_was = BAMBOO._pane
     BAMBOO._pane = lambda kind, **kw: (_pane_was(kind, **kw), _wac.post("/architect/skip") if kind == "architect_saved" else None)[0]      # the person clicks Skip as the row opens
@@ -1984,6 +1997,24 @@ try:
           [t["who"] for t in _t3][-3:] == ["architect", "person", "memory"] and _t3[-2]["text"] == "Look in my saved analyses." and _t3[-1]["failed"] == "The person skipped it." and _t3[-1]["found"] == []
           and state["memory_seen"] == [] and len(state["architect_seen"]) == _asked3 and len(state["architect"]) == 1
           and len(_lnm3[-1]["architect"]["framing"]["versions"]) == len(_sm["framing"]["versions"]) and BAMBOO._skip_saved.is_set(), (_t3[-1], state["memory_seen"]))
+    # the analysis the brief starts: the analyst opens the saved analysis its ticked passage comes from (SHOW SAVED 1)
+    _keep_s3 = (state["script"], state["i"])
+    state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nSHOW SAVED 1",
+                              "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# Autumn\n\n## Answer\nNothing was computed.\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."])
+    BAMBOO.output_manager.add_user_input("Is B above A this autumn?")
+    while not q.empty(): q.get()
+    BAMBOO.pd_agent_converse(thread_id=_opm["thread_id"], chain_id=None, mode="deep", run_id=_cm)
+    _rows3 = [e for e in (json.loads(q.get()) for _ in range(q.qsize())) if e.get("type") == "pane_lookup" and e.get("kind") == "show"]
+    state["script"], state["i"] = _keep_s3
+    _shown3 = next((t.stdout for t in BAMBOO.notebook.runs[str(_cm)].turns if t.kind == "show"), "")
+    check("SHOW SAVED k through the host: the analyst of a run under the brief opens the saved analysis its ticked passage comes from - what was asked, the brief it ran under, the report, the code and the result lines of its cells, "
+          "as memory holds it, under a line that says it is another person's data; no name, and no id of the person, is in it. The pane's row for the step says which analysis was opened, in the "
+          "words of that line without its rule marks. A run that is not saved gives none",
+          _shown3 == (f'--- saved analysis 1: {_kept_m["when"]} "Was B above A in spring?" (another person\'s data) ---\nQUESTION: Was B above A in spring?\nTITLE: B led in spring\n'
+                      "BRIEF:\nDecision: keep the taller arm\nFixed before the run:\n- measure: height\n"
+                      "REPORT:\n# B led in spring\n\nB led A by 3 units [cell 1].\nCELL 1, code:\ngap = b - a\nCELL 1, results:\ngap: 3 units")
+          and [r["peek"] for r in _rows3] == [f'saved analysis 1: {_kept_m["when"]} "Was B above A in spring?" (another person\'s data)']
+          and "First Person" not in _shown3 and "p-9" not in _shown3 and BAMBOO._saved_analysis("7301", "9999") is None and BAMBOO._saved_analysis("1077", "7302") is None, _shown3)
     _read_was = BAMBOO.memory_read
     def _boom(*a, **kw):
         raise RuntimeError("the executor is away")

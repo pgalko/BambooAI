@@ -113,6 +113,8 @@ REPORT_EFFORT = ("medium", "high")
 EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 SHOW_VIEW_CHARS = 40_000     # a SHOW of several cells at once rides whole up to this; beyond it the middle goes, as for a digest
                              # (2026-10-03: an 87,000-character view of several cells was sent whole to a 64k-token server)
+SAVED_VIEW_CHARS = 60_000    # a saved analysis SHOW SAVED opens rides whole up to this, its report and the code of some twenty cells;
+                             # beyond it the middle goes. One a turn, for that turn: at this size it does not stay in the prompt
 SHOWN_RUNS_CHARS = 60_000    # the runs SHOW RUN re-opened stay in the prompt for the rest of the run, whole, while together they fit
                              # this; beyond it the oldest collapse to a line each (2026-10-03: a count of three kept a five-chain
                              # synthesis cycling - ten of its fourteen turns re-opened runs it had already shown)
@@ -758,7 +760,7 @@ class Session:
                  kernel_factory: Optional[Callable[[], object]] = None,
                  replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
                  unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False,
-                 context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None):
+                 context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None, saved: Optional[Callable] = None):
         self.kernel = kernel
         self.nb = notebook
         self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
@@ -770,6 +772,7 @@ class Session:
         self.replay_runner = replay_runner      # (run, script) -> (stdout, error); the host may also collect figures
         self._image = None                      # a figure the person asks about, set by run() (2026-10-13)
         self.read = read                        # read(arg) -> digest text over the thread's documents, or None when the host has none
+        self.saved = saved                      # saved(thread, run) -> a saved analysis whole, or None when it is saved no more (SHOW SAVED k)
         self.unit_text = unit_text              # unit_text("D1.17") -> the unit's text, for the report guard; None when unknown
         self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
                                                 # start of a run and again after a rollback, never a cell of the record
@@ -785,6 +788,18 @@ class Session:
         """A review comes before this turn: never before the first; after every review_every turns (before turns 9, 17,
         25... for 8)."""
         return bool(budget.review_every) and turn_no > 1 and (turn_no - 1) % budget.review_every == 0
+
+    def _saved_view(self, named: list, k: int) -> str:
+        """SHOW SAVED k: the k-th saved analysis the brief names (brief.analyses), as the host holds it - under a line
+        that says which it is, and that it ran on another person's data where the brief says so."""
+        if not 1 <= k <= len(named):
+            return f"(no saved analysis {k}; the brief names {len(named)})"
+        s = named[k - 1][0]
+        text = self.saved(s.get("thread"), s.get("run")) if self.saved else None
+        if not text:
+            return f"(saved analysis {k} is no longer among the saved analyses)"
+        asked = " ".join(x for x in (s.get("when"), f"\"{s['question']}\"" if s.get("question") else "") if x)
+        return f"--- saved analysis {k}: {asked}" + (" (another person's data)" if s.get("other") else "") + f" ---\n{text}"
 
     def _shown_runs(self, run: Run) -> str:
         """The earlier chains SHOW RUN re-opened in this run, standing in the prompt for the rest of it (2026-10-03: a
@@ -987,6 +1002,9 @@ class Session:
                 m_run = re.match(r"(?i)^run((?:\s+\d+)+)$", arg)
                 m_srch = re.match(r"(?i)^search((?:\s+\d+)+)$", arg)
                 m_read = re.match(r"(?i)^read((?:\s+\d+)+)$", arg)
+                m_saved = re.match(r"(?i)^saved((?:\s+\d+)+)$", arg)
+                named = briefs.analyses((run.brief or {}).get("saved") or [])      # the saved analyses the brief names: SHOW SAVED k opens one
+                cap, rest = SHOW_VIEW_CHARS, "the notebook keeps it whole"         # what the next prompt takes of the view, and what a longer one says of the rest
                 nums = lambda m: [int(x) for x in m.group(1).split()]
                 if m_run:
                     ks = nums(m_run)
@@ -996,9 +1014,14 @@ class Session:
                     turn.stdout = "\n\n".join(self.nb.render_search(run.id, k) for k in nums(m_srch))
                 elif m_read:
                     turn.stdout = "\n\n".join(self.nb.render_read(run.id, k) for k in nums(m_read))
+                elif m_saved and named:
+                    k, *more = nums(m_saved)
+                    turn.stdout = self._saved_view(named, k) + (f"\n(one saved analysis at a time: SHOW SAVED {more[0]} opens the next)" if more else "")
+                    cap, rest = SAVED_VIEW_CHARS, "that part is not in view"
                 elif re.match(r"(?i)^[a-z]", arg):
                     # a word the forms above do not know (2026-10-03: "SHOW SEARCH 1 2 3 4" had been read as cells 1-4): say so
-                    turn.stdout = f"(SHOW did not understand '{arg}'. SHOW takes cell numbers, or RUN k, SEARCH k, READ k - several numbers allowed.)"
+                    turn.stdout = (f"(SHOW did not understand '{arg}'. SHOW takes cell numbers, or RUN k, SEARCH k, READ k - several numbers allowed"
+                                   + (" - or SAVED k" if named else "") + ".)")
                 else:
                     # several cells at once (2026-09-10): SHOW 8 9 - a report needs its numbers in view in one turn
                     views = []
@@ -1011,7 +1034,7 @@ class Session:
                                      if cell else f"(no cell {num}; SHOW takes cell numbers, RUN k, SEARCH k or READ k)")
                     turn.stdout = "\n\n".join(views)
                 extra = (f"SHOWN: run {turn.text} - whole, under RUNS SHOWN THIS RUN above" if m_run and turn.text
-                         else "SHOWN:\n" + view_digest(turn.stdout, "the notebook keeps it whole", cap=SHOW_VIEW_CHARS))
+                         else "SHOWN:\n" + view_digest(turn.stdout, rest, cap=cap))
             elif action.verb == "names":
                 turn.stdout = tools.names(self.kernel)
                 extra = "NAMES IN THE KERNEL:\n" + turn.stdout
@@ -1146,8 +1169,9 @@ class Session:
             text_u = self.unit_text(uid) if uid not in cited and self.unit_text else None
             if text_u is not None:
                 unit_texts.append(text_u)
-        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts
-                                    + ([briefs.render(run.brief)] if run.brief else []))     # a number the brief states is the person's own
+        # a number the brief states is the person's own, and one in a saved analysis the run opened is history it may state
+        stated = ([briefs.render(run.brief)] if run.brief else []) + [t.stdout for t in run.turns if t.kind == "show" and (t.stdout or "").startswith("--- saved analysis ")]
+        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts + stated)
         check_u = rep.guard_units(missing)
         disputed = disputed_cells(run)
         quoted = [c for c in cited_cells(report_text) if c in disputed]

@@ -1710,10 +1710,11 @@ check("brief: without one the contract and the reviewer's prompt are what they w
 check("brief: the report's part names its verdict words - met, not met, cannot tell; seen, not seen, cannot tell - and a check that could not be made is written with the same words (the page marks the line)",
       all(w in " ".join(BRIEF_PARTS.split()) for w in ("a line `Expected:` with `met`, `not met` or `cannot tell` and the number that says so", "a line `Would change their mind:` with `seen`, `not seen` or `cannot tell`",
                                                        "then one line for each Also check line, with what it showed - or `cannot tell` and why.")))
-check("brief: the contract's section says the six things the analyst does with it - the decision is what the answer is for, what is fixed is what is computed, what it rests on is a frame and not evidence, every Also check line is tested, a passage of a saved analysis is an earlier one's - its method may carry over, its numbers are history - and where the data cannot give what is fixed it asks",
+check("brief: the contract's section says the six things the analyst does with it - the decision is what the answer is for, what is fixed is what is computed, what it rests on is a frame and not evidence, every Also check line is tested, a line under Saved analyses is an earlier analysis, which SHOW SAVED opens in the next prompt - its method may carry over, its numbers are history - and where the data cannot give what is fixed it asks",
       all(s in CONTRACT_BRIEF for s in ("The decision is what the answer is for", "What is fixed - the comparison, the measure, the period - is what you compute", "A part marked \"left to you\"\n  is yours to choose",
                                         "is the person's frame, not evidence", "Every line under Also check is tested", "put nothing else in its place: ASK, saying what is missing and what the data would\n  allow",
-                                        "A passage under Saved analyses is from an earlier analysis. Its method may carry over. Its numbers are history\n  about the data it ran on - another person's where the line says so - and no result of this run.")))
+                                        "A line under Saved analyses is an earlier analysis with the passages the person chose from it. `SHOW SAVED <k>`\n  opens it in your next prompt: its report and the code of its cells. Its method may carry over: write it anew,\n"
+                                        "  its names are not in your kernel. Its numbers are history about the data it ran on - another person's where the\n  line says so - and no result of this run.")))
 _b_in = {"version": 3, "question": " Did  it work? ", "decision": "repeat it or not", "thinks": "it worked",
          "rests_on": ["the two were measured the same way", {"text": "the first was larger", "source": "data", "mark": "does not hold", "note": "41 against 44"},
                       {"text": "nothing else changed", "source": "nobody", "mark": "maybe"}, {"text": "  "}, {"text": "an earlier finding", "source": "result"}, {"text": "the logs are whole", "mark": "cannot be checked"}],
@@ -1779,13 +1780,19 @@ check("brief.render: the BRIEF block as the analyst reads it - every part on its
                  "- measure: left to you\n"
                  "- period: left to you\n"
                  "Saved analyses the person chose (earlier results: claims to test, not evidence):\n"
-                 "- March \"an earlier question\": \"it was 3.1\" (the spring file)\n"
+                 "1. March \"an earlier question\" (the spring file): \"it was 3.1\"\n"
                  "Set aside (considered and dropped): a change of place"), _block)
 _thin = briefs.render(briefs.normalise({"fixed": {"period": "the last year"}}))
 check("brief.render: a part of the frame the person did not state is 'not said'; no brief renders nothing",
       _thin == ("BRIEF (agreed with the person before this run):\nDecision: not said\nWhat the person thinks: not said\nWhat it rests on: not said\n"
                 "What they expect to see: not said\nWhat would change their mind: not said\nAlso check:\n- chance [always]\n- measurement error [always]\n- how the cases compared came to be chosen [always]\n"
                 "Fixed before the run:\n- comparison: left to you\n- measure: left to you\n- period: the last year") and briefs.render({}) == "", _thin)
+check("brief.render, as a record keeps it: the parts that hold something, a line each - no heading, nothing for a part not said or a part left open, none of the checks every run makes",
+      briefs.render(_b, record=True) == _block.split("\n", 1)[1].replace("- chance [always]\n- measurement error [always]\n- how the cases compared came to be chosen [always]\n", "").replace("- measure: left to you\n- period: left to you\n", "")
+      and briefs.render(briefs.normalise({"fixed": {"period": "the last year"}}), record=True) == "Fixed before the run:\n- period: the last year"
+      and briefs.render(briefs.normalise({"expects": "a rise", "also_check": ["the season"]}), record=True) == "What they expect to see: a rise\nAlso check:\n- the season"
+      and briefs.render(briefs.normalise({"thinks": "it worked"}), record=True) == "What the person thinks: it worked" and briefs.render({}, record=True) == "",
+      briefs.render(_b, record=True))
 _rep = ("# Title\n\n## Answer\nx\n\n## Against the brief\n- **Expected:** not met - the rise was 1.2 percent [cell 3].\n- Would change their mind: seen - no rise in the second half.\n"
         "- The season: the same change in both [cell 4].\n* Chance: the interval includes zero.\n\n## Did not fit\n- The smaller one came first [cell 4].\n1. A second thing.\n\n## Limitations\ny\n\n> CHECK: something")
 _o = briefs.outcome(_rep)
@@ -2064,12 +2071,20 @@ check("brief.remember: a passage the reader found enters the brief with its run,
       and "other" not in briefs.remember({"question": "q"}, [dict(_FOUND[0], data={**_FOUND[0]["data"], "other": "yes"})])[0]["saved"][0] and "person" not in _rb["saved"][1]
       and briefs.remember(_rb, None) == (_rb, []) and briefs.remember(_rb, [])[1] == [] and briefs.MAX["saved"] == 6, (_rb.get("saved"), _rc, _rc2))
 _ticked = {**_rb, "saved": [dict(_KEPT[0], accepted=True), _KEPT[1]]}
-check("brief.agreed: the analyst receives the passages the person accepted and no other - accepted only where that is said outright; its BRIEF block gives each with its day, what was asked, where it "
-      "stands in that analysis, the passage and the data - and that it is another person's data, never whose",
+_wpass = [dict(_KEPT[0], accepted=True), dict(_KEPT[1], accepted=True), dict(_KEPT[0], passage="gap = b - a", where="cell 1", accepted=True),
+          {"thread": "7", "run": "10", "when": "2026-05-02", "question": "And the third arm?", "accepted": True}]      # three analyses: the first with two passages, the last with none
+check("brief.agreed: the analyst receives the passages the person accepted and no other - accepted only where that is said outright; its BRIEF block gives a numbered line for each analysis they come from, "
+      "with its day, what was asked and the data - and that it is another person's data, never whose - then each passage with where it stands there. Two passages of one analysis are one line, wherever "
+      "they stand in the brief; an analysis named without a passage is a line too; a passage that names no run stands alone",
       briefs.agreed(_ticked)["saved"] == [dict(_KEPT[0], accepted=True)] and "saved" not in briefs.agreed(_rb) and "saved" not in briefs.agreed({**_rb, "saved": [dict(_KEPT[0], accepted="yes"), dict(_KEPT[1], accepted=1)]})
       and [x["accepted"] for x in briefs.normalise({"question": "q", "saved": [dict(_KEPT[0], accepted="yes"), {"passage": "p"}]})["saved"]] == [False, False]
       and briefs.render(briefs.agreed(_ticked)).splitlines()[-2:] == ["Saved analyses the person chose (earlier results: claims to test, not evidence):",
-                                                                       '- 2026-03-02 "Was B above A in spring?", in its report: "B led A by 3 units" (spring.csv, 2026-03-01 to 2026-05-31, another person\'s data)']
+                                                                       '1. 2026-03-02 "Was B above A in spring?" (spring.csv, 2026-03-01 to 2026-05-31, another person\'s data): in its report "B led A by 3 units"']
+      and briefs.render(briefs.agreed({**_rb, "saved": _wpass})).splitlines()[-3:] == [
+          '1. 2026-03-02 "Was B above A in spring?" (spring.csv, 2026-03-01 to 2026-05-31, another person\'s data): in its report "B led A by 3 units"; in its cell 1 "gap = b - a"', '2. 2026-04-02 "Synthesis: Two arms": in its cell 2 "gap = b - a"',
+          '3. 2026-05-02 "And the third arm?"']
+      and [[x["passage"] for x in a] for a in briefs.analyses([{"passage": "p1"}, {"passage": "p2", "thread": "7"}, {"thread": "7", "run": "8", "passage": "p3"}, {"thread": "7", "run": "9", "passage": "p4"},
+                                                               {"thread": "7", "run": "8", "passage": "p5"}, {"thread": "6", "run": "8", "passage": "p6"}])] == [["p1"], ["p2"], ["p3", "p5"], ["p4"], ["p6"]]
       and "First Person" not in briefs.render(briefs.agreed(_ticked)) and "another person" not in briefs.render(briefs.agreed({**_rb, "saved": [dict(_KEPT[1], accepted=True)]}))
       and "other" not in briefs.normalise({"question": "q", "saved": [dict(_KEPT[0], other="yes")]})["saved"][0],
       briefs.render(briefs.agreed(_ticked)).splitlines()[-2:])
@@ -2519,6 +2534,78 @@ finally:
 check("a run under a brief with proposals: the analyst is given only what the person accepted - in its prompt, with what it would show, and on the run's own brief; the proposal left unticked is nowhere",
       _srun.status == "answered" and _srun.brief["also_check"] == [{"text": "The seasons differ.", "shows": "the same gap in each", "source": "architect", "accepted": True}]
       and "Also check:\n- The seasons differ: it would show the same gap in each\n- chance [always]" in _sseen[0] and all("The two arms differ in size" not in u for u in _sseen), (_srun.status, _srun.brief, _sseen[0][:600] if _sseen else None))
+# SHOW SAVED k: the analyst opens a saved analysis its brief names (0304)
+_wseen, _wasked = [], []
+_WACTS = ["SHOW SAVED 1 2 3", "SHOW saved 2", "SHOW SAVED 3", "SHOW SAVED 4", "SHOW SAVED 0", "SHOW KEPT 1", "```python\nprint(df.groupby('part')['y'].mean().to_dict())\n```"]
+_WREPORT = "REPORT\n# T\n\n## Answer\nDone [cell 1].\n\n## Against the brief\n- chance: no [cell 1].\n\n## Did not fit\nNothing."
+def _wllm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    _wseen.append(user)
+    return _sact(_WACTS[len(_wseen) - 1] if len(_wseen) <= len(_WACTS) else _WREPORT), {"cost": 0.001}
+def _wsaved(thread, run):
+    _wasked.append((thread, run))
+    return {"8": "QUESTION: Was B above A in spring?\nREPORT:\n# B led\n\nB led A by 3 units [cell 1].\nCELL 1, code:\ngap = b - a", "9": "TITLE: Two arms\nREPORT:\n# Two arms\n\nThe gap is b - a."}.get(run)
+def _wonce(saved, brief):                                # a run that opens saved analysis 1 and reports: its show turn as recorded, and the prompt after it
+    seen = []
+    def llm(system, user, **h):
+        if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        seen.append(user)
+        return _sact("SHOW SAVED 1" if len(seen) == 1 else "REPORT\n# T\n\n## Answer\nNothing was computed.\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."), {"cost": 0.001}
+    run = Session(_wk, _wn, llm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf), **({"saved": saved} if saved else {})).run(
+        "Is b above a?", budget=Budget(turns=4, dollars=1.0), brief=brief)
+    return [t.stdout for t in run.turns if t.kind == "show"][0], seen[1]
+def _wreport(first, says):                           # the report of a run whose first action is `first` and whose report says `says`
+    seen = []
+    def llm(system, user, **h):
+        if user.startswith("Rewrite"): return "plain", {"cost": 0}
+        seen.append(user)
+        return _sact(first if len(seen) == 1 else f"REPORT\n# T\n\n## Answer\nNothing was computed. {says}\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."), {"cost": 0.001}
+    return Session(_wk, _wn, llm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf), saved=lambda t, r: "REPORT:\n# B led\n\nThe gap was 41.7 units.").run(
+        "Is b above a?", budget=Budget(turns=4, dollars=1.0), brief=_wbrief).report
+_wbrief = {"question": "Is b above a?", "thinks": "b is above a.", "saved": _wpass}
+_wlong = lambda n: "FIRST LINE\n" + "x = 1  # a line of a cell\n" * (n // 25) + "LAST LINE"
+_wk = PersistentKernel(df=_sdf); _wn = Notebook("w")
+try:
+    _wrun = Session(_wk, _wn, _wllm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf), saved=_wsaved).run("Is b above a?", budget=Budget(turns=10, dollars=1.0), brief=_wbrief)
+    _wnone = _wonce(None, _wbrief)                                                       # a host that opens none
+    _wplain = _wonce(_wsaved, {"question": "Is b above a?", "thinks": "b is above a."})    # a brief that names none
+    _w50 = _wonce(lambda t, r: _wlong(50_000), _wbrief)
+    _w70 = _wonce(lambda t, r: _wlong(70_000), _wbrief)
+    _wreps = [_wreport("SHOW SAVED 1", "The earlier analysis found a gap of 41.7 units."), _wreport("NAMES", "The earlier analysis found a gap of 41.7 units."),
+              _wreport("SHOW SAVED 57", "The earlier analysis found a gap of 57 units.")]
+finally:
+    _wk.cleanup()
+_wshow = [t.stdout for t in _wrun.turns if t.kind == "show"]
+_WHEAD = '--- saved analysis 1: 2026-03-02 "Was B above A in spring?" (another person\'s data) ---\n'
+check("SHOW SAVED k: the analyst opens the k-th saved analysis its brief names, as the host gives it - under a line that says which it is, and that it ran on another person's data where it did - one "
+      "at a time: of several numbers the first is opened and the next is named. One that is saved no more, and a number the brief does not have, say so; another word after SHOW is told, with SAVED k among the forms. "
+      "The view lives one turn, as a SHOW of cells does; the host is asked once for each. Where the host opens none the action says the same as for one saved no more; where the brief names none, SAVED "
+      "is no form of SHOW",
+      _wshow == [_WHEAD + "QUESTION: Was B above A in spring?\nREPORT:\n# B led\n\nB led A by 3 units [cell 1].\nCELL 1, code:\ngap = b - a\n(one saved analysis at a time: SHOW SAVED 2 opens the next)",
+                 '--- saved analysis 2: 2026-04-02 "Synthesis: Two arms" ---\nTITLE: Two arms\nREPORT:\n# Two arms\n\nThe gap is b - a.', "(saved analysis 3 is no longer among the saved analyses)",
+                 "(no saved analysis 4; the brief names 3)", "(no saved analysis 0; the brief names 3)",
+                 "(SHOW did not understand 'KEPT 1'. SHOW takes cell numbers, or RUN k, SEARCH k, READ k - several numbers allowed - or SAVED k.)"]
+      and _wasked == [("7", "8"), ("7", "9"), ("7", "10")] and "SHOWN:\n" + _WHEAD in _wseen[1] and "--- saved analysis 1:" not in _wseen[2] and _wrun.status == "answered"
+      and _wnone[0] == "(saved analysis 1 is no longer among the saved analyses)"
+      and _wplain[0] == "(SHOW did not understand 'SAVED 1'. SHOW takes cell numbers, or RUN k, SEARCH k, READ k - several numbers allowed.)",
+      (_wshow, _wasked, _wseen[1][-600:], _wnone[0], _wplain[0]))
+check("SHOW SAVED k and the report: a number that stands in a saved analysis the run opened is history the report may state - it is not held against it as one no cell printed; the same number in a "
+      "run that opened none is, and so is a number that stands only in what SHOW said of an analysis it could not open",
+      "were not printed by any cell" not in _wreps[0] and "> CHECK: 1 number(s) in this report were not printed by any cell (41.7). Treat them as unverified." in _wreps[1]
+      and "> CHECK: 1 number(s) in this report were not printed by any cell (57). Treat them as unverified." in _wreps[2], [r[-200:] for r in _wreps])
+from analyst.render import notebook_html as _wnbh
+check("SHOW SAVED k in the notebook view: the step says a saved analysis was opened, with the line that says which; a SHOW that opened none keeps the label of a cell re-opened",
+      _wnbh(_wrun).count('<span class="nb-out-label">Opened a saved analysis</span><span class="nb-out-peek">--- saved analysis 1: 2026-03-02 "Was B above A in spring?" (another person\'s data) ---</span>') == 1
+      and _wnbh(_wrun).count('<span class="nb-out-label">Opened a saved analysis</span>') == 2 and _wnbh(_wrun).count('<span class="nb-out-label">Re-opened a cell</span>') == 4, re.findall(r'<span class="nb-out-label">.*?</span><span class="nb-out-peek">.*?</span>', _wnbh(_wrun)))
+from analyst.session import SAVED_VIEW_CHARS as _WCAP
+check("SHOW SAVED k: a saved analysis rides whole into the next prompt up to 60,000 characters - its report and the code of some twenty cells, more than a view of cells takes; of a longer one the "
+      "middle goes, and the prompt says that part is not in view. The record keeps what the host gave",
+      _WCAP == 60_000 and _WHEAD + _wlong(50_000) in _w50[1] and "omitted" not in _w50[1].split("SHOWN:\n")[1].split("\n\nTASK:")[0]
+      and _w70[0] == _WHEAD + _wlong(70_000) and _WHEAD + "FIRST LINE\n" in _w70[1] and "LAST LINE\n\nTASK:" in _w70[1] and _wlong(70_000) not in _w70[1]
+      and re.search(r"\n\.\.\. \[\d+ characters omitted from the middle for length; that part is not in view\] \.\.\.\n", _w70[1]) is not None
+      and len(_w70[1].split("SHOWN:\n")[1].split("\n\nTASK:")[0]) <= _WCAP,
+      (len(_w50[1]), len(_w70[1]), _w70[1].split("SHOWN:\n")[1][:200]))
 
 # ---- next questions (0300, docs/ARCHITECT_DESIGN.md §2.7, §2.15): after a finished analysis, five questions at a level the person picks - each from
 # a line the analysis left on record, the level's own lines first; kept with the run they follow

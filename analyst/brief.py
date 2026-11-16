@@ -232,6 +232,15 @@ def carried(parent) -> dict:
     return {**{k: v for k, v in parent.brief.items() if k != "carried_from"}, "carried_from": parent.id}
 
 
+def analyses(saved: list) -> list:
+    """The saved passages of a brief by the analysis each comes from, the analyses in the order they first stand in
+    it: SHOW SAVED k opens the k-th. A passage that names no run stands alone."""
+    groups: dict = {}
+    for i, s in enumerate(saved):
+        groups.setdefault((s["thread"], s["run"]) if s.get("thread") and s.get("run") else i, []).append(s)
+    return list(groups.values())
+
+
 def _standing(anchor: dict) -> str:
     """What a line the frame rests on is worth, as the analyst reads it."""
     note = f" - {anchor['note']}" if anchor.get("note") else ""
@@ -244,30 +253,31 @@ def _standing(anchor: dict) -> str:
     return "the person's word, not checked" + note
 
 
-def render(brief: dict) -> str:
+def render(brief: dict, record: bool = False) -> str:
     """The BRIEF block of the analyst's prompt: every part on its line; an empty part of the frame is not said, an
-    empty part of what is fixed is left to the analyst."""
+    empty part of what is fixed is left to the analyst. `record`: the brief as a record keeps it (the memory view) -
+    the parts that hold something, without the heading and the checks every run makes."""
     if not brief:
         return ""
-    head = ("BRIEF (agreed before your question; the QUESTION above is the person's answer, and it stands where the two differ):"
-            if brief.get("carried_from") else "BRIEF (agreed with the person before this run):")
-    lines = [head, f"Decision: {brief.get('decision') or UNSAID}", f"What the person thinks: {brief.get('thinks') or UNSAID}"]
-    lines.append("What it rests on:" + ("" if brief.get("rests_on") else f" {UNSAID}"))
-    lines += [f"- {a['text']} [{_standing(a)}]" for a in brief.get("rests_on", [])]
-    lines.append(f"What they expect to see: {brief.get('expects') or UNSAID}")
-    lines.append(f"What would change their mind: {brief.get('would_change') or UNSAID}")
-    lines.append("Also check:")
-    lines += [f"- {r['text'].rstrip('.')}: it would show {r['shows']}" if r.get("shows") else f"- {r['text']}" for r in brief.get("also_check", [])]
-    lines += [f"- {x} [always]" for x in ALWAYS]
-    fixed = brief.get("fixed", {})
-    lines.append("Fixed before the run:")
-    lines += [f"- {k}: {fixed.get(k) or LEFT}" for k in FIXED]
+    part = lambda label, text: [f"{label}: {text or UNSAID}"] if text or not record else []      # noqa: E731
+    lines = [] if record else ["BRIEF (agreed before your question; the QUESTION above is the person's answer, and it stands where the two differ):"
+                               if brief.get("carried_from") else "BRIEF (agreed with the person before this run):"]
+    lines += part("Decision", brief.get("decision")) + part("What the person thinks", brief.get("thinks"))
+    lines += ["What it rests on:"] + [f"- {a['text']} [{_standing(a)}]" for a in brief["rests_on"]] if brief.get("rests_on") else part("What it rests on", "")
+    lines += part("What they expect to see", brief.get("expects")) + part("What would change their mind", brief.get("would_change"))
+    also = [f"- {r['text'].rstrip('.')}: it would show {r['shows']}" if r.get("shows") else f"- {r['text']}" for r in brief.get("also_check", [])]
+    also += [] if record else [f"- {x} [always]" for x in ALWAYS]
+    lines += ["Also check:"] + also if also else []
+    fixed = [f"- {k}: {brief.get('fixed', {}).get(k) or LEFT}" for k in FIXED if brief.get("fixed", {}).get(k) or not record]
+    lines += ["Fixed before the run:"] + fixed if fixed else []
     if brief.get("saved"):
         lines.append("Saved analyses the person chose (earlier results: claims to test, not evidence):")
-        for s in brief["saved"]:
+        for k, passages in enumerate(analyses(brief["saved"]), 1):          # numbered as SHOW SAVED k opens them
+            s = passages[0]
             ran_on = ", ".join(x for x in (s.get("data"), s.get("period"), "another person's data" if s.get("other") else "") if x)
-            lines.append("- " + " ".join(x for x in (s.get("when"), f"\"{s['question']}\"" if s.get("question") else "") if x) + (f", in its {s['where']}" if s.get("where") else "")
-                         + (f": \"{s['passage']}\"" if s.get("passage") else "") + (f" ({ran_on})" if ran_on else ""))
+            quotes = "; ".join((f"in its {p['where']} " if p.get("where") else "") + f"\"{p['passage']}\"" for p in passages if p.get("passage"))
+            lines.append(f"{k}. " + " ".join(x for x in (s.get("when"), f"\"{s['question']}\"" if s.get("question") else "") if x)
+                         + (f" ({ran_on})" if ran_on else "") + (f": {quotes}" if quotes else ""))
     if brief.get("set_aside"):
         lines.append("Set aside (considered and dropped): " + "; ".join(brief["set_aside"]))
     return "\n".join(lines)

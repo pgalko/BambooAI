@@ -692,14 +692,17 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
         const top = document.elementFromPoint(box.left + box.width / 2, box.top + 24), under = document.elementFromPoint(8, innerHeight / 2);      // what a click would reach: the dialog, and beside it the scrim
         return { title: m.querySelector('.title').textContent, sub: m.querySelector('.sub').textContent,
                  heads: [...m.querySelectorAll('.markdown-content h2')].map(h => h.textContent), text: m.querySelector('.markdown-content').textContent,
-                 code: (m.querySelector('.ar-code') || {}).textContent || '', folded: !(m.querySelector('.ar-code') || {}).open,
+                 folds: [...m.querySelectorAll('.ar-code summary')].map(x => x.textContent), agreed: (m.querySelector('.ar-code pre.said') || {}).textContent || '',
+                 code: [...m.querySelectorAll('.ar-code pre:not(.said)')].map(x => x.textContent).join(' '), folded: [...m.querySelectorAll('.ar-code')].every(d => !d.open),
                  seen: box.width > 400 && box.top >= 0 && box.bottom <= innerHeight && !!top && m.contains(top) && under === m }; }""")
     page.click("#savedAnalysisModal .ui-dlg-h .x")
     shut = page.evaluate("() => getComputedStyle(document.getElementById('savedAnalysisModal')).display")
     check("the coach ticks a passage: one more version, theirs, the box ticked and the other left empty. Open shows the analysis the passage comes from in a dialog, beside the brief: what was asked, "
-          "the day, the data and how it was saved, the report with the passage in it, the code of its cells folded under it - on screen, over the page; its cross closes it, and the brief is as it was",
+          "the day, the data and how it was saved, the report with the passage in it, and folded under it the brief it ran under and the code of its cells - on screen, over the page; its cross closes "
+          "it, and the brief is as it was",
           b2["v"] == "v5" and b2["why"] == "changed by you" and b2["changed"] == [f"saved.{mine}"] and [line["box"] for line in s2["lines"]] == (["ticked", "unticked"] if mine == 0 else ["unticked", "ticked"])
           and dlg["title"] == mod.BRIEF_ANSWER and dlg["sub"] == f"{day} · {data} · picked" and "Against the brief" in dlg["heads"] and "Did not fit" in dlg["heads"] and quote in dlg["text"]
+          and dlg["folds"] == ["Brief", "Code"] and dlg["agreed"].startswith("Decision: ") and "left to you" not in dlg["agreed"]
           and "BRIEF_DIFF" in dlg["code"] and dlg["folded"] and dlg["seen"] and shut == "none" and brief_on_screen(page) == b2, (b2, s2, dlg, shut))
 
     # a second reading, asked for by the coach - and skipped
@@ -736,11 +739,43 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     prompt = turn_prompt(page, 1)
     ran = thread_run(wa, user, tid3, cid)
     fold = page.evaluate("() => [...document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read')].map(r => r.className)")
-    check("Start analysis: the Analyst is given the passage the coach ticked, in its BRIEF block - the day, what was asked then, where it stands, the passage, the data - as an earlier result to "
-          "test; the passage left unticked is nowhere in its prompt, nor on the run's own brief; the framing folds above the run with both readings' rows inside",
-          f'\nSaved analyses the person chose (earlier results: claims to test, not evidence):\n- {day} "{mod.BRIEF_ANSWER}", in its report: "{quote}" ({data})' in prompt and other not in prompt
+    check("Start analysis: the Analyst is given the passage the coach ticked, in its BRIEF block, numbered - the day, what was asked then, where it stands, the passage, the data - as an earlier "
+          "result to test; the passage left unticked is nowhere in its prompt, nor on the run's own brief; the framing folds above the run with both readings' rows inside",
+          f'\nSaved analyses the person chose (earlier results: claims to test, not evidence):\n1. {day} "{mod.BRIEF_ANSWER}" ({data}): in its report "{quote}"' in prompt and other not in prompt
           and ran.get("status") == "answered" and [(x["run"], x["passage"], x["accepted"]) for x in ran.get("brief", {}).get("saved", [])] == [(str(cid2), quote, True)]
           and fold == ["sp-row tool read", "sp-row tool read skipped"], (prompt[:900], ran.get("brief", {}).get("saved"), fold))
+    opened = next((t for t in ran.get("turns", []) if t["kind"] == "show"), {})
+    shown = page.evaluate("() => [...document.querySelectorAll('#streamOutput .sp-row.tool')].map(r => r.textContent).filter(t => /SHOW/.test(t))")
+    check("the Analyst opens the saved analysis the passage comes from before it computes (SHOW SAVED 1): what was asked, the brief it ran under - what was agreed, and none of the words its own "
+          "analyst was given for a part left open - the report with the passage in it and the code of its cells, as memory holds it; the pane shows the step as a row that says which analysis "
+          "was opened; then its own cell, and the report",
+          [t["kind"] for t in ran.get("turns", [])][:3] == ["show", "cell", "report"] and opened.get("stdout", "").startswith(f'--- saved analysis 1: {day} "{mod.BRIEF_ANSWER}" ---\nQUESTION: {mod.BRIEF_ANSWER}\n')
+          and "\nBRIEF:\nDecision: " in opened.get("stdout", "") and "left to you" not in opened.get("stdout", "") and "[always]" not in opened.get("stdout", "")
+          and quote in opened.get("stdout", "") and "BRIEF_DIFF" in opened.get("stdout", "") and len(shown) == 1 and f'saved analysis 1: {day} "{mod.BRIEF_ANSWER}"' in shown[0] and "---" not in shown[0],
+          (opened.get("stdout", "")[:600], shown, [t["kind"] for t in ran.get("turns", [])]))
+
+    # the framed analysis that was saved, opened again from Saved workflows: its brief came with it
+    page.click("#workflowManagerPill")
+    page.wait_for_selector(f'#workflowManagerModal .workflow-card[data-thread-id="{tid}"]', timeout=15000)
+    page.click(f'#workflowManagerModal .workflow-card[data-thread-id="{tid}"]')
+    page.wait_for_function("() => /chain \\d of 4/.test(document.getElementById('chainPosition').textContent) && !document.getElementById('queryInput').disabled", timeout=15000)
+    for _ in range(4):
+        at, want = page.evaluate("(c) => [currentResponseIndex, responses.findIndex(r => String(r.chain_id) === String(c))]", cid2)
+        if at == want:
+            break
+        page.click("#nextResponse" if want > at else "#prevResponse")
+        page.wait_for_timeout(300)
+    page.wait_for_selector("#tab-brief", timeout=10000)
+    page.click("#tab-brief")
+    again = brief_on_screen(page)
+    page.click('#content-brief [data-ar="step"][data-step="-1"]')
+    before2 = brief_on_screen(page)
+    inside = talk_on_screen(page, "#streamOutput .ar-fold .sp-detail")
+    check("a framed analysis saved and opened again from Saved workflows: its Brief tab comes with it, to be read - the version it ran under, no pencil, no Start analysis - and steps back "
+          "through its versions; the framing is folded above the run, the conversation inside",
+          again["state"] == "run" and again["v"] == "v2" and again["measure"] == "yield" and again["pens"] == 0 and not again["start"] and again["versions"] == 2
+          and before2["v"] == "v1" and before2["measure"] == "protein content of the grain"
+          and inside["said"] == [["You", mod.BRIEF_ANSWER], ["Architect", mod.ARCHITECT_READY]], (again, before2["v"], before2["measure"], inside))
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')

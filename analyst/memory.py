@@ -17,17 +17,18 @@ import re
 import threading
 import time
 
+from analyst import brief as briefs
 from analyst.notebook import NotebookStore, Run, subject_id_of
 from analyst.routines import RoutineStore
 
 logger = logging.getLogger(__name__)
 
-FORMAT = 1                       # of the kept file: one kept in another format is built again
+FORMAT = 2                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it)
 PRINTED = 3000                   # characters kept of what a cell printed: what the analyst is shown of a recent cell
 HEAD = 65536                     # bytes of a favourite file read for its mark: the page's copy, megabytes of it, follows
 MARKS = {"individual": "picked", "trajectory": "alongside"}      # how a chain was saved, as the view says it
 SYNTHESIS = "Write the report for the analysis so far on this thread"      # how a synthesis is asked for (bambooai.py): not the person's words
-FIELDS = (("question", 3), ("title", 3), ("report", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
+FIELDS = (("question", 3), ("title", 3), ("report", 2), ("brief", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
 MOST, PASSAGES, PASSAGE_CHARS = 10, 3, 320
 WEAK = 0.25                      # a hit that scores under this part of the best one is left out
 
@@ -103,6 +104,8 @@ def _thread(store: NotebookStore, storage_dir: str, thread: str, chains: list) -
         runs.append({"id": f"{thread}/{run.id}", "thread": thread, "run": run.id, "kind": "synthesis" if synthesis else "analysis",
                      "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(run.created)), "marks": [mark] if mark else [],
                      "question": "" if synthesis else run.question.strip(), "title": run.title, "report": run.report.strip(), "replay": run.replay_status,
+                     "brief": briefs.render(run.brief, record=True),                  # what was agreed before the run, "" where it was not framed
+                     "outcome": {k: run.brief_outcome.get(k, "") for k in ("expected", "would_change")} if run.brief else {},
                      "data": {"name": data.get("name") or "", "rows": data.get("rows"), "period": str(data.get("date_range") or ""),
                               "columns": [c.get("name") for c in data.get("columns") or [] if isinstance(c, dict)], "subject": subject_id_of(data)},
                      "cells": _cells(run), "path": [f"{thread}/{r.id}" for r in path[:-1]],
@@ -238,8 +241,8 @@ def _around(text: str, at: int) -> str:
 
 
 def _passages(run: dict, finds: dict, rare: dict) -> list:
-    """The places of a run that hold the words - a paragraph of the report, a RESULT line, a line of code - the best
-    first, PASSAGES at most, each {where, text}; a long one is cut around its rarest word."""
+    """The places of a run that hold the words - a paragraph of the report, a line of the brief, a RESULT line, a line
+    of code - the best first, PASSAGES at most, each {where, text}; a long one is cut around its rarest word."""
     weight, places = dict(FIELDS), []                    # places: (what it counts for, where, the text, where its rarest word stands)
 
     def place(text, where, counts):
@@ -249,6 +252,8 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
 
     for para in re.split(r"\n\s*\n", re.sub(r"(?m)^#.*$", "", run["report"])):          # a heading is no passage
         place(" ".join(para.split()), "report", weight["report"])
+    for line in run["brief"].splitlines():
+        place(line.strip(), "brief", weight["brief"])
     for cell in run["cells"]:
         for line in cell["results"]:
             place(" ".join(line.split()), f"cell {cell['n']}", weight["results"])
@@ -260,16 +265,16 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
 def search(view: dict, query: str, most: int = MOST) -> list:
     """Plain keyword search over a view: the saved runs that hold a word of the query, the best first, each {id,
     thread, run, kind, when, question, title, marks, words, score, passages}. A word is held where a word of the run
-    starts with it, whatever the case. It counts for more in the question or the title than in the report, and least
-    in the code or in an earlier step's question (FIELDS); a word most runs hold counts for little. A hit far weaker
-    than the best is left out (WEAK). `passages` are the places that hold the words (_passages). No match returns
-    nothing."""
+    starts with it, whatever the case. It counts for more in the question or the title than in the report or the
+    brief, and least in the code or in an earlier step's question (FIELDS); a word most runs hold counts for
+    little. A hit far weaker than the best is left out (WEAK). `passages` are the places that hold the words
+    (_passages). No match returns nothing."""
     words = list(dict.fromkeys(w for w in re.findall(r"[^\W_]+", (query or "").lower()) if len(w) > 1))
     runs = view["runs"]
     finds = {w: re.compile(r"(?<![^\W_])" + re.escape(w)) for w in words}
     by_id = {r["id"]: r for r in runs}
     asked = lambda step: (by_id.get(step) or view["steps"].get(step) or {}).get("question", "")      # noqa: E731
-    texts = [{"question": r["question"], "title": r["title"], "report": r["report"], "results": "\n".join(x for c in r["cells"] for x in c["results"]),
+    texts = [{"question": r["question"], "title": r["title"], "report": r["report"], "brief": r["brief"], "results": "\n".join(x for c in r["cells"] for x in c["results"]),
               "code": "\n".join(c["code"] for c in r["cells"]), "earlier": "\n".join(asked(p) for p in r["path"])} for r in runs]
     # for each run, what each word counts for where it stands best; 0 where the run does not hold it
     held = [{w: max((weight for field, weight in FIELDS if finds[w].search(low[field])), default=0) for w in words}

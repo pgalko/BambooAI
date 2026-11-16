@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.16 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, and memory in the Architect, 0303)
+# The Architect and memory from saved analyses — design v0.17 (2026-11-16; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304)
 
 Release 2.8 does three things.
 
@@ -528,7 +528,8 @@ one box, marked *next question* (§2.9). While a set is being written no analysi
 **Old threads.** A sapling chain made before this patch keeps its box on the map, as a fork. Its Explore page still
 shows its five questions; they can be read, not run. Nothing follows from such a chain.
 
-Not in this patch: a way to stop a set in flight; next questions saved with a favourite saved earlier (0304).
+Not built: a way to stop a set in flight. Questions written after an analysis was saved are not in its saved copy
+until it is saved again: a save stores the pane as it stands then.
 
 ## 3. Memory from saved analyses
 
@@ -601,7 +602,7 @@ A saved chain that is not read is counted, by reason:
 
 **What a run gives.** Its id (`thread/run`), its `kind` (`analysis` or `synthesis`), when it was asked, its marks,
 the question, the title, the report whole, whether its replay reproduced, the data it ran on, its cells and its
-path.
+path. From 0304 also the brief it ran under, and how the report stood against it (§3.8).
 
 - *Marks:* `picked`, `alongside`, `routine`. A chain saved before the marks shows none.
 - *Cells:* the code, the RESULT lines, and what was printed up to 3,000 characters, the cut said. The cells that
@@ -781,7 +782,49 @@ memory holds it; one that is saved no more is not found. The framing keeps how m
 at the last exchange (`saved`), which is how the page knows whether to offer the button.
 
 **Not there:** the Analyst reads the passage, not yet the analysis it comes from: opening what the brief names,
-the brief saved with a saved analysis, and the two seats in the templates and in Usage are 0304.
+the brief saved with a saved analysis, and the two seats in the templates and in Usage are 0304 (§3.8).
+
+### 3.8 What the brief names, the brief in memory, the seats — built (0304, 2026-11-16)
+
+**The Analyst opens what the brief names.** In its BRIEF block each saved analysis the coach ticked a passage from
+is one numbered line: the day, what was asked, what it ran on, then the passages with where each stands. `SHOW SAVED
+<k>` opens the k-th: what was asked, the brief it ran under, the report, and the code and result lines of the cells
+along its thread up to its own (`reader.shown`), since a passage can stand in any of them and a name its code uses
+may be made in an earlier step. A line above it says which analysis it is, and that it ran on another person's data
+where the brief says so; no name is added, and the analysis itself is shown as written. One that is saved no more
+says so. Where the brief names none, `SAVED` is no form of `SHOW`. The Analyst reaches nothing else of memory: only
+what the coach ticked (decision 7).
+
+One analysis a turn, in the next prompt only, whole up to 60,000 characters (`SAVED_VIEW_CHARS`); of a longer one
+the middle goes, and the prompt says that part is not in view. The sizes decide this. A deep analysis holds some
+twenty cells: about 40,000 characters of code under a report of 10,000. The 16,000 characters the second model
+reads of a run would show the report and two cells. And a view of that size cannot stay in every later prompt, as
+a chain re-opened with `SHOW RUN` does: the Analyst's note carries what it takes from it, and the action opens it
+again.
+
+Its contract for a run under a brief says what to do with it: a method may carry over, written anew, since the
+names of the saved analysis are not in its kernel; a number is history about the data it ran on, and no result of
+this run. The report may state such a number: one that stands in a saved analysis the run opened is not held
+against the report as a number no cell printed.
+
+**The brief in memory.** A saved run that was framed holds its brief in the view: what was agreed, a line for each
+part that held something - no heading, nothing for a part left open, none of the checks every run makes
+(`briefs.render(brief, record=True)`) - and how the report stood against it (`brief`, `outcome`: the verdicts on
+what was expected and on what would change the coach's mind). The reader can search it, have the second model read
+it (`parts: ["brief"]`), and quote from it: a passage then stands *in its brief*. Plain keyword search reads it
+too; there a word counts as in the report. On the page, **Open** shows the brief folded under the report, before
+the code - and the code is that of the cells along the thread up to the run's own, where it was the run's own
+alone: a passage that stands in an earlier step's cell is in the dialog. The kept view is in a new format, and is
+built again once.
+
+Nothing new is saved for this: the brief and the framing conversation were on the thread's record already, and a
+saved workflow opens with its Brief tab (§2.11). The walk now checks that.
+
+**The seats.** The configuration template gains `Architect`, `Memory Reader` and `Memory Pieces` in each tier: the
+first two on the tier's Analyst model, the third on the model that reads the documents, each at a low effort
+(decision 28). A configuration without them works as before: the Architect and the reader fall back to the
+Analyst's seat, the second model to the `Reader` seat. In Usage a reading made for a brief is part of that brief's
+analysis; one asked from the command line is a chain of its own, *Saved analyses read*.
 
 ## 4. How we will know it works
 
@@ -864,7 +907,7 @@ repository and the dev box only.
 | 0301 | The memory view: the saved runs in the current format as one read-only view; the removal rules; plain keyword search. No model (§3.5). | built |
 | 0302 | The memory reader: a sandboxed session over the view, the second model on pieces, the caps, statements checked against the source. Asked from the command line (§3.6). | built |
 | 0303 | Memory in the Architect: the row with its live count and Skip, the passages found in the brief to tick, Open, *Look in saved analyses* (§3.7). | built |
-| 0304 | The Analyst opens a saved analysis the brief names. Saving, usage, documents: the brief saved with a saved analysis; the new seats in the usage record and the templates. | |
+| 0304 | The Analyst opens a saved analysis the brief names. The brief of a saved analysis is memory. The new seats in the templates and in Usage. README (§3.8). | built |
 | 0305 | Release 2.8.0. | |
 
 ## 8. Not in this release

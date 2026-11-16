@@ -262,6 +262,12 @@ check('tick() accepts a passage of a saved analysis, or takes the tick back; app
   && BS.saved.length === 2 && BS.saved[1].accepted === false);
 const dlg = el(b.savedDialog({ id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: '# B led\n\nB led A by <3> units.', marks: ['picked', 'routine'],
                               data: { name: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>' }, cells: [{ n: 1, code: 'gap = b - a  # <b>' }] }));
+const dlgB = el(b.savedDialog({ question: 'q', report: 'r', brief: 'Decision: keep <one>\nFixed before the run:\n- measure: height', cells: [{ n: 2, code: 'x = 1' }] }));
+check('a saved analysis that was framed: the brief it ran under is folded under the report, before the code, as text and a line each; one that was not framed has no such fold',
+  same([...dlgB.querySelectorAll('details.ar-code summary')].map(x => x.textContent), ['Brief', 'Code']) && dlgB.querySelector('details.ar-code pre.said').textContent === 'Decision: keep <one>\nFixed before the run:\n- measure: height'
+  && !dlgB.querySelector('details.ar-code').hasAttribute('open') && dlgB.querySelectorAll('pre.said').length === 1
+  && same([...el(b.savedDialog({ question: 'q', report: 'r', brief: '', cells: [{ n: 2, code: 'x = 1' }] })).querySelectorAll('details.ar-code summary')].map(x => x.textContent), ['Code'])
+  && same([...el(b.savedDialog({ question: 'q', report: 'r', brief: 'Decision: d' })).querySelectorAll('details.ar-code summary')].map(x => x.textContent), ['Brief']), dlgB.innerHTML);
 check('a saved analysis opened beside the brief: a dialog with what was asked, the day, whose data it ran on and which, and how it was saved; the report, and under it the code of its cells, folded, as text',
   dlg.querySelector('.ui-dlg.lg[role="dialog"] .ui-dlg-h .title').textContent === 'Was B above A in <spring>?' && dlg.querySelector('.ui-dlg-h .sub').textContent === '2026-03-02 · First <Person> · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
   && dlg.querySelector('.ui-dlg-h button.x[data-ar="shut"]') && dlg.querySelector('.ui-dlg-b pre').textContent.indexOf('B led A by <3> units.') >= 0

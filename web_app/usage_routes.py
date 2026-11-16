@@ -38,9 +38,11 @@ _FACTS = {}                  # thread file -> (mtime, {run id: the facts the led
 
 # a chain the thread store does not know, named by the seat that spent on it (the last two seats are retired, 2.8: the
 # calls they made before stay in the record, and keep their name). The Architect's own such chain is a set of next
-# questions: its calls while a brief is written are in the chain of that brief's run, which the store knows
+# questions: its calls while a brief is written are in the chain of that brief's run, which the store knows - as are
+# the calls of a reading of the saved analyses made for a brief; a reading asked from the command line has a chain
+# of its own
 _OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
-          "Architect": ("next", "Next questions"),
+          "Architect": ("next", "Next questions"), "Memory Reader": ("memory", "Saved analyses read"), "Memory Pieces": ("memory", "Saved analyses read"),
           "Knowledge Distiller": ("memory", "Memory: the distillation"), "Embedder": ("memory", "Memory: the embeddings")}
 
 

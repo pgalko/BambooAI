@@ -378,7 +378,7 @@ check("search(): a line of code is given without its indent, and a paragraph tha
       memory.search(sv, "hr")[0]["passages"] == [{"where": "cell 2, code", "text": "hr_drift_fit = fit(weekly)"}]
       and memory.search(sv, "lower")[0]["passages"][0] == {"where": "report", "text": "The analysis shows cadence 8 rpm lower on climbs [cell 1]."}, memory.search(sv, "hr")[0]["passages"])
 few = {"runs": [{"id": f"8/{k}", "thread": "8", "run": str(k), "kind": "analysis", "when": f"2026-02-0{k}T00:00:00Z", "question": "", "title": "", "marks": [], "cells": [], "path": [],
-                 "report": report} for k, report in ((3, "The analysis is short.\n\nZebra crossings matter."), (2, "An analysis of load."), (1, "Another analysis."))], "steps": {}}
+                 "brief": "", "report": report} for k, report in ((3, "The analysis is short.\n\nZebra crossings matter."), (2, "An analysis of load."), (1, "Another analysis."))], "steps": {}}
 check("search(): of two places with a word each, the one with the rarer word comes first; a place is found whatever its case",
       memory.search(few, "analysis zebra")[0]["passages"] == [{"where": "report", "text": "Zebra crossings matter."}, {"where": "report", "text": "The analysis is short."}],
       memory.search(few, "analysis zebra")[0]["passages"])
@@ -389,7 +389,7 @@ check("search(): what a word counts for by where it stands - the question 3, the
 check("search(): the question of an earlier step that is a saved run itself counts the same way: the run it was asked in first, then the run built on it",
       [h["id"] for h in memory.search(memory.refresh(S4), "taper")] == ["700/701", "700/702"] and memory.search(memory.view(S4), "taper")[1]["words"] == ["taper"], memory.search(memory.view(S4), "taper"))
 many = {"runs": [{"id": f"9/{k}", "thread": "9", "run": str(k), "kind": "analysis", "when": f"2026-01-{k:02d}T00:00:00Z", "question": f"Is the tempo right in block {k}?", "title": "", "marks": [],
-                  "report": "", "cells": [], "path": []} for k in range(12, 0, -1)], "steps": {}}
+                  "report": "", "brief": "", "cells": [], "path": []} for k in range(12, 0, -1)], "steps": {}}
 check("search(): ten hits unless asked for more or fewer", [len(memory.search(many, "tempo", **k)) for k in ({}, {"most": 12}, {"most": 3})] == [memory.MOST, 12, 3] and memory.MOST == 10)
 words = " ".join(f"w{k}" for k in range(300))
 cut = [memory._around(words, words.index(w)) for w in ("w0", "w150", "w299")]
@@ -431,6 +431,34 @@ check("the tool refuses what it cannot answer - no such user, a search without a
       [(r.returncode, r.stderr.strip()) for r in (tool("--user", "zz"), tool("drift"))] == [(1, "0 users with saved work begin with 'zz'."), (1, "A search needs --user.")]
       and subprocess.run([sys.executable, os.path.join(ROOT, "tools", "memory_view.py"), "--root", os.path.join(R, "storage", "nobody")], capture_output=True, text=True).stderr.startswith("No storage/ under ")
       and files() == before, [f for f in files() if f not in before])
+
+# ---- the brief of a framed run (0304, docs/ARCHITECT_DESIGN.md §3.8): what was agreed before it ran, and how the report stood against it
+S8 = tempfile.mkdtemp(prefix="bamboo_memory_brief_")
+_nb8 = Notebook("800")
+add(_nb8, "801", "Is B above A?", at=1, report="# B is above A\n\nB leads by 3 units [cell 1].\n\n## Against the brief\n- Expected: met - 3 units [cell 1]",
+    cells=[("gap = b - a", "3\n", ["gap: 3 units"])], brief={"question": "Is B above A?", "decision": "keep the taller arm", "expects": "B leads by at least 2 units", "fixed": {"measure": "height", "period": "winter and spring"}},
+    brief_outcome={"stated": True, "expected": "met", "would_change": "", "checks": [], "did_not_fit": []})
+add(_nb8, "802", "And in winter?", parent="801", at=2, report="# No gap in winter\n\nThe arms are level [cell 2].", cells=[("gap_w = bw - aw  # by height", "0\n", ["gap: 0 units"])])
+add(_nb8, "803", "What about the third arm?", at=3, report="# The third arm\n\nIt is level [cell 3].", cells=[("gap_c = c - a", "0\n", ["gap: 0 units"])],
+    brief={"question": "What about the third arm?", "decision": "keep it above the line"})
+NotebookStore(S8).save(_nb8)
+for _chain in (801, 802, 803):
+    favourite(S8, 800, _chain)
+_v8 = memory.refresh(S8)
+_by8 = {r["id"]: r for r in _v8["runs"]}
+_hit8 = memory.search(_v8, "taller")
+check("a framed run's brief is memory: the view holds what was agreed - the decision, what was expected, what was fixed, a line each and nothing for a part not said or left open - with how the "
+      "report stood against it; a run that had none holds neither. Plain search finds a word only the brief holds and says it stands in the brief; there a word counts for less than in what was "
+      "asked - an older analysis that was asked it stands before a newer one whose brief holds it - and for more than in code; the checks every run makes are no words of a brief",
+      _by8["800/801"]["brief"] == "Decision: keep the taller arm\nWhat they expect to see: B leads by at least 2 units\nFixed before the run:\n- measure: height\n- period: winter and spring"
+      and _by8["800/801"]["outcome"] == {"expected": "met", "would_change": ""} and (_by8["800/802"]["brief"], _by8["800/802"]["outcome"]) == ("", {})
+      and [h["id"] for h in _hit8] == ["800/801"] and _hit8[0]["passages"] == [{"where": "brief", "text": "Decision: keep the taller arm"}]
+      and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("Decision: keep it above the line", {"expected": "", "would_change": ""})
+      and [h["id"] for h in memory.search(_v8, "above")] == ["800/801", "800/803", "800/802"] and [h["id"] for h in memory.search(_v8, "height")] == ["800/801", "800/802"]
+      and memory.search(_v8, "height")[0]["passages"] == [{"where": "brief", "text": "- measure: height"}] and memory.search(_v8, "chance") == [] and memory.search(_v8, "comparison") == []
+      and memory.FORMAT == 2 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 2,
+      (_by8["800/801"]["brief"], _by8["800/801"]["outcome"], _hit8, [h["id"] for h in memory.search(_v8, "above")], memory.search(_v8, "height")))
+shutil.rmtree(S8, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

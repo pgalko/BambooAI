@@ -332,9 +332,11 @@ def story(w, mod, dataset, questions):
 
     # the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the framed analysis saved, then a question it bears
     # on framed in a workflow of its own - what the reading found, a passage ticked, the analysis it comes from opened, a
-    # second reading asked for by the coach and skipped
+    # second reading asked for by the coach and skipped, and the analysis under that brief: its first step opens the saved one
     saved_question = getattr(mod, "SAVED_QUESTION", None)
     if brief_question and saved_question and p.query_selector("#architectSwitch"):
+        framed = p.evaluate("() => String(responses[currentResponseIndex].chain_id)")      # the framed analysis, on screen: its passage is the one ticked and opened
+        mine = f'#content-brief .ar-line.ar-saved:has([data-ar="open"][data-run="{framed}"])'
         p.click("#saveButton")
         p.wait_for_selector("#saveMenu", state="visible", timeout=10000)
         p.click("#saveMenu .it[data-act='favourite']")
@@ -361,14 +363,17 @@ def story(w, mod, dataset, questions):
             said(n)
         w.shot("saved_found")
         versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
-        p.click('#content-brief .ar-line.ar-saved .tick')
+        p.click(mine + " .tick")
         p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
         p.wait_for_timeout(300)
         w.shot("saved_ticked")
-        p.click('#content-brief .ar-line.ar-saved [data-ar="open"]')
+        p.click(mine + ' [data-ar="open"]')
         p.wait_for_function("() => { const m = document.getElementById('savedAnalysisModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
         p.wait_for_timeout(400)
         w.shot("saved_open")
+        p.click("#savedAnalysisModal details.ar-code summary")      # the brief that analysis ran under, unfolded
+        p.wait_for_timeout(300)
+        w.shot("saved_open_brief")
         p.click("#savedAnalysisModal .ui-dlg-h .x")
         p.click('#content-brief [data-ar="look"]')
         p.wait_for_selector("#streamOutput .sp-row.pending .ar-skip:not([disabled])", timeout=15000)
@@ -376,6 +381,10 @@ def story(w, mod, dataset, questions):
         p.click("#streamOutput .sp-row.pending .ar-skip")
         said(6)
         w.shot("saved_skipped")
+        p.click('#content-brief [data-ar="start"]')          # the Analyst opens the saved analysis the ticked passage comes from, then computes
+        w.wait_text(".sp-done", "Run complete", timeout=240000)
+        p.wait_for_timeout(600)
+        w.shot("saved_run")
         p.click("#architectSwitch")
 
 

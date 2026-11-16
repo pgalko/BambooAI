@@ -101,8 +101,8 @@ check("the white space between the words does not count; the words, their order 
       and at("100/101", "The threshold is taken as 268 W") is None and at("100/101", "is 268 W") == "report" and at("100/101", "s 268 W") is None and at("100/101", "268\nthreshold: 268 W") is None)
 check("a cell is the run's own, or one of an earlier step it was built on - saved or not: the helper an earlier step defined stands for the run that used it; the places go by the cells' numbers",
       at("400/402", "best_mean(df.power, 1200)") == "cell 2" and at("400/402", "def best_mean(x, n):") == "cell 1" and at("100/102", "threshold: 268 W") == "cell 1"
-      and [name for name, _ in reader.places(view, by["400/402"])] == ["question", "report", "cell 1", "cell 2"] and dict(reader.places(view, by["400/402"]))["cell 1"].startswith("def best_mean")
-      and [name for name, _ in reader.places(view, by["500/501"])] == ["question", "report"])
+      and [name for name, _ in reader.places(view, by["400/402"])] == ["question", "report", "brief", "cell 1", "cell 2"] and dict(reader.places(view, by["400/402"]))["cell 1"].startswith("def best_mean")
+      and [name for name, _ in reader.places(view, by["500/501"])] == ["question", "report", "brief"])
 check("nothing stands that the run does not hold: a cell that is not on its path - a later one of its thread, a branch beside it, another run's",
       at("100/101", "delta = thr - thr_winter") is None and at("400/402", "turbo5 = best_mean(turbo.power, 300)") is None and at("300/301", "best_mean(df.power, 1800)") is None)
 
@@ -402,6 +402,35 @@ reader.BATCH_CHARS, reader.piece = _batch, _piece
 check("the count as the second model reads: after each batch that was read, how many of the runs asked about are read - of the three named, not of all that are saved",
       counts == [(2, 7), (4, 7), (6, 7), (7, 7)] and res["failed"] == "" and some == [(2, 3), (3, 3)], (counts, some))
 
+# ---- the brief of a framed run (0304): a part the second model can read, a place a quote can stand in, part of what SHOW SAVED opens
+SB = tempfile.mkdtemp(prefix="bamboo_reader_brief_")
+_nbb = Notebook("800")
+add(_nbb, "801", "Is B above A?", at=1, report="# B is above A\n\nB leads by 3 units [cell 1].", cells=[("gap = b - a", "3\n", ["gap: 3 units"])],
+    brief={"question": "Is B above A?", "decision": "keep the taller arm", "expects": "B leads by at least 2 units"})
+NotebookStore(SB).save(_nbb)
+favourite(SB, 800, 801)
+vb = reader.sandbox_view(memory.refresh(SB))
+rb = vb["runs"][0]
+llm, pieces, sent = models(['JUDGE\n{"runs": "all", "parts": ["brief", "notes"], "question": "What was expected?"}', 'ANSWER\n{"found": [{"run": "800/801", "quote": "B leads by at least 2 units", "note": "What was expected then."}]}'],
+                           [rows(("800/801", "at least 2 units", "B leads by at least 2 units"))])
+resb = reader.read("What did I expect of B?", vb, kernel, llm, pieces, clock=lambda: 1000.0)
+_long = {"id": "1/2", "question": "q", "title": "t", "report": "r", "brief": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
+check("the brief of a framed run: the second model reads it where the reader names the part, before the report, under a heading of its own; a quote from it stands, and code says it stands in the "
+      "brief. What SHOW SAVED opens holds it too - without the run's id, with the cells of the earlier steps the run was built on, saved or not, and never what a cell printed - and is not cut",
+      rb["brief"] == "Decision: keep the taller arm\nWhat they expect to see: B leads by at least 2 units"
+      and reader.piece(vb, rb, ["brief", "report"]) == "=== 800/801 ===\nQUESTION: Is B above A?\nTITLE: B is above A\nBRIEF:\n" + rb["brief"] + "\nREPORT:\n# B is above A\n\nB leads by 3 units [cell 1]."
+      and "BRIEF:" not in reader.piece(vb, rb, ["report"]) and reader.place_of(vb, rb, "keep the taller arm") == "brief" and "\nBRIEF:\nDecision: keep the taller arm\n" in sent["pieces"][0][1]
+      and "\nREPORT:\n" not in sent["pieces"][0][1] and [(f["id"], f["where"], f["quote"]) for f in resb["found"]] == [("800/801", "brief", "B leads by at least 2 units")]
+      and reader.shown(vb, rb) == ("QUESTION: Is B above A?\nTITLE: B is above A\nBRIEF:\n" + rb["brief"] + "\nREPORT:\n# B is above A\n\nB leads by 3 units [cell 1].\n"
+                                   "CELL 1, code:\ngap = b - a\nCELL 1, results:\ngap: 3 units")
+      and reader.shown(view, by["400/402"]) == ("QUESTION: What is the best 20-minute power?\nTITLE: Best 20 minutes: 291 W\nREPORT:\n# Best 20 minutes: 291 W\n\nThe best 20-minute power is 291 W [cell 2].\n"
+                                                "CELL 1, code:\ndef best_mean(x, n):\n    return x.rolling(n).mean().max()\nCELL 2, code:\nbest20 = best_mean(df.power, 1200)\nCELL 2, results:\nbest 20 min: 291 W")
+      and reader.shown(view, by["100/102"]).count(", code:\n") == len(reader.path_cells(view, by["100/102"])) > len(by["100/102"]["cells"])
+      and reader.shown({"runs": [_long], "steps": {}}, _long) == "QUESTION: q\nTITLE: t\nREPORT:\nr\nCELL 1, code:\n" + "x = 1\n" * 4000 + "\nCELL 1, results:\ny: 2"
+      and reader.piece({"runs": [_long], "steps": {}}, _long, ["code"]).endswith("\n... (cut here: the rest was not read)") and reader.PARTS == ("brief", "report", "code", "results", "printed"),
+      (rb["brief"], reader.piece(vb, rb, ["brief", "report"]), resb["found"], sent["pieces"][0][1][:400], reader.shown(view, by["100/102"])[:300]))
+shutil.rmtree(SB, ignore_errors=True)
+
 llm, pieces, sent = models([])
 res = reader.read(QUESTION, {**view, "runs": [], "not_read": {"older": 2}}, None, llm, pieces, clock=lambda: 1000.0)
 check("nothing saved is nothing to read: no sandbox is used and no model is called - an empty result at no cost, with what the view does not read",
@@ -611,7 +640,7 @@ check("the instructions: the reader's say what it is for, its three actions with
       and '{"found": [{"run": "<id>", "quote": "...", "note": "..."}], "across": {"topic": "...", "groups": [{"label": "...", "runs": ["<id>"]}]}}' in _sys
       and '{"runs": ["<id>", "<id>"], "parts": ["report", "code"], "question": "..."}' in _sys and '{"answers": [{"run": "<id>", "answer": "...", "quote": "..."}]}' in _pcs
       and "one that is not there word for word is dropped" in _sys and "an answer whose quote is not there is dropped" in _pcs and "YOUR QUESTION" in _pcs
-      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 4600 and len(reader.PIECES) < 1200
+      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 4800 and len(reader.PIECES) < 1200
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}
       and not [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}, [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],

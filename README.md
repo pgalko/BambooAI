@@ -30,6 +30,7 @@ The underlying principle is simple: AI-generated analysis should be open to the 
   - [How the analysis works](#how-the-analysis-works)
   - [Inspecting and verifying the work](#inspecting-and-verifying-the-work)
   - [Review and user control](#review-and-user-control)
+  - [Framing the question](#framing-the-question)
   - [From exploration to reusable analysis](#from-exploration-to-reusable-analysis)
 - [Installation](#installation)
 - [Quick Start](#quick-start)
@@ -38,6 +39,8 @@ The underlying principle is simple: AI-generated analysis should be open to the 
   - [Analysis modes](#analysis-modes)
   - [Reports and verification](#reports-and-verification)
   - [Follow-ups and plots](#follow-ups-and-plots)
+  - [The Architect](#the-architect)
+  - [Saved analyses as memory](#saved-analyses-as-memory)
   - [Routines](#routines)
 - [Configuration](#configuration)
   - [Environment variables](#environment-variables)
@@ -84,6 +87,15 @@ The analytical workflow is configurable. Users can select models, reasoning sett
 In Adaptive mode, a separate Reviewer model examines the available evidence at regular intervals. It can challenge the Analyst's approach, request additional tests, question assumptions or recommend narrowing a conclusion. The Analyst and Reviewer operate under separate instructions and can use different models.
 
 Other specialised roles handle supporting tasks such as document reading, figure generation and report rewriting. These roles can be configured independently.
+
+### Framing the question
+
+A sound analysis of the wrong question still misleads, and nothing later in a run catches a wrong frame. The
+optional **Architect** works on the question before any code runs. With the user it writes a short **brief**: the
+decision the answer is for, what the user thinks and expects, what the view rests on, what else could explain the
+result, and what is fixed before the run. It checks what the brief rests on against the loaded data, and it can
+look through the user's own saved analyses for earlier work that bears on the question. The Analyst is then held
+to the brief, and the report says how the result stands against it.
 
 ### From exploration to reusable analysis
 
@@ -144,6 +156,7 @@ The working directory holds configuration and saved work:
 ├── storage/<user>/threads/           thread records: runs, cells, reports and replay results
 ├── storage/<user>/usage_ledger.jsonl  completed-analysis records for Usage
 ├── storage/<user>/favourites/        saved chains
+├── storage/<user>/memory/            the saved analyses as one view, kept for the Architect
 ├── storage/<user>/routines/          routine versions, runs and results
 ├── storage/<user>/context/           codebooks and coded Intervals.icu passages
 └── logs/<user>/                      model calls, tokens, latency and cost
@@ -166,7 +179,7 @@ abbreviated in the prompt but remain available through `SHOW`.
 | Action | Purpose |
 |---|---|
 | `CELL` | Execute a Python cell in the persistent kernel. |
-| `SHOW n` | Reopen a previous cell's full output. |
+| `SHOW n` | Reopen a previous cell's full output. `SHOW SAVED k` opens a saved analysis the brief names. |
 | `NAMES` | Inspect variables in the kernel. |
 | `SEARCH` | Search the web with Google AI grounding and return sources. |
 | `READ` | Read passages from attached documents or Intervals.icu context using the Reader seat. |
@@ -238,6 +251,56 @@ Use the chat button on a figure to ask about it. The image is included only when
 images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
 without the image, and the app indicates that limitation.
 
+### The Architect
+
+Switch **Architect** on beside the mode control and type a question. Nothing runs yet: a brief opens on its own
+tab, and the conversation with the Architect takes the left pane.
+
+- **The brief.** The Architect writes what the question already states and asks for what is missing, one question
+  a message, with choices to click where it can offer them: what you will do differently depending on the answer,
+  what you think is going on and why, what you expect to see. A part you do not want to state stays empty.
+- **The check.** What the brief rests on is looked up in the loaded data: counts, lists and totals, nothing more.
+  Each line is marked *holds*, *does not hold* or *cannot be checked*, with the numbers beside it.
+- **Other explanations.** The Architect may propose up to two, each from a column the data has. A proposal stays
+  unticked until you accept it.
+- **Your changes.** Any line can be changed in place. Every change is a version, and the earlier versions stay.
+- **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
+  Analyst stops and asks. The report gains two parts: *Against the brief* - what you expected, as met, not met or
+  cannot tell, and each other explanation with its result - and *Did not fit*.
+
+A follow-up typed with the switch on starts from the last brief. On the thread map a framed question is one box.
+
+A finished analysis carries **Next questions** on its closing card: five levels - refine focus, shift angle, test
+boundaries, blend elements, follow emergence - and at each up to five questions, every one from a line the
+analysis left: a result that did not fit, a line that could not be checked, an explanation not tested. A question
+can be changed, and running it starts a new analysis.
+
+The Architect follows [`analyst/architect.md`](analyst/architect.md). Its messages are a model's, so the brief is
+yours to correct: only what you ticked or left standing reaches the Analyst.
+
+### Saved analyses as memory
+
+The analyses you save are the Architect's memory. A run counts when it is saved - picked, stored alongside a
+picked one, or the origin of a routine - and has a report. Deleting a saved workflow takes it out at once.
+Unsaved runs never come back.
+
+While a brief is written, the saved analyses can be read: on a first question the Architect asks for it once, and
+**Look in saved analyses** in the brief asks at any time, twice a brief at most. A model works through the saved
+record with code, in a sandbox that holds no data, and a second, faster model reads the pieces it names. A reading
+is bounded - 8 replies, 60 calls of the second model, 120 seconds, $0.50 - and **Skip** ends it.
+
+- **Passages, quoted exactly.** Each comes with its analysis, the day, where it stands and whose data it ran on.
+  Code looks every quote up in the record, and one that is not there word for word is dropped.
+- **Across analyses.** Where your saved analyses went more than one way on something, the ways come with counts,
+  and the Architect asks which one this analysis takes.
+- **Your tick.** Passages enter the brief unticked. The Analyst receives the ticked ones as earlier results to
+  test, and can open the analysis a passage comes from: its report and its code. A number from it is history
+  about the data it ran on; where that was another person's data, the Analyst is told so, and not whose.
+
+Two tools read the same record from the command line: `python tools/memory_view.py` lists what is saved and what
+counts, and `python tools/memory_ask.py --user <id> "<question>"`, run from the web app's folder, puts one
+question to the reader and prints every step.
+
 ### Routines
 
 **Save as routine** turns a completed chain into a reusable Python method. The `Promoter` identifies up
@@ -303,9 +366,12 @@ defined in the template):
 ```json
 "performance_agent_configs": [
   {"agent": "Analyst",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "xhigh",  "max_tokens": 32000, "temperature": 0}},
+  {"agent": "Architect",                 "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Figures",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Rewriter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reader",                    "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Memory Reader",             "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Memory Pieces",             "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Coder",                     "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reviewer",                  "details": {"model": "openai/gpt-6.1-sol",                 "provider": "openrouter",  "reasoning_effort": "high",   "max_tokens": 48000, "temperature": 0}},
   {"agent": "Promoter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
@@ -327,6 +393,9 @@ defined in the template):
 The default `cost` preset uses OpenRouter throughout (DeepSeek with Grok for review); `performance` uses
 Claude for several seats, and `max` moves those to Opus. Supported providers include OpenRouter, OpenAI,
 Anthropic, Google, Groq, Mistral, xAI, DeepSeek, Ollama and vLLM.
+
+`Architect`, `Memory Reader` and `Memory Pieces` may be left out. The Architect and the reader of the saved
+analyses then use the `Analyst` seat, and the reader's second model the `Reader` seat.
 
 | Seat | Function |
 |---|---|
@@ -641,6 +710,8 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
   store.
 - `analyst/context.py`, `analyst/coder.py` and `containers/executor/intervals_store.py` implement
   training context, coding and incremental data storage.
+- `analyst/architect.py`, `analyst/brief.py`, `analyst/lookup.py` and `analyst/next_questions.py` implement
+  the Architect; `analyst/memory.py` and `analyst/reader.py` the memory made of saved analyses.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.
 
@@ -684,8 +755,8 @@ Further design and maintenance notes: [`docs/DESIGN_CHECKLIST.md`](docs/DESIGN_C
 [`docs/CONTEXT_DESIGN.md`](docs/CONTEXT_DESIGN.md),
 [`docs/INCREMENTAL_LOADS_DESIGN.md`](docs/INCREMENTAL_LOADS_DESIGN.md),
 [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md), [`docs/REACH_DESIGN.md`](docs/REACH_DESIGN.md),
-[`docs/DATASETS_DESIGN.md`](docs/DATASETS_DESIGN.md), [`docs/USAGE_DESIGN.md`](docs/USAGE_DESIGN.md) and
-[`HANDOVER.md`](HANDOVER.md).
+[`docs/DATASETS_DESIGN.md`](docs/DATASETS_DESIGN.md), [`docs/USAGE_DESIGN.md`](docs/USAGE_DESIGN.md),
+[`docs/ARCHITECT_DESIGN.md`](docs/ARCHITECT_DESIGN.md) and [`HANDOVER.md`](HANDOVER.md).
 
 ## Contributing
 

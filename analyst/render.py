@@ -114,8 +114,9 @@ def _reach_html(reaches) -> str:
 def _step_html(turn: Turn, index: int) -> str:
     kind = turn.kind
     if kind in ("show", "names", "recall", "search"):                  # recall: a step of a run made before 2.8, when the analyst had a memory to ask
-        label = {"show": "Re-opened a cell", "names": "Kernel names", "recall": "Recalled from memory", "search": "Web search"}[kind]
         body = turn.stdout or ""
+        label = ("Opened a saved analysis" if body.startswith("--- saved analysis ")          # SHOW SAVED k
+                 else {"show": "Re-opened a cell", "names": "Kernel names", "recall": "Recalled from memory", "search": "Web search"}[kind])
         return (f'<details class="nb-step"><summary><span class="nb-chevron"></span><span class="nb-out-label">{label}</span>'
                 f'<span class="nb-out-peek">{_first_line(body, 110)}</span></summary><pre class="nb-out-body">{_pre(body, 6000)}</pre></details>')
     if kind == "read":

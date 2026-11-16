@@ -39,7 +39,7 @@
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
         saved: 'SAVED analyses', found: n => n + (n === 1 ? ' passage' : ' passages') + ' found', noneFound: 'nothing found', readOf: (r, m) => r ? 'read ' + r + ' of ' + m : m + ' saved',
         looking: (r, m) => r ? 'reading ' + r + ' of ' + m : (m == null ? 'looking' : 'looking through ' + m), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
-        open: 'Open', look: 'Look in saved analyses', lookSay: 'Look in my saved analyses.', notOpenedSaved: 'This analysis could not be opened', code: 'Code',
+        open: 'Open', look: 'Look in saved analyses', lookSay: 'Look in my saved analyses.', notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
     };
@@ -317,14 +317,16 @@
             return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Architect</span><span class="kind">brief v' + latestN(entry.framing) + '</span>' +
                 '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.talk(entry) + '</div></details>';
         },
-        // a saved analysis in a dialog: what was asked, the day, whose data and which, the report, the code of its cells
+        // a saved analysis in a dialog: what was asked, the day, whose data and which, the report; folded under it the
+        // brief it ran under, where it was framed, and the code of its cells
         savedDialog(run) {
             const data = run.data || {}, sub = [String(run.when || '').slice(0, 10), data.person, data.name, data.period, (run.marks || []).join(', ')].filter(Boolean).join(' · ');
             const report = typeof marked !== 'undefined' && marked.parse ? marked.parse(String(run.report || '')) : '<pre>' + esc(run.report) + '</pre>';
             const code = (run.cells || []).map(c => '<div class="cell-n">cell ' + esc(c.n) + '</div><pre>' + esc(c.code) + '</pre>').join('');
+            const fold = (name, body) => body ? '<details class="ar-code"><summary>' + name + '</summary>' + body + '</details>' : '';
             return '<div class="ui-dlg lg ar-saved-dlg" role="dialog" aria-modal="true"><div class="ui-dlg-h"><div><div class="title">' + esc(run.question || run.title || '') + '</div>' +
                 '<div class="sub">' + esc(sub) + '</div></div><span class="sp"></span><button class="x" type="button" data-ar="shut" aria-label="Close">' + ICON.x + '</button></div>' +
-                '<div class="ui-dlg-b"><div class="markdown-content">' + report + '</div>' + (code ? '<details class="ar-code"><summary>' + WORDS.code + '</summary>' + code + '</details>' : '') + '</div></div>';
+                '<div class="ui-dlg-b"><div class="markdown-content">' + report + '</div>' + fold(WORDS.agreed, run.brief ? '<pre class="said">' + esc(run.brief) + '</pre>' : '') + fold(WORDS.code, code) + '</div></div>';
         },
         against
     };

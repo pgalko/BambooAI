@@ -30,7 +30,7 @@ CAPS = {"turns": 8, "calls": 60, "seconds": 120, "dollars": 0.50, "effort": ("lo
 OUT_CHARS = 4000                 # of what a cell printed, as the reader is shown it
 INDEX = 150                      # runs listed in the prompt, the newest; code reaches the rest
 BATCH_CHARS, PIECE_CHARS = 48_000, 16_000      # what one call of the second model reads, and of one run at most
-PARTS = ("report", "code", "results", "printed")
+PARTS = ("brief", "report", "code", "results", "printed")
 FOUND, QUOTE_MIN = 10, 8         # passages in an answer, at most; a quote shorter than this proves nothing
 NOTE_CHARS, ANSWER_CHARS, QUESTION_CHARS, LABEL_CHARS = 300, 200, 600, 120
 PRELUDE = "import json\nSAVED = json.loads({view!r})\nJUDGED = []"      # the sandbox's first cell: the view as text, so nothing of it is read as code and no file is left behind
@@ -63,14 +63,20 @@ def sandbox_view(view: dict) -> dict:
 
 
 # ------------------------------------------------------------------ what stands in the view
-def places(view: dict, run: dict) -> list:
-    """The places of a run a quote can stand in, each (its name, its text): `question`, `report`, then `cell n` for
-    the cells of the earlier steps it was built on - saved or not - and its own, in the path's order: a cell's
-    code, its result lines and what it printed."""
+def path_cells(view: dict, run: dict) -> list:
+    """The cells a run's kernel was built by: those of the earlier steps it was built on - saved or not - and its own,
+    in the path's order."""
     by_id = {r["id"]: r for r in view["runs"]}
     steps = [by_id.get(p) or view["steps"].get(p) or {} for p in run["path"]] + [run]
-    cells = [c for s in steps for c in s.get("cells", [])]
-    return [("question", run["question"]), ("report", run["report"])] + [(f"cell {c['n']}", "\n".join([c["code"], *c["results"], c["printed"]])) for c in cells]
+    return [c for s in steps for c in s.get("cells", [])]
+
+
+def places(view: dict, run: dict) -> list:
+    """The places of a run a quote can stand in, each (its name, its text): `question`, `report`, `brief` - what was
+    agreed before it ran, where it was framed - then `cell n` for each of path_cells(): a cell's code, its result
+    lines and what it printed."""
+    return ([("question", run["question"]), ("report", run["report"]), ("brief", run["brief"])]
+            + [(f"cell {c['n']}", "\n".join([c["code"], *c["results"], c["printed"]])) for c in path_cells(view, run)])
 
 
 def place_of(view: dict, run: dict, quote: str) -> Optional[str]:
@@ -140,18 +146,33 @@ def before(view: dict, run: dict) -> list:
     return [cell for step in steps for cell in step["cells"]]
 
 
-def piece(view: dict, run: dict, parts: list) -> str:
-    """What the second model reads of a run: its id, what was asked, the title, and the parts named - the report, and
-    of each cell (before() and its own) the code, the result lines, what was printed. Up to PIECE_CHARS, the cut
-    said."""
+def _laid_out(run: dict, cells: list, parts: list) -> str:
+    """A run as text: its id, what was asked, the title, and the parts named - the brief it ran under, the report, and
+    of each cell given the code, the result lines, what was printed."""
     out = [f"=== {run['id']} ===", f"QUESTION: {run['question']}" if run["question"] else "", f"TITLE: {run['title']}" if run["title"] else ""]
+    if "brief" in parts and run["brief"]:
+        out.append(f"BRIEF:\n{run['brief']}")
     if "report" in parts:
         out.append(f"REPORT:\n{run['report']}")
-    for cell in before(view, run) + run["cells"]:
+    for cell in cells:
         held = [("code", cell["code"]), ("results", "\n".join(cell["results"])), ("printed", cell["printed"])]
         out += [f"CELL {cell['n']}, {part}:\n{text}" for part, text in held if part in parts and text.strip()]
-    text = "\n".join(x for x in out if x)
+    return "\n".join(x for x in out if x)
+
+
+def piece(view: dict, run: dict, parts: list) -> str:
+    """What the second model reads of a run: the parts named, with the cells of before() and its own. Up to
+    PIECE_CHARS, the cut said."""
+    text = _laid_out(run, before(view, run) + run["cells"], parts)
     return text if len(text) <= PIECE_CHARS else text[:PIECE_CHARS] + "\n... (cut here: the rest was not read)"
+
+
+def shown(view: dict, run: dict) -> str:
+    """A saved analysis whole, for a reader that opens it by name (the analyst's SHOW SAVED k): what was asked, the
+    title, the brief it ran under, the report, and the code and result lines of path_cells() - a passage can stand
+    in any of them, and a name its own cells use may be made in an earlier one. Without its id, and not cut: the
+    one who shows it knows what a prompt takes."""
+    return _laid_out(run, path_cells(view, run), ["brief", "report", "code", "results"]).split("\n", 1)[1]
 
 
 def judge(view: dict, asked: dict, call: Callable, room: Callable, on_read: Optional[Callable] = None) -> dict:

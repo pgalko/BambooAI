@@ -1174,7 +1174,8 @@ class BambooAI:
             kept = list(getattr(self, '_last_read_passages', None) or [])     # the same passages with the originals of rendered quotes (S2)
             if kind == "read" and [p.get('id') for p in kept] == [p.get('id') for p in passages]:
                 passages = kept
-            peek = (reading.digest_peek(text) if kind == "read" else next((ln.strip() for ln in text.splitlines() if ln.strip()), ''))[:160]
+            # the first line that says something; a view's own first line without its rule marks ("--- cell 3 (re-opened) ---")
+            peek = (reading.digest_peek(text) if kind == "read" else next((re.sub(r"^-{3} | -{3}$", "", ln.strip()) for ln in text.splitlines() if ln.strip()), ''))[:160]
             self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
         elif kind == "report":
@@ -1297,6 +1298,15 @@ class BambooAI:
             data = run.data if run is not None else None
             there = subject_id_of(data)
             f["data"] = {**f["data"], "person": subject_name_of(data), "other": bool(here and there and there != here)}
+
+    def _saved_analysis(self, thread, run):
+        """A saved analysis whole, for the analyst to read where its brief names it (SHOW SAVED k): what was asked,
+        the brief it ran under, the report, and the code and result lines of the cells along its thread up to its
+        own (reader.shown), as memory holds it. None when it is saved no more."""
+        from analyst import memory, reader
+        view = memory.view(self._user_storage())
+        hit = next((r for r in view["runs"] if r["thread"] == str(thread) and r["run"] == str(run)), None)
+        return reader.shown(view, hit) if hit else None
 
     def skip_saved(self):
         """The person no longer waits for the saved analyses: the reading in flight ends before its next call."""
@@ -1479,7 +1489,7 @@ class BambooAI:
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
                           documents=bool(self._documents_prelude()), context=bool(self._context_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
-                          replay_runner=self._run_replay, map_inputs=self._map_inputs)
+                          replay_runner=self._run_replay, map_inputs=self._map_inputs, saved=self._saved_analysis)
         try:
             run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label, brief=brief)
         except ExecutionInterrupted:

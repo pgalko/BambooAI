@@ -263,6 +263,24 @@ check("_ledger(): the Architect's calls in a brief's own chain are that analysis
       (_aled["f1"]["kind"], _aled["f1"]["question"], _aled["f1"]["outcome"], _aled["f1"]["calls"]) == ("analysis", "Is the second half heavier?", "not run", 2)
       and (_aled["n1"]["kind"], _aled["n1"]["question"], _aled["n1"]["calls"], _aled["n1"]["cells"], _aled["n1"]["thread"]) == ("next", "Next questions", 1, None, "t9")
       and UR.mode_label(_aled["n1"]) == "Other" and _aled["n1"]["seats"] == {"Architect": 0.01}, _aled)
+# the reading of the saved analyses (2.8): made for a brief, its calls are in that brief's chain with the Architect's; asked from the command line it is a chain of
+# its own that the record does not know, named by its seats; and the configuration's template seats the Architect and the reader on the analyst's model, the reader's
+# second model on the fast one that reads the documents
+_mrow = lambda chain, minute, seat, cost: UR._call({"id": 100 + minute, "timestamp": f"2026-10-25 02:{minute:02d}:00", "agent": seat, "model": "m-big", "chain_id": chain, "prompt_tokens": 3000,
+                                                   "completion_tokens": 200, "elapsed_time": 3.0, "cost": cost})
+_mled = {e["chain"]: e for e in UR._ledger([_arow("f1", 1), _mrow("f1", 2, "Memory Reader", 0.05), _mrow("f1", 3, "Memory Pieces", 0.01), _mrow("m1", 4, "Memory Reader", 0.05),
+                                             _mrow("m1", 5, "Memory Pieces", 0.01), _mrow("m2", 6, "Memory Pieces", 0.02)], {"f1": "t9", "m1": "", "m2": ""}, STORAGE)}
+_tpl = json.load(open(os.path.join(ROOT, "web_app", "LLM_CONFIG_template.json"), encoding="utf-8"))
+_tiers = {tier: {a["agent"]: a["details"] for a in _tpl[f"{tier}_agent_configs"]} for tier in ("free", "cost", "performance", "max")}
+check("_ledger(): a reading of the saved analyses made for a brief is part of that brief's analysis, its two seats beside the Architect's; one asked from the command line is a chain of its own, named "
+      "Saved analyses read whichever of its seats spent most. The template seats the Architect and the Memory Reader on each tier's analyst model, Memory Pieces on the model that reads the documents, "
+      "each at a low effort and with 16,000 tokens a reply, as the template's other seats asked at a low effort",
+      (_mled["f1"]["kind"], _mled["f1"]["calls"]) == ("analysis", 3) and _mled["f1"]["seats"] == {"Memory Reader": 0.05, "Architect": 0.01, "Memory Pieces": 0.01}
+      and [(_mled[c]["kind"], _mled[c]["question"]) for c in ("m1", "m2")] == [("memory", "Saved analyses read")] * 2 and UR.mode_label(_mled["m1"]) == "Other"
+      and all((s["Architect"]["model"], s["Architect"]["provider"]) == (s["Analyst"]["model"], s["Analyst"]["provider"]) == (s["Memory Reader"]["model"], s["Memory Reader"]["provider"])
+              and (s["Memory Pieces"]["model"], s["Memory Pieces"]["provider"]) == (s["Reader"]["model"], s["Reader"]["provider"])
+              and [(s[k]["reasoning_effort"], s[k]["max_tokens"]) for k in ("Architect", "Memory Reader", "Memory Pieces")] == [("low", 16000)] * 3 for s in _tiers.values())
+      and not any("Knowledge Distiller" in s for s in _tiers.values()), (_mled, {t: sorted(s) for t, s in _tiers.items()}))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)
