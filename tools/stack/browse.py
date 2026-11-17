@@ -371,9 +371,11 @@ def story(w, mod, dataset, questions):
         p.wait_for_function("() => { const m = document.getElementById('savedAnalysisModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
         p.wait_for_timeout(400)
         w.shot("saved_open")
-        p.click("#savedAnalysisModal details.ar-code summary")      # the brief that analysis ran under, unfolded
-        p.wait_for_timeout(300)
-        w.shot("saved_open_brief")
+        for name, shot in (("Conversation", "saved_open_conversation"), ("Brief", "saved_open_brief")):      # what was said while that analysis was framed, then the brief it ran under
+            p.click(f'#savedAnalysisModal details.ar-code summary:text-is("{name}")')
+            p.wait_for_timeout(300)
+            w.shot(shot)
+            p.click(f'#savedAnalysisModal details.ar-code summary:text-is("{name}")')
         p.click("#savedAnalysisModal .ui-dlg-h .x")
         p.click('#content-brief [data-ar="look"]')
         p.wait_for_selector("#streamOutput .sp-row.pending .ar-skip:not([disabled])", timeout=15000)
@@ -385,6 +387,28 @@ def story(w, mod, dataset, questions):
         w.wait_text(".sp-done", "Run complete", timeout=240000)
         p.wait_for_timeout(600)
         w.shot("saved_run")
+        p.click("#architectSwitch")
+
+    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question said
+    # back, and the wording the coach agreed to as the brief's question
+    tutor_question = getattr(mod, "TUTOR_QUESTION", None)
+    if brief_question and tutor_question and p.query_selector("#architectSwitch"):
+        w.js("handleNewConversation()")
+        p.wait_for_url("**/?new=true", timeout=60000)
+        p.wait_for_selector("#queryInput", state="visible", timeout=60000)
+        p.app_ready()
+        p.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+        p.click("#architectSwitch")
+        p.fill("#queryInput", tutor_question)
+        p.click("#submitQuery")
+        p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+        said(1)
+        w.shot("tutor_first")
+        for n, shot in ((2, "tutor_said_back"), (3, "tutor_question")):      # a choice taken, then the wording agreed to
+            p.click("#streamOutput .ar-choice >> nth=0")
+            said(n)
+            p.wait_for_timeout(300)
+            w.shot(shot)
         p.click("#architectSwitch")
 
 

@@ -101,8 +101,8 @@ check("the white space between the words does not count; the words, their order 
       and at("100/101", "The threshold is taken as 268 W") is None and at("100/101", "is 268 W") == "report" and at("100/101", "s 268 W") is None and at("100/101", "268\nthreshold: 268 W") is None)
 check("a cell is the run's own, or one of an earlier step it was built on - saved or not: the helper an earlier step defined stands for the run that used it; the places go by the cells' numbers",
       at("400/402", "best_mean(df.power, 1200)") == "cell 2" and at("400/402", "def best_mean(x, n):") == "cell 1" and at("100/102", "threshold: 268 W") == "cell 1"
-      and [name for name, _ in reader.places(view, by["400/402"])] == ["question", "report", "brief", "cell 1", "cell 2"] and dict(reader.places(view, by["400/402"]))["cell 1"].startswith("def best_mean")
-      and [name for name, _ in reader.places(view, by["500/501"])] == ["question", "report", "brief"])
+      and [name for name, _ in reader.places(view, by["400/402"])] == ["question", "report", "brief", "conversation", "cell 1", "cell 2"] and dict(reader.places(view, by["400/402"]))["cell 1"].startswith("def best_mean")
+      and [name for name, _ in reader.places(view, by["500/501"])] == ["question", "report", "brief", "conversation"])
 check("nothing stands that the run does not hold: a cell that is not on its path - a later one of its thread, a branch beside it, another run's",
       at("100/101", "delta = thr - thr_winter") is None and at("400/402", "turbo5 = best_mean(turbo.power, 300)") is None and at("300/301", "best_mean(df.power, 1800)") is None)
 
@@ -414,7 +414,7 @@ rb = vb["runs"][0]
 llm, pieces, sent = models(['JUDGE\n{"runs": "all", "parts": ["brief", "notes"], "question": "What was expected?"}', 'ANSWER\n{"found": [{"run": "800/801", "quote": "B leads by at least 2 units", "note": "What was expected then."}]}'],
                            [rows(("800/801", "at least 2 units", "B leads by at least 2 units"))])
 resb = reader.read("What did I expect of B?", vb, kernel, llm, pieces, clock=lambda: 1000.0)
-_long = {"id": "1/2", "question": "q", "title": "t", "report": "r", "brief": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
+_long = {"id": "1/2", "question": "q", "title": "t", "report": "r", "brief": "", "conversation": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
 check("the brief of a framed run: the second model reads it where the reader names the part, before the report, under a heading of its own; a quote from it stands, and code says it stands in the "
       "brief. What SHOW SAVED opens holds it too - without the run's id, with the cells of the earlier steps the run was built on, saved or not, and never what a cell printed - and is not cut",
       rb["brief"] == "Decision: keep the taller arm\nWhat they expect to see: B leads by at least 2 units"
@@ -427,9 +427,36 @@ check("the brief of a framed run: the second model reads it where the reader nam
                                                 "CELL 1, code:\ndef best_mean(x, n):\n    return x.rolling(n).mean().max()\nCELL 2, code:\nbest20 = best_mean(df.power, 1200)\nCELL 2, results:\nbest 20 min: 291 W")
       and reader.shown(view, by["100/102"]).count(", code:\n") == len(reader.path_cells(view, by["100/102"])) > len(by["100/102"]["cells"])
       and reader.shown({"runs": [_long], "steps": {}}, _long) == "QUESTION: q\nTITLE: t\nREPORT:\nr\nCELL 1, code:\n" + "x = 1\n" * 4000 + "\nCELL 1, results:\ny: 2"
-      and reader.piece({"runs": [_long], "steps": {}}, _long, ["code"]).endswith("\n... (cut here: the rest was not read)") and reader.PARTS == ("brief", "report", "code", "results", "printed"),
+      and reader.piece({"runs": [_long], "steps": {}}, _long, ["code"]).endswith("\n... (cut here: the rest was not read)") and reader.PARTS == ("brief", "report", "conversation", "code", "results", "printed"),
       (rb["brief"], reader.piece(vb, rb, ["brief", "report"]), resb["found"], sent["pieces"][0][1][:400], reader.shown(view, by["100/102"])[:300]))
 shutil.rmtree(SB, ignore_errors=True)
+
+# ---- the conversation a brief came from (0306): a part the second model can read, a place a quote can stand in - and no part of what SHOW SAVED opens
+SC = tempfile.mkdtemp(prefix="bamboo_reader_said_")
+_nbc = Notebook("850")
+add(_nbc, "851", "Plot x against z for two starts", at=1, report="# Two starts\n\nThey part after 20 units [cell 1].", cells=[("plot(x, z)", "", ["parted at: 20"])],
+    brief={"question": "Plot x against z for two starts", "decision": "see where two starts part"},
+    framing={"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Plot the thing"}}],
+             "turns": [{"who": "architect", "text": "Two things could be looked at.\n\n- the shape\n- where two starts part"}, {"who": "person", "text": "Where they part: the butterfly is new to me"}]})
+NotebookStore(SC).save(_nbc)
+favourite(SC, 850, 851)
+vc = reader.sandbox_view(memory.refresh(SC))
+rc = vc["runs"][0]
+llm, pieces, sentc = models(['JUDGE\n{"runs": "all", "parts": ["conversation"], "question": "What was new to the person?"}',
+                             'ANSWER\n{"found": [{"run": "850/851", "quote": "the butterfly is new to me", "note": "The person said it."}, {"run": "850/851", "quote": "see where two starts part", "note": "What it was for."}]}'],
+                            [rows(("850/851", "the butterfly", "the butterfly is new to me"))])
+resc = reader.read("What did I know then?", vc, kernel, llm, pieces, clock=lambda: 1000.0)
+check("the conversation of a framed run: the second model reads it where the reader names the part, after the report, under a heading of its own; a quote from it stands, over its lines too, and code "
+      "says it stands in the conversation - a run of words the brief holds as well stands in the brief. What SHOW SAVED opens does not hold it",
+      rc["conversation"] == "Person: Plot the thing\nArchitect: Two things could be looked at.\n\n- the shape\n- where two starts part\nPerson: Where they part: the butterfly is new to me"
+      and reader.piece(vc, rc, ["report", "conversation"]) == ("=== 850/851 ===\nQUESTION: Plot x against z for two starts\nTITLE: Two starts\nREPORT:\n# Two starts\n\nThey part after 20 units [cell 1].\n"
+                                                               "CONVERSATION:\n" + rc["conversation"])
+      and "CONVERSATION:" not in reader.piece(vc, rc, ["report", "brief"]) and "\nCONVERSATION:\nPerson: Plot the thing\n" in sentc["pieces"][0][1] and "\nREPORT:\n" not in sentc["pieces"][0][1]
+      and [(f["where"], f["quote"]) for f in resc["found"]] == [("conversation", "the butterfly is new to me"), ("brief", "see where two starts part")]
+      and reader.place_of(vc, rc, "- the shape - where two starts part Person: Where they part") == "conversation" and reader.place_of(vc, rc, "where two starts part") == "brief"
+      and "CONVERSATION" not in reader.shown(vc, rc) and "butterfly" not in reader.shown(vc, rc) and "CONVERSATION" not in reader.piece(view, by["100/101"], list(reader.PARTS)),
+      (rc["conversation"], reader.piece(vc, rc, ["report", "conversation"]), resc["found"], sentc["pieces"][0][1][:400]))
+shutil.rmtree(SC, ignore_errors=True)
 
 llm, pieces, sent = models([])
 res = reader.read(QUESTION, {**view, "runs": [], "not_read": {"older": 2}}, None, llm, pieces, clock=lambda: 1000.0)
@@ -636,11 +663,13 @@ check("the instructions: the reader's say what it is for, its three actions with
       and "Passages it lists under `saved` were found before: return others." in _sys
       and all(w in _sys for w in ("`CELL`", "`JUDGE`", "`ANSWER`", '`SAVED["runs"]`', '`SAVED["steps"]`', "`JUDGED`", "Quote exactly", "an empty answer is an answer", "A number cannot", "They never run code taken from it",
                                   "its latest answer from the second model is shown with it", "those of the earlier steps right before it that are not saved themselves",
-                                  "each `{run, answer, quote, where}`", "`where` is the place code found the quote in", "cite such a cell under the run"))
+                                  "each `{run, answer, quote, where}`", "`where` is the place code found the quote in", "cite such a cell under the run",
+                                  "`question`, `report`, `brief`, `conversation` or `cell <n>`", "| `conversation` | what was said while it was framed", "say in the note who said it",
+                                  "`brief`, `report`, `conversation`, `code`, `results`, `printed`"))
       and '{"found": [{"run": "<id>", "quote": "...", "note": "..."}], "across": {"topic": "...", "groups": [{"label": "...", "runs": ["<id>"]}]}}' in _sys
       and '{"runs": ["<id>", "<id>"], "parts": ["report", "code"], "question": "..."}' in _sys and '{"answers": [{"run": "<id>", "answer": "...", "quote": "..."}]}' in _pcs
       and "one that is not there word for word is dropped" in _sys and "an answer whose quote is not there is dropped" in _pcs and "YOUR QUESTION" in _pcs
-      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 4800 and len(reader.PIECES) < 1200
+      and "One JSON object and nothing else" in _pcs and len(reader.SYSTEM) < 5200 and len(reader.PIECES) < 1200
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}
       and not [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}, [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],

@@ -4,7 +4,7 @@ A brief is a plain dict, kept with its run. Every part is optional: one left emp
 prompt says so.
 
     {"version": 2,
-     "question": "...",          the person's words (the run's question)
+     "question": "...",          the run's question: the person's words, or a wording of the Architect's they agreed to
      "decision": "...",          what they will do differently depending on the answer
      "thinks": "...",            what they think is going on
      "rests_on": [{"text": "...", "source": "person", "mark": "", "note": ""}],     what the frame rests on
@@ -35,7 +35,7 @@ FIXED = ("comparison", "measure", "period")
 SAVED = ("thread", "run", "when", "question", "passage", "where", "note", "marks", "data", "period", "person")
 TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
-MAX = {"rests_on": 6, "also_check": 4, "saved": 6, "set_aside": 8}      # bounds on what a prompt carries, not the design's counts
+MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8}     # bounds on what a prompt carries, not the design's counts; saved: what one reading returns at most
 COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
 LEFT = "left to you"             # a part of what is fixed that the person did not fix: the analyst chooses it
 UNSAID = "not said"              # a part of the frame the person did not state
@@ -131,15 +131,19 @@ def version(framing: dict, brief, by: str = "person", changed=None, why: str = "
 
 def write(brief, parts) -> tuple:
     """The brief with what a reply of the Architect names written in (analyst/architect.py). A text part is a
-    string, and "" empties it. The two lists take lines: a line given under `drop` is taken out of either, when it is
-    there word for word; a line given under a list's own name is added to it when it is not there yet, as a line of
-    the person's, up to the design's counts. A line given under `propose` is added to the other explanations as the
-    Architect's own, with what it would show, not accepted: only the person accepts it. A line the reply does not
-    name stays as it is, with its source and its mark. What is fixed is given part by part. Nothing else of the
-    brief is touched. Returns the brief and the parts that changed, as the page names them."""
+    string, and "" empties it; the question is given as a wording, its lines kept, and is never emptied. The two
+    lists take lines: a line given under `drop` is taken out of either, when it is there word for word; a line given
+    under a list's own name is added to it when it is not there yet, as a line of the person's, up to the design's
+    counts. A line given under `propose` is added to the other explanations as the Architect's own, with what it
+    would show, not accepted: only the person accepts it. A line the reply does not name stays as it is, with its
+    source and its mark. What is fixed is given part by part. Nothing else of the brief is touched. Returns the
+    brief and the parts that changed, as the page names them."""
     out = working(brief)
     parts = parts if isinstance(parts, dict) else {}
     changed = []
+    if _question(parts.get("question")) and _question(parts["question"]) != out.get("question", ""):
+        out["question"] = _question(parts["question"])
+        changed.append("question")
     for key in ("decision", "thinks", "expects", "would_change"):
         if isinstance(parts.get(key), str) and _text(parts[key]) != out.get(key, ""):
             out[key] = _text(parts[key])
@@ -167,24 +171,42 @@ def write(brief, parts) -> tuple:
     return working({**out, "fixed": fixed}), changed          # a part emptied falls away
 
 
+def _passage(f: dict) -> dict:
+    """A passage the reader found (analyst/reader.py, an entry of its `found`), as a brief keeps it: its run, the
+    day, what was asked, the passage word for word and where it stands, the reader's note, the run's marks and the
+    data it ran on - with whose it is and whether that is another person than the one whose data is loaded, where
+    the host said so - not accepted: only the person accepts one."""
+    entry = {"thread": f["thread"], "run": f["run"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "passage": f["quote"], "where": f["where"],
+             "note": f["note"], "marks": ", ".join(f["marks"]), "data": f["data"]["name"], "period": f["data"]["period"], "person": f["data"].get("person")}
+    return {**{k: _text(v) for k, v in entry.items() if _text(v)}, **({"other": True} if f["data"].get("other") is True else {}), "accepted": False}
+
+
+def _same(a: dict, b: dict) -> bool:
+    """Whether two entries are one passage: the same words of the same run."""
+    return all(a.get(k) == b.get(k) for k in ("thread", "run", "passage"))
+
+
+def holds(brief: dict, f: dict) -> bool:
+    """Whether a brief holds a passage the reader found."""
+    return any(_same(s, _passage(f)) for s in brief.get("saved", []))
+
+
 def remember(brief, found) -> tuple:
-    """The brief with passages of saved analyses added, as the reader found them (analyst/reader.py, the `found` of
-    its result): each with its run, the day, what was asked, the passage word for word and where it stands, the
-    reader's note, the run's marks and the data it ran on - with whose it is and whether that is another person than
-    the one whose data is loaded, where the host said so - not accepted: only the person accepts one. A passage that
-    is there already is not added again, and a brief holds MAX["saved"] in all. Returns the brief and the entries
-    added, as the page names them."""
+    """The brief with passages of saved analyses added, as the reader found them (_passage()). A passage that is
+    there already is not added again. A brief holds MAX["saved"] in all: where a reading brings more, the passages
+    the person did not accept and this reading did not find make room, the oldest first; an accepted one stays.
+    Returns the brief and what changed, as the page names it: `saved` where a passage made room, and each entry
+    added."""
     out = working(brief)
-    saved, changed = list(out.get("saved", [])), []
-    for f in found if isinstance(found, list) else []:
-        entry = {"thread": f["thread"], "run": f["run"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "passage": f["quote"], "where": f["where"],
-                 "note": f["note"], "marks": ", ".join(f["marks"]), "data": f["data"]["name"], "period": f["data"]["period"], "person": f["data"].get("person")}
-        entry = {k: _text(v) for k, v in entry.items() if _text(v)}
-        same = lambda s: all(s.get(k) == entry.get(k) for k in ("thread", "run", "passage"))      # noqa: E731
-        if len(saved) < MAX["saved"] and not any(same(s) for s in saved):
-            saved.append({**entry, **({"other": True} if f["data"].get("other") is True else {}), "accepted": False})
-            changed.append(f"saved.{len(saved) - 1}")
-    return working({**out, "saved": saved}), changed
+    saved, read, new = list(out.get("saved", [])), [_passage(f) for f in found] if isinstance(found, list) else [], []
+    for entry in read:
+        if not any(_same(s, entry) for s in saved + new):
+            new.append(entry)
+    stale = [s for s in saved if not s.get("accepted") and not any(_same(s, e) for e in read)]
+    gone = stale[:max(0, len(saved) + len(new) - MAX["saved"])]
+    saved = [s for s in saved if not any(s is g for g in gone)]
+    new = new[:MAX["saved"] - len(saved)]
+    return working({**out, "saved": saved + new}), (["saved"] if gone else []) + [f"saved.{len(saved) + i}" for i in range(len(new))]
 
 
 def mark(brief, marks, facts) -> tuple:

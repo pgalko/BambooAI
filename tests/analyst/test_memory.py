@@ -378,7 +378,7 @@ check("search(): a line of code is given without its indent, and a paragraph tha
       memory.search(sv, "hr")[0]["passages"] == [{"where": "cell 2, code", "text": "hr_drift_fit = fit(weekly)"}]
       and memory.search(sv, "lower")[0]["passages"][0] == {"where": "report", "text": "The analysis shows cadence 8 rpm lower on climbs [cell 1]."}, memory.search(sv, "hr")[0]["passages"])
 few = {"runs": [{"id": f"8/{k}", "thread": "8", "run": str(k), "kind": "analysis", "when": f"2026-02-0{k}T00:00:00Z", "question": "", "title": "", "marks": [], "cells": [], "path": [],
-                 "brief": "", "report": report} for k, report in ((3, "The analysis is short.\n\nZebra crossings matter."), (2, "An analysis of load."), (1, "Another analysis."))], "steps": {}}
+                 "brief": "", "conversation": "", "report": report} for k, report in ((3, "The analysis is short.\n\nZebra crossings matter."), (2, "An analysis of load."), (1, "Another analysis."))], "steps": {}}
 check("search(): of two places with a word each, the one with the rarer word comes first; a place is found whatever its case",
       memory.search(few, "analysis zebra")[0]["passages"] == [{"where": "report", "text": "Zebra crossings matter."}, {"where": "report", "text": "The analysis is short."}],
       memory.search(few, "analysis zebra")[0]["passages"])
@@ -389,7 +389,7 @@ check("search(): what a word counts for by where it stands - the question 3, the
 check("search(): the question of an earlier step that is a saved run itself counts the same way: the run it was asked in first, then the run built on it",
       [h["id"] for h in memory.search(memory.refresh(S4), "taper")] == ["700/701", "700/702"] and memory.search(memory.view(S4), "taper")[1]["words"] == ["taper"], memory.search(memory.view(S4), "taper"))
 many = {"runs": [{"id": f"9/{k}", "thread": "9", "run": str(k), "kind": "analysis", "when": f"2026-01-{k:02d}T00:00:00Z", "question": f"Is the tempo right in block {k}?", "title": "", "marks": [],
-                  "report": "", "brief": "", "cells": [], "path": []} for k in range(12, 0, -1)], "steps": {}}
+                  "report": "", "brief": "", "conversation": "", "cells": [], "path": []} for k in range(12, 0, -1)], "steps": {}}
 check("search(): ten hits unless asked for more or fewer", [len(memory.search(many, "tempo", **k)) for k in ({}, {"most": 12}, {"most": 3})] == [memory.MOST, 12, 3] and memory.MOST == 10)
 words = " ".join(f"w{k}" for k in range(300))
 cut = [memory._around(words, words.index(w)) for w in ("w0", "w150", "w299")]
@@ -456,9 +456,47 @@ check("a framed run's brief is memory: the view holds what was agreed - the deci
       and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("Decision: keep it above the line", {"expected": "", "would_change": ""})
       and [h["id"] for h in memory.search(_v8, "above")] == ["800/801", "800/803", "800/802"] and [h["id"] for h in memory.search(_v8, "height")] == ["800/801", "800/802"]
       and memory.search(_v8, "height")[0]["passages"] == [{"where": "brief", "text": "- measure: height"}] and memory.search(_v8, "chance") == [] and memory.search(_v8, "comparison") == []
-      and memory.FORMAT == 2 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 2,
+      and memory.FORMAT == 3 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 3,
       (_by8["800/801"]["brief"], _by8["800/801"]["outcome"], _hit8, [h["id"] for h in memory.search(_v8, "above")], memory.search(_v8, "height")))
 shutil.rmtree(S8, ignore_errors=True)
+
+# ---- the conversation a brief came from (0306): what the person and the Architect said while a saved run's question was framed
+S9 = tempfile.mkdtemp(prefix="bamboo_memory_said_")
+_nb9 = Notebook("900")
+_framing9 = {"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Plot the thing"}},
+                          {"n": 2, "by": "architect", "changed": ["question"], "why": "answer", "brief": {"question": "Plot x against z for two starts", "decision": "see where they part"}}],
+             "turns": [{"who": "architect", "text": "Let me have a look.", "v": 1, "cost": 0.001, "call": 1},
+                       {"who": "memory", "found": [{"id": "1/2", "when": "2026-01-01", "question": "q", "where": "report", "quote": "a wombat of another analysis", "note": ""}], "across": None,
+                        "of": 3, "read": 3, "dropped": 0, "failed": "", "secs": 1.0, "cost": 0.01, "v": 1},
+                       {"who": "architect", "text": "Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?", "choices": ["The shape", "How they part"], "v": 1, "cost": 0.001, "call": 2},
+                       {"who": "person", "text": "How they part - the butterfly is new to me"},
+                       {"who": "check", "found": [{"k": 1, "about": "x", "fact": "rows: 12 quokkas", "ran": True}], "secs": 0.1},
+                       {"who": "architect", "text": " ", "v": 2}, {"who": "note", "text": "said by neither: a numbat"},
+                       {"who": "architect", "text": "Then: plot x against z for two starts.", "v": 2, "cost": 0.001, "call": 3}], "calls": 3, "saved": 3}
+add(_nb9, "901", "Plot x against z for two starts", at=1, report="# Two starts\n\nThey part after 20 units [cell 1].", cells=[("plot(x, z)", "", ["parted at: 20"])],
+    brief={"question": "Plot x against z for two starts", "decision": "see where they part"}, framing=_framing9)
+add(_nb9, "902", "And three starts?", at=2, report="# Three starts\n\nAll part [cell 1].", cells=[("plot3(x, z)", "", [])],
+    framing={"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "And three starts?"}}], "turns": [{"who": "memory", "found": [], "failed": "The person skipped it."}]})
+add(_nb9, "903", "A long talk", at=3, report="# Long\n\nDone [cell 1].", cells=[("pass", "", [])], framing={"versions": [], "turns": [{"who": "person", "text": "w " * 30_000}]})
+add(_nb9, "904", "Never framed", at=4, report="# Plain\n\nDone [cell 1].", cells=[("pass", "", [])])
+NotebookStore(S9).save(_nb9)
+for _chain in (901, 902, 903, 904):
+    favourite(S9, 900, _chain)
+_v9 = memory.refresh(S9)
+_by9 = {r["id"]: r for r in _v9["runs"]}
+_long9 = "Person: A long talk\nPerson: " + ("w " * 30_000).strip()
+check("a framed run's conversation is memory: the view holds what the person and the Architect said, each message under who said it, with its lines, and the question as it was first asked before them - "
+      "not what was looked up or read meanwhile, nor a turn that is neither's, and no message without words; a run framed without a word said, and one not framed, hold none; a long one is kept up to its bound, the cut said. Plain "
+      "search finds a word only the conversation holds, says it stands there and gives its line; a word counts there as in the brief, twice what it counts in code",
+      _by9["900/901"]["conversation"] == ("Person: Plot the thing\nArchitect: Let me have a look.\nArchitect: Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?\n"
+                                          "Person: How they part - the butterfly is new to me\nArchitect: Then: plot x against z for two starts.")
+      and (_by9["900/902"]["conversation"], _by9["900/904"]["conversation"]) == ("", "")
+      and _by9["900/903"]["conversation"] == _long9[:memory.SAID] + f"\n... ({len(_long9) - memory.SAID:,} more characters not kept)" and memory.SAID == 40_000 and len(_long9) > memory.SAID
+      and [h["id"] for h in memory.search(_v9, "butterfly")] == ["900/901"] and memory.search(_v9, "butterfly")[0]["passages"] == [{"where": "conversation", "text": "Person: How they part - the butterfly is new to me"}]
+      and memory.search(_v9, "wombat") == [] and memory.search(_v9, "quokkas") == [] and memory.search(_v9, "numbat") == [] and memory.search(_v9, "shape")[0]["passages"] == [{"where": "conversation", "text": "- the shape"}]
+      and round(memory.search(_v9, "butterfly")[0]["score"] / memory.search(_v9, "plot3")[0]["score"], 1) == 2.0 and dict(memory.FIELDS)["conversation"] == dict(memory.FIELDS)["brief"] == 2,
+      (_by9["900/901"]["conversation"], memory.search(_v9, "butterfly"), memory.search(_v9, "plot3")))
+shutil.rmtree(S9, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

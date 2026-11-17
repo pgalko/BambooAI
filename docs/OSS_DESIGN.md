@@ -311,17 +311,18 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-16: 2.8.0 (patches 0294-0305).** The Architect and memory from saved analyses
-  (docs/ARCHITECT_DESIGN.md). An optional step before an analysis frames the question with the person as a brief -
-  the decision, what they think and expect, what the view rests on, other explanations, what is fixed - checks what
-  it rests on against the loaded data with counts, lists and totals, and may propose two other explanations; the
-  Analyst is held to the brief, and the report says how the result stands against it. A finished analysis offers
-  next questions at five levels, each from a line the analysis left; the Explore tab and the ideas path are gone.
-  The old memory - the cards, distilling on save, `RECALL`, the library's `memory_path` - is retired: memory is the
-  person's saved analyses, read by a model with code in a sandbox and by a second model on pieces, quoted exactly
-  and checked against the record, and reached through the Architect; the Analyst opens only what the person ticked.
-  Save as favourite is one click. Three optional seats (`Architect`, `Memory Reader`, `Memory Pieces`). Image v74
-  stands; no migration.
+- **Status 2026-11-17: 2.8.0 (patches 0294-0306).** The Architect and memory from saved analyses
+  (docs/ARCHITECT_DESIGN.md). An optional step before an analysis frames the question with the person: it talks as
+  a tutor would, says the question back in plain words (0306), and writes a brief - the decision, what they think
+  and expect, what the view rests on, other explanations, what is fixed. It checks what the brief rests on against
+  the loaded data with counts, lists and totals, and may propose two other explanations; the Analyst is held to the
+  brief, and the report says how the result stands against it. A finished analysis offers next questions at five
+  levels, each from a line the analysis left; the Explore tab and the ideas path are gone. The old memory - the
+  cards, distilling on save, `RECALL`, the library's `memory_path` - is retired: memory is the person's saved
+  analyses, with the brief and the conversation of a framed one, read by a model with code in a sandbox and by a
+  second model on pieces, quoted exactly and checked against the record, and reached through the Architect; the
+  Analyst opens only what the person ticked. Save as favourite is one click. Three optional seats (`Architect`,
+  `Memory Reader`, `Memory Pieces`). Image v74 stands; no migration.
 - **Status 2026-11-14: 2.7.4 (patches 0291-0293).** Routines across athletes and without data
   (docs/ROUTINES_DESIGN.md §23, §24). The Summary's *All athletes* sets each athlete's run of one week, month or set
   of dates side by side and offers the run where there is none; the position by the arrows counts the athlete's own

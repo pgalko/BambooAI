@@ -29,13 +29,13 @@ from analyst.notebook import Notebook, Run
 with open(os.path.join(os.path.dirname(__file__), "architect.md"), encoding="utf-8") as _fh:
     SYSTEM = _fh.read().strip()
 
-EFFORT = ("low", "medium")       # a short reply over a short prompt: the seat's effort is lowered for it, as for a report turn
-TURNS_MAX = 20                   # replies in one brief: half a dozen frame and check a question; the bound is for a conversation that will not end
+EFFORT = ("medium", "low")       # what to say next takes judgement, not long thought: the seat's effort is lowered to this; a seat set lower stays lower
+TURNS_MAX = 200                  # replies in one brief: a person finding their way talks for as long as they like; the bound is for a page that will not stop
 ROUNDS = 2                       # rounds of lookups after one message of the person's: the second is for what the first refused
 NOT_ABOUT = "a lookup names the line under rests_on it checks, copied exactly"
 PROPOSALS = 2                    # explanations the Architect proposes in one brief, in all: one left out is not proposed again and again
-READINGS = 2                     # readings of the saved analyses in one brief: each takes the person's time and money
-SAY_CHARS = 600                  # the Architect's message, at most
+READINGS = 4                     # readings of the saved analyses in one brief: one serves one direction of the conversation, and each takes the person's time and money
+SAY_CHARS = 1500                 # the Architect's message, at most: a few sentences, its lines kept
 CHOICES, CHOICE_CHARS = 4, 120
 EMPTY = "(empty)"
 AGAIN = "Your last reply could not be read: {problem}. Reply with the JSON object and nothing else."
@@ -61,6 +61,27 @@ def _line(value, chars: int) -> str:
     return re.sub(r"\s+", " ", value).strip()[:chars] if isinstance(value, str) else ""
 
 
+def _say(value) -> str:
+    """The Architect's message as it is kept: its lines, each on one line of text, at most one empty line between two
+    paragraphs, bounded."""
+    if not isinstance(value, str):
+        return ""
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in value.strip().splitlines()]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines))[:SAY_CHARS].rstrip()
+
+
+def _words(text) -> str:
+    """A text as its words alone, in lower case: how two wordings are compared."""
+    return " ".join(re.findall(r"\w+", text.casefold())) if isinstance(text, str) else ""
+
+
+def _stood(wording, turns: list) -> bool:
+    """Whether a wording of the question stands, word for word, in a message of the conversation: one of the
+    Architect's, which the person has read, or one of the person's own."""
+    words = _words(wording)
+    return bool(words) and any(f" {words} " in f" {_words(t.get('text'))} " for t in turns if t.get("who") in ("architect", "person"))
+
+
 def reply_object(text: str) -> dict:
     """The JSON object a reply holds, fenced or bare. Raises Unreadable."""
     t = (text or "").strip()
@@ -73,7 +94,7 @@ def reply_object(text: str) -> dict:
             raise Unreadable("it holds no JSON object")
         t = t[a:b + 1]
     try:
-        obj = json.loads(t)
+        obj = json.loads(t, strict=False)          # a new line inside a string is taken as it is: a message has lines
     except ValueError as exc:
         raise Unreadable(f"its JSON does not parse: {exc}") from exc
     if not isinstance(obj, dict):
@@ -86,7 +107,7 @@ def parse(text: str) -> dict:
     "lookups": what it asks of the data, "marks": the marks it gives, "propose": the explanations it proposes,
     "recall": whether it asks for the saved analyses to be read}. Raises Unreadable."""
     obj = reply_object(text)
-    say = _line(obj.get("say"), SAY_CHARS)
+    say = _say(obj.get("say"))
     if not say:
         raise Unreadable('it has no "say"')
     choices = []
@@ -151,15 +172,19 @@ def recalled(turn: dict) -> list:
         return [f"Saved analyses: not read - {turn['failed']}"]
     found, across = turn.get("found", []), turn.get("across")
     lines = [f"Saved analyses ({turn.get('of', 0)} saved, {turn.get('read', 0)} read through):" + ("" if found or across else " nothing in them bears on it.")]
-    lines += [f"- {f['when']} \"{f['question']}\": \"{f['quote']}\"" + (f" - {f['note']}" if f.get("note") else "") for f in found]
+    lines += [f"- {f['when']} \"{f['question']}\"" + (f", in its {f['where']}" if f.get("where") else "") + f": \"{f['quote']}\"" + (f" - {f['note']}" if f.get("note") else "")
+              for f in found]
+    if turn.get("left"):
+        lines.append(f"{turn['left']} more found: the brief has no room for them.")
     if across:
         lines.append(f"Across them - {across['topic']}: " + "; ".join(f"{len(g['runs'])} x {g['label']}" for g in across["groups"]))
     return lines
 
 
 def conversation(turns: list) -> str:
-    """The CONVERSATION block: who said what, what each round of lookups found, a numbered line to a lookup, and
-    what a reading of the saved analyses found."""
+    """The CONVERSATION block: who said what - under a message of the Architect's the choices it offered, which the
+    person may answer by - what each round of lookups found, a numbered line to a lookup, and what a reading of the
+    saved analyses found."""
     said = []
     for t in turns:
         if t.get("who") == "check":
@@ -168,16 +193,20 @@ def conversation(turns: list) -> str:
             said += recalled(t)
         else:
             said.append(f"{'Architect' if t.get('who') == 'architect' else 'Person'}: {t.get('text', '')}")
+            if t.get("choices"):
+                said.append("(choices offered: " + " | ".join(t["choices"]) + ")")
     return "CONVERSATION:\n" + ("\n".join(said) if said else "(nothing yet)")
 
 
-def prompt(question: str, brief: dict, turns: list, data: str = "", before: str = "", saved: int = 0) -> str:
+def prompt(question: str, brief: dict, turns: list, data: str = "", before: str = "", saved: int = 0, first: str = "") -> str:
     """What the Architect reads for one reply. What does not change from one reply to the next comes first. `saved`:
-    how many saved analyses the person has, said where there are any."""
+    how many saved analyses the person has, said where there are any. `first`: the question as the person first
+    asked it, said where the wording has changed since."""
     parts = [f"DATA:\n{data}"] if data else []
     parts += [before] if before else []
     parts += [f"SAVED: {saved}"] if saved else []
-    parts += [f"QUESTION:\n{question.strip()}", block(brief), conversation(turns), "Reply with the JSON object."]
+    asked = f"\n(first asked as: {first.strip()})" if first.strip() and first.strip() != question.strip() else ""
+    parts += [f"QUESTION:\n{question.strip()}{asked}", block(brief), conversation(turns), "Reply with the JSON object."]
     return "\n\n".join(parts)
 
 
@@ -211,15 +240,19 @@ def _check(requests: list, brief: dict, made: int, look: Callable) -> dict:
     return {"who": "check", "found": found, "secs": round(time.time() - began, 1)}
 
 
-def _recall(result: dict) -> dict:
+def _recall(result: dict, brief: Optional[dict] = None) -> dict:
     """A reading of the saved analyses, as a turn of the conversation: the passages found - each with its run, its
     day, what was asked, where it stands, the passage and the reader's note - what was found across the analyses,
     how many there are and how many the second model read, what was dropped, why nothing was read where it was not,
-    the seconds and the cost."""
+    the seconds and the cost. `brief`: the brief after the reading; a passage found that it does not hold is counted
+    under `left` and not listed, so what the Architect speaks of is what the person can tick."""
+    every = result.get("found") or []
+    kept = every if brief is None else [f for f in every if briefs.holds(brief, f)]
     found = [{"id": f["id"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "where": f["where"], "quote": f["quote"], "note": f["note"]}
-             for f in result.get("found") or []]
+             for f in kept]
     cover = result.get("coverage") or {}
-    return {"who": "memory", "found": found, "across": result.get("across"), "of": int(cover.get("runs") or 0), "read": int(cover.get("judged") or 0),
+    return {"who": "memory", "found": found, **({"left": len(every) - len(kept)} if len(every) > len(kept) else {}),
+            "across": result.get("across"), "of": int(cover.get("runs") or 0), "read": int(cover.get("judged") or 0),
             "dropped": int(result.get("dropped") or 0), "failed": str(result.get("failed") or ""), "secs": round(float(result.get("seconds") or 0.0), 1),
             "cost": round(float(result.get("cost") or 0.0), 4)}
 
@@ -232,7 +265,7 @@ def _read(framing: dict, turns: list, brief: dict, recall: Callable, question: s
     written, added = briefs.remember(brief, result.get("found"))
     if added:
         framing = briefs.version(framing, written, by="architect", changed=added, why="memory")
-    return {**framing, "turns": turns + [{**_recall(result), "v": len(framing.get("versions") or [])}]}
+    return {**framing, "turns": turns + [{**_recall(result, written), "v": len(framing.get("versions") or [])}]}
 
 
 def _readings(turns: list) -> tuple:
@@ -252,12 +285,12 @@ def _grounded(proposal, data: str) -> bool:
     return bool(column) and bool(re.search(r"(?<!\w)" + re.escape(column) + r"(?!\w)", data or ""))
 
 
-def ask(llm: Callable, system: str, user: str, read: Callable) -> tuple:
-    """One reply of the model's, as `read` takes it in. A reply that cannot be read is asked for once more. Returns
-    what was read, the calls made and what they cost; raises Failed."""
+def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = EFFORT) -> tuple:
+    """One reply of the model's, as `read` takes it in, asked at `effort`. A reply that cannot be read is asked for
+    once more. Returns what was read, the calls made and what they cost; raises Failed."""
     problem, calls, cost = "", 0, 0.0
     for attempt in range(2):
-        reply, usage = llm(system, user if not attempt else user + "\n\n" + AGAIN.format(problem=problem), effort=EFFORT)
+        reply, usage = llm(system, user if not attempt else user + "\n\n" + AGAIN.format(problem=problem), effort=effort)
         usage = usage or {}
         calls, cost = calls + 1, cost + float(usage.get("cost") or 0.0)
         if usage.get("declined"):
@@ -277,7 +310,9 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     made from the question, from an answer, or from a check against the data), the conversation with both messages,
     the calls counted. Where the reply asks for lookups, `look` answers them - clean lookups in, an answer to each
     out - and the round is the conversation's last turn: the next exchange, with no message, reads it. What the reply
-    proposes enters the brief only where it names a column of the data, and a brief takes two proposals in all.
+    proposes enters the brief only where it names a column of the data, and a brief takes two proposals in all. A
+    wording of the question the reply writes is kept only where it stands in a message the person has read, or in
+    one of their own: the question then stands as worded, and the host makes it the run's.
 
     The saved analyses are read by `recall(question, the brief as the Architect reads it)`, which gives the reader's
     result: once after a message of the person's, READINGS times in a brief. Where the person asked for it - `asked`,
@@ -295,11 +330,15 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     if said:
         turns.append({"who": "person", "text": said})
     brief = briefs.latest(framing) or {"question": run.question}
+    question = brief.get("question") or run.question          # as it stands: the person's own, or a wording of the Architect's they agreed to
     in_all, since = _readings(turns)
     reads = recall is not None and in_all < READINGS and not since
     if asked and reads:
-        return _read(framing, turns, brief, recall, run.question)
-    got, calls, cost = ask(llm, SYSTEM, prompt(run.question, brief, turns, data, earlier(nb, run.id), saved), parse)
+        return _read(framing, turns, brief, recall, question)
+    as_asked = ((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or ""
+    got, calls, cost = ask(llm, SYSTEM, prompt(question, brief, turns, data, earlier(nb, run.id), saved, as_asked), parse)
+    if not _stood(got["brief"].get("question"), turns):       # a wording the person has not read is not their question
+        got["brief"] = {k: v for k, v in got["brief"].items() if k != "question"}
     facts = {f["k"]: (f["about"], f["fact"], f["ran"]) for t in turns if t.get("who") == "check" for f in t.get("found", [])}
     made_before = int(framing.get("proposed") or 0)
     proposals = [p for p in got["propose"] if _grounded(p, data)][:max(0, PROPOSALS - made_before)]
@@ -318,5 +357,5 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
         turns.append(_check(got["lookups"], written, len(facts), look))
     framing = {**framing, "turns": turns, "calls": made}
     if reads and got["recall"] and not nb.path(str(run.id))[:-1]:      # on a question that follows an analysis only the person asks (decision 19)
-        return _read(framing, turns, written, recall, run.question)
+        return _read(framing, turns, written, recall, written.get("question") or question)
     return framing

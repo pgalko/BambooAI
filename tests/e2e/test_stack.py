@@ -692,17 +692,19 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
         const top = document.elementFromPoint(box.left + box.width / 2, box.top + 24), under = document.elementFromPoint(8, innerHeight / 2);      // what a click would reach: the dialog, and beside it the scrim
         return { title: m.querySelector('.title').textContent, sub: m.querySelector('.sub').textContent,
                  heads: [...m.querySelectorAll('.markdown-content h2')].map(h => h.textContent), text: m.querySelector('.markdown-content').textContent,
-                 folds: [...m.querySelectorAll('.ar-code summary')].map(x => x.textContent), agreed: (m.querySelector('.ar-code pre.said') || {}).textContent || '',
+                 folds: [...m.querySelectorAll('.ar-code summary')].map(x => x.textContent), said: [...m.querySelectorAll('.ar-code pre.said')].map(x => x.textContent),
                  code: [...m.querySelectorAll('.ar-code pre:not(.said)')].map(x => x.textContent).join(' '), folded: [...m.querySelectorAll('.ar-code')].every(d => !d.open),
                  seen: box.width > 400 && box.top >= 0 && box.bottom <= innerHeight && !!top && m.contains(top) && under === m }; }""")
     page.click("#savedAnalysisModal .ui-dlg-h .x")
     shut = page.evaluate("() => getComputedStyle(document.getElementById('savedAnalysisModal')).display")
     check("the coach ticks a passage: one more version, theirs, the box ticked and the other left empty. Open shows the analysis the passage comes from in a dialog, beside the brief: what was asked, "
-          "the day, the data and how it was saved, the report with the passage in it, and folded under it the brief it ran under and the code of its cells - on screen, over the page; its cross closes "
-          "it, and the brief is as it was",
+          "the day, the data and how it was saved, the report with the passage in it, and folded under it the conversation its brief came from - the coach's messages under You - the brief it ran under and the "
+          "code of its cells - on screen, over the page; its cross closes it, and the brief is as it was",
           b2["v"] == "v5" and b2["why"] == "changed by you" and b2["changed"] == [f"saved.{mine}"] and [line["box"] for line in s2["lines"]] == (["ticked", "unticked"] if mine == 0 else ["unticked", "ticked"])
           and dlg["title"] == mod.BRIEF_ANSWER and dlg["sub"] == f"{day} · {data} · picked" and "Against the brief" in dlg["heads"] and "Did not fit" in dlg["heads"] and quote in dlg["text"]
-          and dlg["folds"] == ["Brief", "Code"] and dlg["agreed"].startswith("Decision: ") and "left to you" not in dlg["agreed"]
+          and dlg["folds"] == ["Conversation", "Brief", "Code"] and framed.get("conversation") == f"Person: {mod.BRIEF_ANSWER}\nArchitect: {mod.ARCHITECT_READY}"
+          and dlg["said"][0] == f"You: {mod.BRIEF_ANSWER}\nArchitect: {mod.ARCHITECT_READY}"
+          and dlg["said"][1].startswith("Decision: ") and "left to you" not in dlg["said"][1]
           and "BRIEF_DIFF" in dlg["code"] and dlg["folded"] and dlg["seen"] and shut == "none" and brief_on_screen(page) == b2, (b2, s2, dlg, shut))
 
     # a second reading, asked for by the coach - and skipped
@@ -720,12 +722,12 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     m2 = [t for t in f2.get("turns", []) if t["who"] == "memory"]
     rows = [(r["agent"], str(r["chain_id"])) for r in usage_rows(wa, edition, user)[rows0:]]
     check("Look in saved analyses, the coach's own button in the brief: it is said in the conversation, and the reading starts at once - its row under the coach's words, with no message of the "
-          "Architect's before it, the composer held and saying why. Skip ends it: the row says it was skipped, the brief stands as it was, and the Architect goes on. Two readings to a brief: the button is "
-          "gone. On the usage record the brief's chain holds the Architect's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
+          "Architect's before it, the composer held and saying why. Skip ends it: the row says it was skipped, the brief stands as it was, and the Architect goes on. A brief takes four readings: after "
+          "two the button still stands. On the usage record the brief's chain holds the Architect's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
           mid == {"last": "YouLook in my saved analyses.", "wait": False, "row": ["SAVED analyses", f"looking through {len(mem['runs'])}", "Skip"], "under": True,
                   "held": "Your saved analyses are being read"}
           and row2["n"] == 2 and row2["cls"] == "sp-row tool read skipped" and row2["text"][:3] == ["–", "SAVED analyses", "skipped"] and row2["after"] == "ar-msg arch"
-          and t2["said"][-2:] == [["You", "Look in my saved analyses."], ["Architect", mod.ARCHITECT_READY]] and s3["look"] == "" and s3["lines"] == s2["lines"] and b3["v"] == "v5"
+          and t2["said"][-2:] == [["You", "Look in my saved analyses."], ["Architect", mod.ARCHITECT_READY]] and s3["look"] == "Look in saved analyses" and s3["lines"] == s2["lines"] and b3["v"] == "v5"
           and [t["who"] for t in f2.get("turns", [])][-3:] == ["person", "memory", "architect"] and len(m2) == 2 and (m2[1]["failed"], m2[1]["found"]) == ("The person skipped it.", [])
           and len(f2.get("versions", [])) == 5 and f2.get("calls") == 6
           and rows[:9] == [("Architect", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Memory Pieces", str(cid)), ("Memory Reader", str(cid)), ("Architect", str(cid))]
@@ -776,6 +778,60 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           again["state"] == "run" and again["v"] == "v2" and again["measure"] == "yield" and again["pens"] == 0 and not again["start"] and again["versions"] == 2
           and before2["v"] == "v1" and before2["measure"] == "protein content of the grain"
           and inside["said"] == [["You", mod.BRIEF_ANSWER], ["Architect", mod.ARCHITECT_READY]], (again, before2["v"], before2["measure"], inside))
+def walk_tutor(page, mod, wa, user):
+    """The Architect as a tutor (2026-11-17): a bare request, with nothing loaded. The Architect says what could be looked at, in a message of several lines with choices, and the message stands in
+    the conversation as it was written. The question said back and agreed to is the brief's question and the run's, and the Architect reads it so from then on; a wording nobody has read is not
+    kept; a wording the coach gives is."""
+    page.evaluate("handleNewConversation()")
+    page.wait_for_url("**/?new=true", timeout=60000)
+    page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+    page.app_ready()
+    page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+    if page.evaluate("() => document.getElementById('architectSwitch').getAttribute('aria-pressed')") != "true":
+        page.click("#architectSwitch")
+    page.fill("#queryInput", mod.TUTOR_QUESTION)
+    page.click("#submitQuery")
+    page.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+    architect_said(page, 1)
+    tid, cid = page.evaluate("() => [currentData.thread_id, currentData.chain_id]")
+    wording = mod.TUTOR_QUESTION + ", season by season"
+    back = mod.ARCHITECT_BACK.format(wording=wording)
+    t0 = talk_on_screen(page)
+    lines = page.evaluate("() => { const m = document.querySelector('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)'), who = m.querySelector('.who').getBoundingClientRect().height;"
+                          " return [getComputedStyle(m).whiteSpace, Math.round((m.getBoundingClientRect().height - m.querySelector('.ar-choices').getBoundingClientRect().height - who) / 19.5)]; }")
+    tell(page, choice=0)
+    t1, b1 = talk_on_screen(page), brief_on_screen(page)
+    check("a bare request: the Architect says what could be looked at, in a message of several lines with choices; the conversation shows the message as written, line for line. The coach picks one, "
+          "and the question is said back, with its own choices - nothing is written yet: the brief stands at its first version, under the question as it was asked",
+          t0["said"] == [["You", mod.TUTOR_QUESTION], ["Architect", mod.TUTOR_FIRST]] and t0["choices"] == mod.TUTOR_CHOICES and lines[0] == "pre-wrap" and lines[1] >= 4
+          and t1["said"][-2:] == [["You", mod.TUTOR_CHOICES[0]], ["Architect", back]] and t1["choices"] == mod.ARCHITECT_YES
+          and b1["v"] == "v1" and b1["title"] == mod.TUTOR_QUESTION, (t0, lines, t1["said"][-2:], t1["choices"], b1["v"], b1["title"]))
+    tell(page, choice=0)
+    t2, b2, rec2 = talk_on_screen(page), brief_on_screen(page), thread_run(wa, user, tid, cid)
+    asked2 = page.evaluate("() => responses[currentResponseIndex].queryText")
+    tell(page, mod.ARCHITECT_UNREAD)
+    b3, rec3 = brief_on_screen(page), thread_run(wa, user, tid, cid)
+    own = "Plot regime C beside regime A"
+    tell(page, mod.ARCHITECT_OWN + own)
+    b4, rec4 = brief_on_screen(page), thread_run(wa, user, tid, cid)
+    page.click("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt >> nth=-1")
+    page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000)
+    read = page.inner_text("#userInstructions")
+    page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+    v2 = rec2.get("framing", {}).get("versions", [])
+    check("the coach agrees: the wording is the brief's question - a version of the Architect's, the headline marked as changed - and the run's question on the record; the conversation still opens on "
+          "the question as it was asked, and the first version keeps it",
+          b2["v"] == "v2" and b2["why"] == "the Architect, from your answer" and b2["title"] == wording and b2["changed"] == ["question"] and rec2.get("question") == wording and asked2 == wording
+          and t2["said"][0] == ["You", mod.TUTOR_QUESTION] and t2["said"][-2:] == [["You", mod.ARCHITECT_YES[0]], ["Architect", mod.ARCHITECT_WRITTEN]]
+          and [(v["by"], v.get("why"), v["changed"], v["brief"]["question"]) for v in v2] == [("person", None, [], mod.TUTOR_QUESTION), ("architect", "answer", ["question"], wording)],
+          (b2, rec2.get("question"), asked2, t2["said"][-2:], v2))
+    check("a wording the Architect writes that nobody has read is not kept: the brief and the run's question stand. A wording the coach gives in a message is kept as given; the Architect then reads "
+          "the question as it stood, with how it was first asked - and, nothing being loaded, that there is no data",
+          (b3["v"], b3["title"], rec3.get("question")) == ("v2", wording, wording) and (b4["v"], b4["title"], rec4.get("question")) == ("v3", own, own)
+          and mod.ARCHITECT_UNREAD_WORDING not in json.dumps(rec4) and f"QUESTION:\n{wording}\n(first asked as: {mod.TUTOR_QUESTION})\n\nBRIEF (version 2):" in read and read.startswith("DATA:\n(no dataset attached"),
+          (b3["v"], b3["title"], b4["v"], b4["title"], rec4.get("question"), read[:300]))
+
+
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')
@@ -1921,6 +1977,10 @@ def main():
             # the saved analyses in the Architect (2026-11-16, docs/ARCHITECT_DESIGN.md §3.7): the analysis it framed is saved,
             # and a question it bears on is framed in a workflow of its own
             walk_saved(page, st, mod, wa, edition, USER, *framed)
+            errs = errs + page.evaluate("window.__stackErrors || []")
+
+            # the Architect as a tutor (2026-11-17): the question worked out in the conversation, with nothing loaded
+            walk_tutor(page, mod, wa, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 

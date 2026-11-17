@@ -1583,16 +1583,18 @@ try:
                 "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B is above A\n\n## Answer\nB is above A [cell 1].\n\n## Against the brief\n- Expected: met [cell 1].\n- Would change their mind: not seen.\n- Chance: not examined.\n\n## Did not fit\nNothing.\n"]
     _n0 = len(state["calls"])
     state.update(i=0, script=_BRIEFED); BAMBOO.output_manager.add_user_input("Is B above A?")
-    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=None, mode="deep", brief={"version": 2, "decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "junk": 1})
+    BAMBOO.pd_agent_converse(thread_id="1077", chain_id=None, mode="deep", brief={"version": 2, "question": "A question the brief was written for", "decision": "which arm to keep", "expects": "B above A",
+                                                                                 "fixed": {"measure": "x"}, "junk": 1})
     _bev = []
     while not q.empty(): _bev.append(json.loads(q.get()))
     _brun = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
     _bprompt = next((u for a, u in state["calls"][_n0:] if "TASK: turn 1" in u), "")
     _bfile = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][_brun.id]
     _banswer = str(next((e.get("data") for e in _bev if e.get("type") == "answer"), ""))
-    check("the brief through the instance: the analyst reads it under the question; the run and the thread file keep it in its known shape with what the report says against it; the report the page receives has the two parts",
+    check("the brief through the instance: the analyst reads it under the question that was asked - a run that was not framed keeps its own, whatever question the brief carries; the run and the thread file keep the brief in its known shape with what the report says against it; the report the page receives has the two parts",
           _brun.status == "answered" and "QUESTION:\nIs B above A?\n\nBRIEF (agreed with the person before this run):\nDecision: which arm to keep\n" in _bprompt and "- measure: x\n- period: left to you" in _bprompt
-          and _brun.brief == {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "version": 2} and _bfile["brief"] == _brun.brief
+          and _brun.brief == {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "version": 2, "question": "A question the brief was written for"} and _bfile["brief"] == _brun.brief
+          and _brun.question == "Is B above A?"
           and _brun.brief_outcome == {"stated": True, "expected": "met", "would_change": "not seen", "checks": ["Chance: not examined."], "did_not_fit": []} and _bfile["brief_outcome"] == _brun.brief_outcome
           and "Against the brief" in _banswer and "Did not fit" in _banswer, (_brun.status, _brun.brief, _brun.brief_outcome, _bprompt[:300]))
     _n1 = len(state["calls"])
@@ -1698,7 +1700,7 @@ try:
     check("/architect/say, the Architect's first turn: a stream that ends on the framing; one model call - its instructions, on the analyst's seat at a lowered effort, logged as the Architect's under the brief's own "
           "chain - whose prompt has the data's description, the analyses the question follows with how the last stood against its brief, the question, the brief as it stands and no conversation yet",
           _st5 == 200 and _ln5[-1] == {"architect": {"framing": _frun2.framing}} and len(state["calls"]) == _n5 + 1 and _seat5 == "Investigator" and _kw5.get("label") == "Architect"
-          and _kw5.get("reasoning_effort") == ("low", "medium") and _sys5 == _arch.SYSTEM and _user5.startswith("DATA:\n") and "EARLIER (the analyses this question follows, oldest first):\n[1] Q: " in _user5
+          and _kw5.get("reasoning_effort") == ("medium", "low") and _sys5 == _arch.SYSTEM and _user5.startswith("DATA:\n") and "EARLIER (the analyses this question follows, oldest first):\n[1] Q: " in _user5
           and "] Q: Is B above A, on x?\n    Found: " in _user5 and "    Against its brief - what they expected: met" in _user5
           and "\n\nQUESTION:\nAnd on the other half?\n\nBRIEF (version 1):\ndecision: which arm to keep\n" in _user5 and _user5.endswith("CONVERSATION:\n(nothing yet)\n\nReply with the JSON object.")
           and _logged(_c2) == ["Architect"], (_st5, _ln5[-1], _seat5, _kw5, _user5[-600:], _logged(_c2)))
@@ -1914,6 +1916,8 @@ try:
     _nbm = _NB3("7301")
     _add3(_nbm, "7302", "Was B above A in spring?", report="# B led in spring\n\nB led A by 3 units [cell 1].", cells=[("gap = b - a", "3\n", ["gap: 3 units"])],
           brief={"decision": "keep the taller arm", "fixed": {"measure": "height"}, "version": 1},
+          framing={"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Which arm led in spring?"}}],
+                   "turns": [{"who": "architect", "text": "What is the answer for?"}, {"who": "person", "text": "To keep the taller arm."}]},
           data={"df_id": "d", "name": "spring.csv", "rows": 9, "date_range": "2026-03-01 to 2026-05-31", "columns": [{"name": "x"}], "load": {"source": "s", "subject": {"id": "p-9", "name": "First Person"}}})
     _NBS3(_su3).save(_nbm)
     _favm = _fav3(_su3, 7301, 7302)
@@ -1962,7 +1966,7 @@ try:
     _sm = _wac.post("/architect/brief", json={"thread_id": _opm["thread_id"], "chain_id": _cm, "brief": _bm, "changed": ["saved.0"]}).get_json()
     check("the exchange after a reading: the Architect reads what the saved analyses hold; the person's tick, sent as the page sends it, is one more version of theirs, and then the analyst receives the passage "
           "as a claim to test",
-          f'\nSaved analyses (1 saved, 1 read through):\n- {_kept_m["when"]} "Was B above A in spring?": "B led A by 3 units" - The same comparison, in spring.\n' in state["architect_seen"][-1][3]
+          f'\nSaved analyses (1 saved, 1 read through):\n- {_kept_m["when"]} "Was B above A in spring?", in its report: "B led A by 3 units" - The same comparison, in spring.\n' in state["architect_seen"][-1][3]
           and "First Person" not in state["architect_seen"][-1][3]
           and (_sm["framing"]["versions"][-1]["by"], _sm["framing"]["versions"][-1]["changed"]) == ("person", ["saved.0"])
           and _bf.render(_bf.agreed(_sm["framing"]["versions"][-1]["brief"])).splitlines()[-2:] == ["Saved analyses the person chose (earlier results: claims to test, not evidence):",
@@ -1977,11 +1981,12 @@ try:
     _built = _wac.get("/architect/saved/7401/7403").get_json()
     os.remove(_favp)
     _mem3.refresh(_su3)
-    check("/architect/saved: a saved analysis as memory holds it, to read beside the brief that names it - the question, the brief it ran under, the report, the code of its cells, how it was saved, the data it ran on and whose it is; the cells are those along its thread up to its own, an earlier step's with them, as a passage's place counts them; one that is not saved is not found, nor is a saved one asked for under another thread",
+    check("/architect/saved: a saved analysis as memory holds it, to read beside the brief that names it - the question, the brief it ran under and the conversation that brief came from, the report, the code of its cells, how it was saved, the data it ran on and whose it is; the cells are those along its thread up to its own, an earlier step's with them, as a passage's place counts them; one that is not saved is not found, nor is a saved one asked for under another thread",
           _one.status_code == 200 and {k: _one.get_json()[k] for k in ("id", "question", "title", "report", "marks", "data")} == {"id": "7301/7302", "question": "Was B above A in spring?", "title": "B led in spring",
               "report": "# B led in spring\n\nB led A by 3 units [cell 1].", "marks": ["picked"], "data": {"name": "spring.csv", "period": "2026-03-01 to 2026-05-31", "person": "First Person"}}
           and _one.get_json()["cells"] == [{"n": 1, "code": "gap = b - a"}] and _one.get_json()["brief"] == "Decision: keep the taller arm\nFixed before the run:\n- measure: height"
-          and (_built["cells"], _built["brief"]) == ([{"n": 1, "code": "def gap(a, b):\n    return b - a"}, {"n": 2, "code": "g = gap(a, b)"}], "")
+          and _one.get_json()["conversation"] == "Person: Which arm led in spring?\nArchitect: What is the answer for?\nPerson: To keep the taller arm."
+          and (_built["cells"], _built["brief"], _built["conversation"]) == ([{"n": 1, "code": "def gap(a, b):\n    return b - a"}, {"n": 2, "code": "g = gap(a, b)"}], "", "")
           and _wac.get("/architect/saved/7401/7403").status_code == 404 and len(_mem3.view(_su3)["runs"]) == 1
           and _wac.get("/architect/saved/7301/9999").status_code == 404 and _wac.get("/architect/saved/1077/" + str(_c2)).status_code == 404
           and _wac.get("/architect/saved/1077/7302").status_code == 404, _one.get_json())
@@ -2033,6 +2038,33 @@ try:
     _t9 = _lnm9[-1]["architect"]["framing"]["turns"]
     check("/architect/say: only `look: true` is the person's request for the saved analyses - with any other word the message is one the Architect replies to",
           [t["who"] for t in _t9][-2:] == ["person", "architect"] and _t9[-1]["text"] == "Say what to look for.", _t9[-2:])
+    # the question said back (0306): a wording the person agreed to is the run's question - on the record, and what the Architect reads next
+    _wording = "Total the hours of each arm, and compare them."
+    _cw = _opm2["chain_id"]
+    state["architect"] = [json.dumps({"say": "Then the question could be:\n\nTotal the hours of each arm - and compare them.\n\nIs that what you mean?", "brief": {"question": _wording}})]
+    _stw1, _lnw1 = _say({"thread_id": _opm2["thread_id"], "chain_id": _cw, "text": "The hours of each arm."})
+    _unread = (BAMBOO.notebook.runs[str(_cw)].question, len(_lnw1[-1]["architect"]["framing"]["versions"]), _lnw1[-1]["architect"]["framing"]["turns"][-1]["text"])
+    state["architect"] = [json.dumps({"say": "Written. Look at which arm has more.", "brief": {"question": _wording}}), json.dumps({"say": "Ready when you are."})]
+    _stw2, _lnw2 = _say({"thread_id": _opm2["thread_id"], "chain_id": _cw, "text": "Yes."})
+    _fw = _lnw2[-1]["architect"]["framing"]
+    _stw3, _lnw3 = _say({"thread_id": _opm2["thread_id"], "chain_id": _cw, "text": "Good."})
+    _filew = json.load(open(os.path.join(work, "storage", "u1", "threads", f'{_opm2["thread_id"]}.json'), encoding="utf-8"))["runs"][str(_cw)]
+    check("/architect/say, the question said back: the Architect's message keeps its lines; a wording it writes in the reply that first says it is passed over - the person has not read it - and once they "
+          "agreed it is a version of the Architect's, the run's question on the record, and the question the Architect reads from then on, with how it was first asked",
+          _unread == ("And the hours?", 1, "Then the question could be:\n\nTotal the hours of each arm - and compare them.\n\nIs that what you mean?")
+          and (_fw["versions"][-1]["by"], _fw["versions"][-1]["changed"], _fw["versions"][-1]["brief"]["question"]) == ("architect", ["question"], _wording)
+          and _fw["versions"][0]["brief"]["question"] == "And the hours?" and BAMBOO.notebook.runs[str(_cw)].question == _wording and _filew["question"] == _wording
+          and f"\n\nQUESTION:\n{_wording}\n(first asked as: And the hours?)\n\nBRIEF (version 2):" in state["architect_seen"][-1][3], (_unread, _fw["versions"][-1], _filew["question"]))
+    _keep_s4, _n30 = (state["script"], state["i"]), len(state["calls"])
+    state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# Hours\n\n## Answer\nNothing was computed.\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."])
+    BAMBOO.output_manager.add_user_input("And the hours?")                 # a page that still holds the question as it was first asked
+    while not q.empty(): q.get()
+    BAMBOO.pd_agent_converse(thread_id=_opm2["thread_id"], chain_id=None, mode="deep", run_id=_cw)
+    state["script"], state["i"] = _keep_s4
+    _wprompt = next((u for a, u in state["calls"][_n30:] if "TASK: turn 1" in u), "")
+    check("Start analysis on a brief whose question was said back: the Analyst is asked the wording the person agreed to - the brief's question - whatever the page sends, and the run keeps it",
+          ("\n\nQUESTION:\n" + _wording + "\n\nYOUR NOTE") in _wprompt and "And the hours?" not in _wprompt
+          and BAMBOO.notebook.runs[str(_cw)].question == _wording and BAMBOO.notebook.runs[str(_cw)].status == "answered", (_wprompt[:400], BAMBOO.notebook.runs[str(_cw)].question))
     BAMBOO.load_params = _lp3
     BAMBOO.cleanup()
     BAMBOO.log_and_call_manager.charge_for_completed_query = _keep_charge

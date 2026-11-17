@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.18 (2026-11-16; released as 2.8.0, 0305; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304)
+# The Architect and memory from saved analyses — design v0.19 (2026-11-17; released as 2.8.0, 0305, then 0306; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306)
 
 Release 2.8 does three things.
 
@@ -47,6 +47,9 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 26 | Saved work in the old record format is left out. Memory starts from what was saved in the current format, and grows from there. |
 | 27 | The memory defaults of §3.1: the three marks, runs added after a save, a single run removed, across athletes, what is not memory. |
 | 28 | The Architect and the memory reader use the Analyst's model of the chosen tier. The reader's second model uses the fast model the Knowledge Distiller seat used. |
+| 29 | The Architect talks as a tutor: it explains, suggests and offers choices, in no fixed order, never asks again what the coach could not answer, and stays for as long as the coach wants (2026-11-17, after the first live run; §2.16). |
+| 30 | The question worked out in the conversation is said back. Once the coach agrees, that wording is the run's question (§2.16). |
+| 31 | The conversation of a saved analysis is memory, with its brief and its report (§3.9). |
 
 ## 2. The Architect
 
@@ -84,6 +87,10 @@ Rules:
 - An earlier result enters as a claim to test, never as a fact. (proposed)
 
 ### 2.3 The conversation
+
+*Changed on 2026-11-17, after the product owner's first live run: the fixed order and the two-sentence message
+made the Architect a form to fill in. It talks as a tutor now (decision 29, §2.16). What follows is the design as
+it was first agreed.*
 
 Agreed:
 
@@ -531,6 +538,88 @@ shows its five questions; they can be read, not run. Nothing follows from such a
 Not built: a way to stop a set in flight. Questions written after an analysis was saved are not in its saved copy
 until it is saved again: a save stores the pane as it stands then.
 
+### 2.16 The Architect as a tutor — built (0306, 2026-11-17)
+
+**Why.** The first live run was a bare request from someone new to the subject. The Architect of §2.12 asked for
+the decision, then the view, then the expectation, in two sentences each; it asked again after "I am not sure",
+and could add nothing of its own. The instructions said so: a fixed order, no comment on an answer, nothing added.
+The product owner's word for the result was *mechanical*. What was asked for: a patient tutor that explains,
+nudges with questions and suggestions, lets the insight that frames the question come at any point, and stays
+until the coach is ready.
+
+**Its instructions** (`analyst/architect.md`, rewritten). It finds out why the person came: to decide something,
+to test a view, or to learn. Someone who knows what they want gets there fast, with the questions of §2.3 in the
+most useful order and none that does not fit. Someone finding their way gets its help for as long as they want
+it. How it talks:
+
+- One step a message: a few sentences and at most one question. It takes up what was just said.
+- It gives before it asks: where the person cannot yet say what they want, it explains the little they need next.
+- It asks only what the person can answer now. "I do not know" is an answer, and is never asked again: it offers
+  an explanation, directions to choose from, or a suggestion.
+- Choices wherever they make answering easier, with a way to say "I cannot tell".
+- No fixed order. A part of the brief is written the moment the person's words give it.
+- It never hurries the person. They start the analysis when they are ready.
+
+It may explain the subject from what is generally known, and suggest a direction, a setting or a wording, which
+is the person's once they take it. It asks for a guess of the result, and does not say whether the guess is right.
+What stays as it was: the brief holds what the person said or accepted; the Architect does not run the analysis,
+give its result, or say what the person's data will show; a mark stands only on a lookup; what it proposes and
+what the saved analyses hold stay unticked.
+
+**The question, said back** (decision 30). When the two have worked out what the person wants, the Architect
+says the question back in plain words and asks whether it is what they mean. On agreement it writes the wording as
+`question`, a part of the brief like any other (`brief.write()`), and tells the person what to look for in the
+result. The engine keeps a wording only where the person has read it: it stands, word for word - case and
+punctuation aside - in an earlier message of the Architect's, or in a message of the person's own (`_stood()`). A
+wording written in the reply that first says it, or one that stands nowhere, is passed over; the rest of the
+reply is taken in. The host makes the wording the run's question (`architect_say`), and the analysis of a framed
+run asks its brief's question whatever the page sends, so the Analyst receives it and the record is saved under it. The first version keeps the question as it was asked, the conversation on the page
+opens on it, and the Architect reads both: `QUESTION` with a line *(first asked as: ...)*.
+
+**The limits.**
+
+| | Was | Is |
+|---|---|---|
+| Replies in one brief (`TURNS_MAX`) | 20 | 200 |
+| A message (`SAY_CHARS`) | 600 characters, on one line | 1,500 characters, its lines kept (`_say()`) |
+| Readings of the saved analyses in one brief (`READINGS`) | 2 | 4 |
+| Passages a brief holds (`MAX["saved"]`) | 6 | 10: what one reading returns at most |
+| Effort (`EFFORT`) | low, else medium | medium, else low; the template's Architect seat is set to medium |
+
+Next questions keep the lowered effort they had (`next_questions.EFFORT`).
+
+**A message of several lines.** The reply's JSON is read with a new line inside a string taken as it is
+(`reply_object()`), since a model that writes paragraphs often writes them so. The page shows a message as written
+(`white-space: pre-wrap`, as before).
+
+**What the Architect reads of the conversation** gains the choices it offered, under its own message: the person
+may answer "the second one".
+
+**The saved analyses in a conversation.**
+
+- *When.* The Architect has them read as soon as it can tell what the question is about - most often with its
+  first message, which then only says that it is having a look. One reading serves one direction of the
+  conversation. On a follow-up only the coach asks, as before (decision 19).
+- *What it says.* What the person did, said and found then, in plain words, and when; no count of passages. It lets
+  them choose: build on it, or go another way. It brings a passage up again later, when the person heads for
+  something an earlier analysis tried or warned against. Where nothing was found it says so in a few words.
+- *Room in the brief* (`brief.remember()`). A reading's passages enter the brief; where that makes more than ten,
+  the passages the coach did not tick and this reading did not find make room, the oldest first. A ticked one
+  stays. The Architect is told of the passages the brief holds (`_recall()`), so it speaks of what the coach can
+  tick; one that found no room - the brief full of ticked passages - is counted in a line of its own.
+- Each passage comes with where it stands: the report, the brief, the conversation or a cell (`recalled()`).
+
+**On the page.** The conversation opens on the question as it was first asked; the Brief tab's headline is the
+question as it stands, marked as changed in the version that changed it. **Look in saved analyses** stays through
+four readings.
+
+**The stack.** The scripted Architect answers a bare request (`TUTOR_QUESTION`) with what could be looked at, in a
+message of several lines with choices, says the question back, and writes the wording agreed to; it also writes
+one nobody has read, which the engine does not keep. The walk's `walk_tutor` checks it on the page with nothing
+loaded.
+
+Not run against a live model: the instructions are judged on the dev box, and tuned from the run logs.
+
 ## 3. Memory from saved analyses
 
 ### 3.1 What counts (agreed)
@@ -826,6 +915,27 @@ first two on the tier's Analyst model, the third on the model that reads the doc
 Analyst's seat, the second model to the `Reader` seat. In Usage a reading made for a brief is part of that brief's
 analysis; one asked from the command line is a chain of its own, *Saved analyses read*.
 
+### 3.9 The conversation in memory — built (0306, 2026-11-17)
+
+Decision 31. A saved analysis that was framed has a conversation: what the person and the Architect said before
+it ran. The record held it already (`Run.framing`); the view now holds it too, so the reader can search it and
+quote from it, and the tutor can say what the person wanted and knew then.
+
+- **The view** (`memory.FORMAT` 3). A run holds `conversation`: each message under `Person:` or `Architect:`, the
+  question as it was first asked before them; `""` where the run was not framed, or framed without a word said.
+  Up to 40,000 characters (`SAID`), the cut said. What was looked up or read meanwhile is no part of it: the brief
+  holds the marks, and a passage of another analysis stands in its own.
+- **Search.** `search()` reads it, at the brief's weight, and a passage can be a line of it.
+- **The reader.** `conversation` is a part the second model can be given (`PARTS`), under `CONVERSATION:` after
+  the report, and a place a quote can stand in (`places()`); a run of words the brief holds too stands in the
+  brief. `reader.md` lists the key, and asks that the note of such a passage says who said it: it is something
+  said, not something found.
+- **The page.** `/architect/saved` returns it, and the Open dialog folds it under the report, before the brief.
+- **The Analyst.** `SHOW SAVED k` does not show it: the passage the coach ticked is in the BRIEF block with where
+  it stands, and the analysis is opened for its method.
+
+A conversation is memory when its analysis is saved. One that was never run, or run and not saved, is not.
+
 ## 4. How we will know it works
 
 **The Architect** (agreed in substance)
@@ -892,8 +1002,9 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
 ## 7. The build
 
 The brief works by hand before the Architect talks, and memory is readable before a model reads it, so each part can
-be judged on its own. Every patch leaves the app working. Until the release patch the series goes to the private
-repository and the dev box only.
+be judged on its own. Every patch leaves the app working. Until the release steps are taken the series goes to the
+private repository and the dev box only; what the live tests change comes as patches after 0305, and the tag goes
+on the last one.
 
 | Patch | Ships | State |
 |---|---|---|
@@ -909,6 +1020,7 @@ repository and the dev box only.
 | 0303 | Memory in the Architect: the row with its live count and Skip, the passages found in the brief to tick, Open, *Look in saved analyses* (§3.7). | built |
 | 0304 | The Analyst opens a saved analysis the brief names. The brief of a saved analysis is memory. The new seats in the templates and in Usage. README (§3.8). | built |
 | 0305 | Release 2.8.0. | built |
+| 0306 | After the first live run: the Architect as a tutor, the question said back, the conversation of a saved analysis in memory (§2.16, §3.9). | built |
 
 ## 8. Not in this release
 

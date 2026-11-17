@@ -73,6 +73,17 @@ ARCHITECT_TICK = " What I proposed under Also check can be ticked."
 # the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Architect says while they are read, and when passages were found
 ARCHITECT_LOOKING = "I am looking in your saved analyses."
 ARCHITECT_FOUND = " What your saved analyses hold is in the brief, to tick."
+# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16): what could be looked at, the question said back, the wording written
+TUTOR_QUESTION = "Plot the two regimes side by side"                 # a bare request: the question is worked out in the conversation
+TUTOR_FIRST = ("Two regimes can be put side by side in more than one way. What should the plot show?\n\n"
+               "- what each regime gives, season by season;\n- how the plots of one regime spread against the other's.")
+TUTOR_CHOICES = ["Season by season", "The spread", "I cannot tell yet"]
+ARCHITECT_BACK = "Then the question could be:\n\n{wording}\n\nIs that what you mean?"
+ARCHITECT_YES = ["Yes, that is it", "Leave it as it is"]
+ARCHITECT_WRITTEN = "Written. Start the analysis when you are ready, or go on."
+ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own
+ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes one nobody has read
+ARCHITECT_UNREAD_WORDING = "A wording nobody has read"
 SAVED_JUDGE = "What was compared, and what was found?"
 SAVED_NOTE = "An earlier analysis that names what this question asks about."
 SAVED_QUESTION = "Is regime C still worth switching to from regime A?"      # a question the briefed analysis, once saved, bears on
@@ -362,15 +373,23 @@ class Scenario:
         With every line marked it says the brief is ready - and, while its proposal is unticked, that it can be
         ticked. On a question that follows no analysis, where the person has saved analyses, it has them read once:
         with its lookups, or in the place of saying that the brief is ready; right after the reading it says, with
-        the brief ready, that what they hold is in the brief."""
+        the brief ready, that what they hold is in the brief.
+
+        The question worked out in the conversation (2026-11-17): to a bare request (TUTOR_QUESTION) it says what
+        the plot could show, in a message of several lines with choices; the first choice taken, it says the
+        question back, with two choices; when the person agrees it writes that wording as the question. A wording
+        the person gives (ARCHITECT_OWN) it writes as given; left to word it itself (ARCHITECT_UNREAD), it writes
+        one nobody has read - which the engine does not keep."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
-        question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(")
+        question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
         said_so_far = find(r"^CONVERSATION:\n(.*?)\n\nReply with")
         talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
         asked = [key for key, ask in ARCHITECT_ASKS if ("Architect", ask) in talk]
         pair = re.search(r"regime (\w)\b.*\bregime (\w)\b", question)
         writes = {}
+        if not talk and question == TUTOR_QUESTION:
+            return json.dumps({"say": TUTOR_FIRST, "choices": TUTOR_CHOICES})
         if not talk:
             other = re.match(r"(?i)use (\w+) instead", question)
             if other and "The analyst stopped and asked:" in user:
@@ -379,6 +398,12 @@ class Scenario:
                 writes["fixed"] = {"comparison": f"regime {pair.group(1)} against regime {pair.group(2)}"}
         elif talk[-1][0] == "Person":
             said, before = talk[-1][1].strip(), talk[-2][1] if len(talk) > 1 and talk[-2][0] == "Architect" else ""
+            if said == TUTOR_CHOICES[0]:
+                return json.dumps({"say": ARCHITECT_BACK.format(wording=question.rstrip("?.") + ", season by season"), "choices": ARCHITECT_YES})
+            back = re.search(r"\n\n(.*)\n\nIs that what you mean\?\n\(choices offered: .*\)\nPerson: " + re.escape(ARCHITECT_YES[0]) + r"\Z", said_so_far)
+            wording = back.group(1) if back else said[len(ARCHITECT_OWN):] if said.startswith(ARCHITECT_OWN) else ARCHITECT_UNREAD_WORDING if said == ARCHITECT_UNREAD else ""
+            if wording:
+                return json.dumps({"brief": {"question": wording}, "say": ARCHITECT_WRITTEN})
             part = next((key for key, ask in ARCHITECT_ASKS + (("thinks", ARCHITECT_NOW),) if ask == before), None)
             measure = re.match(r"(?i)the measure is (.+?)\.?$", said)
             if measure:
@@ -424,7 +449,7 @@ class Scenario:
                 failed.append(f"{text.rstrip('.')} ({fact.split(': ', 1)[-1]})")
         proposes = bool(marks) and ARCHITECT_PROPOSES["text"] not in user and re.search(r"^soil: ", user, re.M) is not None
         unticked = proposes or f"- {ARCHITECT_PROPOSES['text']} [proposed by you, not accepted]" in user
-        holds_some = read_now and re.search(r'^- \S+ ".*": ".*"', since, re.M) is not None      # the reading just made found passages
+        holds_some = read_now and re.search(r'^- \S+ ".*".*: ".*"', since, re.M) is not None    # the reading just made found passages
         reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY + (ARCHITECT_TICK if unticked else "") + (ARCHITECT_FOUND if holds_some else "")}
         if proposes:
             reply["propose"] = [ARCHITECT_PROPOSES]

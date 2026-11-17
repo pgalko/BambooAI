@@ -36,6 +36,7 @@ SAID = {"comparison": "Fixed, what was compared", "measure": "Fixed, the measure
         "proposal": "Proposed, not tested", "anchor": "Rests on", "would_change": "Would change their mind", "misfit": "Did not fit",
         "asked": "Asked", "found": "Found", "earlier": "Found earlier"}
 QUESTIONS = 5                    # questions in one set, at most
+EFFORT = ("low", "medium")       # one short reply over a short prompt: the seat's effort is lowered for it
 MOST = 6                         # lines of one kind, at most
 BEFORE = 25                      # questions proposed before that the prompt carries, the newest
 LINE_CHARS, QUESTION_CHARS, TITLE_CHARS = 400, 600, 60
@@ -121,7 +122,7 @@ def propose(llm: Callable, nb: Notebook, run: Run, level: str, data: str = "") -
     reply cannot be read. Returns the set as it is kept with the run - {"level", "questions": [{"title", "text",
     "from": [the lines it comes from, each {"kind", "text"}]}], "cost", "at"}; raises architect.Failed."""
     lines, own = sources(nb, run, level)
-    got, _, cost = architect.ask(llm, SYSTEM, prompt(nb, run, level, lines, own, data), lambda reply: parse(reply, len(lines), own, level == "blend"))
+    got, _, cost = architect.ask(llm, SYSTEM, prompt(nb, run, level, lines, own, data), lambda reply: parse(reply, len(lines), own, level == "blend"), EFFORT)
     return {"level": level, "questions": [{**q, "from": [lines[n - 1] for n in q["from"]]} for q in got], "cost": round(cost, 4), "at": time.time()}
 
 

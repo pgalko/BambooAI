@@ -1068,7 +1068,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #savedAnalysisModal .ar-code summary { cursor: pointer; }
 #savedAnalysisModal .ar-code .cell-n { margin-top: 8px; font-size: 11px; color: var(--text-quaternary); }
 #savedAnalysisModal .ar-code pre { margin: 3px 0 0; padding: 8px 10px; border-radius: 5px; background: var(--bg-primary); font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--text-primary); overflow-x: auto; }
-#savedAnalysisModal .ar-code pre.said { font-family: inherit; white-space: pre-wrap; }      /* the brief it ran under: words, not code */
+#savedAnalysisModal .ar-code pre.said { font-family: inherit; white-space: pre-wrap; }      /* the conversation and the brief it ran under: words, not code */
 
 /* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
    diagram, and the panel. Past the rail and the top bar, like the thread map drawer, so the chain navigator stays usable. ---- */

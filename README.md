@@ -91,11 +91,12 @@ Other specialised roles handle supporting tasks such as document reading, figure
 ### Framing the question
 
 A sound analysis of the wrong question still misleads, and nothing later in a run catches a wrong frame. The
-optional **Architect** works on the question before any code runs. With the user it writes a short **brief**: the
-decision the answer is for, what the user thinks and expects, what the view rests on, what else could explain the
-result, and what is fixed before the run. It checks what the brief rests on against the loaded data, and it can
-look through the user's own saved analyses for earlier work that bears on the question. The Analyst is then held
-to the brief, and the report says how the result stands against it.
+optional **Architect** works on the question before any code runs. It talks with the user as a tutor would: it
+explains what the question needs, offers directions, and says the question back in plain words. What comes of it
+is a short **brief**: what the answer is for, what the user thinks and expects, what the view rests on, what else
+could explain the result, and what is fixed before the run. It checks what the brief rests on against the loaded
+data, and it looks through the user's own saved analyses for earlier work that bears on the question. The Analyst
+is then held to the brief, and the report says how the result stands against it.
 
 ### From exploration to reusable analysis
 
@@ -256,9 +257,16 @@ without the image, and the app indicates that limitation.
 Switch **Architect** on beside the mode control and type a question. Nothing runs yet: a brief opens on its own
 tab, and the conversation with the Architect takes the left pane.
 
-- **The brief.** The Architect writes what the question already states and asks for what is missing, one question
-  a message, with choices to click where it can offer them: what you will do differently depending on the answer,
-  what you think is going on and why, what you expect to see. A part you do not want to state stays empty.
+- **The conversation.** The Architect talks as a patient tutor. It finds out why you came - to decide something,
+  to test a view, or to learn - explains what you need in order to say what you are after, and offers choices to
+  click. It keeps no fixed order, does not ask again what you could not answer, and stays for as long as you want
+  to explore.
+- **The brief.** It writes each part the moment your words give it: what the answer is for, what you think is
+  going on and why, what you expect to see. A part that does not fit, or that you do not want to state, stays
+  empty.
+- **The question, said back.** When the two of you have worked out what you want, the Architect says the question
+  back in plain words. Once you agree, that wording is the question the Analyst gets. A wording you have not read
+  is never written.
 - **The check.** What the brief rests on is looked up in the loaded data: counts, lists and totals, nothing more.
   Each line is marked *holds*, *does not hold* or *cannot be checked*, with the numbers beside it.
 - **Other explanations.** The Architect may propose up to two, each from a column the data has. A proposal stays
@@ -284,18 +292,21 @@ The analyses you save are the Architect's memory. A run counts when it is saved 
 picked one, or the origin of a routine - and has a report. Deleting a saved workflow takes it out at once.
 Unsaved runs never come back.
 
-While a brief is written, the saved analyses can be read: on a first question the Architect asks for it once, and
-**Look in saved analyses** in the brief asks at any time, twice a brief at most. A model works through the saved
-record with code, in a sandbox that holds no data, and a second, faster model reads the pieces it names. A reading
-is bounded - 8 replies, 60 calls of the second model, 120 seconds, $0.50 - and **Skip** ends it.
+While a brief is written, the saved analyses can be read: on a first question the Architect asks for it as soon
+as it can tell what the question is about, and **Look in saved analyses** in the brief asks at any time, four
+times a brief at most. A model works through the saved record with code, in a sandbox that holds no data, and a
+second, faster model reads the pieces it names. A reading is bounded - 8 replies, 60 calls of the second model,
+120 seconds, $0.50 - and **Skip** ends it. What is read of a saved analysis: its question, its report, its code
+and results, and - where it was framed with the Architect - its brief and the conversation the brief came from.
 
 - **Passages, quoted exactly.** Each comes with its analysis, the day, where it stands and whose data it ran on.
   Code looks every quote up in the record, and one that is not there word for word is dropped.
 - **Across analyses.** Where your saved analyses went more than one way on something, the ways come with counts,
   and the Architect asks which one this analysis takes.
-- **Your tick.** Passages enter the brief unticked. The Analyst receives the ticked ones as earlier results to
-  test, and can open the analysis a passage comes from: its report and its code. A number from it is history
-  about the data it ran on; where that was another person's data, the Analyst is told so, and not whose.
+- **Your tick.** Passages enter the brief unticked, ten at most: where a later reading brings more, those you
+  did not tick make room. The Analyst receives the ticked ones as earlier results to test, and can open the
+  analysis a passage comes from: its report and its code. A number from it is history about the data it ran on;
+  where that was another person's data, the Analyst is told so, and not whose.
 
 Two tools read the same record from the command line: `python tools/memory_view.py` lists what is saved and what
 counts, and `python tools/memory_ask.py --user <id> "<question>"`, run from the web app's folder, puts one
@@ -366,7 +377,7 @@ defined in the template):
 ```json
 "performance_agent_configs": [
   {"agent": "Analyst",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "xhigh",  "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Architect",                 "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Architect",                 "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 16000, "temperature": 0}},
   {"agent": "Figures",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Rewriter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reader",                    "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},

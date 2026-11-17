@@ -1241,7 +1241,7 @@ class BambooAI:
         logged under its chain as the Architect's, and charged with its analysis - or when the instance is torn down,
         if no analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
         architect.Failed with the reason to show."""
-        from analyst import architect, memory
+        from analyst import architect, brief as briefs, memory
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
         self._skip_saved.clear()
@@ -1256,6 +1256,7 @@ class BambooAI:
             run.framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
                                              self.notebook, run, text, data=self._data_description(), look=self._architect_look,
                                              recall=self._architect_recall, asked=asked, saved=len(memory.view(self._user_storage())["runs"]))
+            run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # a wording the person agreed to is the run's question
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
             run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
@@ -1439,6 +1440,8 @@ class BambooAI:
 
         if question is None and self.webui:
             question = self.output_manager.get_user_input()
+        if framed is not None:
+            question = (brief or {}).get("question") or question      # a framed run is analysed under the question its brief holds, whatever the page sent
         if synthesis:
             question = ("Write the report for the analysis so far on this thread: the answer first, then how it was established, its limitations and next steps. "
                         "The earlier chains' reports are the record, each verified by its own replay: synthesise them, citing [run k]; "

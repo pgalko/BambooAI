@@ -94,9 +94,9 @@ def architect_skip():
 @requires_auth
 def architect_saved(thread_id, run_id):
     """A saved analysis as memory holds it, to read beside a brief that names it: {id, when, kind, question, title,
-    brief, report, marks, data: {name, period, person}, cells: [{n, code}]} - the cells along its thread up to its
-    own, as a passage's place counts them; whose data it ran on is from the thread's record, the view holding no
-    name. 404 when it is no longer saved."""
+    brief, conversation, report, marks, data: {name, period, person}, cells: [{n, code}]} - the cells along its
+    thread up to its own, as a passage's place counts them; whose data it ran on is from the thread's record, the
+    view holding no name. 404 when it is no longer saved."""
     from analyst import memory, reader
     from analyst.notebook import NotebookStore, subject_name_of
     storage = _app().user_path('storage')
@@ -105,7 +105,7 @@ def architect_saved(thread_id, run_id):
     if run is None:
         return jsonify({'error': 'This analysis is no longer among your saved ones.'}), 404
     record = NotebookStore(storage).read(run['thread']).runs.get(run['run'])
-    return jsonify({**{k: run[k] for k in ("id", "when", "kind", "question", "title", "brief", "report", "marks")},
+    return jsonify({**{k: run[k] for k in ("id", "when", "kind", "question", "title", "brief", "conversation", "report", "marks")},
                     "data": {"name": run["data"]["name"], "period": run["data"]["period"], "person": subject_name_of(record.data if record else None)},
                     "cells": [{"n": c["n"], "code": c["code"]} for c in reader.path_cells(view, run)]}), 200
 

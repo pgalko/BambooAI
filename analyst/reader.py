@@ -30,7 +30,7 @@ CAPS = {"turns": 8, "calls": 60, "seconds": 120, "dollars": 0.50, "effort": ("lo
 OUT_CHARS = 4000                 # of what a cell printed, as the reader is shown it
 INDEX = 150                      # runs listed in the prompt, the newest; code reaches the rest
 BATCH_CHARS, PIECE_CHARS = 48_000, 16_000      # what one call of the second model reads, and of one run at most
-PARTS = ("brief", "report", "code", "results", "printed")
+PARTS = ("brief", "report", "conversation", "code", "results", "printed")
 FOUND, QUOTE_MIN = 10, 8         # passages in an answer, at most; a quote shorter than this proves nothing
 NOTE_CHARS, ANSWER_CHARS, QUESTION_CHARS, LABEL_CHARS = 300, 200, 600, 120
 PRELUDE = "import json\nSAVED = json.loads({view!r})\nJUDGED = []"      # the sandbox's first cell: the view as text, so nothing of it is read as code and no file is left behind
@@ -73,9 +73,9 @@ def path_cells(view: dict, run: dict) -> list:
 
 def places(view: dict, run: dict) -> list:
     """The places of a run a quote can stand in, each (its name, its text): `question`, `report`, `brief` - what was
-    agreed before it ran, where it was framed - then `cell n` for each of path_cells(): a cell's code, its result
-    lines and what it printed."""
-    return ([("question", run["question"]), ("report", run["report"]), ("brief", run["brief"])]
+    agreed before it ran, where it was framed - `conversation` - what was said while it was - then `cell n` for each
+    of path_cells(): a cell's code, its result lines and what it printed."""
+    return ([("question", run["question"]), ("report", run["report"]), ("brief", run["brief"]), ("conversation", run["conversation"])]
             + [(f"cell {c['n']}", "\n".join([c["code"], *c["results"], c["printed"]])) for c in path_cells(view, run)])
 
 
@@ -147,13 +147,15 @@ def before(view: dict, run: dict) -> list:
 
 
 def _laid_out(run: dict, cells: list, parts: list) -> str:
-    """A run as text: its id, what was asked, the title, and the parts named - the brief it ran under, the report, and
-    of each cell given the code, the result lines, what was printed."""
+    """A run as text: its id, what was asked, the title, and the parts named - the brief it ran under, the report, the
+    conversation the brief came from, and of each cell given the code, the result lines, what was printed."""
     out = [f"=== {run['id']} ===", f"QUESTION: {run['question']}" if run["question"] else "", f"TITLE: {run['title']}" if run["title"] else ""]
     if "brief" in parts and run["brief"]:
         out.append(f"BRIEF:\n{run['brief']}")
     if "report" in parts:
         out.append(f"REPORT:\n{run['report']}")
+    if "conversation" in parts and run["conversation"]:
+        out.append(f"CONVERSATION:\n{run['conversation']}")
     for cell in cells:
         held = [("code", cell["code"]), ("results", "\n".join(cell["results"])), ("printed", cell["printed"])]
         out += [f"CELL {cell['n']}, {part}:\n{text}" for part, text in held if part in parts and text.strip()]

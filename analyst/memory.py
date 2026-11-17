@@ -3,9 +3,10 @@
 A run is memory when it is saved - its favourite file stands under <storage>/favourites/<thread>/ - and the thread's
 record holds it in the current format, with a report. The view is made from the record alone, never from the saved
 copy of the page: of each run the question, the report, the code and the results, with how it was saved and the
-earlier steps it was built on. It is kept in a file and brought up to date in the background (refresh_soon), never
-built for a reader: view() gives what is kept, less what was removed since. search() is plain keyword search over the
-view. No model is called here.
+earlier steps it was built on - and, where its question was framed first, the brief and the conversation the brief
+came from. It is kept in a file and brought up to date in the background (refresh_soon), never built for a reader:
+view() gives what is kept, less what was removed since. search() is plain keyword search over the view. No model is
+called here.
 """
 from __future__ import annotations
 
@@ -23,12 +24,13 @@ from analyst.routines import RoutineStore
 
 logger = logging.getLogger(__name__)
 
-FORMAT = 2                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it)
+FORMAT = 3                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it; 3: the conversation the brief came from)
 PRINTED = 3000                   # characters kept of what a cell printed: what the analyst is shown of a recent cell
+SAID = 40_000                    # characters kept of the conversation a brief came from
 HEAD = 65536                     # bytes of a favourite file read for its mark: the page's copy, megabytes of it, follows
 MARKS = {"individual": "picked", "trajectory": "alongside"}      # how a chain was saved, as the view says it
 SYNTHESIS = "Write the report for the analysis so far on this thread"      # how a synthesis is asked for (bambooai.py): not the person's words
-FIELDS = (("question", 3), ("title", 3), ("report", 2), ("brief", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
+FIELDS = (("question", 3), ("title", 3), ("report", 2), ("brief", 2), ("conversation", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
 MOST, PASSAGES, PASSAGE_CHARS = 10, 3, 320
 WEAK = 0.25                      # a hit that scores under this part of the best one is left out
 
@@ -81,6 +83,20 @@ def _cells(run: Run) -> list:
             for t in run.cells() if t.step != "figures"]
 
 
+def _conversation(run: Run) -> str:
+    """What the person and the Architect said while the run's question was framed, each message under who said it,
+    the question as it was first asked before them; "" where it was not framed. Up to SAID characters, the cut
+    said. What was looked up or read meanwhile is no part of it: the brief holds the marks, and a passage of
+    another analysis stands in its own."""
+    framing = run.framing or {}
+    said = [(t["who"], str(t.get("text") or "").strip()) for t in framing.get("turns") or [] if t.get("who") in ("person", "architect")]
+    if not any(text for _, text in said):
+        return ""
+    first = ((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or run.question
+    text = "\n".join(f"{'Architect' if who == 'architect' else 'Person'}: {text}" for who, text in [("person", first.strip()), *said] if text)
+    return text if len(text) <= SAID else text[:SAID] + f"\n... ({len(text) - SAID:,} more characters not kept)"
+
+
 def _step(run: Run) -> dict:
     """A run as an earlier step of a saved one: what was asked and the cells - never its report - and, where the
     analyst stopped to ask, what it asked: the next run's question is the person's answer."""
@@ -105,6 +121,7 @@ def _thread(store: NotebookStore, storage_dir: str, thread: str, chains: list) -
                      "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(run.created)), "marks": [mark] if mark else [],
                      "question": "" if synthesis else run.question.strip(), "title": run.title, "report": run.report.strip(), "replay": run.replay_status,
                      "brief": briefs.render(run.brief, record=True),                  # what was agreed before the run, "" where it was not framed
+                     "conversation": _conversation(run),
                      "outcome": {k: run.brief_outcome.get(k, "") for k in ("expected", "would_change")} if run.brief else {},
                      "data": {"name": data.get("name") or "", "rows": data.get("rows"), "period": str(data.get("date_range") or ""),
                               "columns": [c.get("name") for c in data.get("columns") or [] if isinstance(c, dict)], "subject": subject_id_of(data)},
@@ -199,12 +216,12 @@ def view(storage_dir: str) -> dict:
 
 def _view(storage_dir: str, kept: dict) -> dict:
     """The view, for a reader: {format, built, runs, steps, not_read}. `runs` are the saved runs, the newest first,
-    each {id, thread, run, kind, when, marks, question, title, report, replay, data, cells, path} - `marks` of
-    picked, alongside and routine; `path` the ids of the earlier steps it was built on, the first one first; `broken`
-    where one of them is not on record. `steps` holds the earlier steps that are not saved runs themselves, by id:
-    {question, cells}. `not_read` counts the saved chains left out, by reason. What was removed since the file was
-    written is left out: a run whose favourite file is gone is no memory, and stays only as a step of the saved runs
-    built on it."""
+    each {id, thread, run, kind, when, marks, question, title, report, replay, brief, outcome, conversation, data,
+    cells, path} - `marks` of picked, alongside and routine; `path` the ids of the earlier steps it was built on,
+    the first one first; `broken` where one of them is not on record. `steps` holds the earlier steps that are not
+    saved runs themselves, by id: {question, cells}. `not_read` counts the saved chains left out, by reason. What
+    was removed since the file was written is left out: a run whose favourite file is gone is no memory, and stays
+    only as a step of the saved runs built on it."""
     routines = RoutineStore(storage_dir).by_origin()
     runs, steps, not_read = [], {}, {}
     for thread, part in kept["threads"].items():
@@ -241,8 +258,9 @@ def _around(text: str, at: int) -> str:
 
 
 def _passages(run: dict, finds: dict, rare: dict) -> list:
-    """The places of a run that hold the words - a paragraph of the report, a line of the brief, a RESULT line, a line
-    of code - the best first, PASSAGES at most, each {where, text}; a long one is cut around its rarest word."""
+    """The places of a run that hold the words - a paragraph of the report, a line of the brief or of the
+    conversation it came from, a RESULT line, a line of code - the best first, PASSAGES at most, each {where, text};
+    a long one is cut around its rarest word."""
     weight, places = dict(FIELDS), []                    # places: (what it counts for, where, the text, where its rarest word stands)
 
     def place(text, where, counts):
@@ -252,8 +270,9 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
 
     for para in re.split(r"\n\s*\n", re.sub(r"(?m)^#.*$", "", run["report"])):          # a heading is no passage
         place(" ".join(para.split()), "report", weight["report"])
-    for line in run["brief"].splitlines():
-        place(line.strip(), "brief", weight["brief"])
+    for where in ("brief", "conversation"):
+        for line in run[where].splitlines():
+            place(line.strip(), where, weight[where])
     for cell in run["cells"]:
         for line in cell["results"]:
             place(" ".join(line.split()), f"cell {cell['n']}", weight["results"])
@@ -265,16 +284,16 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
 def search(view: dict, query: str, most: int = MOST) -> list:
     """Plain keyword search over a view: the saved runs that hold a word of the query, the best first, each {id,
     thread, run, kind, when, question, title, marks, words, score, passages}. A word is held where a word of the run
-    starts with it, whatever the case. It counts for more in the question or the title than in the report or the
-    brief, and least in the code or in an earlier step's question (FIELDS); a word most runs hold counts for
-    little. A hit far weaker than the best is left out (WEAK). `passages` are the places that hold the words
-    (_passages). No match returns nothing."""
+    starts with it, whatever the case. It counts for more in the question or the title than in the report, the
+    brief or the conversation, and least in the code or in an earlier step's question (FIELDS); a word most runs
+    hold counts for little. A hit far weaker than the best is left out (WEAK). `passages` are the places that hold
+    the words (_passages). No match returns nothing."""
     words = list(dict.fromkeys(w for w in re.findall(r"[^\W_]+", (query or "").lower()) if len(w) > 1))
     runs = view["runs"]
     finds = {w: re.compile(r"(?<![^\W_])" + re.escape(w)) for w in words}
     by_id = {r["id"]: r for r in runs}
     asked = lambda step: (by_id.get(step) or view["steps"].get(step) or {}).get("question", "")      # noqa: E731
-    texts = [{"question": r["question"], "title": r["title"], "report": r["report"], "brief": r["brief"], "results": "\n".join(x for c in r["cells"] for x in c["results"]),
+    texts = [{"question": r["question"], "title": r["title"], "report": r["report"], "brief": r["brief"], "conversation": r["conversation"], "results": "\n".join(x for c in r["cells"] for x in c["results"]),
               "code": "\n".join(c["code"] for c in r["cells"]), "earlier": "\n".join(asked(p) for p in r["path"])} for r in runs]
     # for each run, what each word counts for where it stands best; 0 where the run does not hold it
     held = [{w: max((weight for field, weight in FIELDS if finds[w].search(low[field])), default=0) for w in words}
