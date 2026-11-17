@@ -346,7 +346,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         elapsed_time = end_time - start_time
 
     except openai.APIError as e:
-        error_message = e.body.get('message') if e.body else str(e)
+        error_message = e.body.get('message') if isinstance(e.body, dict) else str(e.body or e)
         output_manager.display_system_messages(f"OpenAI API Error: {error_message}")
         raise
     except Exception as e:
