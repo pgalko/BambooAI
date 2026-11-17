@@ -326,7 +326,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         total_tokens_used = combined_total_tokens_used
 
     except openai.APIError as e:
-        error_message = e.body.get('message')
+        # body is None for timeouts and dropped connections
+        error_message = e.body.get('message') if isinstance(e.body, dict) else str(e.body or e)
         output_manager.display_system_messages(f"Openai API Error: {error_message}")
         raise
     except Exception as e:
