@@ -54,11 +54,11 @@ def architect_open():
 @architect_bp.route('/architect/say', methods=['POST'])
 @requires_auth
 def architect_say():
-    """One exchange with the Architect: {thread_id, chain_id, text, look} - no text on its first turn, nor when it
+    """One exchange with the Architect: {thread_id, chain_id, text, version} - no text on its first turn, nor when it
     goes on after a round of lookups, a reading of the saved analyses or a part of an earlier analysis it opened;
-    `look` when the person asks for the saved analyses - as a stream that ends on {"architect": {"framing": ...}},
-    or {"architect": {"error": ...}} when no reply was kept. While the saved analyses are read the stream carries
-    {"type": "architect_saved", "read", "of"}."""
+    `version`: the version of the brief on the person's screen, which the exchange goes on from - as a stream that
+    ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no reply was kept. While the saved
+    analyses are read the stream carries {"type": "architect_saved", "read", "of"}."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400
@@ -67,10 +67,11 @@ def architect_say():
         return refused
     instance = _instance()
     text = str(data.get('text') or '').strip()[:QUESTION_CHARS] or None
+    version = data.get('version') if isinstance(data.get('version'), int) and not isinstance(data.get('version'), bool) else None
 
     def work():
         try:
-            framing = instance.architect_say(data['thread_id'], data['chain_id'], text, asked=data.get('look') is True)
+            framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)
         except Failed as exc:
             return {'architect': {'error': str(exc)}}
         except Exception as exc:                             # noqa: BLE001
@@ -139,8 +140,8 @@ def architect_next():
 @architect_bp.route('/architect/brief', methods=['POST'])
 @requires_auth
 def architect_brief():
-    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed} -> {framing}. A wording of
-    the Architect's the person takes comes this way too: the brief with that question."""
+    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed} -> {framing}. The brief
+    is the one on the person's screen with their change: made on an earlier version, it goes on from that one."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None or not isinstance(data.get('brief'), dict):
         return jsonify({'error': 'The thread, the chain and the brief are needed.'}), 400

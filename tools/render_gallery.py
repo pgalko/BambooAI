@@ -29,11 +29,13 @@ STATES = {
     'dlg_codebook': "CodebookUI.open();",
     'architect_talk': ARCHITECT + "galleryArchitect.talk();",          # the Architect's first question, with its choices (docs/ARCHITECT_DESIGN.md §2.12)
     'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Architect reading, the composer held
-    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the wording waiting (§2.17), one line open (§2.11)
+    'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
+    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
+    'architect_version': ARCHITECT + "galleryArchitect.version();",    # an earlier version on screen: Start analysis names it (§2.18)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)
-    'architect_saved': ARCHITECT + "galleryArchitect.saved();",        # what they hold: the reading's row, the passages in the brief, one ticked
+    'architect_saved': ARCHITECT + "galleryArchitect.saved();",        # what they hold: the analyses found, to read, and the one the brief builds on (§2.18)
     'next_questions': ARCHITECT + "galleryArchitect.next();",          # next questions under a finished analysis: a set of cards, one run, and the levels open (§2.15)
 }
 

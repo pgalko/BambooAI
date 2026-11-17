@@ -115,13 +115,13 @@
 #streamOutput .ar-msg.arch .sp-prompt { float: right; margin: 0; text-transform: none; letter-spacing: 0; }
 #streamOutput .ar-msg.wait { color: var(--text-tertiary); font-style: italic; }
 #streamOutput .ar-msg.wait .who { font-style: normal; }
-#streamOutput .ar-wording { margin-top: 8px; padding: 7px 10px 8px; border: 1px dashed var(--chip-model-border); border-radius: 5px; background: var(--bg-primary); }   /* the question as the Architect would word it (0307) */
-#streamOutput .ar-wording.used { border-style: solid; border-color: var(--border-color); }
-#streamOutput .ar-wording .tx { display: block; }
-#streamOutput .ar-wording .ok { display: block; margin-top: 3px; font-size: 11px; color: var(--c-model); }
-#streamOutput .ar-wording .ok::before { content: '\2713\00a0'; }
-#streamOutput .ar-use { display: block; margin-top: 7px; padding: 3px 12px; border: 1px solid var(--c-model); border-radius: 5px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; cursor: pointer; }
-#streamOutput .ar-use:hover { background: var(--accent-bg-hover); }
+#streamOutput .ar-found { margin: -8px 0 0 10px; padding: 8px 12px 9px; border-left: 2px solid var(--info-color, #58a6ff); border-radius: 0 0 4px 0; background: var(--bg-secondary); font-family: Arial, sans-serif; }   /* what a reading of the saved analyses found: an analysis to a line, to view (0308) */
+#streamOutput .ar-found .it + .it { margin-top: 7px; }
+#streamOutput .ar-found .hd { display: flex; align-items: baseline; gap: 12px; }
+#streamOutput .ar-found .q { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12.5px; color: var(--text-primary); }
+#streamOutput .ar-found .ar-open { flex-shrink: 0; padding: 0 8px; border: 1px solid var(--border-color); border-radius: 5px; background: none; font: inherit; font-size: 11.5px; line-height: 18px; color: var(--text-secondary); cursor: pointer; }
+#streamOutput .ar-found .ar-open:hover { border-color: var(--chip-lookup-border); color: var(--c-lookup); }
+#streamOutput .ar-fold .ar-found { margin: -8px 10px 0; }
 #streamOutput .ar-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 #streamOutput .ar-choice { padding: 3px 12px; border: 1px solid var(--chip-model-border); border-radius: 999px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; text-align: left; cursor: pointer; }
 #streamOutput .ar-choice:hover { background: var(--accent-bg-hover); }

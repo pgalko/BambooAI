@@ -24,8 +24,8 @@
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
 - **2.8, the Architect and memory from saved analyses** (`docs/ARCHITECT_DESIGN.md`: the design, the decisions, the
-  build patch by patch). Released as 2.8.0 with 0305; 0306 and 0307 follow it, after the product owner's first and
-  second live runs.
+  build patch by patch). Released as 2.8.0 with 0305; 0306, 0307 and 0308 follow it, after the product owner's
+  first and second live runs and his test of 0307.
   Until the release steps are taken the series goes to the private repository and the dev box only, and the tag
   goes on the last patch.
   **0294 (2026-11-15): the old memory is retired.** Gone: the knowledge pack and its code (`knowledge_pack.py`,
@@ -416,6 +416,50 @@
   local edition. *Not in it:* the picture - a figure is not on the server's record, the page holds it; the Architect
   is told to ask what the coach sees. Not run against a live model: whether it gives the wording under its key and
   keeps its messages short is judged from the run logs.
+  **0308 (2026-11-17): one question, the version on screen, no empty parts, saved analyses to read** (the design's
+  §2.18, decisions 37-40; decision 32 replaced, decision 22 for saved analyses). The product owner could not tell
+  the wording that waited from the question, nor what Start analysis would send. One rule now: what the Brief tab
+  shows is what the Analyst gets. *The question* (`analyst/architect.py`): a reply's `wording` is written as the
+  question in that reply (`parts["question"]`), a version of the Architect's; `turn["wording"]` is kept only where
+  it changed the question; `accept` and `pending()` are gone; `conversation()` writes *(the question was written
+  as: ...)* under the message. *The version in use* (`analyst/brief.py`): `framing["at"]` names it while it is not
+  the last; `use(framing, n)` sets it (an int the framing has; the last removes it), `latest()` honours it,
+  `version()` drops it. `exchange(..., version=n)`: the version on the person's screen; where it changes the one
+  in use, a turn `{who: "version", v}` goes before the person's message and `conversation()` says *(the person
+  went to version n of the brief: QUESTION and BRIEF show it)*; the reply's changes are made to it and kept as
+  one more version. *Saved analyses:* a reading writes nothing into the brief: `_read()` keeps the passages
+  beside it (`framing["found"]`, `brief.gather()` - in order, none twice) and the reading's turn; the analyses are
+  numbered by `brief.analyses(found)` (`architect._numbers`), listed so in the conversation (`recalled(turn,
+  numbers)`) and under `builds_on` in `block(brief, found)`. A reply's `build` - a list of numbers, `[]` for
+  none, absent for no change - goes through `brief.build_on(brief, found, numbers)`: the passages of those
+  analyses under `saved`, accepted, and no other. Gone: `tick`, `brief.tick/remember/holds`, the forced reading
+  (`asked`, the route's `look`). *The host:* `architect_say(..., version=)`; `pd_agent_converse(...,
+  version=)` takes the version in use before it reads the brief and the question; `/architect/say` and `/query`
+  carry `version`. *The instructions* (`analyst/architect.md`): the section *The question* (worded by the
+  Architect, written at once; word it again when it is not what the person means; go on from the version the
+  person went to); the saved analyses (a choice to each analysis found; `build` names all the brief builds on;
+  build only on what the person chose); the reply's keys. *The page* (`architect.js`, rebuilt): `inUse()`,
+  `use()`, `foundIn(turns)`, `builtOn(brief)`, `given(brief)`, `unbuild()`; `build.version` (**Version**, the
+  arrows, *k of n*), `build.brief` (the parts that hold something; `KINDS` and the one **+ Add**; *Builds on*;
+  the line of the standing checks; *Found in your saved analyses*; **Start analysis** or **Start analysis with
+  version k**), `build.found`, `build.built`, `build.view` (**View**), `build.asked` (the row *QUESTION
+  updated · version n*), `build.went` (*BRIEF · version n in use*); `build.pane`'s strip names no version any more - the Brief tab's
+  control is the one place that does, and `build.fold` keeps the version a run started with; `exchange(entry, text, version)`, `tell()`
+  and `change()` go on from the version on screen, `start()` sends it; `add()`, `settled()`. A part's names:
+  *Why you think so*, *What would change your mind*, *Other explanations to test*; no *Fixed before the run*.
+  Gone: the wording card, the boxes on saved passages, the *saved analysis* tag, *Look in saved analyses*.
+  `query-processing.js` sends `version` with a framed run. Styles in `tabs.css` and `pane.css`. *The stack:* the
+  scripted Architect offers a choice to each analysis found (`ARCHITECT_BUILD_ON`), builds on the one named,
+  and has the saved analyses read again when asked in words (`ARCHITECT_AGAIN`); the walk's helpers read the
+  new forms (`brief_on_screen`: `v` is *k of n*, `add`, `kinds`, `always`, `start`; `brief_type` adds a part
+  through **+ Add**; `talk_on_screen`: `notes`; `saved_on_screen`: `left`, `right`, `built`); `walk_saved` has
+  nine checks and `walk_tutor` eight; the story gains the pictures `architect_add`, `saved_built` and
+  `tutor_version_back` and loses `saved_ticked` and `tutor_wording`; the gallery gains `architect_adding` and
+  `architect_version`. Tests: `test_analyst.py` 340 (+1), `test_architect.js` 118 (+3), `test_app_path.py` 264;
+  the battery 2,319; the walk 200, and 193 of 197 in the local edition. *Known limit:* a brief opened under 0307
+  and not yet run is best started again - what its readings found has no numbers to build on. Not run against a
+  live model: whether it words the question when it should and gives `build` from the coach's answer is judged
+  from the run logs.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

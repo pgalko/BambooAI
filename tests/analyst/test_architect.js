@@ -102,90 +102,132 @@ check('what is fixed: a part set or cleared by its name; the last one cleared re
 const F1 = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B above A?' } }] };
 const t1 = el(b.brief(F1, { chain: 71, state: 'framing' })), root1 = t1.querySelector('.ar-brief');
 const h3s = root => root.querySelectorAll('h3').map(h => h.textContent).join('|');
-check('an empty brief (0307): on top what the Analyst will be asked - said in those words, with the version beside it: v1 "from your question", both arrows off - the question in its box with its pencil, and '
-  + 'under it one line that says this is what the Analyst gets; then the parts under plain names, in the brief\'s order - with From saved analyses and its button last where the framing '
-  + 'says the coach has saved analyses, and neither where it says none',
-  root1.elements[0].className === 'ar-top' && root1.querySelector('.ar-top .label').textContent === 'What the Analyst will be asked' && root1.querySelector('.ar-top .ar-ver')
+const KINDS = 'decision=What it is for|thinks=What you think|rests_on.+=Why you think so|expects=What you expect to see|would_change=What would change your mind|also_check.+=Another explanation to test|' +
+  'fixed.comparison=What is compared|fixed.measure=Measured by|fixed.period=Period';
+const kindsOf = root => root.querySelectorAll('.ar-kinds [data-ar="add"]').map(x => x.getAttribute('data-path') + '=' + x.textContent).join('|');
+check('a brief that holds only the question (0308): on top what the Analyst will be asked - said in those words - with the version beside it under its own name: "Version", "1 of 1", both arrows off and '
+  + 'nothing said of who made it; the question in its box with its pencil, and under it one line that says this is what the Analyst gets. No part stands: a part shows only when it holds '
+  + 'something. One control adds a part, its list shut; Start analysis at the foot. Nothing says what is always tested - a brief with nothing in it is no brief - and no button has the saved '
+  + 'analyses read, whatever the framing says of them',
+  root1.elements[0].className === 'ar-top' && root1.querySelector('.ar-top .label').textContent === 'What the Analyst will be asked'
+  && root1.querySelector('.ar-top .ar-ver .k').textContent === 'Version' && root1.querySelector('.ar-ver b').textContent === '1 of 1' && !root1.querySelector('.why') && !root1.querySelector('.step')
+  && root1.querySelectorAll('.ar-ver [data-ar="step"]').map(x => x.getAttribute('data-step') + x.hasAttribute('disabled') + x.getAttribute('aria-label')).join() === '-1trueThe version before,1trueThe version after'
   && root1.elements[1].tag === 'h1' && root1.elements[2].className === 'ar-gets' && root1.elements[2].textContent === 'This is what the Analyst gets. Change any line before you start.'
   && root1.querySelector('h1.ar-line.ar-q .tx').textContent === 'Is B above A?' && root1.querySelector('h1 .pen[data-ar="edit"]') && root1.querySelector('h1').getAttribute('data-path') === 'question'
-  && root1.querySelector('.ar-ver .step b').textContent === 'v1' && root1.querySelector('.ar-ver .why').textContent === 'from your question'
-  && root1.querySelectorAll('.ar-ver [data-ar="step"]').every(x => x.hasAttribute('disabled'))
-  && h3s(root1) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run' && !root1.querySelector('[data-ar="look"]')
-  && !el(b.brief(Object.assign({ saved: 0 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
-  && h3s(el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' }))) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run|From saved analyses'
-  && el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]').textContent === 'Look in saved analyses', t1.innerHTML);
-const noData = el(b.brief(Object.assign({ data: false }, F1), { chain: 71, state: 'framing' })).querySelector('.ar-brief');
-check('an empty brief: no part reads as if it held something - each is a place to type it, "+ Add", that opens on a click; of what is fixed before the run nothing stands, and each part not fixed is offered by its plain name; '
-  + 'the standing checks are one line marked "always", never changed, and stand only where data is loaded; a rival is added under it; Start analysis at the foot',
-  ['decision', 'thinks', 'rests_on.+', 'expects', 'would_change', 'also_check.+'].every(p => { const t = root1.querySelector('.ar-line.adds[data-path="' + p + '"] .tx'); return t.textContent === '+ Add' && t.className === 'tx add' && t.getAttribute('data-ar') === 'edit'
-    && t.getAttribute('role') === 'button' && t.getAttribute('tabindex') === '0'; })
-  && !/not said|left to/.test(t1.textContent)
-  && root1.querySelector('.ar-line[data-path="would_change"] .pre').textContent === 'You would change your mind if:'
-  && !root1.querySelector('.ar-grid') && root1.querySelectorAll('.ar-chips .ar-line.adds').map(l => l.getAttribute('data-path') + '=' + l.querySelector('.tx.add[data-ar="edit"]').textContent).join()
-     === 'fixed.comparison=+ What is compared,fixed.measure=+ Measured by,fixed.period=+ Period'
-  && !noData.querySelector('.src') && h3s(noData) === h3s(root1) && noData.querySelector('.ar-line.adds[data-path="also_check.+"]')
-  && el(b.brief(Object.assign({ data: true }, F1), { chain: 71, state: 'framing' })).querySelector('.src').textContent === 'always'
-  && root1.querySelectorAll('.src').length === 1 && root1.querySelector('.src').textContent === 'always' && root1.querySelector('.src').parent.querySelector('.tx').textContent === 'Chance, measurement error, how the cases were chosen'
-  && !root1.querySelector('.src').parent.getAttribute('data-path') && root1.querySelector('.ar-line.adds[data-path="also_check.+"] .tx.add').textContent === '+ Add'
-  && root1.querySelector('.ar-foot .ui-btn.primary[data-ar="start"]').textContent === 'Start analysis', t1.innerHTML);
+  && h3s(root1) === '' && root1.querySelectorAll('.ar-line').length === 1 && !/\+ Add.*\+ Add/.test(t1.textContent) && !/not said|left to/.test(t1.textContent)
+  && root1.elements[3].className === 'ar-more' && root1.querySelector('.ar-more .ar-add[data-ar="more"]').textContent === '+ Add' && root1.querySelector('.ar-add').getAttribute('aria-expanded') === 'false'
+  && !root1.querySelector('.ar-kinds') && !root1.hasAttribute('data-adds') && !root1.querySelector('.ar-always') && !root1.querySelector('.ar-memory')
+  && root1.elements[4].className === 'ar-foot' && root1.querySelector('.ar-foot .ui-btn.primary[data-ar="start"]').textContent === 'Start analysis'
+  && [0, 3].every(n => !el(b.brief(Object.assign({ saved: n }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')), t1.innerHTML);
+const opened1 = el(b.brief(F1, { chain: 71, state: 'framing', adds: true })).querySelector('.ar-brief');
+const adding1 = el(b.brief(F1, { chain: 71, state: 'framing', adding: 'thinks' })).querySelector('.ar-brief');
+const addingList = el(b.brief(F1, { chain: 71, state: 'framing', adding: 'rests_on.+' })).querySelector('.ar-brief'), addingFixed = el(b.brief(F1, { chain: 71, state: 'framing', adding: 'fixed.period' })).querySelector('.ar-brief');
+check('+ Add (0308): opened, it lists the parts the brief does not hold, in the brief\'s order, each under the name its place has - the three that are fixed before a run by their own names - and the tab '
+  + 'remembers that the list is open. A part being added stands in its place under its heading, with nothing in it and no pencil: the line the coach types in. Nothing is offered that a click '
+  + 'could not add, and nothing reads "+ Add" but the one control',
+  kindsOf(opened1) === KINDS && opened1.getAttribute('data-adds') === '1' && opened1.querySelector('.ar-add').getAttribute('aria-expanded') === 'true' && opened1.querySelector('.ar-more .ar-kinds')
+  && h3s(opened1) === '' && h3s(adding1) === 'What you think' && adding1.querySelector('.ar-line[data-path="thinks"] .tx').textContent === '' && !adding1.querySelector('.ar-line[data-path="thinks"] .pen')
+  && !adding1.querySelector('.ar-kinds') && h3s(addingList) === 'Why you think so' && addingList.querySelector('.ar-line[data-path="rests_on.+"]') && h3s(addingFixed) === 'Period'
+  && addingFixed.querySelector('.ar-line[data-path="fixed.period"]') && opened1.querySelectorAll('.ar-kinds button').every(x => x.getAttribute('type') === 'button')
+  && (opened1.textContent.match(/\+ Add/g) || []).length === 1, opened1.outerHTML);
 check('the tab carries what it needs to be stepped through later: the chain, the state, the version shown and every version',
   root1.getAttribute('data-chain') === '71' && root1.getAttribute('data-state') === 'framing' && root1.getAttribute('data-shown') === '1' && same(JSON.parse(root1.getAttribute('data-framing')), F1));
+const BUILT = [{ thread: '7', run: '8', when: '2026-02-20', question: 'Was B above A before?', passage: 'B led by 3.', accepted: true },
+               { thread: '7', run: '8', when: '2026-02-20', question: 'Was B above A before?', passage: 'And by 2 later.', accepted: true },
+               { thread: '7', run: '9', when: '2026-03-01', question: 'Left unticked by a brief of 0307', passage: 'p', accepted: false }];
 const FULL = Object.assign({}, BASE, { thinks: 'B is better', expects: 'B above A by 2', would_change: 'a gap under 1',
   rests_on: BASE.rests_on.concat([{ text: 'an earlier finding', source: 'result', mark: 'cannot be checked' }, { text: 'a proposal', source: 'architect', mark: 'does not hold', note: 'A led in 7 of 12' }]),
-  also_check: BASE.also_check.concat([{ text: 'luck' }]), saved: [{ when: '2026-02-20', question: 'Was B above A before?', passage: 'B led by 3.' }], set_aside: ['the weather'] });
-const F3 = { versions: [F1.versions[0], { n: 2, by: 'person', changed: ['decision'], brief: { question: 'Is B above A?', decision: 'keep one arm' } }, { n: 3, by: 'person', changed: ['rests_on.0', 'fixed.measure', 'question'], brief: FULL }] };
+  also_check: BASE.also_check.concat([{ text: 'luck' }]), saved: BUILT, set_aside: ['the weather'] });
+const F3 = { versions: [F1.versions[0], { n: 2, by: 'person', changed: ['decision'], brief: { question: 'Is B above A?', decision: 'keep one arm' } }, { n: 3, by: 'person', changed: ['rests_on.0', 'fixed.measure', 'question', 'saved.1'], brief: FULL }] };
 const t3 = el(b.brief(F3, { chain: 71, state: 'framing' })), root3 = t3.querySelector('.ar-brief');
 const lineOf = (r, p) => r.querySelector('.ar-line[data-path="' + p + '"]');
-check('a filled brief shows its last version: "changed by you", the arrow back live; a line has its pencil and, in a list, its cross; the lines changed in this version carry the bar',
-  root3.querySelector('.ar-ver .step b').textContent === 'v3' && root3.querySelector('.ar-ver .why').textContent === 'changed by you'
+check('a filled brief shows its last version, "3 of 3", the arrow back live; each part that holds something stands under its plain name, in the brief\'s order - what is fixed before a run under the name '
+  + 'of each part, with no heading over them; a line has its pencil and, in a list, its cross; the lines changed in this version carry the bar; nothing leads a line in',
+  root3.querySelector('.ar-ver b').textContent === '3 of 3' && !root3.querySelector('.why')
   && !root3.querySelector('.ar-ver [data-step="-1"]').hasAttribute('disabled') && root3.querySelector('.ar-ver [data-step="1"]').hasAttribute('disabled')
+  && h3s(root3) === 'What it is for|What you think|Why you think so|What you expect to see|What would change your mind|Other explanations to test|Measured by|Builds on|Set aside'
   && lineOf(root3, 'decision').querySelector('.tx').textContent === 'keep one arm' && !lineOf(root3, 'decision').querySelector('.tx').getAttribute('data-ar')
-  && lineOf(root3, 'decision').querySelector('.pen[data-ar="edit"]') && !lineOf(root3, 'decision').querySelector('.drop')
-  && lineOf(root3, 'rests_on.0').querySelector('.drop[data-ar="drop"]') && lineOf(root3, 'also_check.1').querySelector('.drop')
-  && root3.querySelectorAll('.ar-line.changed').map(l => l.getAttribute('data-path')).join() === 'question,rests_on.0,fixed.measure', t3.innerHTML);
+  && lineOf(root3, 'decision').querySelector('.pen[data-ar="edit"]') && !lineOf(root3, 'decision').querySelector('.drop') && lineOf(root3, 'would_change').querySelector('.tx').textContent === 'a gap under 1'
+  && lineOf(root3, 'rests_on.0').querySelector('.drop[data-ar="drop"]') && lineOf(root3, 'also_check.1').querySelector('.drop') && lineOf(root3, 'fixed.measure').querySelector('.tx').textContent === 'x'
+  && !root3.querySelector('.pre') && !root3.querySelector('.ar-grid') && !root3.querySelector('.ar-chips') && !root3.querySelector('.adds')
+  && root3.querySelectorAll('.ar-line.changed').map(l => l.getAttribute('data-path') || l.className).join() === 'question,rests_on.0,fixed.measure,ar-line ar-built changed', t3.innerHTML);
 check('what a line rests on shows: its mark and the fact beside it (red when it does not hold), who brought it in when it was not the coach; a fact from a lookup has no pencil, only the cross',
   lineOf(root3, 'rests_on.0').querySelector('.mk.ok').textContent === '✓' && lineOf(root3, 'rests_on.0').querySelector('.fact').textContent === 'seen in 9 of 12' && !lineOf(root3, 'rests_on.0').querySelector('.src')
   && lineOf(root3, 'rests_on.1').querySelector('.src').textContent === 'data' && !lineOf(root3, 'rests_on.1').querySelector('.pen') && lineOf(root3, 'rests_on.1').querySelector('.drop')
   && lineOf(root3, 'rests_on.2').querySelector('.mk.q').textContent === '?' && lineOf(root3, 'rests_on.2').querySelector('.src').textContent === 'last result' && lineOf(root3, 'rests_on.2').querySelector('.pen')
   && lineOf(root3, 'rests_on.3').querySelector('.mk.no').textContent === '✕' && lineOf(root3, 'rests_on.3').querySelector('.fact.no').textContent === 'A led in 7 of 12' && lineOf(root3, 'rests_on.3').querySelector('.src.ar').textContent === 'Architect'
   && lineOf(root3, 'also_check.0').querySelector('.fact').textContent === 'a gap in one half only', t3.innerHTML);
-check('the lists at the design\'s counts take no more lines; a saved analysis and what was set aside are shown as they are, without pencils',
-  !lineOf(root3, 'rests_on.+') && !lineOf(root3, 'also_check.+')
-  && root3.querySelectorAll('h3').map(h => h.textContent).slice(-2).join('|') === 'From saved analyses|Set aside'
-  && root3.querySelector('.src.mem').textContent === 'saved analysis' && root3.querySelector('.src.mem').parent.querySelector('.tx').textContent === '2026-02-20 · Was B above A before?B led by 3.'
-  && root3.elements.slice(-2)[0].textContent === 'the weather' && !root3.elements.slice(-2)[0].querySelector('[data-ar]'), t3.innerHTML);
+const built3 = root3.querySelectorAll('.ar-built');
+check('the saved analyses a brief builds on (0308): one line to an analysis, however many of its passages the brief holds - its day as a person writes it and what was asked then - with View, which '
+  + 'names the analysis, and a cross to build on it no longer; a passage the coach never accepted (a brief of 0307) is not one built on. No box to tick, no tag, nothing of where a passage stood. '
+  + 'What was set aside is shown as it is. Under the parts one line says what is always tested on data - where the brief gives the Analyst something and data is loaded - and + Add offers what is '
+  + 'still not there: no more lines to a list at the design\'s count',
+  built3.length === 1 && built3[0].querySelector('.tx').textContent === '20 Feb 2026 · Was B above A before?' && built3[0].className === 'ar-line ar-built changed'
+  && built3[0].querySelector('.ar-open[data-ar="open"]').textContent === 'View' && built3[0].querySelector('.ar-open').getAttribute('data-thread') === '7' && built3[0].querySelector('.ar-open').getAttribute('data-run') === '8'
+  && built3[0].querySelector('.drop[data-ar="unbuild"]').getAttribute('data-id') === '7/8' && built3[0].querySelector('.drop').getAttribute('title') === 'Leave it out'
+  && !root3.querySelector('.tick[data-ar="tick"]') && !root3.querySelector('.src.mem') && !/Left unticked|picked|report ·/.test(t3.textContent) && !/Open/.test(t3.textContent)
+  && root3.querySelectorAll('h3').slice(-1)[0].textContent === 'Set aside' && !t3.querySelectorAll('.ar-line').slice(-1)[0].querySelector('[data-ar]') && t3.querySelectorAll('.ar-line').slice(-1)[0].textContent === 'the weather'
+  && root3.querySelector('.ar-always').textContent === 'Always tested on data: chance, measurement error, how the cases were chosen.'
+  && !el(b.brief(Object.assign({ data: false }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-always') && el(b.brief(Object.assign({ data: true }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-always')
+  && !el(b.brief({ versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'q', also_check: [ITS] } }] }, { chain: 71, state: 'framing' })).querySelector('.ar-always')      // a proposal not accepted is nothing the Analyst gets
+  && el(b.brief({ versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'q', saved: BUILT.slice(0, 1) } }] }, { chain: 71, state: 'framing' })).querySelector('.ar-always')
+  && kindsOf(el(b.brief(F3, { chain: 71, state: 'framing', adds: true }))) === 'fixed.comparison=What is compared|fixed.period=Period'
+  && !el(b.brief({ versions: [{ n: 1, by: 'person', changed: [], brief: Object.assign({}, FULL, { fixed: { comparison: 'a', measure: 'b', period: 'c' } }) }] }, { chain: 71, state: 'framing' })).querySelector('.ar-more'),
+  t3.innerHTML);
 const FP = { versions: [F1.versions[0], { n: 2, by: 'architect', why: 'check', changed: ['also_check.1'], brief: Object.assign({}, FULL, { also_check: [BASE.also_check[0], ITS] }) },
                         { n: 3, by: 'person', changed: ['also_check.1'], brief: Object.assign({}, FULL, { also_check: [BASE.also_check[0], Object.assign({}, ITS, { accepted: true })] }) }] };
 const proposed = lineOf(el(b.brief(FP, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief'), 'also_check.1');
 const accepted = lineOf(el(b.brief(FP, { chain: 71, state: 'framing' })).querySelector('.ar-brief'), 'also_check.1'), mineToo = lineOf(el(b.brief(FP, { chain: 71, state: 'framing' })).querySelector('.ar-brief'), 'also_check.0');
 const acceptedRun = lineOf(el(b.brief(FP, { chain: 71, state: 'run' })).querySelector('.ar-brief'), 'also_check.1');
 check('what the Architect proposed has a box to tick, its mark as the one who brought it in and, under it, what it would show: empty until the coach accepts it, ticked after; the coach\'s own lines have no box. '
-  + 'It can be ticked, changed and left out in the version that stands; in an older version and once the analysis has started the box only shows',
+  + 'It can be ticked, changed and left out in whichever version is on screen (0308); once the analysis has started the box only shows',
   accepted.querySelector('button.tick.on[data-ar="tick"]') && accepted.querySelector('.tick').getAttribute('role') === 'checkbox' && accepted.querySelector('.tick').getAttribute('aria-checked') === 'true'
   && accepted.querySelector('.tick').getAttribute('title') === 'Have the analysis test it' && accepted.querySelector('.tick svg') && accepted.querySelector('.src.ar').textContent === 'Architect'
   && accepted.querySelector('.fact').textContent === 'the gap narrows with size held fixed' && accepted.querySelector('.pen[data-ar="edit"]') && accepted.querySelector('.drop[data-ar="drop"]')
   && !mineToo.querySelector('.tick') && !mineToo.querySelector('.src')
-  && proposed.querySelector('button.tick') && !proposed.querySelector('.tick.on') && proposed.querySelector('.tick').getAttribute('aria-checked') === 'false' && !proposed.querySelector('.tick svg')
-  && proposed.querySelector('.tick').hasAttribute('disabled') && !proposed.querySelector('[data-ar]') && proposed.className === 'ar-line changed'
+  && proposed.querySelector('button.tick[data-ar="tick"]') && !proposed.querySelector('.tick.on') && proposed.querySelector('.tick').getAttribute('aria-checked') === 'false' && !proposed.querySelector('.tick svg')
+  && !proposed.querySelector('.tick').hasAttribute('disabled') && proposed.querySelector('.pen') && proposed.className === 'ar-line changed'
   && acceptedRun.querySelector('button.tick.on') && acceptedRun.querySelector('.tick').hasAttribute('disabled') && !acceptedRun.querySelector('[data-ar]'), accepted.outerHTML + proposed.outerHTML);
 const old = el(b.brief(F3, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief');
-const ran = el(b.brief(F3, { chain: 71, state: 'run' })).querySelector('.ar-brief');
-check('an older version is read, not changed: no pencil, no cross, no Start analysis, and only the parts it held - a part it did not say has no line and no heading, and nothing says this is what the Analyst gets; both arrows live',
-  old.querySelector('.ar-ver .step b').textContent === 'v2' && old.getAttribute('data-shown') === '2' && old.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step'
-  && !old.querySelectorAll('[data-ar="step"]').some(x => x.hasAttribute('disabled')) && !lineOf(old, 'thinks') && !old.querySelector('.adds') && !old.querySelector('.ar-gets') && h3s(old) === 'What it is for|Also check'
-  && lineOf(old, 'decision').className === 'ar-line changed' && !old.querySelector('.ar-foot'), old.outerHTML);
-check('the brief of a run that has started is read, not changed, at its last version: what the Analyst got - of what is fixed the part that was fixed, under its plain name, and no place to type another; its versions can still be stepped through',
-  ran.getAttribute('data-state') === 'run' && ran.querySelector('.ar-ver .step b').textContent === 'v3' && ran.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step'
-  && !ran.querySelector('.ar-foot') && !lineOf(ran, 'fixed.period') && !ran.querySelector('.ar-chips') && !ran.querySelector('.adds') && !ran.querySelector('.ar-gets')
-  && ran.querySelectorAll('.ar-grid .k').map(k => k.textContent).join() === 'Measured by' && lineOf(ran, 'fixed.measure').querySelector('.tx').textContent === 'x'
-  && root3.querySelectorAll('.ar-grid .k').map(k => k.textContent).join() === 'Measured by' && root3.querySelectorAll('.ar-chips .ar-line').map(l => l.getAttribute('data-path')).join() === 'fixed.comparison,fixed.period'
-  && h3s(ran) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run|From saved analyses|Set aside');
-const whyOf = v => el(b.brief({ versions: [F1.versions[0], v] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent;
-check('the first version of a follow-up says where it came from; a version of the Architect\'s says what it was made from - the question, an answer, or a check against the data',
-  el(b.brief({ versions: [{ n: 1, by: 'person', changed: ['from the last brief'], brief: FULL }] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent === 'from the last brief'
-  && whyOf({ n: 2, by: 'architect', why: 'question', changed: [], brief: FULL }) === 'the Architect, from your question'
-  && whyOf({ n: 2, by: 'architect', why: 'answer', changed: [], brief: FULL }) === 'the Architect, from your answer' && whyOf({ n: 2, by: 'architect', changed: [], brief: FULL }) === 'the Architect, from your answer'
-  && whyOf({ n: 2, by: 'architect', why: 'check', changed: [], brief: FULL }) === 'the Architect, after checking the data');
+const ran = el(b.brief(F3, { chain: 71, state: 'run' })).querySelector('.ar-brief'), ranAt = el(b.brief(Object.assign({ at: 2 }, F3), { chain: 71, state: 'run' })).querySelector('.ar-brief');
+check('an older version on screen (0308) is the brief as it stood then, and can be gone on from: "2 of 3", both arrows live, the parts it held and no other, each with its pencil, the one control that '
+  + 'adds a part - and Start analysis names it, so that the coach sees which version will run. A framing that says which version is in use shows that one, and names it on the button too',
+  old.querySelector('.ar-ver b').textContent === '2 of 3' && old.getAttribute('data-shown') === '2' && !old.querySelectorAll('[data-ar="step"]').some(x => x.hasAttribute('disabled'))
+  && h3s(old) === 'What it is for' && !lineOf(old, 'thinks') && lineOf(old, 'decision').className === 'ar-line changed' && lineOf(old, 'decision').querySelector('.pen[data-ar="edit"]') && old.querySelector('h1 .pen')
+  && old.querySelector('.ar-gets') && old.querySelector('.ar-more [data-ar="more"]') && old.querySelector('.ar-foot [data-ar="start"]').textContent === 'Start analysis with version 2'
+  && root3.querySelector('.ar-foot [data-ar="start"]').textContent === 'Start analysis'
+  && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-ver b').textContent === '1 of 3'
+  && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing' })).querySelector('[data-ar="start"]').textContent === 'Start analysis with version 1'
+  && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing', shown: 3 })).querySelector('[data-ar="start"]').textContent === 'Start analysis'
+  && [0, 4, '2', true, null].every(at => el(b.brief(Object.assign({ at }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-ver b').textContent === '3 of 3'), old.outerHTML);
+check('the brief of a run that has started is read, not changed: what the Analyst got, at the version it started with - the last, or the one the framing names - under the plain names, with no pencil, no '
+  + 'cross, no place to add a part, no Start analysis and nothing that says what the Analyst gets; its versions can still be stepped through, and View still shows a saved analysis it built on',
+  ran.getAttribute('data-state') === 'run' && ran.querySelector('.ar-ver b').textContent === '3 of 3' && ran.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step,open'
+  && !ran.querySelector('.ar-foot') && !lineOf(ran, 'fixed.period') && !ran.querySelector('.ar-more') && !ran.querySelector('.ar-gets') && !ran.querySelector('.pen') && !ran.querySelector('.drop')
+  && lineOf(ran, 'fixed.measure').querySelector('.tx').textContent === 'x' && ran.querySelector('.ar-always')
+  && h3s(ran) === 'What it is for|What you think|Why you think so|What you expect to see|What would change your mind|Other explanations to test|Measured by|Builds on|Set aside'
+  && ranAt.querySelector('.ar-ver b').textContent === '2 of 3' && h3s(ranAt) === 'What it is for' && ranAt.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step', ran.outerHTML);
+const READ1 = { who: 'memory', found: [{ id: '7/8', when: '2026-02-20', question: 'Was B above A before?', where: 'report', quote: 'B led by 3.', note: 'The same comparison, a season earlier.' },
+                                       { id: '7/9', when: '2026-03-01', question: 'And <C>?', where: 'cell 2', quote: 'gap = b - a', note: '' },
+                                       { id: '7/8', when: '2026-02-20', question: 'Was B above A before?', where: 'cell 4', quote: 'And by 2 later.', note: 'Later in the season.' }], of: 12, read: 9, failed: '', secs: 3 };
+const READ2 = { who: 'memory', found: [{ id: '7/8', when: '2026-02-20', question: 'Was B above A before?', where: 'report', quote: 'B led by 3.', note: 'Found again.' },
+                                       { id: '5/6', when: '2025-12-31', question: 'An older one', where: 'report', quote: 'Nothing in it.', note: '' }], of: 12, read: 12, failed: '', secs: 2 };
+const FMEM = Object.assign({}, F3, { turns: [{ who: 'architect', text: 'Looking.', v: 1 }, READ1, { who: 'person', text: 'And further back?' }, { who: 'memory', found: [], failed: 'The person skipped it.' }, READ2] });
+const mem = el(b.brief(FMEM, { chain: 71, state: 'framing' })).querySelector('.ar-memory'), its = mem.querySelectorAll('.it');
+check('what the readings of the saved analyses found stands under the brief, to read (0308): its own heading, and a line that says the Analyst gets only what the coach builds on; then an analysis '
+  + 'to a block, in the order they were found across every reading - its day and what was asked, as text; View; its passages, each once, with the reader\'s note under it; and a mark on the one '
+  + 'the brief builds on. Nothing in it can be ticked or changed. It stands before Start analysis and after the control that adds a part; a brief the readings found nothing for has none, a '
+  + 'reading that was not made adds nothing, and the brief of a run that has started shows what the Analyst got and no more',
+  mem.elements[0].tag === 'h3' && mem.elements[0].textContent === 'Found in your saved analyses' && mem.querySelector('.note').textContent === 'For you to read. The Analyst gets only what you build on.'
+  && its.map(i => i.querySelector('.q').textContent).join('|') === '20 Feb 2026 · Was B above A before?|1 Mar 2026 · And <C>?|31 Dec 2025 · An older one'
+  && its[0].querySelectorAll('.qt').map(x => x.textContent).join('|') === 'B led by 3.|And by 2 later.' && its[0].querySelectorAll('.why').map(x => x.textContent).join('|') === 'The same comparison, a season earlier.|Later in the season.'
+  && !its[1].querySelector('.why') && its[1].querySelector('.qt').textContent === 'gap = b - a' && /And &lt;C&gt;\?/.test(its[1].innerHTML)
+  && its.map(i => i.querySelector('.ar-open[data-ar="open"]').getAttribute('data-thread') + '/' + i.querySelector('.ar-open').getAttribute('data-run') + i.querySelector('.ar-open').textContent).join() === '7/8View,7/9View,5/6View'
+  && its.map(i => (i.querySelector('.tag') || {}).textContent || '').join('|') === 'built on||' && mem.querySelectorAll('[data-ar]').every(x => x.getAttribute('data-ar') === 'open')
+  && mem.parent.elements.slice(-2)[0] === mem && mem.parent.elements.slice(-3)[0].className === 'ar-more' && mem.parent.elements.slice(-1)[0].className === 'ar-foot'
+  && !root3.querySelector('.ar-memory') && !el(b.brief(Object.assign({}, F3, { turns: [{ who: 'memory', found: [], failed: '' }, { who: 'memory', found: READ1.found, failed: 'It could not be read.' }] }), { chain: 71, state: 'framing' })).querySelector('.ar-memory')
+  && !el(b.brief(FMEM, { chain: 71, state: 'run' })).querySelector('.ar-memory')
+  && el(b.brief(FMEM, { chain: 71, state: 'framing', shown: 2 })).querySelectorAll('.ar-memory .tag').length === 0, mem.outerHTML);
 
 // ------------------------------------------------------------ the conversation
 const ASK = { who: 'architect', text: 'What will you do differently depending on the answer?', choices: ['Keep one arm', 'Keep <both>'], v: 1, cost: 0.004, call: 1 };
@@ -217,20 +259,28 @@ check('a round of lookups is one row of the conversation, as the pane shows a to
   && b.checked(CHECK).includes(' title="rows by arm: A 3 · B &lt;3&gt;\ntotal of &quot;y&quot;: not looked up - there is no column y"') && !rowOf(CHECK).querySelector('3')
   && rowOf({ who: 'check', found: [CHECK.found[0], CHECK.found[0], CHECK.found[0]], secs: 0.2 }).textContent === '✓CHECK data3 things looked up1 s'
   && rowOf({ who: 'check', found: [CHECK.found[1]], secs: 61.5 }).textContent === '✓CHECK data0 things looked up · 1 not62 s' && rowOf({ who: 'check' }).textContent === '✓CHECK data0 things looked up1 s', b.checked(CHECK));
-// the saved analyses (0303, §3.7): a reading's row, live and done; the passages in the brief
-const PASSAGE = { thread: '7', run: '8', when: '2026-03-02', question: 'Was B above A in <spring>?', passage: 'B led A by 3 units', where: 'report', note: 'The same comparison, a season earlier.',
-                  marks: 'picked, routine', data: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>', other: true, accepted: false };
+// the saved analyses (0303, §3.7; 0308, §2.18): a reading's row, live and done, and under it what was found, an analysis to a line
 const MEMORY = { who: 'memory', found: [{ id: '7/8', when: '2026-03-02', question: 'Was B above A in <spring>?', where: 'report', quote: 'B led A by 3 units', note: 'n' },
-                                         { id: '7/9', when: '2026-04-02', question: 'Synthesis: Two arms', where: 'cell 2', quote: 'gap = b - a', note: '' }],
+                                         { id: '7/9', when: '2026-04-02', question: 'Synthesis: Two arms', where: 'cell 2', quote: 'gap = b - a', note: '' },
+                                         { id: '7/8', when: '2026-03-02', question: 'Was B above A in <spring>?', where: 'cell 1', quote: 'gap: 3 units', note: '' }],
                  across: { topic: 'How the gap was taken', groups: [{ label: 'B minus A', runs: [{ run: '7/8' }, { run: '7/9' }] }, { label: 'the ratio', runs: [{ run: '5/6' }] }] },
                  of: 12, read: 9, dropped: 1, failed: '', secs: 41.3, cost: 0.07, v: 3 };
 const memRow = turn => el(b.recalled(turn)).querySelector('.sp-row');
-check('a reading of the saved analyses is one row of the conversation: SAVED analyses, how many passages were found and how many of the saved runs were read, the seconds; the passages and the count to each way '
-  + 'across them are the row\'s title, as text',
-  memRow(MEMORY).className === 'sp-row tool read' && memRow(MEMORY).textContent === '✓SAVED analyses2 passages found · read 9 of 1241 s'
-  && memRow(MEMORY).getAttribute('title') === '2026-03-02 · Was B above A in <spring>?: "B led A by 3 units"\n2026-04-02 · Synthesis: Two arms: "gap = b - a"\nHow the gap was taken: 2 × B minus A; 1 × the ratio'
-  && memRow(Object.assign({}, MEMORY, { found: MEMORY.found.slice(0, 1), across: null, read: 0 })).textContent === '✓SAVED analyses1 passage found · 12 saved41 s'
+check('a reading of the saved analyses is one row of the conversation: SAVED analyses, how many analyses were found - not how many passages (0308) - and how many of the saved runs were read, the '
+  + 'seconds; the passages and the count to each way across them are the row\'s title, as text',
+  memRow(MEMORY).className === 'sp-row tool read' && memRow(MEMORY).textContent === '✓SAVED analyses2 analyses found · read 9 of 1241 s'
+  && memRow(MEMORY).getAttribute('title') === '2026-03-02 · Was B above A in <spring>?: "B led A by 3 units"\n2026-04-02 · Synthesis: Two arms: "gap = b - a"\n2026-03-02 · Was B above A in <spring>?: "gap: 3 units"\nHow the gap was taken: 2 × B minus A; 1 × the ratio'
+  && memRow(Object.assign({}, MEMORY, { found: MEMORY.found.slice(0, 1), across: null, read: 0 })).textContent === '✓SAVED analyses1 analysis found · 12 saved41 s'
   && memRow({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 }).textContent === '✓SAVED analysesnothing found · read 12 of 121 s', b.recalled(MEMORY));
+const foundList = el(b.recalled(MEMORY)).querySelector('.ar-found');
+check('under the row, what the reading found (0308): an analysis to a line, in the order found - its day as a person writes it and what was asked then, as text - with View, which names the analysis '
+  + 'by its thread and run; the passages are not listed here: the Brief tab has them. Nothing can be ticked. A reading that found nothing, or was not made, has no list',
+  el(b.recalled(MEMORY)).elements.map(e => e.className).join('|') === 'sp-row tool read|ar-found'
+  && foundList.querySelectorAll('.it .q').map(x => x.textContent).join('|') === '2 Mar 2026 · Was B above A in <spring>?|2 Apr 2026 · Synthesis: Two arms' && /in &lt;spring&gt;\?/.test(foundList.innerHTML)
+  && foundList.querySelectorAll('.ar-open[data-ar="open"]').map(x => x.getAttribute('data-thread') + '/' + x.getAttribute('data-run') + '=' + x.textContent).join() === '7/8=View,7/9=View'
+  && !foundList.querySelector('.qt') && !foundList.querySelector('.why') && !foundList.querySelector('.tag') && foundList.querySelectorAll('[data-ar]').length === 2 && !/B led A by 3 units/.test(foundList.textContent)
+  && !el(b.recalled({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 })).querySelector('.ar-found')
+  && !el(b.recalled({ who: 'memory', found: MEMORY.found, failed: 'The person skipped it.', secs: 3 })).querySelector('.ar-found'), b.recalled(MEMORY));
 check('a reading that was not made is marked as one that did not run: its row says that the coach skipped it, or why it could not be made; a reading in flight shows how far it is - looking, looking through the saved runs, reading so many of them - with Skip, '
   + 'which can be pressed once the server has said how many are saved',
   memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).className === 'sp-row tool read skipped'
@@ -241,36 +291,19 @@ check('a reading that was not made is marked as one that did not run: its row sa
   && el(b.reading({ read: 0, of: 12 })).querySelector('.out').textContent === 'looking through 12' && el(b.reading({ read: 5, of: 12 })).querySelector('.out').textContent === 'reading 5 of 12'
   && el(b.reading({ read: 1, of: 12 })).querySelector('.out').textContent === 'reading 1 of 12'
   && el(b.reading({ read: 5, of: 12 })).querySelector('button.ar-skip[data-ar="skip"]').textContent === 'Skip' && el(b.reading({ read: 5, of: 12 })).querySelector('.live'), b.reading({ read: 5, of: 12 }));
-const FM = { versions: [F1.versions[0], { n: 2, by: 'architect', why: 'memory', changed: ['saved.0'], brief: { question: 'Is B above A?', saved: [PASSAGE, Object.assign({}, PASSAGE, { run: '9', accepted: true, note: '', marks: '' })] } }],
-             turns: [{ who: 'architect', text: 'Looking.' }, MEMORY], saved: 12 };
-const tm = el(b.brief(FM, { chain: 71, state: 'framing' })), p0 = lineOf(tm, 'saved.0'), p1 = lineOf(tm, 'saved.1');
-check('a passage of a saved analysis in the brief: a box to tick, not ticked until the coach accepts it; the day and what was asked then, the passage, the reader\'s note, where it stands, whose data it ran on and which; Open with '
-  + 'its thread and run; a cross to leave it out and no pencil; the line that is new is marked, and the version says it is the Architect\'s, from the saved analyses',
-  p0.className === 'ar-line ar-saved changed' && p0.querySelector('.tick').className === 'tick' && p0.querySelector('.tick').getAttribute('aria-checked') === 'false' && p0.querySelector('.tick').getAttribute('data-ar') === 'tick'
-  && p0.querySelector('.tx').textContent === '2026-03-02 · Was B above A in <spring>?B led A by 3 unitsThe same comparison, a season earlier.report · First <Person> · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
-  && p0.querySelector('.fact.quote').textContent === 'B led A by 3 units' && p0.querySelector('.fact.said').textContent === 'The same comparison, a season earlier.'
-  && p0.querySelector('[data-ar="open"]').textContent === 'Open' && p0.querySelector('[data-ar="open"]').getAttribute('data-thread') === '7' && p0.querySelector('[data-ar="open"]').getAttribute('data-run') === '8'
-  && p0.querySelector('.drop[data-ar="drop"]') && !p0.querySelector('.pen') && p0.querySelector('.src.mem').textContent === 'saved analysis'
-  && p1.className === 'ar-line ar-saved' && p1.querySelector('.tick').className === 'tick on' && !p1.querySelector('.fact.said') && p1.querySelector('.fact.from').textContent === 'report · First <Person> · spring.csv · 2026-03-01 to 2026-05-31'
-  && el(b.passage({ edit: true, changed: [] }, 'saved.0', Object.assign({}, PASSAGE, { person: '' }))).querySelector('.fact.from').textContent === 'report · spring.csv · 2026-03-01 to 2026-05-31 · picked, routine'
-  && tm.querySelector('.ar-ver .why').textContent === 'the Architect, from your saved analyses', tm.innerHTML);
-const twice = Object.assign({}, FM, { turns: FM.turns.concat([MEMORY, MEMORY, MEMORY]) });      // four readings: as many as a brief takes
-const ro = el(b.brief(FM, { chain: 71, state: 'run' }));
-check('Look in saved analyses stands under the passages while the brief can be changed, the coach has saved analyses and they were read fewer than four times - the passages stay either way; in a brief that has '
-  + 'run, and in an older version, the box cannot be clicked and nothing can be left out - Open stays',
-  tm.querySelector('button.ar-look[data-ar="look"]').textContent === 'Look in saved analyses' && !el(b.brief(twice, { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
-  && !ro.querySelector('[data-ar="look"]') && lineOf(ro, 'saved.0').querySelector('.tick').hasAttribute('disabled') && !lineOf(ro, 'saved.0').querySelector('.tick').getAttribute('data-ar')
-  && !lineOf(ro, 'saved.0').querySelector('.drop') && lineOf(ro, 'saved.0').querySelector('[data-ar="open"]')
-  && !el(b.brief(FM, { chain: 71, state: 'framing', shown: 1 })).querySelector('[data-ar="look"]')
-  && !el(b.brief(Object.assign({}, FM, { saved: 0 }), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
-  && lineOf(el(b.brief(Object.assign({}, FM, { saved: 0 }), { chain: 71, state: 'framing' })), 'saved.0'), ro.innerHTML);
-const BS = { question: 'q', saved: [PASSAGE, Object.assign({}, PASSAGE, { run: '9' })] };
-check('tick() accepts a passage of a saved analysis, or takes the tick back; apply() leaves one out and never changes its text; the brief passed in is not altered',
-  A.tick(BS, 'saved.1').brief.saved[1].accepted === true && A.tick(BS, 'saved.1').brief.saved[0].accepted === false && same(A.tick(BS, 'saved.1').changed, ['saved.1'])
-  && A.tick(A.tick(BS, 'saved.0').brief, 'saved.0').brief.saved[0].accepted === false && A.tick(BS, 'saved.5') === null
-  && same(A.apply(BS, 'saved.0', '').brief.saved.map(x => x.run), ['9']) && same(A.apply(BS, 'saved.0', ''), { brief: { question: 'q', saved: [BS.saved[1]] }, changed: ['saved'], removed: 0 })
-  && !('saved' in A.apply({ question: 'q', saved: [PASSAGE] }, 'saved.0', '').brief) && A.apply(BS, 'saved.0', 'other words') === null && A.apply(BS, 'saved.7', '') === null
-  && BS.saved.length === 2 && BS.saved[1].accepted === false);
+const BS = { question: 'q', saved: BUILT.slice(0, 2).concat([Object.assign({}, BUILT[2], { accepted: true })]) };
+check('unbuild() (0308): the brief builds no longer on one saved analysis, named by its id - every passage of it goes, the others stay, and with the last one the part; an analysis the brief does not '
+  + 'build on gives null; the brief passed in is not altered. A passage is no line of its own any more: tick() does not accept one, and apply() does not leave one out',
+  same(A.unbuild(BS, '7/8'), { brief: { question: 'q', saved: [BS.saved[2]] }, changed: ['saved'] }) && A.unbuild(BS, '7/9').brief.saved.length === 2
+  && !('saved' in A.unbuild({ question: 'q', saved: [BS.saved[2]] }, '7/9').brief) && A.unbuild(BS, '5/5') === null && A.unbuild({ question: 'q' }, '7/8') === null && A.unbuild(null, '7/8') === null
+  && BS.saved.length === 3 && A.tick(BS, 'saved.0') === null && A.apply(BS, 'saved.0', '') === null && A.apply(BS, 'saved.0', 'other words') === null);
+check('use() (0308): the framing with a version in use, as the server will have it once the request that carries the number is taken - an earlier version is named, the last names none, and a number '
+  + 'the framing does not have names none either; the framing passed in is not altered',
+  A.use(F3, 2).at === 2 && A.use(F3, 1).versions === F3.versions && !('at' in A.use(Object.assign({ at: 1 }, F3), 3)) && !('at' in F3)
+  && [0, 3, 4, -1, '2', true, null, 1.5].every(k => !('at' in A.use(Object.assign({ at: 2 }, F3), k))) && same(A.use(null, 1), {}) && A.use(Object.assign({ at: 2 }, F3), 1).at === 1);
+const namedAt = at => el(b.fold({ chain_id: 71, queryText: 'q', framing: Object.assign(at === undefined ? {} : { at }, F3) })).querySelector('.kind').textContent;
+check('the version in use, as the fold above a run names it (0308): the one the framing names where it has that version, else the last',
+  namedAt(undefined) === 'brief v3' && namedAt(2) === 'brief v2' && namedAt(1) === 'brief v1' && [0, 4, 9, -1, '2', 1.5, null].every(at => namedAt(at) === 'brief v3'), [namedAt(2), namedAt(9)]);
 const dlg = el(b.savedDialog({ id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: '# B led\n\nB led A by <3> units.', marks: ['picked', 'routine'],
                               data: { name: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>' }, cells: [{ n: 1, code: 'gap = b - a  # <b>' }] }));
 const dlgB = el(b.savedDialog({ question: 'q', report: 'r', brief: 'Decision: keep <one>\nFixed before the run:\n- measure: height', cells: [{ n: 2, code: 'x = 1' }] }));
@@ -300,8 +333,9 @@ check('the row stands in the conversation where the round was made: after the me
   && between.querySelectorAll('.ar-choice').length === 0 && between.querySelectorAll('.sp-row').length === 1
   && el(b.fold(ROUND)).querySelectorAll('.sp-detail .sp-row').length === 1 && el(b.fold(ROUND)).querySelectorAll('.sp-detail .ar-choice').length === 0, round);
 const paneOf = (e, o) => el(b.pane(e, o));
-check('the left pane of a brief not yet run: the strip says Architect, which version stands and what its calls have cost - nothing while that is under a cent; the conversation under it',
-  paneOf(TALK).querySelector('.sp-strip').textContent === 'Architectbrief v1$0.02' && paneOf({ chain_id: 1, queryText: 'q', framing: { versions: F3.versions, turns: [ASK] } }).querySelector('.sp-strip').textContent === 'Architectbrief v3'
+check('the left pane of a brief not yet run: the strip says Architect and what its calls have cost - nothing while that is under a cent - and names no version: the Brief tab does (0308); the '
+  + 'conversation under it',
+  paneOf(TALK).querySelector('.sp-strip').textContent === 'Architect$0.02' && paneOf({ chain_id: 1, queryText: 'q', framing: { versions: F3.versions, turns: [ASK] } }).querySelector('.sp-strip').textContent === 'Architect'
   && paneOf(TALK).querySelectorAll('.sp-stream .ar-msg').length === 4 && paneOf(TALK, { waiting: true }).querySelectorAll('.sp-stream .ar-msg').length === 5
   && paneOf({ chain_id: 1, queryText: 'q', framing: F1 }).querySelector('.sp-stream').textContent === 'YouIs B above A?'
   && paneOf({ chain_id: 1, queryText: 'q', framing: {} }).querySelector('.sp-stream').textContent === 'Youq', paneOf(TALK).innerHTML);
@@ -318,8 +352,8 @@ check('what the coach typed is shown as text, never as markup, and the versions 
   && same(JSON.parse(tn.getAttribute('data-framing')), NASTY), tn.outerHTML);
 const ENTRY = { status: 'framing', chain_id: 71, thread_id: 7, queryText: 'Is B <above> A?', framing: F3 };
 const pane = el(b.pane(ENTRY)), fold = el(b.fold(ENTRY)), ed = el(b.editor('a "line" & more'));
-check('the left pane of a brief not yet run: the strip says Architect and which version stands, idle; the coach\'s card holds the question as it was first asked, as text - the brief holds it as it stands now',
-  pane.querySelector('.sp-strip .live.idle') && pane.querySelector('.sp-strip .mode').textContent === 'Architect' && pane.querySelector('.sp-strip').textContent === 'Architectbrief v3'
+check('the left pane of a brief not yet run: the strip says Architect, idle; the coach\'s card holds the question as it was first asked, as text - the brief holds it as it stands now',
+  pane.querySelector('.sp-strip .live.idle') && pane.querySelector('.sp-strip .mode').textContent === 'Architect' && pane.querySelector('.sp-strip').textContent === 'Architect'
   && pane.querySelector('.sp-stream .ar-msg.you .who').textContent === 'You' && pane.querySelector('.sp-stream .ar-msg.you').textContent === 'YouIs B above A?'
   && el(b.pane({ chain_id: 71, queryText: 'A later wording', framing: { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B <above> A?' } }, { n: 2, by: 'architect', changed: ['question'], brief: { question: 'A later wording' } }] } }))
        .querySelector('.sp-stream .ar-msg.you').textContent === 'YouIs B <above> A?', pane.innerHTML);
@@ -331,43 +365,32 @@ check('the line being typed: a field holding the text, bounded as a line of the 
   && el(b.editor('q', true)).querySelector('textarea').getAttribute('maxlength') === '4000'
   && ed.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar') + ':' + x.getAttribute('title')).join() === 'keep:Keep,cancel:Cancel', ed.innerHTML);
 
-// ------------------------------------------------------------ the question worded, and a part opened (0307)
-const turnW = { who: 'architect', text: 'Is that it?', wording: 'Plot <x>\nagainst z.', v: 1, call: 2, choices: ['Change it'] };
-const FW = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Plot it' } }], turns: [turnW] };
-const took = v => Object.assign({}, FW, { versions: FW.versions.concat([v]) });
-const TAKEN = took({ n: 2, by: 'person', changed: ['question'], brief: { question: 'Plot <x>\nagainst z.' } });
-check('pending(): the Architect\'s wording waits for the coach - the last message that gave one - until the question changes, taken or changed by hand; a change to another part leaves it waiting; a wording that '
-  + 'says what the question says already does not wait; nothing waits where no message of the Architect\'s gave one. As the engine has it (analyst/architect.py)',
-  A.pending(FW) === turnW && A.pending(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } })) === turnW
-  && A.pending(TAKEN) === null && A.pending(took({ n: 2, by: 'person', changed: ['question'], brief: { question: 'My own words' } })) === null
-  && A.pending(took({ n: 2, by: 'architect', why: 'answer', changed: ['question', 'expects'], brief: { question: 'Plot <x>\nagainst z.', expects: 'e' } })) === null
-  && A.pending({ versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Plot <x>\nagainst z.' } }], turns: [turnW] }) === null
-  && A.pending({ versions: FW.versions, turns: [turnW, { who: 'person', text: 'no' }, { who: 'architect', text: 'Then?', wording: 'Plot y.', v: 1 }] }).wording === 'Plot y.'
-  && A.pending({ versions: TAKEN.versions, turns: [turnW, { who: 'architect', text: 'Or so?', wording: 'Plot y.', v: 2 }] }).wording === 'Plot y.'
-  && A.pending({ versions: FW.versions, turns: [{ who: 'person', text: 'x', wording: 'w' }, { who: 'architect', text: 'no wording' }] }) === null && A.pending({}) === null && A.pending(null) === null
-  && /^def pending\(framing: dict\)/m.test(fs.readFileSync(path.join(__dirname, '..', '..', 'analyst', 'architect.py'), 'utf8')));
+// ------------------------------------------------------------ the question worded, the version in use, and a part opened (0307, 0308)
+const turnW = { who: 'architect', text: 'I have put that into the question.', wording: 'Plot <x>\nagainst z.', v: 2, call: 2, choices: ['Change it'] };
+const FW = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Plot it' } }, { n: 2, by: 'architect', why: 'answer', changed: ['question'], brief: { question: 'Plot <x>\nagainst z.' } }],
+             turns: [{ who: 'person', text: 'The usual one' }, turnW] };
 const entryW = f => ({ chain_id: 71, queryText: 'Plot it', framing: f });
-const talkW = el(b.talk(entryW(FW), { live: true })), cardW = talkW.querySelector('.ar-msg.arch .ar-wording');
-const twoW = { versions: FW.versions, turns: [turnW, { who: 'person', text: 'no' }, { who: 'architect', text: 'Then?', wording: 'Plot y.', v: 1 }] };
-check('a wording in the conversation: under the Architect\'s message, before its choices - the wording as text, never markup, with its lines - and while it waits the button that takes it; none while a '
-  + 'reply is awaited or in a conversation only read; of two wordings the later one waits; once the question reads so the card says it is in use, wherever it is read',
-  cardW.className === 'ar-wording waits' && cardW.querySelector('.tx').textContent === 'Plot <x>\nagainst z.' && !cardW.querySelector('.tx b') && !cardW.querySelector('.k')
-  && cardW.querySelector('button.ar-use[data-ar="use"]').textContent === 'Use this wording'
-  && talkW.querySelector('.ar-msg.arch').elements.map(e => e.className).join() === 'who,ar-wording waits,ar-choices'
-  && !el(b.talk(entryW(FW), { live: true, waiting: true })).querySelector('.ar-use') && el(b.talk(entryW(FW), { live: true, waiting: true })).querySelector('.ar-wording').className === 'ar-wording'
-  && !el(b.talk(entryW(FW))).querySelector('.ar-use') && el(b.talk(entryW(FW))).querySelector('.ar-wording .tx').textContent === 'Plot <x>\nagainst z.'
-  && el(b.talk(entryW(twoW), { live: true })).querySelectorAll('.ar-wording').map(w => w.className + ':' + !!w.querySelector('.ar-use')).join() === 'ar-wording:false,ar-wording waits:true'
-  && [{ live: true }, {}].every(o => { const w = el(b.talk(entryW(TAKEN), o)).querySelector('.ar-wording'); return w.className === 'ar-wording used' && w.querySelector('.ok').textContent === 'in use' && !w.querySelector('.ar-use'); })
-  && !el(b.said({ who: 'architect', text: 'No wording.' }, 71, true, '')).querySelector('.ar-wording'), talkW.innerHTML);
-const tabW = el(b.brief(FW, { chain: 71, state: 'framing' })).querySelector('.ar-brief');
-check('a wording that waits stands on the Brief tab too, under the question\'s box and before the line that says what the Analyst gets: whose it is, its text, the same button. None once it is taken, in '
-  + 'an older version, or on a brief that runs',
-  tabW.elements.slice(0, 4).map(e => e.tag + '.' + e.className).join() === 'div.ar-top,h1.ar-line ar-q,div.ar-wording waits,p.ar-gets'
-  && tabW.querySelector('.ar-wording .k').textContent === 'The Architect\'s wording' && tabW.querySelector('.ar-wording .tx').textContent === 'Plot <x>\nagainst z.'
-  && tabW.querySelector('.ar-wording button.ar-use[data-ar="use"]').textContent === 'Use this wording' && tabW.querySelector('h1 .tx').textContent === 'Plot it'
-  && !el(b.brief(TAKEN, { chain: 71, state: 'framing' })).querySelector('.ar-wording') && !el(b.brief(FW, { chain: 71, state: 'run' })).querySelector('.ar-wording')
-  && !el(b.brief(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } }), { chain: 71, state: 'framing', shown: 1 })).querySelector('.ar-wording')
-  && el(b.brief(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } }), { chain: 71, state: 'framing' })).querySelector('.ar-wording.waits'), tabW.innerHTML);
+const talkW = el(b.talk(entryW(FW), { live: true })), rowW = talkW.querySelectorAll('.sp-row')[0];
+const rowsIn = (versions, turns) => el(b.talk(entryW({ versions, turns }))).querySelectorAll('.sp-row').length;
+check('a reply that worded the question (0308): its message shows its words and its choices and nothing of the wording - the question\'s box has it - and under the message a row says the question was '
+  + 'updated, and in which version. No row where a reply\'s wording was not written: a message of 0307 whose wording waited, a version the coach made, a version that changed another part, a question '
+  + 'that reads otherwise, a reply with none. Nothing in the conversation is taken with a button',
+  talkW.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool'
+  && talkW.querySelector('.ar-msg.arch').elements.map(e => e.className).join() === 'who,ar-choices' && !talkW.querySelector('.ar-wording') && !talkW.querySelector('[data-ar="use"]')
+  && !/against z/.test(talkW.querySelector('.ar-msg.arch').textContent)
+  && rowW.className === 'sp-row tool read' && rowW.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=QUESTION|out=updated|t=version 2'
+  && rowsIn(FW.versions.slice(0, 1), [Object.assign({}, turnW, { v: 1 })]) === 0
+  && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { by: 'person' })], [turnW]) === 0 && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { changed: ['decision'] })], [turnW]) === 0
+  && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { brief: { question: 'My own words' } })], [turnW]) === 0 && rowsIn(FW.versions, [{ who: 'architect', text: 'No wording.', v: 2 }]) === 0
+  && rowsIn(FW.versions, [turnW]) === 1 && el(b.asked({ v: '<3>' })).querySelector('.t').textContent === 'version <3>' && typeof A.pending === 'undefined' && typeof b.wording === 'undefined', talkW.innerHTML);
+const wentRow = el(b.went({ who: 'version', v: 2 })).querySelector('.sp-row');
+const talkV = el(b.talk(entryW({ versions: FW.versions, turns: FW.turns.concat([{ who: 'version', v: 1 }, { who: 'person', text: 'From the first one' }, { who: 'architect', text: 'As you say.', v: 1 }]) })));
+check('where the coach went to another version before a message (0308), a row says which version is in use from there - before the message it came with; the fold above a run names the version in '
+  + 'use, which is not always the last',
+  wentRow.className === 'sp-row tool read' && wentRow.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=BRIEF|out=version 2 in use'
+  && talkV.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,sp-row.tool,ar-msg.you,ar-msg.arch'
+  && talkV.querySelectorAll('.sp-row')[1].textContent === '✓BRIEFversion 1 in use'
+  && el(b.fold(entryW(Object.assign({ at: 1 }, FW)))).querySelector('summary .kind').textContent === 'brief v1' && el(b.fold(entryW(FW))).querySelector('summary .kind').textContent === 'brief v2', talkV.innerHTML);
 const rowO = el(b.opened({ who: 'opened', what: 'cell', n: 5, label: 'cell <5>', chars: 12345 })).querySelector('.sp-row');
 const rowN = el(b.opened({ who: 'opened', missing: 'there is no cell 99: the cells are 1 to 5' })).querySelector('.sp-row');
 const talkO = el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'person', text: 'How was it drawn?' }, { who: 'architect', text: 'I am opening the cell.', v: 1 },
@@ -377,9 +400,7 @@ check('a part of an earlier analysis the Architect opened is a row of the conver
   rowO.className === 'sp-row tool read' && rowO.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=READ|out=cell <5>|t=12,345 characters' && !rowO.querySelector('.out b')
   && rowN.className === 'sp-row tool read skipped' && rowN.elements.map(e => e.className + '=' + e.textContent).join('|') === '=–|in=READ|out=there is no cell 99: the cells are 1 to 5'
   && talkO.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,ar-msg.arch', talkO.innerHTML);
-check('the field of a part that has no lead-in says what it holds, while it is empty; any other field says nothing',
-  el(b.editor('', false, 'What is compared')).querySelector('.ar-input').getAttribute('placeholder') === 'What is compared'
-  && !el(b.editor('x', false)).querySelector('.ar-input').hasAttribute('placeholder') && !el(b.editor('', true, '')).querySelector('.ar-input').hasAttribute('placeholder'));
+check('the field a line is typed in says nothing of its own (0308): the part\'s heading stands over it', !el(b.editor('', false)).querySelector('.ar-input').hasAttribute('placeholder') && b.editor.length === 2);
 
 // ------------------------------------------------------------ the report's part "Against the brief", as a card
 const LIST = '<h1 id="t">B is above A</h1>\n<p>For the decision: keep B.</p>\n<h2 id="against-the-brief">Against the brief</h2>\n<ul>\n<li>Expected: not met - the gap is 0.4 <span class="cite cell" onclick="x()">cell 2</span></li>\n' +
@@ -448,11 +469,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     same(calls[0], ['/architect/open', { question: 'Is B above A?', thread_id: 7, chain_id: 70 }]) && responses.length === 2 && currentResponseIndex === 1
     && entry.status === 'framing' && entry.chain_id === 71 && entry.thread_id === 7 && entry.parentChainId === 70 && entry.queryText === 'Is B above A?' && same(entry.framing, F1)
     && currentData.chain_id === 71 && $('queryInput').value === '', [calls[0], entry]);
-  doc.dispatch('click', $('contentOutput').querySelector('.ar-line[data-path="decision"] .tx'));
+  doc.dispatch('click', $('contentOutput').querySelector('[data-ar="more"]'));
   check('the Architect takes its first turn at once: asked with the brief\'s thread and chain and no words of the coach\'s; while it replies the pane says it is reading, the composer is held and says why, and the brief takes no change',
     same(calls[1], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]) && same(pane(), ['you|YouIs B above A?', 'arch wait|Architectreading…'])
     && same(locks[locks.length - 1], ['lock', 'The Architect is replying']) && $('queryInput').disabled === true && doc.body.classList.contains('ar-framing') && A.framingInView() === true
-    && !$('contentOutput').querySelector('.editing'), [calls[1], pane(), locks.slice(-2)]);
+    && !$('contentOutput').querySelector('.editing') && !$('contentOutput').querySelector('.ar-kinds'), [calls[1], pane(), locks.slice(-2)]);
   const F1T = { versions: F1.versions, turns: [ASK], calls: 1 };
   reply([200, stream({ framing: F1T })]); await tick();
   check('its reply, the last message of the stream: the conversation and the brief are the record\'s again - its question in the pane with its choices; the composer is the conversation\'s, its own words kept for later',
@@ -460,7 +481,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').disabled === false && $('queryInput').placeholder === 'Answer, or say what to change'
     && $('queryInput').getAttribute('data-placeholder') === 'Enter your query here' && toasts.length === 0, [entry.framing, pane(), $('queryInput').placeholder]);
   check('the brief on screen: the left pane says Architect, brief v1, with the question; one tab, Brief, drawn from the versions and open to changes',
-    $('streamOutput').querySelector('.sp-strip').textContent === 'Architectbrief v1' && $('streamOutput').querySelector('.ar-msg.you').textContent === 'YouIs B above A?'
+    $('streamOutput').querySelector('.sp-strip').textContent === 'Architect' && $('streamOutput').querySelector('.ar-msg.you').textContent === 'YouIs B above A?'
     && $('tabContainer').querySelectorAll('.tab').length === 1 && $('tabContainer').querySelector('#tab-brief.tab.active').textContent === 'Brief'
     && $('contentOutput').querySelector('#content-brief.tab-content.active .ar-brief').getAttribute('data-state') === 'framing' && $('contentOutput').querySelector('[data-ar="start"]'), $('contentOutput').innerHTML);
   answers['/architect/open'] = [500, { error: 'The brief could not be opened: disk' }];
@@ -471,19 +492,28 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
 
   // a line is changed where it stands
   const brief = () => $('contentOutput').querySelector('.ar-brief');
+  // a part the brief does not hold is added through the one control: its list opened, the part chosen - its line is then open for typing
+  const addPart = path => { doc.dispatch('click', brief().querySelector('[data-ar="more"]')); doc.dispatch('click', brief().querySelector('.ar-kinds [data-ar="add"][data-path="' + path + '"]')); return lineOf(brief(), path); };
   const serve = () => { answers['/architect/brief'] = body => { const f = JSON.parse(JSON.stringify(entry.framing)); f.versions.push({ n: f.versions.length + 1, by: 'person', changed: body.changed, brief: body.brief }); return [200, { framing: f }]; }; };
   serve();
-  doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.tx'));
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
+  const listed = kindsOf(brief()) + '|' + brief().getAttribute('data-adds');
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
+  const shut = !brief().querySelector('.ar-kinds') && brief().getAttribute('data-adds') !== '1';
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
+  doc.dispatch('click', brief().querySelector('.ar-kinds [data-ar="add"][data-path="decision"]'));
   let field = lineOf(brief(), 'decision').querySelector('textarea.ar-input');
-  check('a click on a part with nothing in it: the field opens in its line, empty, with Keep and Cancel', field && field.textContent === '' && lineOf(brief(), 'decision').classList.contains('editing')
+  check('a part added through the one control (0308): a click opens its list - every part the brief does not hold - a second click shuts it, a third opens it again - and the part chosen stands under '
+    + 'its heading, its line open for typing: the field empty, with Keep and Cancel; the list is shut again',
+    listed === KINDS + '|1' && shut && field && field.textContent === '' && lineOf(brief(), 'decision').classList.contains('editing') && h3s(brief()) === 'What it is for' && !brief().querySelector('.ar-kinds')
     && lineOf(brief(), 'decision').querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'keep,cancel', lineOf(brief(), 'decision').outerHTML);
   field.value = '  keep one   arm ';
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('[data-ar="keep"]')); await tick();
   check('Keep: the server is sent the brief as it would stand and the part changed; it answers with one more version',
     same(calls[calls.length - 1], ['/architect/brief', { thread_id: 7, chain_id: 71, brief: { question: 'Is B above A?', decision: 'keep one arm' }, changed: ['decision'] }]) && entry.framing.versions.length === 2, calls[calls.length - 1]);
-  check('the tab shows the new version: v2, changed by you, the changed line marked and no longer being typed; the pane\'s strip follows',
-    brief().querySelector('.ar-ver .step b').textContent === 'v2' && brief().querySelector('.why').textContent === 'changed by you' && lineOf(brief(), 'decision').className === 'ar-line changed'
-    && lineOf(brief(), 'decision').querySelector('.tx').textContent === 'keep one arm' && $('streamOutput').querySelector('.sp-strip').textContent === 'Architectbrief v2', brief().outerHTML);
+  check('the tab shows the new version, "2 of 2", the changed line marked and no longer being typed',
+    brief().querySelector('.ar-ver b').textContent === '2 of 2' && !brief().querySelector('.why') && lineOf(brief(), 'decision').className === 'ar-line changed'
+    && lineOf(brief(), 'decision').querySelector('.tx').textContent === 'keep one arm', brief().outerHTML);
   let n = calls.length;
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
   field = lineOf(brief(), 'decision').querySelector('.ar-input');
@@ -491,37 +521,35 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   field.value = 'keep one arm';
   doc.dispatch('keydown', field, { key: 'Enter' }); await tick();
   check('the pencil opens the line with its text; kept unchanged, nothing is sent and no version is made', prefilled === 'keep one arm' && calls.length === n && entry.framing.versions.length === 2 && !brief().querySelector('.editing'));
-  const other = doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.tx'), { key: 'a' });
-  const opened = doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.tx'), { key: 'Enter' });
-  field = lineOf(brief(), 'thinks').querySelector('.ar-input'); field.value = 'B is better';
+  field = addPart('thinks').querySelector('.ar-input'); field.value = 'B is better';
   const esc = doc.dispatch('keydown', field, { key: 'Escape' }); await tick();
-  check('a part with nothing in it opens from the keyboard too (Enter on it, no other key); Escape leaves the line as it was: nothing sent',
-    !other.defaulted && opened.defaulted === true && calls.length === n && esc.defaulted === true && !brief().querySelector('.editing') && lineOf(brief(), 'thinks').querySelector('.tx').textContent === '+ Add');
-  doc.dispatch('click', lineOf(brief(), 'would_change').querySelector('.tx'));
-  field = lineOf(brief(), 'would_change').querySelector('.ar-input'); field.value = 'a gap under 1';
-  const stillLabelled = lineOf(brief(), 'would_change').querySelector('.pre').textContent === 'You would change your mind if:';
+  check('a part being added and given up - Escape - is gone again: nothing sent, no heading left behind, the list shut',
+    calls.length === n && esc.defaulted === true && !brief().querySelector('.editing') && !lineOf(brief(), 'thinks') && h3s(brief()) === 'What it is for' && !brief().querySelector('.ar-kinds'));
+  field = addPart('would_change').querySelector('.ar-input'); field.value = 'a gap under 1';
+  const stillHeaded = h3s(brief()) === 'What it is for|What would change your mind';
   const composing = doc.dispatch('keydown', field, { key: 'Enter', isComposing: true }); await tick();
   const shifted = doc.dispatch('keydown', field, { key: 'Enter', shiftKey: true }); await tick();
   const whileComposing = calls.length;
   const enter = doc.dispatch('keydown', field, { key: 'Enter' }); await tick();
-  check('Enter keeps the line (not while a character is still being composed, and Shift+Enter is a new line); the line keeps its lead-in while it is typed',
-    stillLabelled && whileComposing === n && !composing.defaulted && !shifted.defaulted && enter.defaulted === true && calls.length === n + 1 && same(calls[n][1].changed, ['would_change'])
+  check('Enter keeps the line (not while a character is still being composed, and Shift+Enter is a new line); the line stands under its heading while it is typed',
+    stillHeaded && whileComposing === n && !composing.defaulted && !shifted.defaulted && enter.defaulted === true && calls.length === n + 1 && same(calls[n][1].changed, ['would_change'])
     && lineOf(brief(), 'would_change').querySelector('.tx').textContent === 'a gap under 1' && entry.framing.versions.length === 3, calls[n]);
 
   // lines of a list; another line clicked while one is being typed
-  doc.dispatch('click', lineOf(brief(), 'rests_on.+').querySelector('.tx'));
-  lineOf(brief(), 'rests_on.+').querySelector('.ar-input').value = 'B looked better';
-  doc.dispatch('click', lineOf(brief(), 'also_check.+').querySelector('.tx')); await tick();
-  check('another line clicked while one is being typed: the first is kept - a line of the coach\'s own on the list - and the second opens in the brief as it then stands',
+  addPart('rests_on.+').querySelector('.ar-input').value = 'B looked better';
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]')); await tick();      // the control clicked while a line is being typed: the line is kept first, then the list opens
+  const listAfter = kindsOf(brief()).split('|').slice(0, 3).join('|');
+  doc.dispatch('click', brief().querySelector('.ar-kinds [data-ar="add"][data-path="also_check.+"]'));
+  check('the one control clicked while a line is being typed: the line is kept first - a line of the coach\'s own on the list - then the list opens on the brief as it then stands, and the part chosen is open for typing',
     same(calls[calls.length - 1][1].brief.rests_on, [{ text: 'B looked better', source: 'person', mark: '' }]) && same(calls[calls.length - 1][1].changed, ['rests_on.0'])
+    && listAfter === 'thinks=What you think|rests_on.+=Why you think so|expects=What you expect to see'
     && lineOf(brief(), 'rests_on.0').className === 'ar-line changed' && lineOf(brief(), 'also_check.+').classList.contains('editing') && brief().querySelectorAll('.editing').length === 1, brief().outerHTML);
   lineOf(brief(), 'also_check.+').querySelector('.ar-input').value = 'luck';
   doc.dispatch('click', lineOf(brief(), 'also_check.+').querySelector('[data-ar="keep"]')); await tick();
-  doc.dispatch('click', lineOf(brief(), 'rests_on.+').querySelector('.tx'));
-  lineOf(brief(), 'rests_on.+').querySelector('.ar-input').value = 'a second thing';
+  addPart('rests_on.+').querySelector('.ar-input').value = 'a second thing';
   doc.dispatch('keydown', lineOf(brief(), 'rests_on.+').querySelector('.ar-input'), { key: 'Enter' }); await tick();
-  check('the lists grow a line at a time, each under the last', same(entry.framing.versions[entry.framing.versions.length - 1].brief.rests_on.map(a => a.text), ['B looked better', 'a second thing'])
-    && same(entry.framing.versions[entry.framing.versions.length - 1].brief.also_check, [{ text: 'luck' }]) && lineOf(brief(), 'rests_on.+').querySelector('.tx.add'));
+  check('the lists grow a line at a time, each under the last, and no empty line waits under them', same(entry.framing.versions[entry.framing.versions.length - 1].brief.rests_on.map(a => a.text), ['B looked better', 'a second thing'])
+    && same(entry.framing.versions[entry.framing.versions.length - 1].brief.also_check, [{ text: 'luck' }]) && !lineOf(brief(), 'rests_on.+') && !lineOf(brief(), 'also_check.+'));
   // the first line emptied while the second is clicked: the first goes, and the pencil opens the line that was second
   doc.dispatch('click', lineOf(brief(), 'rests_on.0').querySelector('.pen'));
   lineOf(brief(), 'rests_on.0').querySelector('.ar-input').value = '';
@@ -533,16 +561,15 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   n = calls.length;
   doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.drop')); await tick();
   check('Cancel leaves the line as it was; the cross leaves a line out at once', !brief().querySelector('.editing') && calls.length === n + 1 && !('also_check' in calls[n][1].brief) && same(calls[n][1].changed, ['also_check'])
-    && !lineOf(brief(), 'also_check.0') && lineOf(brief(), 'also_check.+'));
+    && !lineOf(brief(), 'also_check.0') && h3s(brief()).indexOf('Other explanations to test') < 0);
   // a cross clicked while another line is being typed: the typed line is not lost
-  doc.dispatch('click', lineOf(brief(), 'also_check.+').querySelector('.tx'));
-  lineOf(brief(), 'also_check.+').querySelector('.ar-input').value = 'the season';
+  addPart('also_check.+').querySelector('.ar-input').value = 'the season';
   n = calls.length;
   doc.dispatch('click', lineOf(brief(), 'rests_on.0').querySelector('.drop')); await tick();
   check('a cross clicked while another line is being typed: the typed line is kept first, then the other is left out - two versions, nothing lost',
     calls.length === n + 2 && same(calls[n][1].changed, ['also_check.0']) && same(calls[n][1].brief.also_check, [{ text: 'the season' }]) && calls[n][1].brief.rests_on.length === 1
     && same(calls[n + 1][1].changed, ['rests_on']) && !('rests_on' in calls[n + 1][1].brief) && same(calls[n + 1][1].brief.also_check, [{ text: 'the season' }])
-    && lineOf(brief(), 'also_check.0').querySelector('.tx').textContent === 'the season' && lineOf(brief(), 'rests_on.+').querySelector('.tx.add'), [calls[n], calls[n + 1]]);
+    && lineOf(brief(), 'also_check.0').querySelector('.tx').textContent === 'the season' && !lineOf(brief(), 'rests_on.0') && h3s(brief()).indexOf('Why you think so') < 0, [calls[n], calls[n + 1]]);
 
   // the question
   doc.dispatch('click', brief().querySelector('h1 .pen'));
@@ -557,8 +584,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   // a change the server does not keep
   const versions = entry.framing.versions.length;
   answers['/architect/brief'] = [409, { error: 'This brief can no longer be changed: its analysis has started.' }];
-  doc.dispatch('click', lineOf(brief(), 'thinks').querySelector('.tx'));
-  lineOf(brief(), 'thinks').querySelector('.ar-input').value = 'B is better';
+  addPart('thinks').querySelector('.ar-input').value = 'B is better';
   doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.ar-input'), { key: 'Enter' }); await tick();
   const refused = toasts[toasts.length - 1] === 'This brief can no longer be changed: its analysis has started.' && lineOf(brief(), 'thinks').classList.contains('editing') && entry.framing.versions.length === versions;
   answers['/architect/brief'] = 'down';
@@ -568,14 +594,31 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   serve();
   doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.ar-input'), { key: 'Enter' }); await tick();
 
-  // the versions
-  const last = entry.framing.versions.length;
+  // the versions: the arrows show another one, and what is done next goes on from it
+  const before0 = entry.framing.versions.length;
+  n = calls.length;
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   const back = brief();
-  check('the arrow back shows the version before, to read: no pencil, no Start analysis; nothing is sent', back.querySelector('.step b').textContent === 'v' + (last - 1) && !back.querySelector('.pen') && !back.querySelector('[data-ar="start"]')
-    && back.getAttribute('data-shown') === String(last - 1));
+  check('the arrow back shows the version before (0308): which it is of how many, its own lines with their pencils, and Start analysis naming it; nothing is sent',
+    back.querySelector('.ar-ver b').textContent === (before0 - 1) + ' of ' + before0 && back.getAttribute('data-shown') === String(before0 - 1) && !lineOf(back, 'thinks') && lineOf(back, 'decision').querySelector('.pen')
+    && back.querySelector('[data-ar="start"]').textContent === 'Start analysis with version ' + (before0 - 1) && calls.length === n);
+  doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
+  lineOf(brief(), 'decision').querySelector('.ar-input').value = 'keep the better arm';
+  doc.dispatch('keydown', lineOf(brief(), 'decision').querySelector('.ar-input'), { key: 'Enter' }); await tick();
+  const last = entry.framing.versions.length;
+  check('a line changed on an earlier version (0308): the server is sent that version\'s brief with the change - what the version after it held is not in it - and the version it answers with is the last, on screen',
+    same(calls[calls.length - 1][1].changed, ['decision']) && calls[calls.length - 1][1].brief.decision === 'keep the better arm' && !('thinks' in calls[calls.length - 1][1].brief)
+    && last === before0 + 1 && brief().querySelector('.ar-ver b').textContent === last + ' of ' + last && brief().querySelector('[data-ar="start"]').textContent === 'Start analysis', calls[calls.length - 1]);
+  doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
+  const withThinks = !!lineOf(brief(), 'thinks');
+  doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
+  const olderText = lineOf(brief(), 'decision').querySelector('.ar-input').textContent;
+  doc.dispatch('keydown', lineOf(brief(), 'decision').querySelector('.ar-input'), { key: 'Escape' });
+  const olderStill = brief().querySelector('.ar-ver b').textContent + '|' + !brief().querySelector('.editing');
   doc.dispatch('click', brief().querySelector('[data-step="1"]'));
-  check('the arrow forward returns to the last version, open to changes again', brief().querySelector('.step b').textContent === 'v' + last && brief().querySelector('[data-ar="start"]') && lineOf(brief(), 'thinks').querySelector('.pen'));
+  check('the arrows step both ways: back to the version that held the other line - there the pencil opens a line with that version\'s text, and Escape leaves that version on screen - and forward to the last',
+    withThinks && olderText === 'keep one arm' && olderStill === (last - 1) + ' of ' + last + '|true' && brief().querySelector('.ar-ver b').textContent === last + ' of ' + last && !lineOf(brief(), 'thinks'),
+    [olderText, olderStill]);
 
   // leaving and coming back; the composer
   const lockCount = locks.length;
@@ -587,7 +630,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   queryRunning = true;
   currentResponseIndex = 1; loadResponseContent(entry); updateNavigationButtons();
   check('back on the brief while another chain runs: drawn again from its versions, at the last one, with its conversation; the composer is held and says why - and that chain\'s Stop stays within reach',
-    brief().querySelector('.step b').textContent === 'v' + last && pane().length === 2 && same(locks[locks.length - 1], ['lock', 'Another analysis is running. Wait for it to end, or stop it.'])
+    brief().querySelector('.ar-ver b').textContent === last + ' of ' + last && pane().length === 2 && same(locks[locks.length - 1], ['lock', 'Another analysis is running. Wait for it to end, or stop it.'])
     && $('queryInput').disabled === true && $('submitQuery').disabled === false);
   const before = calls.length;
   doc.dispatch('click', $('streamOutput').querySelector('.ar-choice')); await tick();
@@ -597,11 +640,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
   check('Start analysis while another analysis runs: said in plain words, nothing started', submitted.length === 0 && toasts[toasts.length - 1] === 'Another analysis is running. Wait for it to end, or stop it.');
   queryRunning = false;
-  doc.dispatch('click', lineOf(brief(), 'expects').querySelector('.tx'));
-  lineOf(brief(), 'expects').querySelector('.ar-input').value = 'B above A by 2';
+  addPart('expects').querySelector('.ar-input').value = 'B above A by 2';
   doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
-  check('Start analysis with a line still being typed: the line is kept first, then the page\'s own send starts this chain',
-    calls[calls.length - 1][1].brief.expects === 'B above A by 2' && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed'
+  check('Start analysis with a line still being typed: the line is kept first, then the page\'s own send starts this chain - under the version on screen, which the send is told',
+    calls[calls.length - 1][1].brief.expects === 'B above A by 2' && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed,version'
+    && submitted[0].version === entry.framing.versions.length && !('at' in entry.framing)
     && entry.framing.versions[entry.framing.versions.length - 1].brief.expects === 'B above A by 2', submitted);
   // what the send does next: the chain runs, the framing folds, the Brief tab stays
   entry.status = 'running';
@@ -620,50 +663,69 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').placeholder === 'Answer, or say what to change' && toasts[toasts.length - 1] === 'The analysis did not start: Network response was not ok');
   const quiet = toasts.length; A.notStarted(entry);
   check('refused for the balance, the page has its own dialog: nothing more is said', toasts.length === quiet);
+  // Start analysis with an earlier version on screen: the send is told which, and the chain is that version's from then on
+  const lastNow = entry.framing.versions.length, textNow = entry.queryText;
+  const asksOther = lastNow - entry.framing.versions.slice().reverse().findIndex(v => v.brief.question !== textNow);      // the last version that asks another question
+  for (let k = lastNow; k > asksOther; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
+  doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
+  entry.status = 'running';
+  A.started(entry);
+  const olderRun = { sent: submitted.length, version: submitted[submitted.length - 1].version, at: entry.framing.at, text: entry.queryText, was: entry.framing.versions[asksOther - 1].brief.question,
+                     tab: el(tabs[tabs.length - 1][1]).querySelector('.ar-ver b').textContent, fold: el(rows[rows.length - 1]).querySelector('.kind').textContent, calls: calls.length };
+  A.notStarted(entry);
+  const olderBack = brief().querySelector('.ar-ver b').textContent + '|' + brief().querySelector('[data-ar="start"]').textContent;
+  entry.framing = A.use(entry.framing, lastNow); entry.queryText = textNow; loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again, for what follows
+  check('Start analysis with an earlier version on screen (0308) - one that asks another question than the last: nothing is sent to the brief\'s own route - the send is told the version, the chain\'s '
+    + 'framing names it as the one in use and the chain\'s question is that version\'s; the run\'s Brief tab and the fold above it show that version; an analysis the server did not start leaves the '
+    + 'brief on it',
+    asksOther < lastNow && olderRun.was !== textNow
+    && same(olderRun, { sent: 2, version: asksOther, at: asksOther, text: olderRun.was, was: olderRun.was, tab: asksOther + ' of ' + lastNow, fold: 'brief v' + asksOther, calls: olderRun.calls })
+    && olderBack === asksOther + ' of ' + lastNow + '|Start analysis with version ' + asksOther && !('at' in entry.framing), [asksOther, lastNow, olderRun, olderBack]);
 
   // the conversation: a choice clicked, an answer typed, a reply that does not come
   const latest = () => entry.framing.versions[entry.framing.versions.length - 1];
-  const answered = (said, text, version) => { const f = JSON.parse(JSON.stringify(entry.framing));
+  const answered = (said, text, version, more) => { const f = JSON.parse(JSON.stringify(entry.framing));
     if (version) f.versions.push(Object.assign({ n: f.versions.length + 1, by: 'architect', why: 'answer' }, version));
-    f.turns = f.turns.concat([{ who: 'person', text: said }, { who: 'architect', text, v: f.versions.length, cost: 0.02, call: (f.calls || 0) + 1 }]); f.calls = (f.calls || 0) + 1; return f; };
+    f.turns = f.turns.concat([{ who: 'person', text: said }, Object.assign({ who: 'architect', text, v: f.versions.length, cost: 0.02, call: (f.calls || 0) + 1 }, more || {})]); f.calls = (f.calls || 0) + 1; return f; };
   held();
   doc.dispatch('click', $('streamOutput').querySelector('.ar-choice')); await tick();
   const sent = calls[calls.length - 1];
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
   check('a choice clicked is the coach\'s answer: said to the Architect as it reads, shown at once as the coach\'s message; the choices are gone, the Architect is reading, the composer is held, the brief takes no change',
-    same(sent, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Keep one arm' }]) && same(pane().slice(-2), ['you|YouKeep one arm', 'arch wait|Architectreading…'])
+    same(sent, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Keep one arm', version: entry.framing.versions.length }]) && same(pane().slice(-2), ['you|YouKeep one arm', 'arch wait|Architectreading…'])
     && $('streamOutput').querySelectorAll('.ar-choice').length === 0 && same(locks[locks.length - 1], ['lock', 'The Architect is replying']) && !brief().querySelector('.editing'), [sent, pane()]);
   const was = entry.framing.versions.length;
   reply([200, stream({ framing: answered('Keep one arm', 'What do you expect to see?', { changed: ['decision'], brief: Object.assign({}, latest().brief, { decision: 'Keep one arm' }) }) })]); await tick();
   check('the reply: the brief shows the version the Architect made from the answer, the changed line marked; the pane has both messages and what the calls have cost; the composer is the conversation\'s again',
-    entry.framing.versions.length === was + 1 && brief().querySelector('.step b').textContent === 'v' + (was + 1) && brief().querySelector('.why').textContent === 'the Architect, from your answer'
+    entry.framing.versions.length === was + 1 && brief().querySelector('.ar-ver b').textContent === (was + 1) + ' of ' + (was + 1) && !brief().querySelector('.why')
     && lineOf(brief(), 'decision').className === 'ar-line changed' && lineOf(brief(), 'decision').querySelector('.tx').textContent === 'Keep one arm'
-    && same(pane().slice(-2), ['you|YouKeep one arm', 'arch|Architect⌘What do you expect to see?']) && $('streamOutput').querySelector('.sp-strip').textContent === 'Architectbrief v' + (was + 1) + '$0.02'
+    && same(pane().slice(-2), ['you|YouKeep one arm', 'arch|Architect⌘What do you expect to see?']) && $('streamOutput').querySelector('.sp-strip').textContent === 'Architect$0.02'
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').placeholder === 'Answer, or say what to change', [pane(), $('streamOutput').querySelector('.sp-strip').textContent]);
-  // a wording of the question the coach agreed to: the Architect writes it, and the chain's own text follows
+  // a reply that words the question (0308): the Architect writes it at once, and the chain's own text follows
   const asked1 = entry.framing.versions[0].brief.question;
   held();
   A.tell('Yes, like that'); await tick();
-  reply([200, stream({ framing: answered('Yes, like that', 'Then that is the question.\n\nLook at how far apart the two end.', { changed: ['question'], brief: Object.assign({}, latest().brief, { question: 'Is B above A, on plot means?' }) }) })]); await tick();
-  check('a wording of the question the coach agreed to: the Architect\'s version holds it, the brief\'s title shows it, marked as changed, and the chain\'s own text follows; the conversation still opens on '
-    + 'the question as it was first asked, and a message keeps its lines',
+  reply([200, stream({ framing: answered('Yes, like that', 'I have put that into the question.\n\nLook at how far apart the two end.', { changed: ['question'], brief: Object.assign({}, latest().brief, { question: 'Is B above A, on plot means?' }) },
+                                         { wording: 'Is B above A, on plot means?' }) })]); await tick();
+  check('a reply that words the question (0308): the Architect\'s version holds it, the question\'s box shows it, marked as changed, and the chain\'s own text follows; under the message a row says the '
+    + 'question was updated, and in which version - nothing is there to take; the conversation still opens on the question as it was first asked, and a message keeps its lines',
     entry.queryText === 'Is B above A, on plot means?' && brief().querySelector('h1 .tx').textContent === 'Is B above A, on plot means?' && brief().querySelector('h1').className === 'ar-line ar-q changed'
-    && brief().querySelector('.why').textContent === 'the Architect, from your answer' && pane()[0] === 'you|You' + asked1 && asked1 !== entry.queryText
-    && pane()[pane().length - 1] === 'arch|Architect⌘Then that is the question.\n\nLook at how far apart the two end.', [entry.queryText, pane()[0], pane()[pane().length - 1]]);
+    && $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0] === '✓QUESTIONupdatedversion ' + entry.framing.versions.length
+    && !$('streamOutput').querySelector('.ar-wording') && !$('streamOutput').querySelector('[data-ar="use"]') && !brief().querySelector('.ar-wording') && pane()[0] === 'you|You' + asked1 && asked1 !== entry.queryText
+    && pane()[pane().length - 1] === 'arch|Architect⌘I have put that into the question.\n\nLook at how far apart the two end.', [entry.queryText, pane()[0], pane()[pane().length - 1]]);
   // an answer typed, with a line of the brief still open: the line is kept first, then the answer is said
   serve();
-  doc.dispatch('click', lineOf(brief(), 'fixed.period').querySelector('.tx'));
-  lineOf(brief(), 'fixed.period').querySelector('.ar-input').value = 'this season';
+  addPart('fixed.period').querySelector('.ar-input').value = 'this season';
   $('queryInput').value = 'B above A by 3';
   held(); n = calls.length;
   A.tell('  B above A by 3 '); await tick();
   check('an answer typed in the composer while a line of the brief is being typed: the line is kept first, as a version of the coach\'s; then the answer is said, the composer emptied',
-    calls.length === n + 2 && calls[n][0] === '/architect/brief' && calls[n][1].brief.fixed.period === 'this season' && same(calls[n + 1], ['/architect/say', { thread_id: 7, chain_id: 71, text: 'B above A by 3' }])
-    && $('queryInput').value === '' && latest().by === 'person' && pane()[pane().length - 2] === 'you|YouB above A by 3', calls.slice(n));
+    calls.length === n + 2 && calls[n][0] === '/architect/brief' && calls[n][1].brief.fixed.period === 'this season' && same(calls[n + 1], ['/architect/say', { thread_id: 7, chain_id: 71, text: 'B above A by 3', version: entry.framing.versions.length }])
+    && $('queryInput').value === '' && latest().by === 'person' && h3s(brief()).indexOf('Period') >= 0 && pane()[pane().length - 2] === 'you|YouB above A by 3', calls.slice(n));
   const stood = JSON.stringify(entry.framing);
   reply([200, stream({ error: 'The Architect\'s reply could not be read (it holds no JSON object).' })]); await tick();
   check('a reply that could not be kept: the reason is said, the brief and the conversation stand as they did, and what was typed is back in the composer',
-    toasts[toasts.length - 1] === 'The Architect\'s reply could not be read (it holds no JSON object).' && JSON.stringify(entry.framing) === stood && pane()[pane().length - 1] === 'arch|Architect⌘Then that is the question.\n\nLook at how far apart the two end.'
+    toasts[toasts.length - 1] === 'The Architect\'s reply could not be read (it holds no JSON object).' && JSON.stringify(entry.framing) === stood && pane()[pane().length - 1] === 'arch|Architect⌘I have put that into the question.\n\nLook at how far apart the two end.'
     && $('queryInput').value === 'B above A by 3' && $('queryInput').disabled === false, [toasts.slice(-1), pane().slice(-2)]);
   $('queryInput').value = '';
   answers['/architect/say'] = [403, { error: 'authorization_failed', message: 'You need $0.010 per query but your balance is $0.00. Please add funds to continue.', reason: 'insufficient_funds' }];
@@ -704,26 +766,26 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: marking })]); await tick();
   const line0 = lineOf(brief(), 'rests_on.0');
   check('a reply that had the data looked up: the round is a row under its message, and the Architect is asked again at once with nothing said - the pane says it is reading, the composer stays held, nothing to click',
-    same(goesOn.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'B well above A' }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
-    && same(goesOn.pane, ['you|YouB well above A', 'arch|Architect⌘Checking this against the data.', 'arch wait|Architectreading…']) && goesOn.rows === 1 && goesOn.choices === 0
+    same(goesOn.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'B well above A', version: asking.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && same(goesOn.pane, ['you|YouB well above A', 'arch|Architect⌘Checking this against the data.', 'arch wait|Architectreading…']) && goesOn.rows === 2 && goesOn.choices === 0      // the round's row, under the row of the question worded before
     && same(goesOn.lock, ['lock', 'The Architect is replying']), goesOn);
   check('the reply after the round: one more version, made after checking the data - the line with its mark and, in red, the fact beside it; the question whether to keep or change, with its choices; no further call, and the composer is the conversation\'s again',
-    calls.length === n + 2 && same(entry.framing, marking) && brief().querySelector('.why').textContent === 'the Architect, after checking the data' && line0.className === 'ar-line changed'
+    calls.length === n + 2 && same(entry.framing, marking) && brief().querySelector('.ar-ver b').textContent === marking.versions.length + ' of ' + marking.versions.length && line0.className === 'ar-line changed'
     && line0.querySelector('.mk.no').textContent === '✕' && line0.querySelector('.fact.no').textContent === 'rows by arm: A 3 · B 3'
-    && same($('streamOutput').querySelectorAll('.ar-choice').map(c => c.textContent), ['Keep it', 'Change it']) && $('streamOutput').querySelectorAll('.sp-row').length === 1
+    && same($('streamOutput').querySelectorAll('.ar-choice').map(c => c.textContent), ['Keep it', 'Change it']) && $('streamOutput').querySelectorAll('.sp-row').length === 2
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').value === '' && $('queryInput').placeholder === 'Answer, or say what to change', [calls.slice(n), pane().slice(-2)]);
   // what the Architect proposed: a tick accepts it, another takes the tick back - each a version of the coach's
   serve(); n = calls.length;
   const boxWas = lineOf(brief(), 'also_check.0').querySelector('.tick').className + '|' + lineOf(brief(), 'also_check.0').querySelector('.src').textContent + '|' + lineOf(brief(), 'also_check.0').className;
   doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.tick')); await tick();
-  const ticked = { call: calls[n], box: lineOf(brief(), 'also_check.0').querySelector('.tick').className, why: brief().querySelector('.why').textContent, line: lineOf(brief(), 'also_check.0').className, by: latest().by };
+  const ticked = { call: calls[n], box: lineOf(brief(), 'also_check.0').querySelector('.tick').className, ver: brief().querySelector('.ar-ver b').textContent, line: lineOf(brief(), 'also_check.0').className, by: latest().by };
   doc.dispatch('click', lineOf(brief(), 'expects').querySelector('.pen'));
   lineOf(brief(), 'expects').querySelector('.ar-input').value = 'B above A by 4';
   doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.tick')); await tick();
-  check('the box on what the Architect proposed: a click sends the brief with the line accepted, and the tab shows the new version - the box ticked, changed by you, the line marked; another click takes the '
+  check('the box on what the Architect proposed: a click sends the brief with the line accepted, and the tab shows the new version - the box ticked, the line marked; another click takes the '
     + 'tick back - a line being typed elsewhere kept first, as its own version',
     boxWas === 'tick|Architect|ar-line changed' && same(ticked.call, ['/architect/brief', { thread_id: 7, chain_id: 71, brief: Object.assign({}, marking.versions[marking.versions.length - 1].brief, { also_check: [Object.assign({}, ITS, { accepted: true })] }), changed: ['also_check.0'] }])
-    && ticked.box === 'tick on' && ticked.why === 'changed by you' && ticked.line === 'ar-line changed' && ticked.by === 'person'
+    && ticked.box === 'tick on' && ticked.ver === (marking.versions.length + 1) + ' of ' + (marking.versions.length + 1) && ticked.line === 'ar-line changed' && ticked.by === 'person'
     && calls.length === n + 3 && same(calls[n + 1][1].changed, ['expects']) && calls[n + 1][1].brief.expects === 'B above A by 4' && calls[n + 1][1].brief.also_check[0].accepted === true
     && same(calls[n + 2][1].changed, ['also_check.0']) && calls[n + 2][1].brief.also_check[0].accepted === false && calls[n + 2][1].brief.expects === 'B above A by 4'
     && lineOf(brief(), 'also_check.0').querySelector('.tick').className === 'tick' && !brief().querySelector('.editing'), [boxWas, ticked, calls.slice(n + 1)]);
@@ -735,7 +797,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ error: 'The Architect\'s reply could not be read (it holds no JSON object).' })]); await tick();
   check('the Architect not going on after a round: the reason is said, and the conversation stands with the round as its last thing - the coach\'s message was taken, so it does not come back into the composer, which is theirs again; nothing is asked a third time',
     calls.length === n + 2 && toasts[toasts.length - 1] === 'The Architect\'s reply could not be read (it holds no JSON object).' && same(entry.framing, again)
-    && pane()[pane().length - 1] === 'arch|Architect⌘Checking.' && $('streamOutput').querySelectorAll('.sp-row').length === 2 && $('queryInput').value === '' && same(locks[locks.length - 1], ['unlock']), [calls.slice(n), toasts.slice(-1), pane().slice(-2)]);
+    && pane()[pane().length - 1] === 'arch|Architect⌘Checking.' && $('streamOutput').querySelectorAll('.sp-row').length === 3 && $('queryInput').value === '' && same(locks[locks.length - 1], ['unlock']), [calls.slice(n), toasts.slice(-1), pane().slice(-2)]);
   // the Architect replying while the coach looks elsewhere
   $('queryInput').value = '';
   held();
@@ -752,11 +814,13 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     elsewhere === 'The Architect is replying.' && calls.length === n && freeThere && untouched && pane()[pane().length - 1] === 'arch|Architect⌘The brief is ready: start the analysis, or change a line.'
     && lineOf(brief(), 'expects').querySelector('.tx').textContent === 'B above A by 3' && $('queryInput').placeholder === 'Answer, or say what to change', [elsewhere, freeThere, untouched, pane().slice(-1)]);
 
-  // the saved analyses read in an exchange (0303): the stream says how far the reading is, Skip, and the Architect goes on with nothing said
+  // the saved analyses read in an exchange (0303; 0308): the stream says how far the reading is, Skip, and the Architect goes on with nothing said; what was found
+  // is listed under the row and, in full, under the brief; the coach chooses by answering, and the brief then says what it builds on
   {
   const live = liveBody();
   answers['/architect/say'] = live; answers['/architect/skip'] = [200, { skipped: true }];
   n = calls.length;
+  const shownGo = entry.framing.versions.length;
   A.tell('Go on.'); await tick();
   live.send('{"thought": "x", "chain_id": 71}\n'); await tick();
   const early = !!$('streamOutput').querySelector('.sp-row.pending');      // the model's own traffic moves nothing
@@ -768,98 +832,91 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   doc.dispatch('click', $('streamOutput').querySelector('[data-ar="skip"]')); await tick();
   const skipped = { call: calls[calls.length - 1], off: $('streamOutput').querySelector('[data-ar="skip"]').disabled === true };
   const reading = JSON.parse(JSON.stringify(entry.framing));
-  reading.versions.push({ n: reading.versions.length + 1, by: 'architect', why: 'memory', changed: ['saved.0'], brief: Object.assign({}, latest().brief, { saved: [PASSAGE] }) });
   reading.saved = 12;
-  reading.turns = reading.turns.concat([{ who: 'person', text: 'Go on.' }, { who: 'architect', text: 'I am looking in your saved analyses.', v: reading.versions.length - 1, cost: 0.01, call: 13 },
+  reading.turns = reading.turns.concat([{ who: 'person', text: 'Go on.' }, { who: 'architect', text: 'I am looking in your saved analyses.', v: reading.versions.length, cost: 0.01, call: 13 },
                                         Object.assign({}, MEMORY, { v: reading.versions.length })]);
   held();
   live.send('tect_saved", "chain_id": 71, "read": 12, "of": 12}\n' + JSON.stringify({ architect: { framing: reading } }) + '\n'); live.end(); await tick();
   const went = { calls: calls.slice(n), pane: pane().slice(-2), row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], pending: !!$('streamOutput').querySelector('.sp-row.pending'),
-                 line: lineOf(brief(), 'saved.0').className, why: brief().querySelector('.why').textContent };
+                 left: $('streamOutput').querySelectorAll('.ar-found .it .q').map(x => x.textContent).join('|'), right: brief().querySelectorAll('.ar-memory .it').length, ver: brief().querySelector('.ar-ver b').textContent,
+                 built: h3s(brief()).indexOf('Builds on') >= 0 };
   const told = JSON.parse(JSON.stringify(reading));
-  told.turns.push({ who: 'architect', text: 'One passage is in the brief to tick. The brief is ready.', v: told.versions.length, cost: 0.01, call: 14 });
+  told.turns.push({ who: 'architect', text: 'You asked this in spring. Build on it, or go another way?', choices: ['Build on the spring one', 'Go another way'], v: told.versions.length, cost: 0.01, call: 14 });
   reply([200, stream({ framing: told })]); await tick();
   check('a reply that has the saved analyses read: while they are read the pane shows a row in the place of the Architect\'s wait - how many are saved, then how many are read, a line of the stream cut in two '
-    + 'taken whole - the held composer says so, and Skip tells the server once; the reading done, its row stands under the Architect\'s message, the passage is in the brief, and the Architect is asked again with nothing said',
+    + 'taken whole - the held composer says so, and Skip tells the server once; the reading done, its row stands under the Architect\'s message with the analyses found under it, the Brief tab lists them in '
+    + 'full under the brief - which has not changed: no version, nothing built on - and the Architect is asked again with nothing said',
     !early && opened === 'SAVED analyseslooking through 12Skip' && waitGone && holds === 'Your saved analyses are being read' && mid === 'reading 5 of 12' && same(skipped, { call: ['/architect/skip', {}], off: true })
-    && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.' }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
-    && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓SAVED analyses2 passages found · read 9 of 1241 s' && !went.pending
-    && went.line === 'ar-line ar-saved changed' && went.why === 'the Architect, from your saved analyses' && same(entry.framing, told)
-    && pane()[pane().length - 1] === 'arch|Architect⌘One passage is in the brief to tick. The brief is ready.', [opened, mid, skipped, went]);
-  // the passage: ticked, opened, left out; the coach asks for the saved analyses
-  serve(); n = calls.length;
-  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('.tick')); await tick();
-  const accepted = { call: calls[n], box: lineOf(brief(), 'saved.0').querySelector('.tick').className, by: latest().by };
+    && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.', version: shownGo }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓SAVED analyses2 analyses found · read 9 of 1241 s' && !went.pending
+    && went.left === '2 Mar 2026 · Was B above A in <spring>?|2 Apr 2026 · Synthesis: Two arms' && went.right === 2 && went.ver === shownGo + ' of ' + shownGo && !went.built && same(entry.framing, told)
+    && pane()[pane().length - 1] === 'arch|Architect⌘You asked this in spring. Build on it, or go another way?Build on the spring oneGo another way', [opened, mid, skipped, went]);
+  // View, in either pane: the saved analysis in a dialog over the page
   answers['/architect/saved/7/8'] = [200, { id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: 'B led A by 3 units.', marks: ['picked'], data: { name: 'spring.csv', period: '' }, cells: [] }];
-  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('[data-ar="open"]')); await tick();
-  const shown = { call: calls[calls.length - 1], title: $('savedAnalysisModal').querySelector('.title').textContent, display: $('savedAnalysisModal').style.display, sent: calls.length - n };
+  n = calls.length;
+  doc.dispatch('click', $('streamOutput').querySelector('.ar-found [data-ar="open"]')); await tick();
+  const shown = { call: calls[calls.length - 1], title: $('savedAnalysisModal').querySelector('.title').textContent, display: $('savedAnalysisModal').style.display, sent: calls.length - n, label: $('streamOutput').querySelector('.ar-found [data-ar="open"]').textContent };
   doc.dispatch('click', $('savedAnalysisModal').querySelector('.ui-dlg-h .x'));
   const closed = $('savedAnalysisModal').style.display;
-  $('savedAnalysisModal').style.display = 'flex';
+  doc.dispatch('click', brief().querySelector('.ar-memory [data-ar="open"]')); await tick();
+  const fromTab = { call: calls[calls.length - 1], display: $('savedAnalysisModal').style.display, stays: !!brief() && currentResponseIndex === 1 };
   doc.dispatch('click', $('savedAnalysisModal'));
   const beside = $('savedAnalysisModal').style.display;
   answers['/architect/saved/7/8'] = [404, { error: 'This analysis is no longer among your saved ones.' }];
-  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('[data-ar="open"]')); await tick();
+  doc.dispatch('click', brief().querySelector('.ar-memory [data-ar="open"]')); await tick();
   const gone = toasts[toasts.length - 1];
+  check('View (0308), under the reading\'s row and on the Brief tab alike: the server is asked for that analysis, and it is shown in a dialog over the page - the brief and the conversation stay where '
+    + 'they are - which closes on its cross or on a click beside it; one saved no more says so',
+    same(shown, { call: ['/architect/saved/7/8', null], title: 'Was B above A in <spring>?', display: 'flex', sent: 1, label: 'View' }) && closed === 'none'
+    && same(fromTab, { call: ['/architect/saved/7/8', null], display: 'flex', stays: true }) && beside === 'none' && gone === 'This analysis is no longer among your saved ones.', [shown, fromTab, gone]);
+  // 'build on it', said by a choice: the Architect's reply brings the analysis into the brief; the cross takes it out again
   held(); n = calls.length;
-  doc.dispatch('click', brief().querySelector('[data-ar="look"]')); await tick();
-  const asked = { call: calls[n], said: pane().slice(-1), row: ($('streamOutput').querySelector('.sp-row.pending') || {}).textContent, wait: !!$('streamOutput').querySelector('.ar-msg.wait'),
-                  holds: $('queryInput').placeholder };
-  const looked = JSON.parse(JSON.stringify(entry.framing));
-  looked.turns = looked.turns.concat([{ who: 'person', text: 'Look in my saved analyses.' }, { who: 'memory', found: [], across: null, of: 12, read: 12, dropped: 0, failed: '', secs: 3.2, cost: 0.02, v: looked.versions.length }]);
-  reply([200, stream({ framing: looked })]); await tick();
-  const then = { call: calls[calls.length - 1], sent: calls.length - n, row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], said: pane().slice(-2) };
-  const closed2 = JSON.parse(JSON.stringify(looked));
-  closed2.turns.push({ who: 'architect', text: 'Nothing more was found.', v: closed2.versions.length, cost: 0.01, call: 15 });
-  reply([200, stream({ framing: closed2 })]); await tick();
+  doc.dispatch('click', $('streamOutput').querySelector('.ar-choice')); await tick();
+  const P8 = { thread: '7', run: '8', when: '2026-03-02', question: 'Was B above A in <spring>?', passage: 'B led A by 3 units', where: 'report', accepted: true };
+  reply([200, stream({ framing: answered('Build on the spring one', 'Done: the Analyst gets it, and can open it.', { changed: ['saved.0', 'saved.1'],
+                                         brief: Object.assign({}, latest().brief, { saved: [P8, Object.assign({}, P8, { passage: 'gap: 3 units', where: 'cell 1' })] }) }) })]); await tick();
+  const builtLine = brief().querySelector('.ar-built');
+  const builtNow = { said: calls[n], heads: h3s(brief()).split('|').slice(-2).join('|'), line: builtLine.className + '|' + builtLine.querySelector('.tx').textContent, lines: brief().querySelectorAll('.ar-built').length,
+                     tags: brief().querySelectorAll('.ar-memory .it').map(i => (i.querySelector('.tag') || {}).textContent || '').join('|'), view: builtLine.querySelector('[data-ar="open"]').textContent };
   serve(); n = calls.length;
-  doc.dispatch('click', lineOf(brief(), 'saved.0').querySelector('.drop')); await tick();
-  check('the passage in the brief: a click on its box sends the brief with it accepted - a version of the coach\'s; Open asks the server for that analysis and shows it in a dialog, which closes on its cross or on a click beside it, and '
-    + 'says why when it is saved no more; the cross leaves the passage out. Look in saved analyses says so in the conversation and asks the server to read them: the row of the reading shows at once, with Skip, '
-    + 'in the place of the Architect\'s wait; the reading done, the Architect is asked with nothing said, and replies',
-    same(accepted.call[1].changed, ['saved.0']) && accepted.call[1].brief.saved[0].accepted === true && accepted.box === 'tick on' && accepted.by === 'person'
-    && same(shown, { call: ['/architect/saved/7/8', null], title: 'Was B above A in <spring>?', display: 'flex', sent: 2 }) && closed === 'none' && beside === 'none' && gone === 'This analysis is no longer among your saved ones.'
-    && same(asked, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Look in my saved analyses.', look: true }], said: ['you|YouLook in my saved analyses.'], row: 'SAVED analyseslookingSkip', wait: false,
-                     holds: 'Your saved analyses are being read' })
-    && same(then, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: null }], sent: 2, row: '✓SAVED analysesnothing found · read 12 of 123 s', said: ['you|YouLook in my saved analyses.', 'arch wait|Architectreading…'] })
-    && pane()[pane().length - 1] === 'arch|Architect⌘Nothing more was found.'
-    && same(calls[n][1].changed, ['saved']) && !('saved' in calls[n][1].brief) && !lineOf(brief(), 'saved.0'), [accepted, shown, closed, gone, asked, then, calls[n]]);
-  // the question worded (0307): the Architect's wording waits under its message and under the question's box; the coach's click makes it the question - a change of their own, kept like any other
+  doc.dispatch('click', builtLine.querySelector('[data-ar="unbuild"]')); await tick();
+  check('\'build on it\' (0308): the coach\'s choice is said to the Architect like any answer; its reply brings the analysis into the brief - one line under Builds on, however many passages, marked as '
+    + 'changed, with View - and the list under the brief marks the analysis as built on. The cross on that line sends the brief without its passages - a version of the coach\'s - and the part is gone, '
+    + 'the mark with it; what was found stays listed',
+    same(builtNow.said, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Build on the spring one', version: told.versions.length }])
+    && same(builtNow, { said: builtNow.said, heads: 'Builds on|Found in your saved analyses', line: 'ar-line ar-built changed|2 Mar 2026 · Was B above A in <spring>?', lines: 1, tags: 'built on|', view: 'View' })
+    && calls.length === n + 1 && same(calls[n][1].changed, ['saved']) && !('saved' in calls[n][1].brief) && latest().by === 'person' && !brief().querySelector('.ar-built') && h3s(brief()).indexOf('Builds on') < 0
+    && brief().querySelectorAll('.ar-memory .it').length === 2 && !brief().querySelector('.ar-memory .tag') && !brief().querySelector('[data-ar="look"]') && !brief().querySelector('.ar-memory .tick') && !brief().querySelector('.ar-built .tick'), [builtNow, calls[n]]);
+  // the coach goes back to an earlier version and answers from it: the version rides with the message, and a row says which is in use
+  const lastB = entry.framing.versions.length;
+  doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   held(); n = calls.length;
-  A.tell('How would you put it?'); await tick();
-  const worded = JSON.parse(JSON.stringify(entry.framing)), was7 = worded.versions.length, asked7 = latest().brief.question;
-  worded.turns = worded.turns.concat([{ who: 'person', text: 'How would you put it?' }, { who: 'architect', text: 'Like this. Is that what you mean?', wording: 'Is B above A,\non the plot means?', v: was7, cost: 0.01, call: 16 }]);
-  const inFlight = !!$('streamOutput').querySelector('.ar-use') || !!brief().querySelector('.ar-use');
-  reply([200, stream({ framing: worded })]); await tick();
-  const waits = { pane: $('streamOutput').querySelectorAll('.ar-wording').map(w => w.className + '|' + w.querySelector('.tx').textContent + '|' + (w.querySelector('.ar-use') || {}).textContent).slice(-1)[0],
-                  tab: brief().querySelector('.ar-wording.waits .tx').textContent, box: brief().querySelector('h1 .tx').textContent, sent: calls.length - n };
-  doc.dispatch('click', lineOf(brief(), 'expects').querySelector('.pen'));
-  lineOf(brief(), 'expects').querySelector('.ar-input').value = 'B above A by 5';
-  serve(); n = calls.length;
-  doc.dispatch('click', $('streamOutput').querySelector('.ar-use')); await tick();
-  const taken = { calls: calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.question, c[1].brief.expects]), box: brief().querySelector('h1 .tx').textContent, bar: brief().querySelector('h1').className,
-                  why: brief().querySelector('.why').textContent, v: brief().querySelector('.step b').textContent, tab: !!brief().querySelector('.ar-wording'),
-                  pane: $('streamOutput').querySelectorAll('.ar-wording').map(w => w.className + '|' + !!w.querySelector('.ar-use') + '|' + (w.querySelector('.ok') || {}).textContent).slice(-1)[0], text: entry.queryText };
-  check('a wording of the Architect\'s: none can be taken while the reply is on its way; then it stands under its message and under the question\'s box, each with the button, and the question is as it was. '
-    + 'A click on the button - a line being typed in the brief kept first, as its own version - sends the brief with that question: one more version of the coach\'s, no word to the Architect; the box '
-    + 'shows the wording, marked as changed, the chain\'s own text follows, the card under the message says it is in use and the one under the box is gone',
-    !inFlight && same(waits, { pane: 'ar-wording waits|Is B above A,\non the plot means?|Use this wording', tab: 'Is B above A,\non the plot means?', box: asked7, sent: 1 })
-    && same(taken.calls, [['/architect/brief', ['expects'], asked7, 'B above A by 5'], ['/architect/brief', ['question'], 'Is B above A,\non the plot means?', 'B above A by 5']])
-    && taken.box === 'Is B above A,\non the plot means?' && taken.bar === 'ar-line ar-q changed' && taken.why === 'changed by you' && taken.v === 'v' + (was7 + 2) && taken.tab === false
-    && taken.pane === 'ar-wording used|false|in use' && taken.text === 'Is B above A,\non the plot means?' && A.pending(entry.framing) === null, [waits, taken]);
-  // ... and the button under the box does the same; a click with nothing waiting sends nothing
-  held(); n = calls.length;
-  A.tell('Shorter.'); await tick();
-  const shorter = JSON.parse(JSON.stringify(entry.framing));
-  shorter.turns = shorter.turns.concat([{ who: 'person', text: 'Shorter.' }, { who: 'architect', text: 'Then so?', wording: 'Is B above A?', v: shorter.versions.length, cost: 0.01, call: 17 }]);
-  reply([200, stream({ framing: shorter })]); await tick();
-  serve(); n = calls.length;
-  doc.dispatch('click', brief().querySelector('.ar-wording .ar-use')); await tick();
-  const fromTab = { calls: calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.question]), box: brief().querySelector('h1 .tx').textContent };
-  const stale = el(b.wording('x', 'waits')).querySelector('.ar-use'); $('streamOutput').appendChild(stale); n = calls.length;
-  doc.dispatch('click', stale); await tick();
-  check('the button under the question\'s box takes the wording as the one under the message does; with no wording waiting a click sends nothing',
-    same(fromTab, { calls: [['/architect/brief', ['question'], 'Is B above A?']], box: 'Is B above A?' }) && calls.length === n && entry.queryText === 'Is B above A?', fromTab);
+  A.tell('From this one, then.'); await tick();
+  const fromOlder = { call: calls[n], at: entry.framing.at, shown: brief().querySelector('.ar-ver b').textContent };
+  const older = JSON.parse(JSON.stringify(entry.framing));
+  older.turns = older.turns.concat([{ who: 'version', v: lastB - 1 }, { who: 'person', text: 'From this one, then.' }, { who: 'architect', text: 'As you say.', v: lastB - 1, cost: 0.01, call: 21 }]);
+  reply([200, stream({ framing: older })]); await tick();
+  check('an answer sent from an earlier version (0308): the message carries the version on screen; that version is the one in use at once, and the tab stays on it; after the reply a row in '
+    + 'the conversation says which version is in use, before the message that came with it; the tab stays on that version, and Start analysis names it',
+    same(fromOlder, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: 'From this one, then.', version: lastB - 1 }], at: lastB - 1, shown: (lastB - 1) + ' of ' + lastB })
+    && $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0] === '✓BRIEFversion ' + (lastB - 1) + ' in use' && pane().slice(-2)[0] === 'you|YouFrom this one, then.'
+    && brief().querySelector('.ar-ver b').textContent === (lastB - 1) + ' of ' + lastB && brief().querySelector('[data-ar="start"]').textContent === 'Start analysis with version ' + (lastB - 1)
+    && h3s(brief()).indexOf('Builds on') >= 0, [fromOlder, brief().querySelector('.ar-ver b').textContent]);
+  entry.framing = A.use(entry.framing, lastB); loadResponseContent(entry); updateNavigationButtons();      // the last version again, for what follows
+  const textB = entry.queryText, otherB = lastB - entry.framing.versions.slice().reverse().findIndex(v => v.brief.question !== textB);      // the last version that asks another question
+  for (let k = lastB; k > otherB; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
+  held();
+  A.tell('And from here.'); await tick();
+  doc.dispatch('click', brief().querySelector('[data-step="1"]'));
+  const steppedMid = brief().querySelector('.ar-ver b').textContent;
+  const fromOther = JSON.parse(JSON.stringify(entry.framing));
+  fromOther.turns = fromOther.turns.concat([{ who: 'version', v: otherB }, { who: 'person', text: 'And from here.' }, { who: 'architect', text: 'From there, then.', v: otherB, cost: 0.01, call: 22 }]);
+  reply([200, stream({ framing: fromOther })]); await tick();
+  check('an answer from a version that asks another question (0308): once the reply is in, the chain\'s own text is the question of the version in use; and while the Architect replies the arrows '
+    + 'still step',
+    otherB < lastB && steppedMid === (otherB + 1) + ' of ' + lastB && entry.framing.at === otherB && entry.queryText === entry.framing.versions[otherB - 1].brief.question && entry.queryText !== textB
+    && brief().querySelector('.ar-ver b').textContent === otherB + ' of ' + lastB, [otherB, lastB, steppedMid, entry.queryText]);
+  entry.framing = A.use(entry.framing, lastB); entry.queryText = textB; loadResponseContent(entry); updateNavigationButtons();
   // a part of an earlier analysis opened (0307): a row of the conversation, and the Architect goes on at once
   held(); n = calls.length;
   A.tell('How was the figure drawn?'); await tick();
@@ -873,25 +930,24 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: spoke })]); await tick();
   check('a reply that opened a part of an earlier analysis: the part is a row under its message - READ, what it is, how long - and the Architect is asked again at once with nothing said; its next message '
     + 'stands under the row, and no further call is made',
-    same(openedNow.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'How was the figure drawn?' }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    same(openedNow.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'How was the figure drawn?', version: opening.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
     && openedNow.row === '✓READcell 51,234 characters' && openedNow.wait === 'arch wait|Architectreading…' && same(openedNow.lock, ['lock', 'The Architect is replying'])
     && calls.length === n + 2 && pane()[pane().length - 1] === 'arch|Architect⌘It draws one line a month.' && same(locks[locks.length - 1], ['unlock']), openedNow);
-  // a part of what is fixed that the brief does not hold: offered by its name, typed where it is offered, and then a line of the brief
+  // a part of what is fixed before a run that the brief does not hold: added like any part, under its own name
   serve(); n = calls.length;
-  const chip = brief().querySelector('.ar-chips .ar-line[data-path="fixed.comparison"]');
-  doc.dispatch('click', chip.querySelector('.tx'));
-  const typing = { hint: chip.querySelector('.ar-input').getAttribute('placeholder'), editing: chip.classList.contains('editing') };
-  chip.querySelector('.ar-input').value = 'B against A';
-  doc.dispatch('click', chip.querySelector('[data-ar="keep"]')); await tick();
-  doc.dispatch('click', lineOf(brief(), 'fixed.comparison').querySelector('.pen'));
-  const inLine = lineOf(brief(), 'fixed.comparison').querySelector('.ar-input');
-  const named = { text: inLine.textContent, hint: inLine.hasAttribute('placeholder') };
-  doc.dispatch('click', lineOf(brief(), 'fixed.comparison').querySelector('[data-ar="cancel"]'));
-  check('a part of what is fixed that the brief does not hold is offered by its plain name; a click opens a field in its place that says what it holds; kept, it is a line of the brief under that name, and '
-    + 'the offer is gone - its field, opened again, holds the text and needs no word of what it is: the name stands beside it',
-    same(typing, { hint: 'What is compared', editing: true }) && same(named, { text: 'B against A', hint: false }) && same(calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.fixed.comparison]), [['/architect/brief', ['fixed.comparison'], 'B against A']])
-    && brief().querySelectorAll('.ar-grid .k').map(k => k.textContent).indexOf('What is compared') >= 0 && lineOf(brief(), 'fixed.comparison').querySelector('.tx').textContent === 'B against A'
-    && !brief().querySelector('.ar-chips .ar-line[data-path="fixed.comparison"]'), [typing, calls.slice(n)]);
+  const offered = (doc.dispatch('click', brief().querySelector('[data-ar="more"]')), kindsOf(brief()).split('|').filter(k => k.indexOf('fixed.') === 0).join('|'));
+  doc.dispatch('click', brief().querySelector('.ar-kinds [data-ar="add"][data-path="fixed.comparison"]'));
+  const lineC = lineOf(brief(), 'fixed.comparison');
+  const typing = { head: h3s(brief()).indexOf('What is compared') >= 0, hint: lineC.querySelector('.ar-input').hasAttribute('placeholder'), editing: lineC.classList.contains('editing') };
+  lineC.querySelector('.ar-input').value = 'B against A';
+  doc.dispatch('click', lineC.querySelector('[data-ar="keep"]')); await tick();
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
+  check('a part of what is fixed before a run that the brief does not hold (0308) is offered by its own name among the parts to add - no heading stands over the three; chosen, its field opens under '
+    + 'that name; kept, it is a line of the brief there, and the list offers it no more',
+    /fixed\.comparison=What is compared/.test(offered) && same(typing, { head: true, hint: false, editing: true }) && same(calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.fixed.comparison]), [['/architect/brief', ['fixed.comparison'], 'B against A']])
+    && lineOf(brief(), 'fixed.comparison').querySelector('.tx').textContent === 'B against A' && h3s(brief()).indexOf('Fixed before the run') < 0
+    && kindsOf(brief()).indexOf('fixed.comparison') < 0 && !brief().querySelector('.ar-grid') && !brief().querySelector('.ar-chips'), [typing, offered, calls.slice(n)]);
+  doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
   const parts = [];
   const whole = await A.readStream({ text: async () => '{"a": 1}\n\nnot json\n{"b": 2}' }, d => parts.push(d));
   const fed = liveBody(), parts2 = [];
@@ -909,12 +965,12 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   responses.push(done); currentResponseIndex = 2; loadResponseContent(done); updateNavigationButtons();
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
-  const first = brief().querySelector('.step b').textContent + '|' + brief().querySelector('.why').textContent + '|' + brief().querySelectorAll('.pen').length;
+  const first = brief().querySelector('.ar-ver b').textContent + '|' + !!brief().querySelector('.why') + '|' + brief().querySelectorAll('.pen').length;
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   n = calls.length;
   doc.dispatch('click', brief().querySelector('h1'));
   check('a restored chain: its Brief tab steps through the versions from its own markup, down to the first and no further; nothing can be changed, nothing is sent',
-    first === 'v1|from your question|0' && brief().querySelector('.step b').textContent === 'v1' && brief().getAttribute('data-state') === 'run' && calls.length === n && A.mark(done) === 'Architect', first);
+    first === '1 of 3|false|0' && brief().querySelector('.ar-ver b').textContent === '1 of 3' && !brief().querySelector('[data-ar="start"]') && brief().getAttribute('data-state') === 'run' && calls.length === n && A.mark(done) === 'Architect', first);
 
   // ---- the page's hooks, from the source ----
   const root = path.join(__dirname, '..', '..', 'web_app'), js = f => fs.readFileSync(path.join(root, 'static', 'js', f), 'utf8'), css = f => fs.readFileSync(path.join(root, 'static', 'css', f), 'utf8');
@@ -949,19 +1005,34 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
     && tabsCss.includes('#content-answer .ar-against {') && tabsCss.includes('#content-answer .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-answer .ar-against .v.' + v + ' {')));
-  check('the stylesheets, 0307: the wording\'s card and its button are styled where they stand - under a message in pane.css, under the question\'s box in tabs.css - with what the Analyst will be asked, the line '
-    + 'under it and the parts on offer; the page\'s words for the Brief tab are plain ones, and none says a part is "not said" or "left to" anyone',
-    ['.ar-wording {', '.ar-wording.used {', '.ar-wording .ok {', '.ar-use {', '.ar-use:hover {'].every(s => paneCss.includes('#streamOutput ' + s))
-    && ['.ar-wording {', '.ar-wording .k {', '.ar-use {', '.ar-use:hover {', '.ar-top {', '.ar-top .label {', '.ar-gets {', '.ar-chips {', '.ar-chips .ar-line.editing {'].every(s => tabsCss.includes('#content-brief ' + s))
-    && !tabsCss.includes('.tx.open') && !/not said|left to the Analyst|unsaid/.test(js('architect.js'))
-    && ["asked: 'What the Analyst will be asked'", "gets: 'This is what the Analyst gets. Change any line before you start.'", "decision: 'What it is for'", "expects: 'What you expect to see'",
-        "['comparison', 'What is compared'], ['measure', 'Measured by'], ['period', 'Period']", "use: 'Use this wording'", "opened: 'READ'"].every(s => js('architect.js').includes(s)));
+  check('the stylesheets, 0308: the version control with its name and its arrows, the one control that adds a part and the list it opens, the line of what is always tested, a saved analysis built on and '
+    + 'what the readings found are styled in tabs.css; what a reading found under its row in pane.css. The pencil is in view at rest; the cross shows under the mouse, and stays in view on a saved '
+    + 'analysis built on. Nothing is left of the wording\'s card, the parts on offer by chips, a passage as a line, or the button that had the saved analyses read; the page\'s words for the Brief tab '
+    + 'are plain ones, and none says a part is "not said" or "left to" anyone',
+    ['.ar-top {', '.ar-top .label {', '.ar-gets {', '.ar-ver {', '.ar-ver .k {', '.ar-ver b {', '.ar-ver button {', '.ar-ver button:disabled {', '.ar-always {', '.ar-more {', '.ar-add {', '.ar-kinds {', '.ar-kinds button {',
+     '.ar-built {', '.ar-memory {', '.ar-memory .note {', '.ar-memory .q {', '.ar-memory .qt {', '.ar-memory .why {', '.ar-memory .tag {'].every(s => tabsCss.includes('#content-brief ' + s))
+    && ['.ar-found {', '.ar-found .hd {', '.ar-found .q {', '.ar-found .ar-open {'].every(s => paneCss.includes('#streamOutput ' + s))
+    && /#content-brief \.ar-line \.pen, #content-brief \.ar-line \.drop \{[^}]* opacity: \.85; \}/.test(tabsCss) && tabsCss.includes('#content-brief .ar-line .drop { opacity: 0; }')
+    && !/\.pen\b[^{}]*\{[^}]*opacity: 0;/.test(tabsCss)
+    && tabsCss.includes('#content-brief .ar-line:hover .drop, #content-brief .ar-line .drop:focus-visible, #content-brief .ar-built .drop { opacity: .85; }')
+    && !/ar-wording|ar-use|ar-chips|ar-grid|ar-look|ar-saved \.|\.tx\.add|\.ar-ver \.step|\.src\.mem/.test(tabsCss) && !/ar-wording|ar-use/.test(paneCss)
+    && !/not said|left to the Analyst|unsaid|Use this wording|Look in saved|Fixed before the run|from your answer|changed by you/.test(js('architect.js'))
+    && ["asked: 'What the Analyst will be asked'", "gets: 'This is what the Analyst gets. Change any line before you start.'", "decision: 'What it is for'", "rests_on: 'Why you think so'", "expects: 'What you expect to see'",
+        "would_change: 'What would change your mind'", "also_check: 'Other explanations to test'", "builds: 'Builds on'", "another: 'Another explanation to test'",
+        "always: 'Always tested on data: chance, measurement error, how the cases were chosen.'", "version: 'Version'", "startWith: k => 'Start analysis with version ' + k", "view: 'View'",
+        "memory: 'Found in your saved analyses', memoryNote: 'For you to read. The Analyst gets only what you build on.'", "['comparison', 'What is compared'], ['measure', 'Measured by'], ['period', 'Period']",
+        "opened: 'READ'", "question: 'QUESTION', updated: 'updated'"].every(s => js('architect.js').includes(s)));
   const engine = f => fs.readFileSync(path.join(root, '..', 'analyst', f), 'utf8'), own = js('architect.js');
-  check('the saved analyses: the page counts the readings of a brief as the engine does and knows a skipped reading by the reader\'s own sentence; the dialog of a saved analysis lies over the page, '
-    + 'the row\'s Skip is styled in pane.css, the passages in tabs.css',
-    engine('architect.py').includes('\nREADINGS = 4 ') && own.includes('const READINGS = 4;') && engine('reader.py').includes('\nSKIPPED = "The person skipped it."\n') && own.includes("const SKIPPED = 'The person skipped it.';")
+  check('the saved analyses: the page knows a skipped reading by the reader\'s own sentence; the dialog of a saved analysis lies over the page, the row\'s Skip is styled in pane.css and View in tabs.css; '
+    + 'the version in use is read as the engine keeps it (`at`), and the send carries the version on screen to the server, which hands it to the analysis',
+    engine('reader.py').includes('\nSKIPPED = "The person skipped it."\n') && own.includes("const SKIPPED = 'The person skipped it.';") && !own.includes('READINGS')
     && css('dialogs.css').includes('#savedAnalysisModal { display: none; position: fixed; inset: 0;') && own.includes("modal.id = 'savedAnalysisModal'; modal.className = 'ui-modal-plain';")
-    && paneCss.includes('#streamOutput .sp-row .ar-skip {') && tabsCss.includes('#content-brief .ar-saved .fact.quote {') && tabsCss.includes('#content-brief .ar-open, #content-brief .ar-look {'));
+    && paneCss.includes('#streamOutput .sp-row .ar-skip {') && tabsCss.includes('#content-brief .ar-open {')
+    && /^def use\(framing: dict, n\) -> dict:/m.test(engine('brief.py')) && engine('brief.py').includes('at = (framing or {}).get("at")') && own.includes('const n = latestN(framing), at = framing && framing.at;')
+    && qp.includes('if (framed && version) requestBody.version = version;') && qp.includes('const { synthesis, image, typed, framed, next, version } = options;')
+    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("version = request.json.get('version')")
+    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('version=version if isinstance(version, int) and not isinstance(version, bool) else None,')
+    && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)"));
   finish();
 })().catch(e => { check('the module ran without throwing', false, e && e.stack); finish(); });
 

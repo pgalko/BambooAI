@@ -261,18 +261,21 @@ tab, and the conversation with the Architect takes the left pane.
   to test a view, or to learn - explains what you need in order to say what you are after, and offers choices to
   click. It keeps no fixed order, does not ask again what you could not answer, and stays for as long as you want
   to explore.
-- **The question.** The top box of the Brief tab is what the Analyst will be asked. When the two of you have
-  worked out what you want, the Architect gives its wording: it stands under its message and under the box, with
-  **Use this wording**. It becomes the question when you take it - with the button, or by saying yes. The
-  Architect never writes the question itself.
+- **The question.** The top box of the Brief tab is what the Analyst will be asked. As the two of you work out
+  what you want, the Architect words the question and the box changes with it; a line in the conversation says so
+  each time. You can change it yourself with its pencil. Nothing waits to be accepted.
+- **Versions.** Every change, the Architect's or yours, is a version of the whole brief. The arrows at the top
+  step through them. The version on screen is the one in use: your next answer, your next change and **Start
+  analysis** all go on from it, and the button names the version when it is not the last.
 - **The brief.** Under the box, what the Analyst gets with the question: what the answer is for, what you think
-  is going on and why, what you expect to see. The Architect writes each part the moment your words give it. A
-  part that does not fit, or that you do not want to state, stays empty, and the Analyst gets no line for it.
+  is going on and why, what you expect to see. The Architect writes each part the moment your words give it. Only
+  the parts that hold something are shown, and the Analyst gets no line for the others. **+ Add** lists the parts
+  you can add by hand.
 - **The check.** What the brief rests on is looked up in the loaded data: counts, lists and totals, nothing more.
   Each line is marked *holds*, *does not hold* or *cannot be checked*, with the numbers beside it.
 - **Other explanations.** The Architect may propose up to two, each from a column the data has. A proposal stays
   unticked until you accept it.
-- **Your changes.** Any line can be changed in place. Every change is a version, and the earlier versions stay.
+- **Your changes.** Any line can be changed in place, with its pencil.
 - **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
   Analyst stops and asks. The report gains *Did not fit*, and - where the brief says what you expect or names a
   check - *Against the brief*: what you expected, as met, not met or cannot tell, and each other explanation with
@@ -289,7 +292,7 @@ analysis left: a result that did not fit, a line that could not be checked, an e
 can be changed, and running it starts a new analysis.
 
 The Architect follows [`analyst/architect.md`](analyst/architect.md). Its messages are a model's, so the brief is
-yours to correct: only what you ticked or left standing reaches the Analyst.
+yours to correct: the Analyst gets what the version you start with shows, and nothing else.
 
 ### Saved analyses as memory
 
@@ -298,9 +301,11 @@ picked one, or the origin of a routine - and has a report. Deleting a saved work
 Unsaved runs never come back.
 
 While a brief is written, the saved analyses can be read: the Architect asks for it as soon as it can tell what
-the question is about, and **Look in saved analyses** in the brief asks at any time, four times a brief at most.
-When you tell the Architect to build on an earlier analysis, it ticks that analysis' passages for you. A model works through the saved record with code, in a sandbox that holds no data, and a
-second, faster model reads the pieces it names. A reading is bounded - 8 replies, 60 calls of the second model,
+the question is about, or when you ask it to look - four times a brief at most. What a reading finds is shown for
+you to read: an analysis to a line in the conversation, and in full under the brief. **View** shows an analysis
+over the page. You choose by answering the Architect - *build on this one* - and the brief then lists the
+analyses it builds on, each with a cross to leave it out. A model works through the saved record with code, in a
+sandbox that holds no data, and a second, faster model reads the pieces it names. A reading is bounded - 8 replies, 60 calls of the second model,
 120 seconds, $0.50 - and **Skip** ends it. What is read of a saved analysis: its question, its report, its code
 and results, and - where it was framed with the Architect - its brief and the conversation the brief came from.
 
@@ -308,9 +313,8 @@ and results, and - where it was framed with the Architect - its brief and the co
   Code looks every quote up in the record, and one that is not there word for word is dropped.
 - **Across analyses.** Where your saved analyses went more than one way on something, the ways come with counts,
   and the Architect asks which one this analysis takes.
-- **Your tick.** Passages enter the brief unticked, ten at most: where a later reading brings more, those you
-  did not tick make room. The Analyst receives the ticked ones as earlier results to test, and can open the
-  analysis a passage comes from: its report and its code. A number from it is history about the data it ran on;
+- **What you build on.** The Analyst receives the passages of the analyses the brief builds on, ten at most, as
+  earlier results to test, and can open each analysis: its report and its code. A number from it is history about the data it ran on;
   where that was another person's data, the Analyst is told so, and not whose.
 
 Two tools read the same record from the command line: `python tools/memory_view.py` lists what is saved and what

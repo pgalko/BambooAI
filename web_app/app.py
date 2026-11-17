@@ -1307,6 +1307,7 @@ def query():
     candidate = request.json.get('next')     # {set, k}: the next question of the chain this one follows that it was started from (architect_routes.py)
     synthesis = request.json.get('synthesis', False)
     run_id = request.json.get('run_id')      # the framing run this analysis continues (architect_routes.py): it runs under that run's brief
+    version = request.json.get('version')    # ... under the version of it on the person's screen when they started; none: the one in use
 
     # NEW: Auto-explore parameters
     auto_explore = request.json.get('auto_explore', False)
@@ -1343,6 +1344,7 @@ def query():
             synthesis=synthesis,
             mode=mode,
             run_id=run_id,
+            version=version if isinstance(version, int) and not isinstance(version, bool) else None,
             candidate=(candidate.get('set'), candidate.get('k')) if isinstance(candidate, dict) else None,
         )
 

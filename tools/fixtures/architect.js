@@ -1,8 +1,9 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.17, §3.7): the
-// Architect's first question, its reply awaited, a brief after the conversation - the Architect's wording of the question
-// waiting to be taken, a line being changed by hand - what the brief rests on checked against the data with an
-// explanation proposed, a report against a brief, the next questions under a finished analysis, and the saved analyses -
-// being read, and what they hold in the brief. An invented field trial, as the stack's scenario has it.
+// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §3.7): the
+// Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
+// the Architect worded it, a line being changed by hand - an earlier version on screen, what the brief rests on checked
+// against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
+// and the saved analyses - being read, and what was found with the one the brief builds on. An invented field trial, as
+// the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
@@ -16,11 +17,12 @@ window.galleryArchitect = (function () {
   const ASK = said('What will you do differently depending on the answer?', { choices: ['Switch to regime C', 'Keep regime A'], v: 2, call: 1 });
   const first = { versions: [V1, V2], turns: [ASK], calls: 1 };
   const framing = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: Object.assign({}, BRIEF, { fixed: { comparison: 'regime C against regime A' }, also_check: undefined }) },
-                               { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF }],
+                               { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF },
+                               { n: 5, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED }) }],      // the question as the Architect worded it: written at once
                     turns: [ASK, you('Switch the clay plots to regime C next season, or keep A.'), said('What do you think is going on, and what makes you think so?', { v: 2, call: 2 }),
                             you('C does better than A because the C plots looked greener last season.'), said('What do you expect to see?', { v: 2, call: 3 }),
                             you('C yields at least 0.3 t/ha more than A.'),
-                            said('I have worded it as the gap between the two regimes within each soil type. Is that what you mean?', { wording: WORDED, v: 3, call: 4 })], calls: 4 };
+                            said('I have worded it as the gap between the two regimes within each soil type. Is that what you mean?', { wording: WORDED, v: 5, call: 4 })], calls: 4 };
   // the check against the data: a line that does not hold, one that holds, one that cannot be checked
   const RAIN = 'The C plots got the most rain.', SAME = 'Each regime has the same number of plots.', GREEN = 'The C plots looked greener last season.';
   const RAIN_FACT = 'total of rainfall_mm by regime: A 100,448 · B 102,189 · C 100,570', SAME_FACT = 'rows by regime: A 240 · B 240 · C 240';
@@ -34,24 +36,26 @@ window.galleryArchitect = (function () {
                             said('Checking this against the data.', { v: 3, call: 4 }),
                             { who: 'check', found: [{ k: 1, about: RAIN, fact: RAIN_FACT, ran: true }, { k: 2, about: SAME, fact: SAME_FACT, ran: true }], secs: 1.8 },
                             said('One line does not hold: the B plots got the most rain, 102,189 against 100,570. Keep what you think, or change it?', { choices: ['Keep it', 'Change it'], v: 4, call: 5 })], calls: 5 };
-  // the saved analyses: two passages found, the first ticked by the coach; and the reading that found them, in flight
+  // the saved analyses: two found by a reading, the first built on by the coach's answer; and the reading that found them, in flight
   const PASSAGES = [{ thread: '1763100000', run: '1763100040', when: '2026-10-28', question: 'Is regime C above regime A on like-for-like soil?', where: 'report',
                       passage: 'On plot means within soil type, regime C yields 0.112 t/ha against regime A (95% interval -0.071 to 0.290).',
-                      note: 'The same comparison, on the plots of the season before.', marks: 'picked', data: 'field_trial.csv', period: '2025-03-01 to 2025-10-31', accepted: true },
+                      note: 'The same comparison, on the plots of the season before.', marks: 'picked', data: 'field_trial.csv', period: '2025-03-01 to 2025-10-31' },
                     { thread: '1763100000', run: '1763100052', when: '2026-10-29', question: 'Is regime C above regime A on clay alone?', where: 'report',
                       passage: 'On clay the gap is 0.242 t/ha, interval 0.031 to 0.455.', note: 'One soil type of the same trial.', marks: 'alongside', data: 'field_trial.csv', period: '2025-03-01 to 2025-10-31',
-                      person: 'First Person', other: true, accepted: false }];
+                      person: 'First Person', other: true }];
   const READ = { who: 'memory', found: PASSAGES.map(x => ({ id: x.thread + '/' + x.run, when: x.when, question: x.question, where: x.where, quote: x.passage, note: x.note })),
                  across: { topic: 'How the gap was taken', groups: [{ label: 'within soil type', runs: [{}, {}] }, { label: 'across all plots', runs: [{}] }] },
                  of: 12, read: 9, dropped: 0, failed: '', secs: 38.2, cost: 0.06 };
   const LOOKING = [you('C yields at least 0.3 t/ha more than A.'), said('I am looking in your saved analyses.', { v: 3, call: 4 })];
   const looking = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: ASKED }], turns: LOOKING, calls: 4, saved: 12 };
   const remembered = { versions: looking.versions.concat([
-                         { n: 4, by: 'architect', why: 'memory', changed: ['saved.0', 'saved.1'], brief: Object.assign({}, ASKED, { saved: PASSAGES.map(x => Object.assign({}, x, { accepted: false })) }) },
-                         { n: 5, by: 'person', changed: ['saved.0'], brief: Object.assign({}, ASKED, { saved: PASSAGES }) }]),
-                       turns: LOOKING.concat([Object.assign({ v: 4 }, READ),
-                                              said('Your saved analyses hold two passages on this: tick the ones the analysis should test. The brief is ready: start the analysis, or change a line.', { v: 4, call: 5 })]),
-                       calls: 5, saved: 12 };
+                         { n: 4, by: 'architect', why: 'answer', changed: ['saved.0'], brief: Object.assign({}, ASKED, { saved: [Object.assign({ accepted: true }, PASSAGES[0])] }) }]),
+                       found: PASSAGES,
+                       turns: LOOKING.concat([Object.assign({ v: 3 }, READ),
+                                              said('Your saved analyses hold two on this. Build on one of them, or go another way?', { v: 3, call: 5 }),
+                                              you('Build on the one on like-for-like soil.'),
+                                              said('Done: the Analyst gets that analysis, and can open it. The brief is ready: start the analysis, or change a line.', { v: 4, call: 6 })]),
+                       calls: 6, saved: 12 };
   const entryOf = f => ({ status: 'framing', chain_id: 1763203380, thread_id: 1763203300, parentChainId: null, queryText: Q, tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, framing: f });
   const show = f => { const entry = entryOf(f); responses = [entry]; currentResponseIndex = 0; loadResponseContent(entry); updateNavigationButtons(); document.getElementById('architectSwitch').click(); return entry; };
   const REPORT = '<h1>Regime C is not distinguishable from regime A on like-for-like soil</h1>' +
@@ -77,17 +81,25 @@ window.galleryArchitect = (function () {
       pane.querySelector('[data-nq="open"]').click();
     },
     talk() { show(first); },      // the Architect's first turn: what the question states is in the brief, and its first question has two choices
+    adding() {       // + Add, open: the parts the brief does not show, each under its name
+      show(first);
+      document.querySelector('#content-brief [data-ar="more"]').click();
+    },
     reading() {      // a message on its way: shown at once, the Architect reading, the composer held
       const entry = show(first);
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { sent: 'Switch the clay plots to regime C next season, or keep A.', waiting: true });
       composerLock('The Architect is replying');
     },
-    brief() {        // after the conversation: the Architect's wording waits under the question, the switch lit, one line open for typing
+    brief() {        // after the conversation: the question as the Architect worded it - the row that says so - the switch lit, one line open for typing
       show(framing);
       document.querySelector('#content-brief .ar-line[data-path="expects"] .pen').click();
     },
+    version() {      // the arrow back, twice: an earlier version on screen, and Start analysis names it
+      show(framing);
+      for (let k = 0; k < 2; k++) document.querySelector('#content-brief [data-ar="step"][data-step="-1"]').click();
+    },
     checked() { show(checked); },      // what the brief rests on, checked: the round's row, the marks with their facts, keep or change; an explanation proposed, to tick
-    saved() { show(remembered); },     // what the saved analyses hold: the reading's row, the passages in the brief - one ticked - and the button that has them read once more
+    saved() { show(remembered); },     // what the saved analyses hold: the reading's row with the analyses found under it, each in full under the brief, and the one the brief builds on
     saving() {       // the saved analyses being read: the row says how far the second model is, with Skip; the composer held
       const entry = show(looking);
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { waiting: true, saved: { read: 5, of: 12 } });

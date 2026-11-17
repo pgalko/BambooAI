@@ -4,7 +4,7 @@ A brief is a plain dict, kept with its run. Every part is optional: the analyst 
 something, and one the person did not state is the analyst's to choose.
 
     {"version": 2,
-     "question": "...",          the run's question: the person's words, or a wording of the Architect's they agreed to
+     "question": "...",          the run's question: the person's words, or the Architect's wording of them
      "decision": "...",          what they will do differently depending on the answer
      "thinks": "...",            what they think is going on
      "rests_on": [{"text": "...", "source": "person", "mark": "", "note": ""}],     what the frame rests on
@@ -13,18 +13,18 @@ something, and one the person did not state is the analyst's to choose.
      "also_check": [{"text": "...", "shows": "...", "source": "architect", "accepted": false}],     other explanations, and what each would show
      "fixed": {"comparison": "...", "measure": "...", "period": "..."},             fixed before the run
      "saved": [{"thread": "...", "run": "...", "when": "...", "question": "...", "passage": "...", "where": "...", "note": "...", "marks": "...", "data": "...", "period": "...",
-                "person": "...", "other": true, "accepted": false}],                 passages of saved analyses; `other`: of another person's data than the one loaded
+                "person": "...", "other": true, "accepted": true}],                  passages of the saved analyses it builds on; `other`: of another person's data than the one loaded
      "set_aside": ["..."]}       considered and dropped
 
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
 nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
-person's own carries neither. A passage of a saved analysis is there as the reader found it (remember()), and says
-whether the person accepted it. normalise() brings what a caller sends into this shape, agreed() is the brief as the
-analyst receives it, render() writes the BRIEF block of the prompt, held() says whether the report is to answer to
-it, and outcome() reads back what a report says against the brief. While a brief is being written it is kept as
-versions on its run (version(), latest()); write() takes in what a reply of the Architect's names, mark() the marks
-it gives after its lookups and tick() the passages it accepts on the person's word; said() is the conversation the
-brief came from, as text.
+person's own carries neither. The passages under `saved` are those of the saved analyses the person chose to build
+on, as the reader found them (gather(), build_on()). normalise() brings what a caller sends into this shape,
+agreed() is the brief as the analyst receives it, render() writes the BRIEF block of the prompt, held() says
+whether the report is to answer to it, and outcome() reads back what a report says against the brief. While a brief
+is being written it is kept as versions on its run: version() adds one, latest() is the one in use - the last, or
+an earlier one the person went back to (use()); write() takes in what a reply of the Architect's names and mark()
+the marks it gives after its lookups; said() is the conversation the brief came from, as text.
 """
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ FIXED = ("comparison", "measure", "period")
 SAVED = ("thread", "run", "when", "question", "passage", "where", "note", "marks", "data", "period", "person")
 TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
-MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8}     # bounds on what a prompt carries, not the design's counts; saved: what one reading returns at most
+MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8}     # bounds on what a prompt carries, not the design's counts; saved: the passages of the analyses built on
 COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
 ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run on data
 VERDICTS = ("not met", "cannot tell", "met")                     # read in this order: "not met" holds "met"
@@ -121,13 +121,23 @@ def working(brief) -> dict:
 def version(framing: dict, brief, by: str = "person", changed=None, why: str = "") -> dict:
     """A version added to a run's framing: the brief as it stands, who made the change, which parts it touched and,
     for the Architect's, what it was made from (`why`: the question, an answer, or a check against the data). Returns
-    the framing with the new version; every earlier one stays."""
+    the framing with the new version, which is the one in use from now; every earlier one stays."""
     versions = list((framing or {}).get("versions") or [])
     entry = {"n": len(versions) + 1, "by": by if by in ("person", "architect") else "person",
              "changed": [str(c)[:60] for c in (changed or []) if isinstance(c, str)][:12], "brief": working(brief)}
     if why:
         entry["why"] = str(why)[:60]
-    return {**(framing or {}), "versions": versions + [entry]}
+    return {**{k: v for k, v in (framing or {}).items() if k != "at"}, "versions": versions + [entry]}
+
+
+def use(framing: dict, n) -> dict:
+    """The framing with version `n` in use: the person went back to it, and what is done next - an answer, a change,
+    the analysis - goes on from it. The later versions stay. A number the framing does not have changes nothing."""
+    versions = (framing or {}).get("versions") or []
+    if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(versions):
+        return dict(framing or {})
+    rest = {k: v for k, v in framing.items() if k != "at"}
+    return rest if n == len(versions) else {**rest, "at": n}
 
 
 def write(brief, parts) -> tuple:
@@ -173,13 +183,13 @@ def write(brief, parts) -> tuple:
 
 
 def _passage(f: dict) -> dict:
-    """A passage the reader found (analyst/reader.py, an entry of its `found`), as a brief keeps it: its run, the
+    """A passage the reader found (analyst/reader.py, an entry of its `found`), as a framing keeps it: its run, the
     day, what was asked, the passage word for word and where it stands, the reader's note, the run's marks and the
     data it ran on - with whose it is and whether that is another person than the one whose data is loaded, where
-    the host said so - not accepted: only the person accepts one."""
+    the host said so."""
     entry = {"thread": f["thread"], "run": f["run"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "passage": f["quote"], "where": f["where"],
              "note": f["note"], "marks": ", ".join(f["marks"]), "data": f["data"]["name"], "period": f["data"]["period"], "person": f["data"].get("person")}
-    return {**{k: _text(v) for k, v in entry.items() if _text(v)}, **({"other": True} if f["data"].get("other") is True else {}), "accepted": False}
+    return {**{k: _text(v) for k, v in entry.items() if _text(v)}, **({"other": True} if f["data"].get("other") is True else {})}
 
 
 def _same(a: dict, b: dict) -> bool:
@@ -187,27 +197,31 @@ def _same(a: dict, b: dict) -> bool:
     return all(a.get(k) == b.get(k) for k in ("thread", "run", "passage"))
 
 
-def holds(brief: dict, f: dict) -> bool:
-    """Whether a brief holds a passage the reader found."""
-    return any(_same(s, _passage(f)) for s in brief.get("saved", []))
+def gather(kept, read) -> list:
+    """The passages the readings of a brief have found so far, with one more reading's (_passage()): in the order
+    they were found, a passage that is there already not added again. The analyses they come from are numbered in
+    this order (analyses()): a reply of the Architect's builds on one by its number."""
+    out = [dict(s) for s in kept if isinstance(s, dict)] if isinstance(kept, list) else []
+    for entry in [_passage(f) for f in read] if isinstance(read, list) else []:
+        if not any(_same(s, entry) for s in out):
+            out.append(entry)
+    return out
 
 
-def remember(brief, found) -> tuple:
-    """The brief with passages of saved analyses added, as the reader found them (_passage()). A passage that is
-    there already is not added again. A brief holds MAX["saved"] in all: where a reading brings more, the passages
-    the person did not accept and this reading did not find make room, the oldest first; an accepted one stays.
-    Returns the brief and what changed, as the page names it: `saved` where a passage made room, and each entry
-    added."""
+def build_on(brief, found, numbers) -> tuple:
+    """The brief built on the saved analyses a reply of the Architect's names, on the person's word: by their
+    numbers among the analyses the readings found (analyses(found)), from 1. Their passages stand under `saved`,
+    and no other: an analysis the reply does not name is built on no longer. A number the readings do not have is
+    passed over, and what the brief has no room for is left out. Returns the brief and what changed, as the page
+    names it: each passage added, and `saved` where one went."""
     out = working(brief)
-    saved, read, new = list(out.get("saved", [])), [_passage(f) for f in found] if isinstance(found, list) else [], []
-    for entry in read:
-        if not any(_same(s, entry) for s in saved + new):
-            new.append(entry)
-    stale = [s for s in saved if not s.get("accepted") and not any(_same(s, e) for e in read)]
-    gone = stale[:max(0, len(saved) + len(new) - MAX["saved"])]
-    saved = [s for s in saved if not any(s is g for g in gone)]
-    new = new[:MAX["saved"] - len(saved)]
-    return working({**out, "saved": saved + new}), (["saved"] if gone else []) + [f"saved.{len(saved) + i}" for i in range(len(new))]
+    groups = analyses(found if isinstance(found, list) else [])
+    chosen = sorted({n for n in numbers if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= len(groups)}) if isinstance(numbers, list) else []
+    was = out.get("saved", [])
+    now = [{**s, "accepted": True} for n in chosen for s in groups[n - 1]][:MAX["saved"]]
+    changed = [f"saved.{i}" for i, s in enumerate(now) if not any(_same(s, o) and o.get("accepted") for o in was)]
+    gone = any(not any(_same(o, s) for s in now) for o in was)
+    return working({**out, "saved": now}), changed + (["saved"] if gone else [])
 
 
 def mark(brief, marks, facts) -> tuple:
@@ -241,31 +255,21 @@ def mark(brief, marks, facts) -> tuple:
     return working(out), changed
 
 
-def tick(brief, numbers) -> tuple:
-    """The brief with passages of saved analyses accepted on the person's word, as a reply of the Architect's names
-    them (analyst/architect.py): by their numbers under `saved`, from 1. A number the brief does not have is passed
-    over, and no tick is taken back here: that is the person's own. Returns the brief and the passages that changed,
-    as the page names them."""
-    out = working(brief)
-    saved, changed = out.get("saved", []), []
-    for n in numbers if isinstance(numbers, list) else []:
-        if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= len(saved) and not saved[n - 1]["accepted"]:
-            saved[n - 1]["accepted"] = True
-            changed.append(f"saved.{n - 1}")
-    return out, changed
-
-
 def latest(framing: dict) -> dict:
-    """The brief of a framing's last version, numbered with it; {} when there is none."""
+    """The brief of the version in use, numbered with it: the one the person went back to (use()), else the last;
+    {} when there is none."""
     versions = (framing or {}).get("versions") or []
-    return {**versions[-1].get("brief", {}), "version": versions[-1].get("n", len(versions))} if versions and versions[-1].get("brief") else {}
+    at = (framing or {}).get("at")
+    v = versions[at - 1] if isinstance(at, int) and not isinstance(at, bool) and 1 <= at <= len(versions) else versions[-1] if versions else {}
+    return {**v["brief"], "version": v.get("n", len(versions))} if v.get("brief") else {}
+
 
 
 def said(framing, question: str = "") -> str:
     """What the person and the Architect said while a brief was written, as text: each message under who said it,
-    the question as it was first asked before them - `question` where the framing kept no first version - and a
-    wording of the question the Architect proposed on a line of its own. "" where nothing was said. What was looked
-    up, read or opened meanwhile is no part of it."""
+    the question as it was first asked before them - `question` where the framing kept no first version - and the
+    question as the Architect worded it on a line of its own. "" where nothing was said. What was looked up, read
+    or opened meanwhile, and where the person went to another version, is no part of it."""
     framing = framing if isinstance(framing, dict) else {}
     turns = [t for t in framing.get("turns") or [] if t.get("who") in ("person", "architect") and str(t.get("text") or "").strip()]
     if not turns:

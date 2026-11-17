@@ -69,27 +69,30 @@ ARCHITECT_NOW = "What do you think is going on now, and what makes you think so?
 # another explanation (docs/ARCHITECT_DESIGN.md §2.14): what the scripted Architect proposes with its marks, from a column the
 # data has, and what it adds to its last message while the proposal is unticked
 ARCHITECT_PROPOSES = {"text": "The C plots sit on other soil than the A plots", "shows": "the gap narrows within a soil type", "column": "soil"}
-ARCHITECT_TICK = " What I proposed under Also check can be ticked."
+ARCHITECT_TICK = " What I proposed under Other explanations to test can be ticked."
 # the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Architect says while they are read, and when passages were found
 ARCHITECT_LOOKING = "I am looking in your saved analyses."
-ARCHITECT_FOUND = " What your saved analyses hold is in the brief, to tick."
-# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16, §2.17): what could be looked at, the question worded and taken
+ARCHITECT_FOUND = " Your saved analyses hold something on this: build on it, or go another way?"      # said with the choices: one to each analysis found
+ARCHITECT_BUILD_ON = 'Build on "{}"'                                 # the choice that names an analysis, where more than one was found
+ARCHITECT_AGAIN = "Look in my saved analyses again."                 # the person asks for one more reading, in words
+# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16-§2.18): what could be looked at, and the question worded - written at once
 TUTOR_QUESTION = "Plot the two regimes side by side"                 # a bare request: the question is worked out in the conversation
 TUTOR_FIRST = ("Two regimes can be put side by side in more than one way. What should the plot show?\n\n"
                "- what each regime gives, season by season;\n- how the plots of one regime spread against the other's.")
 TUTOR_CHOICES = ["Season by season", "The spread", "I cannot tell yet"]
-ARCHITECT_BACK = "This is how I would put it to the Analyst. Is that what you mean?"      # said with a wording: the wording stands under the message, to take
+ARCHITECT_BACK = "I have put that into the question. Is that what you mean?"      # said with a wording: the engine writes it as the question at once
 ARCHITECT_YES = ["Yes, that is it", "Change something"]
-ARCHITECT_WRITTEN = "Taken. Start the analysis when you are ready, or go on."
-ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Architect gives it back as its wording
-ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question itself: the engine keeps none of it
-ARCHITECT_UNREAD_WORDING = "A wording nobody took"
-# a question that follows the tutor's analysis (§2.17): the saved analyses are read on a follow-up too, a part of the analysis before is opened and read, and "build on it" ticks a passage
+ARCHITECT_WRITTEN = "Good. Start the analysis when you are ready, or go on."
+ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Architect gives it as its wording
+ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question under the brief: the engine keeps none of it
+ARCHITECT_UNREAD_WORDING = "A wording written in the wrong place"
+# a question that follows the tutor's analysis (§2.17, §2.18): the saved analyses are read on a follow-up too, a part of the analysis before is opened and read, and "build on it" brings an analysis into the brief
 FOLLOW_QUESTION = "And regime B beside them - how was the first plot made?"
 ARCHITECT_OPENING = "I am opening the report of the analysis before this one."
 ARCHITECT_OPENED = "Its report opens: "
 ARCHITECT_BUILD = ["Build on it", "Go another way"]
-ARCHITECT_TICKED = "Ticked: the Analyst gets that passage, and can open the analysis it comes from."
+ARCHITECT_BUILT = "Done: the Analyst gets that analysis, and can open it."
+ARCHITECT_ANOTHER = "Then the brief builds on none of them."
 BARE_DONE = "Nothing is loaded, so one cell stood in for the work"      # how a briefed run without data reports
 SAVED_JUDGE = "What was compared, and what was found?"
 SAVED_NOTE = "An earlier analysis that names what this question asks about."
@@ -379,18 +382,21 @@ class Scenario:
         change it. With the marks it proposes another explanation, from a column the data has (ARCHITECT_PROPOSES).
         With every line marked it says the brief is ready - and, while its proposal is unticked, that it can be
         ticked. On a question that follows no analysis, where the person has saved analyses, it has them read once:
-        with its lookups, or in the place of saying that the brief is ready; right after the reading it says, with
-        the brief ready, that what they hold is in the brief.
+        with its lookups, or in the place of saying that the brief is ready; right after a reading that found
+        something it asks, with the brief ready, whether to build on it: two choices where one analysis was found,
+        else a choice to each analysis, by what was asked then, and one to go another way. Told to build, it names
+        that analysis by its number (`build`); told to go another way, it names none. Asked in words to look again
+        (ARCHITECT_AGAIN), it has them read once more.
 
         The question worked out in the conversation (2026-11-17): to a bare request (TUTOR_QUESTION) it says what
         the plot could show, in a message of several lines with choices; the first choice taken, it gives its
-        wording of the question, with two choices; a wording the person gives (ARCHITECT_OWN) it gives back as its
-        own. When the person says yes it reports that (`accept`). Left to word it itself (ARCHITECT_UNREAD), it
-        writes the question under the brief - which the engine does not keep.
+        wording of the question, with two choices; a wording the person gives (ARCHITECT_OWN) it gives as its own.
+        The engine writes a wording at once. Left to word it itself (ARCHITECT_UNREAD), it writes the question
+        under the brief - which the engine does not keep.
 
         A question that follows the tutor's analysis (FOLLOW_QUESTION): it has the saved analyses read, then opens
         the report of the analysis before, then says how that report opens, with two choices; told to build on it,
-        it ticks the first passage."""
+        it names the first analysis found."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
@@ -398,7 +404,7 @@ class Scenario:
         talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
         if question == FOLLOW_QUESTION:
             if talk and talk[-1] == ("Person", ARCHITECT_BUILD[0]):
-                return json.dumps({"say": ARCHITECT_TICKED, "tick": [1]})
+                return json.dumps({"say": ARCHITECT_BUILT, "build": [1]})
             if "\nOPENED (" in user:                            # the part it opened is in view: it speaks from it
                 opens = (re.search(r"^--- the report ---\n(?:#+ *)?(.*)$", user, re.M) or [None, ""])[1]
                 return json.dumps({"say": ARCHITECT_OPENED + opens, "choices": ARCHITECT_BUILD})
@@ -422,7 +428,15 @@ class Scenario:
                 wording = said[len(ARCHITECT_OWN):] if said.startswith(ARCHITECT_OWN) else question.rstrip("?.") + ", season by season"
                 return json.dumps({"say": ARCHITECT_BACK, "wording": wording, "choices": ARCHITECT_YES})
             if said == ARCHITECT_YES[0]:
-                return json.dumps({"say": ARCHITECT_WRITTEN, "accept": True})
+                return json.dumps({"say": ARCHITECT_WRITTEN})
+            named = re.fullmatch(re.escape(ARCHITECT_BUILD_ON).replace(r"\{\}", "(.*)"), said)
+            if said == ARCHITECT_BUILD[0] or named:             # the person chose: the one analysis found, or the one they named
+                numbers = {asked: int(k) for k, asked in re.findall(r'^\[(\d+)\] \S+ "(.*?)": ', said_so_far, re.M)}
+                return json.dumps({"say": ARCHITECT_BUILT, "build": [numbers.get(named.group(1), 0) if named else 1]})
+            if said == ARCHITECT_BUILD[1]:
+                return json.dumps({"say": ARCHITECT_ANOTHER, "build": []})
+            if said == ARCHITECT_AGAIN:
+                return json.dumps({"say": ARCHITECT_LOOKING, "recall": True})
             if said == ARCHITECT_UNREAD:
                 return json.dumps({"brief": {"question": ARCHITECT_UNREAD_WORDING}, "say": ARCHITECT_WRITTEN})
             part = next((key for key, ask in ARCHITECT_ASKS + (("thinks", ARCHITECT_NOW),) if ask == before), None)
@@ -470,10 +484,13 @@ class Scenario:
                 failed.append(f"{text.rstrip('.')} ({fact.split(': ', 1)[-1]})")
         proposes = bool(marks) and ARCHITECT_PROPOSES["text"] not in user and re.search(r"^soil: ", user, re.M) is not None
         unticked = proposes or f"- {ARCHITECT_PROPOSES['text']} [proposed by you, not accepted]" in user
-        holds_some = read_now and re.search(r'^- \S+ ".*".*: ".*"', since, re.M) is not None    # the reading just made found passages
+        holds = re.findall(r'^\[\d+\] \S+ "(.*?)": ', since, re.M) if read_now else []      # what was asked in each analysis the reading just made found
+        holds_some = bool(holds)
         reply = {"brief": writes, "marks": marks, "say": ARCHITECT_READY + (ARCHITECT_TICK if unticked else "") + (ARCHITECT_FOUND if holds_some else "")}
         if proposes:
             reply["propose"] = [ARCHITECT_PROPOSES]
+        if holds_some:
+            reply["choices"] = ARCHITECT_BUILD if len(holds) == 1 else [ARCHITECT_BUILD_ON.format(asked) for asked in holds][:3] + ARCHITECT_BUILD[1:]
         if failed:
             reply.update(say=f"{'One line does' if len(failed) == 1 else 'Some lines do'} not hold: {'; '.join(failed)}. Keep what you think, or change it?", choices=ARCHITECT_KEEP)
         return json.dumps(reply)
@@ -484,11 +501,12 @@ class Scenario:
         question, title or report holds a word of the question; then - where it listed any - a question to the second
         model about them; then its answer: the second model's quote for each run, and, where it answered for more
         than one, the runs grouped by its answer. Where the cell lists none, the answer is empty. A second reading -
-        the brief it is given holds passages already - takes its time over the first reply (SAVED_SLOW)."""
+        the brief it is given says what it builds on, as it does once a reading found something - takes its time over
+        the first reply (SAVED_SLOW)."""
         question = (re.search(r"^QUESTION:\n(.*?)\n\n", user, re.S | re.M) or [None, ""])[1]
         words = sorted({w for w in re.findall(r"[a-z]{5,}", question.lower())} - {"which", "there", "their", "about", "would", "should", "better", "still"})
         if "\n[1] CELL\n" not in user:
-            if re.search(r"^saved:$", user, re.M):
+            if re.search(r"^builds_on:", user, re.M):
                 time.sleep(SAVED_SLOW)
             return ("CELL\n```python\nwords = " + repr(words) + "\nhits = [r['id'] for r in SAVED['runs'] if any(w in (r['question'] + ' ' + r['title'] + ' ' + r['report']).lower() for w in words)]\n"
                     "print(hits)\n```")

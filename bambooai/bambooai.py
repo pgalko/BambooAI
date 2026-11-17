@@ -1240,15 +1240,15 @@ class BambooAI:
         self.store.save(nb)
         return run.framing
 
-    def architect_say(self, thread_id, run_id, text=None, asked=False):
+    def architect_say(self, thread_id, run_id, text=None, version=None):
         """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
         first turn, nor when it goes on after its lookups, a reading or a part it opened - and its reply, taken into the
         brief and the conversation; a part of an earlier analysis it opens comes from the thread's record, in the engine;
         the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
-        (_architect_recall) where the reply asks for it or - `asked` - the person did. The calls are the run's own:
-        logged under its chain as the Architect's, and charged with its analysis - or when the instance is torn down,
-        if no analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
-        architect.Failed with the reason to show."""
+        (_architect_recall) where the reply asks for it. `version`: the version of the brief on the person's screen -
+        the exchange goes on from it. The calls are the run's own: logged under its chain as the Architect's, and
+        charged with its analysis - or when the instance is torn down, if no analysis follows (cleanup). Returns the
+        framing, or None when the run is not one being framed; raises architect.Failed with the reason to show."""
         from analyst import architect, brief as briefs, memory
         from analyst.notebook import has_data
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
@@ -1264,9 +1264,9 @@ class BambooAI:
         try:
             framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
                                          self.notebook, run, text, data=self._data_description(), look=self._architect_look,
-                                         recall=self._architect_recall, asked=asked, saved=len(memory.view(self._user_storage())["runs"]))
+                                         recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]), version=version)
             run.framing = {**framing, "data": has_data(self._data_record(light=True))}             # as it is now: data may have been loaded since the brief opened
-            run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # a wording the person agreed to is the run's question
+            run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
             run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
@@ -1410,9 +1410,10 @@ class BambooAI:
 
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
                           image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, brief=None,
-                          run_id=None, candidate=None):
+                          run_id=None, candidate=None, version=None):
         # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
         # run_id: the framing run the brief was written in (open_framing); the analysis continues it, under its id
+        # version: the version of that run's brief on the person's screen when they started it; the analysis runs under it
         # candidate: (the set, the question) by their places - the next question of the run this one follows that it was
         # started from (analyst/next_questions.py); it is marked there as run
         self.kill_signal = False
@@ -1442,7 +1443,9 @@ class BambooAI:
         if framed is not None:
             from analyst import brief as briefs
             self.chain_id = int(run_id) if str(run_id).isdigit() else run_id      # the analysis of a framed run keeps the run's id
-            brief = brief or briefs.latest(framed.framing)                         # ... and runs under the brief as last kept
+            if version is not None:
+                framed.framing = briefs.use(framed.framing, version)              # ... the version the person started is the one in use
+            brief = brief or briefs.latest(framed.framing)                         # ... and the run is under that brief
             parent = framed.parent                                                 # ... and attaches where the framing run did
             parent_for_ui = int(parent) if parent and parent.isdigit() else parent
         else:

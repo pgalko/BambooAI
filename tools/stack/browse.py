@@ -218,14 +218,20 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
-    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14): a question typed with the switch on, the conversation that fills
-    # its brief, the check of what it rests on against the data, the explanation it proposes and the coach ticks, a line
-    # changed by hand, the analysis started from it, the report against the brief, the thread map
+    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14, §2.18): a question typed with the switch on, the conversation that
+    # fills its brief, the parts + Add offers, the check of what it rests on against the data, the explanation it proposes and
+    # the coach ticks, a line changed by hand, an earlier version on screen, the analysis started from the brief, the report
+    # against it, the thread map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):
             n = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
-            p.click(f'#content-brief .ar-line[data-path="{path}"] [data-ar="edit"]')
+            pen = f'#content-brief .ar-line[data-path="{path}"] [data-ar="edit"]'
+            if p.locator(pen).count():
+                p.click(pen)
+            else:                                            # a part the brief does not show: + Add, then its name
+                p.click('#content-brief [data-ar="more"]')
+                p.click(f'#content-brief .ar-kinds [data-ar="add"][data-path="{path}"]')
             p.fill("#content-brief .ar-input", text)
             if keep:
                 p.keyboard.press("Enter")
@@ -242,6 +248,10 @@ def story(w, mod, dataset, questions):
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
         said(1)
         w.shot("architect_first_question")
+        p.click('#content-brief [data-ar="more"]')           # the parts the brief does not show yet, to add by hand
+        p.wait_for_timeout(300)
+        w.shot("architect_add")
+        p.click('#content-brief [data-ar="more"]')
         p.click("#streamOutput .ar-choice")
         said(2)
         p.fill("#queryInput", "C does better than A because the C plots got the most rain.")
@@ -330,13 +340,14 @@ def story(w, mod, dataset, questions):
         w.shot("next_card_run")
         p.click("#architectSwitch")
 
-    # the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the framed analysis saved, then a question it bears
-    # on framed in a workflow of its own - what the reading found, a passage ticked, the analysis it comes from opened, a
-    # second reading asked for by the coach and skipped, and the analysis under that brief: its first step opens the saved one
+    # the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7, §2.18): the framed analysis saved, then a question it
+    # bears on framed in a workflow of its own - what the reading found, under its row and under the brief; one analysis
+    # viewed whole; the coach's answer that builds on it; a second reading asked for in words and skipped; and the analysis
+    # under that brief: its first step opens the saved one
     saved_question = getattr(mod, "SAVED_QUESTION", None)
     if brief_question and saved_question and p.query_selector("#architectSwitch"):
-        framed = p.evaluate("() => String(responses[currentResponseIndex].chain_id)")      # the framed analysis, on screen: its passage is the one ticked and opened
-        mine = f'#content-brief .ar-line.ar-saved:has([data-ar="open"][data-run="{framed}"])'
+        framed = p.evaluate("() => String(responses[currentResponseIndex].chain_id)")      # the framed analysis, on screen: the one viewed and built on
+        view = f'#streamOutput .ar-found [data-ar="open"][data-run="{framed}"]'
         p.click("#saveButton")
         p.wait_for_selector("#saveMenu", state="visible", timeout=10000)
         p.click("#saveMenu .it[data-act='favourite']")
@@ -362,12 +373,7 @@ def story(w, mod, dataset, questions):
             p.click("#submitQuery")
             said(n)
         w.shot("saved_found")
-        versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
-        p.click(mine + " .tick")
-        p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
-        p.wait_for_timeout(300)
-        w.shot("saved_ticked")
-        p.click(mine + ' [data-ar="open"]')
+        p.click(view)
         p.wait_for_function("() => { const m = document.getElementById('savedAnalysisModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
         p.wait_for_timeout(400)
         w.shot("saved_open")
@@ -377,21 +383,27 @@ def story(w, mod, dataset, questions):
             w.shot(shot)
             p.click(f'#savedAnalysisModal details.ar-code summary:text-is("{name}")')
         p.click("#savedAnalysisModal .ui-dlg-h .x")
-        p.click('#content-brief [data-ar="look"]')
+        at = p.evaluate("(sel) => [...document.querySelectorAll('#streamOutput .ar-found .it')].findIndex(it => it.contains(document.querySelector(sel)))", view)
+        p.click(f"#streamOutput .ar-choice >> nth={max(at, 0)}")      # the choice that names it: the brief builds on that analysis
+        said(6)
+        p.wait_for_timeout(300)
+        w.shot("saved_built")
+        p.fill("#queryInput", mod.ARCHITECT_AGAIN)           # one more reading, asked for in words - and skipped
+        p.click("#submitQuery")
         p.wait_for_selector("#streamOutput .sp-row.pending .ar-skip:not([disabled])", timeout=15000)
         w.shot("saved_looking")
         p.click("#streamOutput .sp-row.pending .ar-skip")
-        said(6)
+        said(8)
         w.shot("saved_skipped")
-        p.click('#content-brief [data-ar="start"]')          # the Analyst opens the saved analysis the ticked passage comes from, then computes
+        p.click('#content-brief [data-ar="start"]')          # the Analyst opens the saved analysis the brief builds on, then computes
         w.wait_text(".sp-done", "Run complete", timeout=240000)
         p.wait_for_timeout(600)
         w.shot("saved_run")
         p.click("#architectSwitch")
 
-    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the Architect's wording
-    # of the question and the coach taking it; then the analysis, a question that follows it - the saved analyses read, the
-    # report of the analysis before opened - and "build on it"
+    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question as the
+    # Architect words it - written at once, a version each time - and an earlier version brought back with the arrow; then the
+    # analysis, a question that follows it - the saved analyses read, the report of the analysis before opened - and "build on it"
     tutor_question = getattr(mod, "TUTOR_QUESTION", None)
     if brief_question and tutor_question and p.query_selector("#architectSwitch"):
         w.js("handleNewConversation()")
@@ -405,21 +417,20 @@ def story(w, mod, dataset, questions):
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
         said(1)
         w.shot("tutor_first")
-        p.click("#streamOutput .ar-choice >> nth=0")          # a choice taken: the Architect's wording, under its message and under the question's box
+        p.click("#streamOutput .ar-choice >> nth=0")          # a choice taken: the Architect words the question, and it is the question at once
         said(2)
         p.wait_for_timeout(300)
-        w.shot("tutor_wording")
-        p.click("#streamOutput .ar-wording .ar-use")          # taken: it is what the Analyst will be asked
-        p.wait_for_function("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === 2", timeout=15000)
-        p.wait_for_timeout(300)
         w.shot("tutor_question")
+        p.fill("#queryInput", mod.ARCHITECT_OWN + "Plot regime C beside regime A")      # a wording of the coach's own: one more version
+        p.click("#submitQuery")
+        said(3)
+        p.click('#content-brief [data-ar="step"][data-step="-1"]')      # the arrow back: the version before is on screen, and Start analysis names it
+        p.wait_for_timeout(300)
+        w.shot("tutor_version_back")
         follow = getattr(mod, "FOLLOW_QUESTION", None)
         if follow:
-            for path, text in (("decision", "I want to see the two side by side."), ("fixed.period", "the 2025 season")):
-                p.click(f'#content-brief .ar-line[data-path="{path}"] [data-ar="edit"]')
-                p.fill("#content-brief .ar-input", text)
-                p.keyboard.press("Enter")
-                p.wait_for_function("() => !document.querySelector('#content-brief .editing')", timeout=15000)
+            for path, text in (("decision", "I want to see the two side by side."), ("fixed.period", "the 2025 season")):      # added to the version on screen
+                write(path, text)
             p.wait_for_timeout(300)
             w.shot("tutor_brief")
             w.js("setMode('deep')")
@@ -432,7 +443,7 @@ def story(w, mod, dataset, questions):
             said(3)                                           # having a look, opening the report, speaking from it
             p.wait_for_timeout(300)
             w.shot("tutor_follow")
-            p.click("#streamOutput .ar-choice >> nth=0")      # build on it: the passage is ticked
+            p.click("#streamOutput .ar-choice >> nth=0")      # build on it: the brief builds on that analysis
             said(4)
             p.wait_for_timeout(300)
             w.shot("tutor_build")

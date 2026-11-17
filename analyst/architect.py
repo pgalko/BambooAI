@@ -1,5 +1,5 @@
 """The Architect: the model that frames a question with the person before it is analysed (docs/ARCHITECT_DESIGN.md
-§2.3, §2.12-§2.14, §2.16, §2.17).
+§2.3, §2.12-§2.14, §2.16-§2.18).
 
 One exchange is one model call. The Architect reads the data's description, the analyses the question follows, the
 question, the brief as it stands and the conversation so far (prompt()), and replies with one JSON object: the parts
@@ -7,18 +7,19 @@ of the brief it writes, one message for the person, and choices to click where i
 makes the call and returns the run's framing with the reply taken in: the brief as a new version when a part changed,
 the conversation with the person's message and the Architect's.
 
-The question is not the Architect's to write. It gives a wording, the person takes it - on the page, or by saying
-so, which the reply after reports - and only then is it the question (pending()).
+The question is the Architect's to word. A wording it gives is written at once, as a version of the brief like any
+other change: the person sees the question change, can change it by hand, and can go back to an earlier version - the
+one in use is the one the next exchange goes on from, and the one the analysis runs under (analyst/brief.py use()).
 
 A reply may also ask for lookups, to check what the brief rests on (analyst/lookup.py). The host answers them, and
 what they found joins the conversation as a turn of its own; the reply to the next exchange marks the lines by it.
 And it may propose another explanation, which enters the brief as the Architect's own, for the person to accept.
-A reply may ask to have the person's saved analyses read as well (analyst/reader.py; §3): the host reads them, the
-passages found enter the brief for the person to accept, and what was found is a turn of the conversation too. And
-it may open a part of an analysis the question follows - its report, a cell, the conversation it was framed in:
-the record gives it, for the reply after (opened()). What a reply asks for and cannot be done is said to it at
-once, and the reply is asked for again. Nothing here computes: a lookup and a reading are the host's, and the
-analysis is the analyst's.
+A reply may ask to have the person's saved analyses read as well (analyst/reader.py; §3): the host reads them, and
+what was found is a turn of the conversation, the analyses numbered; the brief builds on those the person chooses,
+which the reply after names by number (`build`). And it may open a part of an analysis the question follows - its
+report, a cell, the conversation it was framed in: the record gives it, for the reply after (opened()). What a
+reply asks for and cannot be done is said to it at once, and the reply is asked for again. Nothing here computes:
+a lookup and a reading are the host's, and the analysis is the analyst's.
 """
 from __future__ import annotations
 
@@ -114,10 +115,10 @@ def reply_object(text: str) -> dict:
 
 def parse(text: str) -> dict:
     """What a reply of the Architect's says: {"brief": the parts it writes, "say": its message, "choices": [...],
-    "wording": the question as it would put it to the analyst, "accept": whether the person agreed in words to the
-    wording that waits, "lookups": what it asks of the data, "marks": the marks it gives, "propose": the explanations
-    it proposes, "recall": whether it asks for the saved analyses to be read, "tick": the passages of saved analyses
-    the person chose, by number, "open": the part of an earlier analysis it asks to read}. Raises Unreadable."""
+    "wording": the question as it puts it to the analyst, "lookups": what it asks of the data, "marks": the marks it
+    gives, "propose": the explanations it proposes, "recall": whether it asks for the saved analyses to be read,
+    "build": the saved analyses the brief is to build on, by number - None where the reply does not say -, "open":
+    the part of an earlier analysis it asks to read}. Raises Unreadable."""
     obj = reply_object(text)
     say = _say(obj.get("say"))
     if not say:
@@ -127,17 +128,25 @@ def parse(text: str) -> dict:
         c = _line(c, CHOICE_CHARS)
         if c and c not in choices:
             choices.append(c)
-    asked, marks, proposed, ticked = (obj.get(key) if isinstance(obj.get(key), list) else [] for key in ("lookups", "marks", "propose", "tick"))
+    asked, marks, proposed = (obj.get(key) if isinstance(obj.get(key), list) else [] for key in ("lookups", "marks", "propose"))
+    build = obj.get("build")
     return {"brief": obj.get("brief") if isinstance(obj.get("brief"), dict) else {}, "say": say, "choices": choices[:CHOICES],
-            "wording": briefs.wording(obj.get("wording")), "accept": obj.get("accept") is True,
-            "lookups": asked[:lookup.MAX_LOOKUPS], "marks": marks, "propose": proposed, "recall": obj.get("recall") is True,
-            "tick": [n for n in ticked if isinstance(n, int) and not isinstance(n, bool)], "open": obj.get("open") if isinstance(obj.get("open"), dict) else None}
+            "wording": briefs.wording(obj.get("wording")), "lookups": asked[:lookup.MAX_LOOKUPS], "marks": marks, "propose": proposed,
+            "recall": obj.get("recall") is True,
+            "build": [n for n in build if isinstance(n, int) and not isinstance(n, bool)] if isinstance(build, list) else None,
+            "open": obj.get("open") if isinstance(obj.get("open"), dict) else None}
 
 
-def block(brief: dict) -> str:
+def _numbers(found) -> dict:
+    """The number of each saved analysis the readings found, by its id: as analyses() orders them, from 1."""
+    return {f"{g[0].get('thread')}/{g[0].get('run')}": k for k, g in enumerate(briefs.analyses(found or []), 1)}
+
+
+def block(brief: dict, found=None) -> str:
     """The BRIEF block of the Architect's prompt: every part under the name the reply uses for it. A line the brief
     rests on shows its mark, with what was found, once it was checked; an explanation the Architect proposed says so,
-    and whether the person accepted it; so does a passage of a saved analysis, under the number a reply ticks it by."""
+    and whether the person accepted it. `found`: the passages the readings found - the saved analyses the brief
+    builds on stand under the numbers they have there."""
     lines = [f"BRIEF (version {brief.get('version', 1)}):"]
     for key in ("decision", "thinks"):
         lines.append(f"{key}: {brief.get(key) or EMPTY}")
@@ -150,10 +159,12 @@ def block(brief: dict) -> str:
     lines += [f"- {r['text']}" + (f" [proposed by you, {'accepted' if r.get('accepted') else 'not accepted'}]" if r.get("source") == "architect" else "")
               for r in brief.get("also_check", [])]
     lines += [f"fixed.{key}: {brief.get('fixed', {}).get(key) or EMPTY}" for key in briefs.FIXED]
-    if brief.get("saved"):
-        lines.append("saved:")
-        lines += [f"{k}. " + " ".join(x for x in (s.get("when"), f"\"{s.get('question', '')}\"") if x) + f": \"{s.get('passage', '')}\" [{'accepted' if s.get('accepted') else 'not accepted'}]"
-                  for k, s in enumerate(brief["saved"], 1)]
+    built = briefs.analyses([s for s in brief.get("saved", []) if s.get("accepted")])
+    if built or found:
+        numbers = _numbers(found)
+        lines.append("builds_on:" + ("" if built else f" {EMPTY}"))
+        lines += [f"- [{numbers.get(str(g[0].get('thread')) + '/' + str(g[0].get('run')), '-')}] "
+                  + " ".join(x for x in (g[0].get("when"), f"\"{g[0].get('question', '')}\"") if x) for g in built]
     return "\n".join(lines)
 
 
@@ -192,67 +203,61 @@ def earlier(nb: Notebook, run_id: str, cells: bool = False) -> str:
     return "\n".join(out)
 
 
-def recalled(turn: dict) -> list:
+def recalled(turn: dict, numbers: dict) -> list:
     """What a reading of the saved analyses found, as lines of the CONVERSATION block: how many runs there are and
-    how many the second model read, each passage with its day, what was asked and the reader's note, and what was
-    found across them, a count to each way - or why nothing was read."""
+    how many the second model read, each analysis under the number a reply builds on it by (`numbers`, by its id) -
+    its day, what was asked, its passages and the reader's notes - and what was found across them, a count to each
+    way - or why nothing was read."""
     if turn.get("failed"):
         return [f"Saved analyses: not read - {turn['failed']}"]
     found, across = turn.get("found", []), turn.get("across")
     lines = [f"Saved analyses ({turn.get('of', 0)} saved, {turn.get('read', 0)} read through):" + ("" if found or across else " nothing in them bears on it.")]
-    lines += [f"- {f['when']} \"{f['question']}\"" + (f", in its {f['where']}" if f.get("where") else "") + f": \"{f['quote']}\"" + (f" - {f['note']}" if f.get("note") else "")
-              for f in found]
-    if turn.get("left"):
-        lines.append(f"{turn['left']} more found: the brief has no room for them.")
+    groups: dict = {}
+    for f in found:
+        groups.setdefault(f["id"], []).append(f)
+    for ident, passages in groups.items():
+        quotes = "; ".join((f"in its {q['where']} " if q.get("where") else "") + f"\"{q['quote']}\"" + (f" - {q['note']}" if q.get("note") else "") for q in passages)
+        lines.append(f"[{numbers.get(ident, '-')}] {passages[0]['when']} \"{passages[0]['question']}\": {quotes}")
     if across:
         lines.append(f"Across them - {across['topic']}: " + "; ".join(f"{len(g['runs'])} x {g['label']}" for g in across["groups"]))
     return lines
 
 
-def pending(framing: dict) -> Optional[dict]:
-    """The Architect's message whose wording of the question waits for the person: the last one that gave a wording,
-    while the question has not changed since - taken, or changed by the person's own hand - and does not read so
-    already. None when no wording waits."""
-    turns, versions = (framing or {}).get("turns") or [], (framing or {}).get("versions") or []
-    last = next((t for t in reversed(turns) if t.get("who") == "architect" and t.get("wording")), None)
-    if last is None or any(v.get("n", 0) > last.get("v", 0) and "question" in (v.get("changed") or []) for v in versions):
-        return None
-    return None if last["wording"] == briefs.latest(framing).get("question") else last
-
-
-def conversation(turns: list, waits: Optional[dict] = None) -> str:
-    """The CONVERSATION block: who said what - under a message of the Architect's the wording of the question it
-    gave, marked while it is the one that `waits` for the person, and the choices it offered, which the person may
-    answer by - what each round of lookups found, a numbered line to a lookup, what a reading of the saved analyses
-    found, and what was opened."""
+def conversation(turns: list, numbers: Optional[dict] = None) -> str:
+    """The CONVERSATION block: who said what - under a message of the Architect's the question as it was written
+    then, where the reply worded it, and the choices it offered, which the person may answer by - what each round of
+    lookups found, a numbered line to a lookup, what a reading of the saved analyses found, what was opened, and
+    where the person went to another version of the brief."""
     said = []
     for t in turns:
         if t.get("who") == "check":
             said += ["Lookups:"] + [f"{f['k']}. about \"{f['about']}\" - {f['fact']}" for f in t.get("found", [])]
         elif t.get("who") == "memory":
-            said += recalled(t)
+            said += recalled(t, numbers or {})
         elif t.get("who") == "opened":
             said.append(f"Not opened: {t['missing']}" if t.get("missing") else f"Opened: {t.get('label', '')}")
+        elif t.get("who") == "version":
+            said.append(f"(the person went to version {t.get('v')} of the brief: QUESTION and BRIEF show it)")
         else:
             said.append(f"{'Architect' if t.get('who') == 'architect' else 'Person'}: {t.get('text', '')}")
             if t.get("wording"):
-                said.append(f"(wording given{', not taken yet' if t is waits else ''}: {t['wording']})")
+                said.append(f"(the question was written as: {t['wording']})")
             if t.get("choices"):
                 said.append("(choices offered: " + " | ".join(t["choices"]) + ")")
     return "CONVERSATION:\n" + ("\n".join(said) if said else "(nothing yet)")
 
 
 def prompt(question: str, brief: dict, turns: list, data: str = "", before: str = "", saved: int = 0, first: str = "",
-           unread: str = "", waits: Optional[dict] = None, opened: str = "") -> str:
+           unread: str = "", opened: str = "", found=None) -> str:
     """What the Architect reads for one reply. What does not change from one reply to the next comes first. `saved`:
     how many saved analyses the person has, said where there are any, with why they cannot be read now (`unread`)
     where they cannot. `first`: the question as the person first asked it, said where the wording has changed since.
-    `waits`: the message whose wording waits for the person. `opened`: the parts of earlier analyses in view."""
+    `opened`: the parts of earlier analyses in view. `found`: the passages the readings found so far."""
     parts = [f"DATA:\n{data}"] if data else []
     parts += [before] if before else []
     parts += [f"SAVED: {saved}" + (f" (no reading can be made now: {unread})" if unread else "")] if saved else []
     asked = f"\n(first asked as: {first.strip()})" if first.strip() and first.strip() != question.strip() else ""
-    parts += [f"QUESTION:\n{question.strip()}{asked}", block(brief), conversation(turns, waits)]
+    parts += [f"QUESTION:\n{question.strip()}{asked}", block(brief, found), conversation(turns, _numbers(found))]
     parts += [opened] if opened else []
     return "\n\n".join(parts + ["Reply with the JSON object."])
 
@@ -287,32 +292,26 @@ def _check(requests: list, brief: dict, made: int, look: Callable) -> dict:
     return {"who": "check", "found": found, "secs": round(time.time() - began, 1)}
 
 
-def _recall(result: dict, brief: Optional[dict] = None) -> dict:
+def _recall(result: dict) -> dict:
     """A reading of the saved analyses, as a turn of the conversation: the passages found - each with its run, its
     day, what was asked, where it stands, the passage and the reader's note - what was found across the analyses,
     how many there are and how many the second model read, what was dropped, why nothing was read where it was not,
-    the seconds and the cost. `brief`: the brief after the reading; a passage found that it does not hold is counted
-    under `left` and not listed, so what the Architect speaks of is what the person can tick."""
-    every = result.get("found") or []
-    kept = every if brief is None else [f for f in every if briefs.holds(brief, f)]
+    the seconds and the cost."""
     found = [{"id": f["id"], "when": f["when"][:10], "question": f["question"] or f"Synthesis: {f['title']}", "where": f["where"], "quote": f["quote"], "note": f["note"]}
-             for f in kept]
+             for f in result.get("found") or []]
     cover = result.get("coverage") or {}
-    return {"who": "memory", "found": found, **({"left": len(every) - len(kept)} if len(every) > len(kept) else {}),
-            "across": result.get("across"), "of": int(cover.get("runs") or 0), "read": int(cover.get("judged") or 0),
+    return {"who": "memory", "found": found, "across": result.get("across"), "of": int(cover.get("runs") or 0), "read": int(cover.get("judged") or 0),
             "dropped": int(result.get("dropped") or 0), "failed": str(result.get("failed") or ""), "secs": round(float(result.get("seconds") or 0.0), 1),
             "cost": round(float(result.get("cost") or 0.0), 4)}
 
 
 def _read(framing: dict, turns: list, brief: dict, recall: Callable, question: str) -> dict:
-    """The framing after a reading of the saved analyses: the passages found enter the brief not accepted, as one
-    more version of the Architect's, and the reading is the conversation's last turn, read by the next exchange as a
-    round of lookups is."""
-    result = recall(question, block(brief))
-    written, added = briefs.remember(brief, result.get("found"))
-    if added:
-        framing = briefs.version(framing, written, by="architect", changed=added, why="memory")
-    return {**framing, "turns": turns + [{**_recall(result, written), "v": len(framing.get("versions") or [])}]}
+    """The framing after a reading of the saved analyses: the passages found are kept beside the brief (`found`) -
+    the brief itself does not change: it builds on an analysis when the person chooses it - and the reading is the
+    conversation's last turn, read by the next exchange as a round of lookups is."""
+    result = recall(question, block(brief, framing.get("found")))
+    return {**framing, "found": briefs.gather(framing.get("found"), result.get("found")),
+            "turns": turns + [{**_recall(result), "v": briefs.latest(framing).get("version") or len(framing.get("versions") or [])}]}
 
 
 def _unread(recall: Optional[Callable], turns: list) -> str:
@@ -406,25 +405,29 @@ def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = E
 
 
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None,
-             recall: Optional[Callable] = None, asked: bool = False, saved: int = 0) -> dict:
+             recall: Optional[Callable] = None, saved: int = 0, version: Optional[int] = None) -> dict:
     """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
     after a round of lookups, a reading or a part opened - and its reply. A reply that cannot be read is asked for
     once more. Returns the framing as it then stands: the brief as one more version when the reply changed a part,
-    marked a line or ticked a passage (the Architect's, made from the question, from an answer, or from a check
-    against the data), the conversation with both messages, the calls counted. Where the reply asks for lookups,
-    `look` answers them - clean lookups in, an answer to each out - and the round is the conversation's last turn:
-    the next exchange, with no message, reads it. What the reply proposes enters the brief only where it names a
-    column of the data, and a brief takes two proposals in all.
+    marked a line or built on a saved analysis (the Architect's, made from the question, from an answer, or from a
+    check against the data), the conversation with both messages, the calls counted. Where the reply asks for
+    lookups, `look` answers them - clean lookups in, an answer to each out - and the round is the conversation's
+    last turn: the next exchange, with no message, reads it. What the reply proposes enters the brief only where it
+    names a column of the data, and a brief takes two proposals in all.
 
-    The question is never written from the reply's brief. A wording the reply gives stands with its message, for
-    the person to take; `accept` - the person agreed in words - makes the wording that waited the question, and the
-    host makes it the run's.
+    `version`: the version of the brief on the person's screen. Where it is not the one in use, it is from now
+    (analyst/brief.py use()), the conversation says so, and the reply's changes are made to it: the versions after
+    it stay, and the next one is counted on from the last.
+
+    The question is never written from the reply's brief. A wording the reply gives is the question from this
+    reply on - one more change of the version - and the host makes it the run's; the message that worded it keeps
+    the wording.
 
     The saved analyses are read by `recall(question, the brief as the Architect reads it)`, which gives the reader's
-    result: once after a message of the person's, READINGS times in a brief. Where the person asked for it - `asked`,
-    their message saying so - they are read at once, and the Architect replies in the next exchange; otherwise where
-    the reply asks for it. `saved` is how many there are: the Architect is told, so that it asks only where there
-    are some, and the framing keeps the number, so that the page offers a reading only then.
+    result, where the reply asks for it: once after a message of the person's, READINGS times in a brief. `saved` is
+    how many there are: the Architect is told, so that it asks only where there are some. What the readings found
+    stays with the framing (`found`), the analyses numbered in the order they were found; `build` in a reply - the
+    person chose - names by number every analysis the brief builds on from then.
 
     A part of an analysis the question follows that the reply asks to open is a turn too, OPENS after one message
     of the person's; the next exchange reads the part itself. Where a reply asks for a reading, a part or lookups
@@ -436,18 +439,20 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     if sum(1 for t in turns if t.get("who") == "architect") >= TURNS_MAX:
         raise Failed(SPENT)
     first = not turns and not text
+    was = briefs.latest(framing).get("version")
+    framing = briefs.use(framing, version) if version is not None else framing
+    brief = briefs.latest(framing) or {"question": run.question}
+    if was is not None and brief.get("version") != was:
+        turns.append({"who": "version", "v": brief["version"]})          # the person went to another version: this exchange goes on from it
     said = text.strip()[:briefs.QUESTION_CHARS] if isinstance(text, str) else ""
     if said:
         turns.append({"who": "person", "text": said})
-    brief = briefs.latest(framing) or {"question": run.question}
-    question = brief.get("question") or run.question          # as it stands: the person's own, or a wording of the Architect's they took
+    question = brief.get("question") or run.question          # as it stands: the person's own, or the Architect's wording of it
     unread = _unread(recall, turns)
-    if asked and not unread:
-        return _read(framing, turns, brief, recall, question)
     spent = {"open": _since(turns, "opened") >= OPENS, "lookups": _since(turns, "check") >= ROUNDS}
-    waits = pending({**framing, "turns": turns})
+    found = framing.get("found") or []
     as_asked = ((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or ""
-    user = prompt(question, brief, turns, data, earlier(nb, run.id, cells=True), saved, as_asked, unread, waits, opened(nb, run.id, turns))
+    user = prompt(question, brief, turns, data, earlier(nb, run.id, cells=True), saved, as_asked, unread, opened(nb, run.id, turns), found)
     got, calls, cost = ask(llm, SYSTEM, user, parse)
     cannot = ([f"a reading of the saved analyses - {unread}"] if got["recall"] and unread else []) \
         + ([OPENED_ALL] if got["open"] and spent["open"] else []) + ([LOOKED_ALL] if got["lookups"] and spent["lookups"] else [])
@@ -461,21 +466,21 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     made_before = int(framing.get("proposed") or 0)
     proposals = [p for p in got["propose"] if _grounded(p, data)][:max(0, PROPOSALS - made_before)]
     parts = {**{k: v for k, v in got["brief"].items() if k != "question"}, "propose": proposals}
-    if got["accept"] and waits:
-        parts["question"] = waits["wording"]                   # the person agreed in words to the wording that waited
+    if got["wording"]:
+        parts["question"] = got["wording"]                     # written at once: the person sees the question change, and can change it or go back
     written, changed = briefs.write(brief, parts)
     proposed = sum(1 for c in changed if c.startswith("also_check.") and written["also_check"][int(c.split(".")[1])].get("source") == "architect")
     if proposed:
         framing["proposed"] = made_before + proposed
     written, marked = briefs.mark(written, got["marks"], facts)
-    written, ticked = briefs.tick(written, got["tick"])
-    if changed or marked or ticked:
-        framing = briefs.version(framing, written, by="architect", changed=changed + [c for c in marked + ticked if c not in changed],
+    written, built = briefs.build_on(written, found, got["build"]) if got["build"] is not None else (written, [])
+    if changed or marked or built:
+        framing = briefs.version(framing, written, by="architect", changed=changed + [c for c in marked + built if c not in changed],
                                  why="check" if marked else "question" if first else "answer")
     made = int(framing.get("calls") or 0) + calls
     turns.append({"who": "architect", "text": got["say"], **({"choices": got["choices"]} if got["choices"] else {}),
-                  **({"wording": got["wording"]} if got["wording"] else {}),
-                  "v": len(framing.get("versions") or []), "cost": round(cost, 4), "call": made})
+                  **({"wording": written["question"]} if "question" in changed else {}),
+                  "v": briefs.latest(framing).get("version") or len(framing.get("versions") or []), "cost": round(cost, 4), "call": made})
     if look and got["lookups"] and not spent["lookups"]:
         turns.append(_check(got["lookups"], written, len(facts), look))
     if got["open"] and not spent["open"]:
