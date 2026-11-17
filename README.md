@@ -261,22 +261,27 @@ tab, and the conversation with the Architect takes the left pane.
   to test a view, or to learn - explains what you need in order to say what you are after, and offers choices to
   click. It keeps no fixed order, does not ask again what you could not answer, and stays for as long as you want
   to explore.
-- **The brief.** It writes each part the moment your words give it: what the answer is for, what you think is
-  going on and why, what you expect to see. A part that does not fit, or that you do not want to state, stays
-  empty.
-- **The question, said back.** When the two of you have worked out what you want, the Architect says the question
-  back in plain words. Once you agree, that wording is the question the Analyst gets. A wording you have not read
-  is never written.
+- **The question.** The top box of the Brief tab is what the Analyst will be asked. When the two of you have
+  worked out what you want, the Architect gives its wording: it stands under its message and under the box, with
+  **Use this wording**. It becomes the question when you take it - with the button, or by saying yes. The
+  Architect never writes the question itself.
+- **The brief.** Under the box, what the Analyst gets with the question: what the answer is for, what you think
+  is going on and why, what you expect to see. The Architect writes each part the moment your words give it. A
+  part that does not fit, or that you do not want to state, stays empty, and the Analyst gets no line for it.
 - **The check.** What the brief rests on is looked up in the loaded data: counts, lists and totals, nothing more.
   Each line is marked *holds*, *does not hold* or *cannot be checked*, with the numbers beside it.
 - **Other explanations.** The Architect may propose up to two, each from a column the data has. A proposal stays
   unticked until you accept it.
 - **Your changes.** Any line can be changed in place. Every change is a version, and the earlier versions stay.
 - **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
-  Analyst stops and asks. The report gains two parts: *Against the brief* - what you expected, as met, not met or
-  cannot tell, and each other explanation with its result - and *Did not fit*.
+  Analyst stops and asks. The report gains *Did not fit*, and - where the brief says what you expect or names a
+  check - *Against the brief*: what you expected, as met, not met or cannot tell, and each other explanation with
+  its result. On data, chance, measurement error and how the cases were chosen are always among the checks.
 
-A follow-up typed with the switch on starts from the last brief. On the thread map a framed question is one box.
+A follow-up typed with the switch on starts from what the last answer was for and what you think; the rest of the
+last brief belonged to that question. The Architect can open the analysis before it - its report, a cell with its
+code and output, the conversation - when you ask about it; it reads the part until you next speak. It is not
+shown the figure itself. On the thread map a framed question is one box.
 
 A finished analysis carries **Next questions** on its closing card: five levels - refine focus, shift angle, test
 boundaries, blend elements, follow emergence - and at each up to five questions, every one from a line the
@@ -292,9 +297,9 @@ The analyses you save are the Architect's memory. A run counts when it is saved 
 picked one, or the origin of a routine - and has a report. Deleting a saved workflow takes it out at once.
 Unsaved runs never come back.
 
-While a brief is written, the saved analyses can be read: on a first question the Architect asks for it as soon
-as it can tell what the question is about, and **Look in saved analyses** in the brief asks at any time, four
-times a brief at most. A model works through the saved record with code, in a sandbox that holds no data, and a
+While a brief is written, the saved analyses can be read: the Architect asks for it as soon as it can tell what
+the question is about, and **Look in saved analyses** in the brief asks at any time, four times a brief at most.
+When you tell the Architect to build on an earlier analysis, it ticks that analysis' passages for you. A model works through the saved record with code, in a sandbox that holds no data, and a
 second, faster model reads the pieces it names. A reading is bounded - 8 replies, 60 calls of the second model,
 120 seconds, $0.50 - and **Skip** ends it. What is read of a saved analysis: its question, its report, its code
 and results, and - where it was framed with the Architect - its brief and the conversation the brief came from.

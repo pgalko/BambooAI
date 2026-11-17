@@ -24,7 +24,7 @@ from analyst.routines import RoutineStore
 
 logger = logging.getLogger(__name__)
 
-FORMAT = 3                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it; 3: the conversation the brief came from)
+FORMAT = 4                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it; 3: the conversation the brief came from; 4: the brief's parts by their plain names)
 PRINTED = 3000                   # characters kept of what a cell printed: what the analyst is shown of a recent cell
 SAID = 40_000                    # characters kept of the conversation a brief came from
 HEAD = 65536                     # bytes of a favourite file read for its mark: the page's copy, megabytes of it, follows
@@ -84,16 +84,10 @@ def _cells(run: Run) -> list:
 
 
 def _conversation(run: Run) -> str:
-    """What the person and the Architect said while the run's question was framed, each message under who said it,
-    the question as it was first asked before them; "" where it was not framed. Up to SAID characters, the cut
-    said. What was looked up or read meanwhile is no part of it: the brief holds the marks, and a passage of
-    another analysis stands in its own."""
-    framing = run.framing or {}
-    said = [(t["who"], str(t.get("text") or "").strip()) for t in framing.get("turns") or [] if t.get("who") in ("person", "architect")]
-    if not any(text for _, text in said):
-        return ""
-    first = ((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or run.question
-    text = "\n".join(f"{'Architect' if who == 'architect' else 'Person'}: {text}" for who, text in [("person", first.strip()), *said] if text)
+    """What the person and the Architect said while the run's question was framed (brief.said); "" where it was not
+    framed. Up to SAID characters, the cut said. What was looked up or read meanwhile is no part of it: the brief
+    holds the marks, and a passage of another analysis stands in its own."""
+    text = briefs.said(run.framing, run.question)
     return text if len(text) <= SAID else text[:SAID] + f"\n... ({len(text) - SAID:,} more characters not kept)"
 
 

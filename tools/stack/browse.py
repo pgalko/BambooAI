@@ -389,8 +389,9 @@ def story(w, mod, dataset, questions):
         w.shot("saved_run")
         p.click("#architectSwitch")
 
-    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question said
-    # back, and the wording the coach agreed to as the brief's question
+    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the Architect's wording
+    # of the question and the coach taking it; then the analysis, a question that follows it - the saved analyses read, the
+    # report of the analysis before opened - and "build on it"
     tutor_question = getattr(mod, "TUTOR_QUESTION", None)
     if brief_question and tutor_question and p.query_selector("#architectSwitch"):
         w.js("handleNewConversation()")
@@ -404,11 +405,37 @@ def story(w, mod, dataset, questions):
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
         said(1)
         w.shot("tutor_first")
-        for n, shot in ((2, "tutor_said_back"), (3, "tutor_question")):      # a choice taken, then the wording agreed to
-            p.click("#streamOutput .ar-choice >> nth=0")
-            said(n)
+        p.click("#streamOutput .ar-choice >> nth=0")          # a choice taken: the Architect's wording, under its message and under the question's box
+        said(2)
+        p.wait_for_timeout(300)
+        w.shot("tutor_wording")
+        p.click("#streamOutput .ar-wording .ar-use")          # taken: it is what the Analyst will be asked
+        p.wait_for_function("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === 2", timeout=15000)
+        p.wait_for_timeout(300)
+        w.shot("tutor_question")
+        follow = getattr(mod, "FOLLOW_QUESTION", None)
+        if follow:
+            for path, text in (("decision", "I want to see the two side by side."), ("fixed.period", "the 2025 season")):
+                p.click(f'#content-brief .ar-line[data-path="{path}"] [data-ar="edit"]')
+                p.fill("#content-brief .ar-input", text)
+                p.keyboard.press("Enter")
+                p.wait_for_function("() => !document.querySelector('#content-brief .editing')", timeout=15000)
             p.wait_for_timeout(300)
-            w.shot(shot)
+            w.shot("tutor_brief")
+            w.js("setMode('deep')")
+            p.click('#content-brief [data-ar="start"]')
+            w.wait_text(".sp-done", "Run complete", timeout=240000)
+            p.wait_for_timeout(600)
+            p.fill("#queryInput", follow)                    # a question that follows it, the switch still on
+            p.click("#submitQuery")
+            p.wait_for_selector('#content-brief .ar-brief[data-state="framing"]', timeout=15000)
+            said(3)                                           # having a look, opening the report, speaking from it
+            p.wait_for_timeout(300)
+            w.shot("tutor_follow")
+            p.click("#streamOutput .ar-choice >> nth=0")      # build on it: the passage is ticked
+            said(4)
+            p.wait_for_timeout(300)
+            w.shot("tutor_build")
         p.click("#architectSwitch")
 
 

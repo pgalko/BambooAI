@@ -17,7 +17,7 @@ from typing import Callable
 
 from analyst import architect
 from analyst import brief as briefs
-from analyst.notebook import Notebook, Run
+from analyst.notebook import Notebook, Run, has_data
 
 with open(os.path.join(os.path.dirname(__file__), "next_questions.md"), encoding="utf-8") as _fh:
     SYSTEM = _fh.read().strip()
@@ -83,7 +83,7 @@ def prompt(nb: Notebook, run: Run, level: str, lines: list, own: int, data: str 
     before = architect.earlier(nb, run.id)
     parts += [before] if before else []
     parts += [f"QUESTION:\n{run.question.strip()}", f"REPORT:\n{run.report.strip()}"]
-    parts += [briefs.render(run.brief)] if run.brief else []
+    parts += [briefs.render(run.brief, data=has_data(run.data))] if run.brief else []
     proposed = [q["text"] for asked in run.next_questions for q in asked["questions"]][-BEFORE:]
     parts += ["PROPOSED BEFORE:\n" + "\n".join(f"- {text}" for text in proposed)] if proposed else []
     numbered = [f"{k}. {SAID[line['kind']]}: {line['text']}" for k, line in enumerate(lines, 1)]

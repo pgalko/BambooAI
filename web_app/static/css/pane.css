@@ -115,6 +115,13 @@
 #streamOutput .ar-msg.arch .sp-prompt { float: right; margin: 0; text-transform: none; letter-spacing: 0; }
 #streamOutput .ar-msg.wait { color: var(--text-tertiary); font-style: italic; }
 #streamOutput .ar-msg.wait .who { font-style: normal; }
+#streamOutput .ar-wording { margin-top: 8px; padding: 7px 10px 8px; border: 1px dashed var(--chip-model-border); border-radius: 5px; background: var(--bg-primary); }   /* the question as the Architect would word it (0307) */
+#streamOutput .ar-wording.used { border-style: solid; border-color: var(--border-color); }
+#streamOutput .ar-wording .tx { display: block; }
+#streamOutput .ar-wording .ok { display: block; margin-top: 3px; font-size: 11px; color: var(--c-model); }
+#streamOutput .ar-wording .ok::before { content: '\2713\00a0'; }
+#streamOutput .ar-use { display: block; margin-top: 7px; padding: 3px 12px; border: 1px solid var(--c-model); border-radius: 5px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; cursor: pointer; }
+#streamOutput .ar-use:hover { background: var(--accent-bg-hover); }
 #streamOutput .ar-choices { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; white-space: normal; }
 #streamOutput .ar-choice { padding: 3px 12px; border: 1px solid var(--chip-model-border); border-radius: 999px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; text-align: left; cursor: pointer; }
 #streamOutput .ar-choice:hover { background: var(--accent-bg-hover); }

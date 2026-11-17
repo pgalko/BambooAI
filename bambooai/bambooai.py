@@ -1205,17 +1205,24 @@ class BambooAI:
 
     def open_framing(self, question, thread_id=None, chain_id=None):
         """A run on the record before any analysis: the question, where it attaches, and the first version of its
-        brief. A follow-up to a run that had a brief starts from that brief. No model is called. Returns the ids the
-        page keeps and the framing."""
+        brief. A follow-up to a run that had a brief starts from what that answer was for and what the person thinks:
+        the rest belonged to the question before. Where the analyst stopped and asked, the question is the person's
+        answer, and it starts from that brief whole. The framing says whether data is loaded: the page lists the
+        checks every run on data makes only then. No model is called. Returns the ids the page keeps and the
+        framing."""
         from analyst import brief as briefs
+        from analyst.notebook import has_data
         thread_id = thread_id if thread_id is not None else utils.next_thread_id()
         nb = self._thread_notebook(thread_id)
         parent = str(chain_id) if chain_id is not None and str(chain_id) in nb.runs else None
         run_id = utils.next_chain_id()
         run = nb.new_run(question, parent, run_id=str(run_id))
         run.status = "framing"
-        before = {k: v for k, v in (nb.runs[parent].brief if parent else {}).items() if k not in ("version", "question", "carried_from")}
-        run.framing = briefs.version({}, {**before, "question": question}, changed=["from the last brief"] if before else [])
+        last = nb.runs[parent] if parent else None
+        brief = last.brief if last is not None else {}
+        before = brief if last is not None and last.status == "asked" else {k: brief[k] for k in ("decision", "thinks") if k in brief}
+        run.framing = {**briefs.version({}, {**before, "question": question}, changed=["from the last brief"] if before else []),
+                       "data": has_data(self._data_record(light=True))}
         self.store.save(nb)
         return {"thread_id": thread_id, "chain_id": run_id, "parent_chain_id": chain_id if parent is not None else None, "framing": run.framing}
 
@@ -1235,13 +1242,15 @@ class BambooAI:
 
     def architect_say(self, thread_id, run_id, text=None, asked=False):
         """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
-        first turn, nor when it goes on after its lookups - and its reply, taken into the brief and the conversation;
+        first turn, nor when it goes on after its lookups, a reading or a part it opened - and its reply, taken into the
+        brief and the conversation; a part of an earlier analysis it opens comes from the thread's record, in the engine;
         the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
         (_architect_recall) where the reply asks for it or - `asked` - the person did. The calls are the run's own:
         logged under its chain as the Architect's, and charged with its analysis - or when the instance is torn down,
         if no analysis follows (cleanup). Returns the framing, or None when the run is not one being framed; raises
         architect.Failed with the reason to show."""
         from analyst import architect, brief as briefs, memory
+        from analyst.notebook import has_data
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
         self._skip_saved.clear()
@@ -1253,9 +1262,10 @@ class BambooAI:
         keep, self.chain_id = self.chain_id, (int(run_id) if str(run_id).isdigit() else run_id)      # the cost is counted by chain
         self._framed.add(self.chain_id)
         try:
-            run.framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
-                                             self.notebook, run, text, data=self._data_description(), look=self._architect_look,
-                                             recall=self._architect_recall, asked=asked, saved=len(memory.view(self._user_storage())["runs"]))
+            framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
+                                         self.notebook, run, text, data=self._data_description(), look=self._architect_look,
+                                         recall=self._architect_recall, asked=asked, saved=len(memory.view(self._user_storage())["runs"]))
+            run.framing = {**framing, "data": has_data(self._data_record(light=True))}             # as it is now: data may have been loaded since the brief opened
             run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # a wording the person agreed to is the run's question
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them

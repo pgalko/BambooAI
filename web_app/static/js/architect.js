@@ -13,6 +13,11 @@
 // the brief, each with a box to tick, a cross to leave it out and Open (GET /architect/saved/<thread>/<run>). The
 // coach asks for a reading with Look in saved analyses.
 //
+// The question is the top box of the Brief tab: what the Analyst will be asked. The Architect only words it: its
+// wording stands under its message and under the box, with a button, and the coach's click makes it the question -
+// one more version of the coach's own, kept like any change (pending()). Where a reply opened a part of an earlier
+// analysis, that is a row of the conversation too, and the Architect goes on at once (§2.17).
+//
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
 // with nothing else kept.
@@ -21,14 +26,17 @@
 // of verdicts. The page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
-//                        dressAnswer, mark, apply, tick, build, readStream }
+//                        dressAnswer, mark, apply, tick, pending, build, readStream }
 
 (function () {
     'use strict';
 
     const WORDS = {
         answer: 'Answer, or say what to change', replying: 'The Architect is replying', reading: 'reading…', readingSaved: 'Your saved analyses are being read',
-        unsaid: 'not said yet', unsaidKept: 'not said', left: 'left to the Analyst', add: '+ Add', tick: 'Have the analysis test it',
+        asked: 'What the Analyst will be asked', gets: 'This is what the Analyst gets. Change any line before you start.',
+        head: { decision: 'What it is for', thinks: 'What you think', rests_on: 'It rests on', expects: 'What you expect to see', also_check: 'Also check',
+                fixed: 'Fixed before the run', saved: 'From saved analyses', aside: 'Set aside' },
+        add: '+ Add', tick: 'Have the analysis test it', worded: 'The Architect\'s wording', use: 'Use this wording', used: 'in use',
         standing: 'Chance, measurement error, how the cases were chosen',
         would: 'You would change your mind if:',
         why: { question: 'from your question', last: 'from the last brief', person: 'changed by you',
@@ -40,6 +48,7 @@
         saved: 'SAVED analyses', found: n => n + (n === 1 ? ' passage' : ' passages') + ' found', noneFound: 'nothing found', readOf: (r, m) => r ? 'read ' + r + ' of ' + m : m + ' saved',
         looking: (r, m) => r ? 'reading ' + r + ' of ' + m : (m == null ? 'looking' : 'looking through ' + m), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
         open: 'Open', look: 'Look in saved analyses', lookSay: 'Look in my saved analyses.', notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation',
+        opened: 'READ', chars: n => (Number(n) || 0).toLocaleString('en-US') + ' characters',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
     };
@@ -49,7 +58,7 @@
     const READINGS = 4;                           // readings of the saved analyses in one brief (analyst/architect.py)
     const SKIPPED = 'The person skipped it.';     // why a reading the coach skipped was not made, as the reader says it (analyst/reader.py)
     const SINGLE = ['question', 'decision', 'thinks', 'expects', 'would_change'];
-    const FIXED = [['comparison', 'Compare'], ['measure', 'Measure'], ['period', 'Period']];
+    const FIXED = [['comparison', 'What is compared'], ['measure', 'Measured by'], ['period', 'Period']];
     const LOCKED = ['data', 'saved'];             // a fact from a lookup, a passage of a saved analysis: left out, never changed (§2.6)
     const SOURCE = { architect: ['ar', 'Architect'], data: ['', 'data'], saved: ['mem', 'saved analysis'], result: ['', 'last result'] };   // the coach's own lines carry no chip
     const MARK = { 'holds': ['ok', '✓'], 'does not hold': ['no', '✕'], 'cannot be checked': ['q', '?'] };
@@ -77,6 +86,15 @@
         if (part === 'rests_on' || part === 'also_check') return at === '+' ? '' : (((brief[part] || [])[Number(at)] || {}).text || '');
         if (part === 'fixed') return (brief.fixed || {})[at] || '';
         return brief[part] || '';
+    }
+
+    // The Architect's message whose wording of the question waits for the coach (analyst/architect.py, pending()): the
+    // last one that gave a wording, while the question has not changed since - taken, or changed by the coach's own
+    // hand - and does not read so already. null when no wording waits.
+    function pending(framing) {
+        const last = turnsOf(framing).filter(t => t.who === 'architect' && t.wording).pop();
+        if (!last || versionsOf(framing).some(v => (v.n || 0) > (last.v || 0) && (v.changed || []).indexOf('question') >= 0)) return null;
+        return last.wording === (versionAt(framing).brief || {}).question ? null : last;
     }
 
     // ------------------------------------------------------------ the brief with one line changed (pure)
@@ -183,9 +201,9 @@
 
     // ------------------------------------------------------------ builders (pure: return HTML)
     const build = {
-        // one line of the brief: its text, or what an empty part reads; a pencil where the coach can change it, a cross
-        // where they can leave it out; a box to tick on what the Architect proposed. o: {empty, pre, list, source,
-        // mark, note, shows, locked, tick}
+        // one line of the brief: its text, or - empty - where the coach types it; a pencil where the coach can change
+        // it, a cross where they can leave it out; a box to tick on what the Architect proposed. o: {hint: what an
+        // empty line reads, pre, list, source, mark, note, shows, locked, tick}
         line(c, path, text, o) {
             o = o || {};
             const can = c.edit && !(text && o.locked);
@@ -195,11 +213,11 @@
             const under = [o.note ? '<span class="fact' + (o.mark === 'does not hold' ? ' no' : '') + '">' + esc(o.note) + '</span>' : '',
                            o.shows ? '<span class="fact">' + esc(o.shows) + '</span>' : ''].join('');
             const body = text ? '<span class="tx">' + esc(text) + under + '</span>'
-                              : '<span class="tx ' + (o.add ? 'add' : 'open') + '"' + (can ? ' data-ar="edit" role="button" tabindex="0"' : '') + '>' + (o.add ? WORDS.add : (o.empty || (c.edit ? WORDS.unsaid : WORDS.unsaidKept))) + '</span>';
+                              : '<span class="tx add"' + (can ? ' data-ar="edit" role="button" tabindex="0"' : '') + '>' + (o.hint || WORDS.add) + '</span>';
             const tools = text && c.edit ? (can ? '<button type="button" class="pen" data-ar="edit" title="Change">' + ICON.pen + '</button>' : '')
                                            + (o.list ? '<button type="button" class="drop" data-ar="drop" title="Leave out">' + ICON.x + '</button>' : '') : '';
             const chip = SOURCE[o.source] ? '<span class="src' + (SOURCE[o.source][0] ? ' ' + SOURCE[o.source][0] : '') + '">' + SOURCE[o.source][1] + '</span>' : '';
-            return '<div class="ar-line' + (c.changed.indexOf(path) >= 0 ? ' changed' : '') + (o.add ? ' adds' : '') + '" data-path="' + esc(path) + '">' +
+            return '<div class="ar-line' + (c.changed.indexOf(path) >= 0 ? ' changed' : '') + (text ? '' : ' adds') + '" data-path="' + esc(path) + '">' +
                 (o.pre ? '<span class="pre">' + o.pre + '</span> ' : '') + mark + body + tools + chip + '</div>';
         },
         // a passage of a saved analysis: a box to tick, the day and what was asked then, the passage, the reader's
@@ -217,8 +235,7 @@
         // a list of the brief: its lines, then where the next one is typed while the design's count allows it
         lines(c, part, items, of) {
             const rows = (items || []).map((x, i) => build.line(c, part + '.' + i, x.text, Object.assign({ list: true, locked: LOCKED.indexOf(x.source) >= 0 }, of(x))));
-            if (!rows.length && part === 'rests_on') rows.push(build.line(c, part + '.+', ''));
-            else if (c.edit && rows.length < CAP[part]) rows.push(build.line(c, part + '.+', '', { add: true }));
+            if (c.edit && rows.length < CAP[part]) rows.push(build.line(c, part + '.+', ''));
             return rows.join('');
         },
         version(framing, shown) {
@@ -229,43 +246,66 @@
             return '<div class="ar-ver"><span class="step">' + arrow(-1, '‹', 'The version before', shown <= 1) + '<b>v' + shown + '</b>' + arrow(1, '›', 'The version after', shown >= n) + '</span>' +
                 '<span class="why">' + why + '</span></div>';
         },
-        // the Brief tab. o: {chain, state: 'framing' | 'run', shown}; the versions ride in the markup
+        // a wording of the question the Architect gave: its text, the button that makes it the question while it
+        // waits for the coach, the mark that it is the question now. state: 'waits' | 'used' | ''; label: under the
+        // question's box, where no message says whose it is
+        wording(text, state, label) {
+            return '<div class="ar-wording' + (state ? ' ' + state : '') + '">' + (label ? '<span class="k">' + WORDS.worded + '</span>' : '') + '<span class="tx">' + esc(text) + '</span>' +
+                (state === 'waits' ? '<button type="button" class="ar-use" data-ar="use">' + WORDS.use + '</button>' : state === 'used' ? '<span class="ok">' + WORDS.used + '</span>' : '') + '</div>';
+        },
+        // the Brief tab: on top what the Analyst will be asked, with the version and a wording that waits; under it
+        // the parts the Analyst gets with it. While the brief can be changed every part has its place to type; one
+        // only read shows the parts that hold something. o: {chain, state: 'framing' | 'run', shown}; the versions
+        // ride in the markup
         brief(framing, o) {
             const n = latestN(framing), shown = Math.min(n, Math.max(1, o.shown || n)), v = versionAt(framing, shown), b = v.brief || {};
             const c = { edit: o.state === 'framing' && shown === n, changed: v.changed || [] };
-            const fixed = b.fixed || {};
+            const fixed = b.fixed || {}, waits = c.edit ? pending(framing) : null;
+            const part = (name, body) => body ? '<h3>' + WORDS.head[name] + '</h3>' + body : '';
+            const one = (path, of) => valueAt(b, path) || c.edit ? build.line(c, path, valueAt(b, path), of) : '';
+            const set = FIXED.filter(f => fixed[f[0]]), unset = c.edit ? FIXED.filter(f => !fixed[f[0]]) : [];
+            const standing = framing && framing.data === false ? '' : '<div class="ar-line"><span class="tx">' + WORDS.standing + '</span><span class="src">always</span></div>';   // the checks of a run on data
             const saved = (b.saved || []).map((x, i) => build.passage(c, 'saved.' + i, x)).join('');
             const readings = turnsOf(framing).filter(t => t.who === 'memory').length;
             const look = c.edit && Number(framing.saved) > 0 && readings < READINGS ? '<div class="ar-line"><button type="button" class="ar-look" data-ar="look">' + WORDS.look + '</button></div>' : '';
             const aside = (b.set_aside || []).map(x => '<div class="ar-line"><span class="tx">' + esc(x) + '</span></div>').join('');
             return '<div class="ar-brief" data-chain="' + esc(o.chain) + '" data-state="' + esc(o.state) + '" data-shown="' + shown + '" data-framing="' + esc(JSON.stringify(framing || {})) + '">' +
+                '<div class="ar-top"><span class="label">' + WORDS.asked + '</span>' + build.version(framing, shown) + '</div>' +
                 '<h1 class="ar-line ar-q' + (c.changed.indexOf('question') >= 0 ? ' changed' : '') + '" data-path="question"><span class="tx">' + esc(b.question || '') + '</span>' +
                     (c.edit ? '<button type="button" class="pen" data-ar="edit" title="Change">' + ICON.pen + '</button>' : '') + '</h1>' +
-                build.version(framing, shown) +
-                '<h3>Decision</h3>' + build.line(c, 'decision', b.decision) +
-                '<h3>What you think</h3>' + build.line(c, 'thinks', b.thinks) +
-                '<h3>It rests on</h3>' + build.lines(c, 'rests_on', b.rests_on, x => ({ source: x.source, mark: x.mark, note: x.note })) +
-                '<h3>You expect</h3>' + build.line(c, 'expects', b.expects) + build.line(c, 'would_change', b.would_change, { pre: WORDS.would }) +
-                '<h3>Also check</h3><div class="ar-line"><span class="tx">' + WORDS.standing + '</span><span class="src">always</span></div>' +
-                    build.lines(c, 'also_check', b.also_check, x => ({ shows: x.shows, source: x.source, tick: x.source === 'architect' ? !!x.accepted : null })) +
-                '<h3>Fixed before the run</h3><div class="ar-grid">' + FIXED.map(f => '<span class="k">' + f[1] + '</span>' + build.line(c, 'fixed.' + f[0], fixed[f[0]], { empty: WORDS.left })).join('') + '</div>' +
-                (saved || look ? '<h3>From saved analyses</h3>' + saved + look : '') +
-                (aside ? '<h3>Set aside</h3>' + aside : '') +
+                (waits ? build.wording(waits.wording, 'waits', true) : '') +
+                (c.edit ? '<p class="ar-gets">' + WORDS.gets + '</p>' : '') +
+                part('decision', one('decision')) +
+                part('thinks', one('thinks')) +
+                part('rests_on', build.lines(c, 'rests_on', b.rests_on, x => ({ source: x.source, mark: x.mark, note: x.note }))) +
+                part('expects', one('expects') + one('would_change', { pre: WORDS.would })) +
+                part('also_check', standing + build.lines(c, 'also_check', b.also_check, x => ({ shows: x.shows, source: x.source, tick: x.source === 'architect' ? !!x.accepted : null }))) +
+                part('fixed', (set.length ? '<div class="ar-grid">' + set.map(f => '<span class="k">' + f[1] + '</span>' + build.line(c, 'fixed.' + f[0], fixed[f[0]])).join('') + '</div>' : '') +
+                              (unset.length ? '<div class="ar-chips">' + unset.map(f => build.line(c, 'fixed.' + f[0], '', { hint: '+ ' + f[1] })).join('') + '</div>' : '')) +
+                part('saved', saved + look) +
+                part('aside', aside) +
                 (c.edit ? '<div class="ar-foot"><button type="button" class="ui-btn primary" data-ar="start">Start analysis</button></div>' : '') +
                 '</div>';
         },
-        editor(text, question) {
-            return '<span class="ar-edit"><textarea class="ar-input" rows="1" maxlength="' + (question ? QUESTION_CHARS : TEXT_CHARS) + '">' + esc(text) + '</textarea>' +
+        // the field a line is typed in. hint: what the line holds, said in the empty field where the line has no lead-in
+        editor(text, question, hint) {
+            return '<span class="ar-edit"><textarea class="ar-input" rows="1" maxlength="' + (question ? QUESTION_CHARS : TEXT_CHARS) + '"' + (hint ? ' placeholder="' + esc(hint) + '"' : '') + '>' + esc(text) + '</textarea>' +
                 '<button type="button" class="ok" data-ar="keep" title="Keep">' + ICON.ok + '</button><button type="button" class="no" data-ar="cancel" title="Cancel">' + ICON.x + '</button></span>';
         },
         you(text) { return '<div class="ar-msg you"><span class="who">You</span>' + esc(text) + '</div>'; },
-        // a message of the Architect's: its words, the button to the prompt it received (the run log's call), and its
-        // choices while they can still be clicked
-        said(turn, chain, live) {
+        // a message of the Architect's: its words, the button to the prompt it received (the run log's call), the
+        // wording of the question it gave (`worded`: 'waits', 'used' or '') and its choices while they can still be
+        // clicked
+        said(turn, chain, live, worded) {
             const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt the Architect received (run log)" data-agent="Architect" data-chain="' +
                 esc(chain) + '" data-call="' + esc(turn.call) + '">⌘</button>' : '';
             const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
-            return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + choices + '</div>';
+            return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + (turn.wording ? build.wording(turn.wording, worded) : '') + choices + '</div>';
+        },
+        // a part of an earlier analysis the Architect opened: what it is and how long - or why there is no such part
+        opened(turn) {
+            return '<div class="sp-row tool read' + (turn.missing ? ' skipped' : '') + '"><span>' + (turn.missing ? '–' : '✓') + '</span><span class="in">' + WORDS.opened + '</span>' +
+                '<span class="out">' + esc(turn.missing || turn.label) + '</span>' + (turn.missing ? '' : '<span class="t">' + WORDS.chars(turn.chars) + '</span>') + '</div>';
         },
         // a round of lookups, as the pane shows a tool's row: how many gave a result, how many did not, the seconds;
         // what each found is the row's title, a line to a lookup
@@ -293,15 +333,15 @@
             return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.saved + '</span><span class="out">' + WORDS.looking(at.read, at.of) + '</span>' +
                 '<button type="button" class="ar-skip" data-ar="skip"' + (at.of == null ? ' disabled' : '') + '>' + WORDS.skip + '</button></div>';
         },
-        // the conversation: the question, then what was said, what was looked up and what the saved analyses hold. o:
-        // {live: the last message's choices can be clicked, sent: a message on its way, waiting: the Architect is
-        // replying, saved: the saved analyses are being read - how far}
+        // the conversation: the question, then what was said, what was looked up, what the saved analyses hold and
+        // what was opened. o: {live: the last message's choices can be clicked and a wording that waits taken, sent: a
+        // message on its way, waiting: the Architect is replying, saved: the saved analyses are being read - how far}
         talk(entry, o) {
             o = o || {};
-            const turns = turnsOf(entry.framing);
+            const turns = turnsOf(entry.framing), can = o.live && !o.waiting, waits = can ? pending(entry.framing) : null, question = (versionAt(entry.framing).brief || {}).question;
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
-                turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t)
-                    : t.who === 'architect' ? build.said(t, entry.chain_id, o.live && !o.waiting && i === turns.length - 1) : build.you(t.text)).join('') +
+                turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t)
+                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && i === turns.length - 1, t === waits ? 'waits' : t.wording === question ? 'used' : '') : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? (o.saved ? build.reading(o.saved) : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
         },
@@ -456,8 +496,8 @@
         return pump();
     }
     // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. Where the
-    // reply had the data looked up or the saved analyses read, the Architect goes on at once: one more exchange, with
-    // nothing said. While the saved analyses are read the pane follows the count. `look`: the coach asks for the
+    // reply had the data looked up, the saved analyses read or a part of an earlier analysis opened, the Architect
+    // goes on at once: one more exchange, with nothing said. While the saved analyses are read the pane follows the count. `look`: the coach asks for the
     // saved analyses - they are read first, and the Architect replies in the exchange after. Resolves to whether
     // the last reply was kept; when one was not, the brief stands as it did and the reason is said.
     function exchange(entry, text, look) {
@@ -485,7 +525,7 @@
             }).catch(() => { say(WORDS.noReply + ': ' + WORDS.unreachable + '.'); return false; }).then(kept => {
                 busy = false; talking = null;
                 const turns = turnsOf(entry.framing);
-                if (kept && turns.length && ['check', 'memory'].indexOf(turns[turns.length - 1].who) >= 0) return exchange(entry, '');
+                if (kept && turns.length && ['check', 'memory', 'opened'].indexOf(turns[turns.length - 1].who) >= 0) return exchange(entry, '');
                 draw();
                 const input = byId('queryInput');
                 if (!kept && text && inView() && input && !input.value) input.value = text;      // what was typed is not lost
@@ -538,7 +578,8 @@
         }
         const pre = line.querySelector('.pre');
         line.classList.add('editing');
-        line.innerHTML = (pre ? pre.outerHTML + ' ' : '') + build.editor(valueAt(versionAt(stateOf(root).framing).brief || {}, path), path === 'question');
+        line.innerHTML = (pre ? pre.outerHTML + ' ' : '') + build.editor(valueAt(versionAt(stateOf(root).framing).brief || {}, path), path === 'question',
+                                                                         line.closest('.ar-chips') ? (FIXED.find(f => 'fixed.' + f[0] === path) || [])[1] : '');
         const input = line.querySelector('.ar-input');
         if (input) { input.focus(); grow(input); if (input.setSelectionRange) input.setSelectionRange(input.value.length, input.value.length); }
     }
@@ -589,6 +630,12 @@
         if (why) say(WORDS.notStarted + ': ' + why);
     }
 
+    // the Architect's wording that waits is made the question: a change of the coach's own, kept like any other; a line
+    // being typed in the brief is kept first
+    function useWording() {
+        const root = briefRoot(), entry = root ? entryOf(root) : null, waits = entry ? pending(entry.framing) : null;
+        if (!busy && waits) keptFirst(root, 'question', waits.wording);
+    }
     // the coach asks for the saved analyses: said in the conversation, and read at once; a line being typed in the brief is kept first
     function lookNow(root) {
         const entry = entryOf(root);
@@ -616,6 +663,7 @@
         if (hit && hit.getAttribute('data-ar') === 'choice') { tell(hit.textContent); return; }      // a choice clicked is the coach's answer
         if (hit && hit.getAttribute('data-ar') === 'skip') { hit.disabled = true; post('/architect/skip', {}).catch(() => { hit.disabled = false; }); return; }
         if (hit && hit.getAttribute('data-ar') === 'open') { openSaved(hit.getAttribute('data-thread'), hit.getAttribute('data-run')); return; }
+        if (hit && hit.getAttribute('data-ar') === 'use') { useWording(); return; }                    // under its message, or under the question's box
         if ((hit && hit.getAttribute('data-ar') === 'shut') || (ev.target && ev.target.id === 'savedAnalysisModal')) { byId('savedAnalysisModal').style.display = 'none'; return; }      // its cross, or beside it
         const root = hit ? hit.closest('.ar-brief') : null;
         if (!root) return;
@@ -638,7 +686,7 @@
         if (at.closest('.ar-input')) {
             if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); if (!busy) keep(root); }      // Shift+Enter is a new line (the question may have several)
             else if (ev.key === 'Escape') { ev.preventDefault(); redraw(root); }
-        } else if (at.closest('.tx[data-ar="edit"]') && (ev.key === 'Enter' || ev.key === ' ') && !busy) {      // a part not said yet, reached with the keyboard
+        } else if (at.closest('.tx[data-ar="edit"]') && (ev.key === 'Enter' || ev.key === ' ') && !busy) {      // a part with nothing in it, reached with the keyboard
             ev.preventDefault();
             edit(root, at.closest('.ar-line'));
         }
@@ -655,5 +703,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, build, readStream };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, pending, build, readStream };
 })();

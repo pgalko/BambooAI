@@ -55,9 +55,10 @@ def architect_open():
 @requires_auth
 def architect_say():
     """One exchange with the Architect: {thread_id, chain_id, text, look} - no text on its first turn, nor when it
-    goes on after a round of lookups or a reading of the saved analyses; `look` when the person asks for the saved
-    analyses - as a stream that ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no
-    reply was kept. While the saved analyses are read the stream carries {"type": "architect_saved", "read", "of"}."""
+    goes on after a round of lookups, a reading of the saved analyses or a part of an earlier analysis it opened;
+    `look` when the person asks for the saved analyses - as a stream that ends on {"architect": {"framing": ...}},
+    or {"architect": {"error": ...}} when no reply was kept. While the saved analyses are read the stream carries
+    {"type": "architect_saved", "read", "of"}."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400
@@ -138,7 +139,8 @@ def architect_next():
 @architect_bp.route('/architect/brief', methods=['POST'])
 @requires_auth
 def architect_brief():
-    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed} -> {framing}."""
+    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed} -> {framing}. A wording of
+    the Architect's the person takes comes this way too: the brief with that question."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None or not isinstance(data.get('brief'), dict):
         return jsonify({'error': 'The thread, the chain and the brief are needed.'}), 400

@@ -203,9 +203,17 @@
 /* ---- the Brief tab (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15; architect.js builds it): the question, the brief's versions and its parts; a line is changed where it stands ---- */
 #content-brief { padding-bottom: 0; }
 #content-brief .ar-brief { max-width: 78ch; padding-bottom: 18px; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
-#content-brief .ar-brief h1 { margin: 0 0 6px; font-size: 18px; font-weight: 600; line-height: 1.3; white-space: pre-wrap; }
+#content-brief .ar-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 6px; }   /* what the Analyst will be asked, and which version stands (0307) */
+#content-brief .ar-top .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
+#content-brief .ar-brief h1 { margin: 0; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-wrap; }
+#content-brief .ar-gets { margin: 8px 0 0; font-size: 12px; color: var(--text-tertiary); }
+#content-brief .ar-wording { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 12px; margin-top: 8px; padding: 9px 14px 10px; border: 1px dashed var(--chip-model-border); border-radius: 6px; white-space: pre-wrap; }   /* a wording of the Architect's that waits for the coach */
+#content-brief .ar-wording .k { flex-basis: 100%; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--c-model); }
+#content-brief .ar-wording .tx { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#content-brief .ar-use { flex-shrink: 0; padding: 3px 12px; border: 1px solid var(--c-model); border-radius: 5px; background: none; color: var(--c-model); font: inherit; font-size: 12.5px; line-height: 1.4; white-space: nowrap; cursor: pointer; }
+#content-brief .ar-use:hover { background: var(--accent-bg-hover); }
 #content-brief .ar-brief h3 { margin: 15px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
-#content-brief .ar-ver { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; font-size: 12px; color: var(--text-tertiary); }
+#content-brief .ar-ver { display: flex; align-items: center; gap: 10px; margin-left: auto; font-size: 12px; color: var(--text-tertiary); }
 #content-brief .ar-ver .step { display: inline-flex; align-items: center; border: 1px solid var(--border-color); border-radius: 6px; line-height: 20px; }
 #content-brief .ar-ver .step b { padding: 0 2px; font-weight: 600; color: var(--text-primary); }
 #content-brief .ar-ver .step button { width: 20px; height: 20px; padding: 0; border: none; background: none; font: inherit; color: var(--text-secondary); cursor: pointer; }
@@ -213,7 +221,6 @@
 #content-brief .ar-ver .step button:disabled { color: var(--text-quaternary); cursor: default; }
 #content-brief .ar-line { position: relative; display: flex; align-items: baseline; gap: 9px; padding: 2px 0; }
 #content-brief .ar-line .tx { min-width: 0; overflow-wrap: anywhere; }
-#content-brief .ar-line .tx.open { font-style: italic; color: var(--text-quaternary); }
 #content-brief .ar-line .tx.add { font-size: 12px; color: var(--text-quaternary); }
 #content-brief .ar-line .tx[data-ar] { cursor: pointer; }
 #content-brief .ar-line .tx[data-ar]:hover { color: var(--text-secondary); }
@@ -238,7 +245,10 @@
 #content-brief .ar-line .pen svg, #content-brief .ar-line .drop svg { width: 12px; height: 12px; fill: currentColor; }
 @media (hover: none) { #content-brief .ar-line .pen, #content-brief .ar-line .drop { opacity: .7; } }      /* no hover on a touch screen: the pencils stay in view */
 #content-brief .ar-line.changed::before { content: ''; position: absolute; left: -12px; top: 4px; bottom: 4px; width: 2px; border-radius: 1px; background: var(--c-kernel); }   /* changed in the version shown */
-#content-brief .ar-grid { display: grid; grid-template-columns: 84px 1fr; align-items: baseline; gap: 0 12px; }
+#content-brief .ar-grid { display: grid; grid-template-columns: max-content 1fr; align-items: baseline; gap: 0 12px; }
+#content-brief .ar-grid .ar-line.changed::before { left: -7px; }                          /* between the part's name and its line */
+#content-brief .ar-chips { display: flex; flex-wrap: wrap; gap: 0 18px; }                 /* the parts not fixed: each a place to type one */
+#content-brief .ar-chips .ar-line.editing { flex-basis: 100%; }
 #content-brief .ar-grid .k { color: var(--text-tertiary); }
 #content-brief .ar-edit { flex: 1; min-width: 0; display: flex; align-items: flex-start; gap: 6px; font-size: 13.5px; font-weight: 400; }
 #content-brief .ar-input { flex: 1; min-width: 0; box-sizing: border-box; min-height: 26px; margin: 0; padding: 3px 8px; border: 1px solid var(--c-model); border-radius: 5px; background: var(--bg-primary); color: var(--text-primary); font-family: var(--font-ui); font-size: 13.5px; line-height: 1.4; resize: none; overflow: hidden; outline: none; }

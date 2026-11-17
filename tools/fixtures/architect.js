@@ -1,10 +1,11 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §3.7): the Architect's
-// first question, its reply awaited, a brief after the conversation with a line being changed by hand, what the brief
-// rests on checked against the data with an explanation proposed, a report against a brief, the next questions under a
-// finished analysis, and the saved analyses - being read, and what they hold in the brief. An invented field trial, as
-// the stack's scenario has it.
+// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.17, §3.7): the
+// Architect's first question, its reply awaited, a brief after the conversation - the Architect's wording of the question
+// waiting to be taken, a line being changed by hand - what the brief rests on checked against the data with an
+// explanation proposed, a report against a brief, the next questions under a finished analysis, and the saved analyses -
+// being read, and what they hold in the brief. An invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
+  const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
   const BRIEF = { question: Q, decision: 'Switch the clay plots to regime C next season, or keep A.', thinks: 'C does better than A.',
     rests_on: [{ text: 'The C plots looked greener last season.', source: 'person', mark: '' }], expects: 'C yields at least 0.3 t/ha more than A.',
     also_check: [{ text: 'Rainfall differed between the C and A plots.' }], fixed: { comparison: 'regime C against regime A, within soil type', measure: 'yield, plot means' } };
@@ -18,7 +19,8 @@ window.galleryArchitect = (function () {
                                { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF }],
                     turns: [ASK, you('Switch the clay plots to regime C next season, or keep A.'), said('What do you think is going on, and what makes you think so?', { v: 2, call: 2 }),
                             you('C does better than A because the C plots looked greener last season.'), said('What do you expect to see?', { v: 2, call: 3 }),
-                            you('C yields at least 0.3 t/ha more than A.'), said('The brief is ready: start the analysis, or change a line.', { v: 3, call: 4 })], calls: 4 };
+                            you('C yields at least 0.3 t/ha more than A.'),
+                            said('I have worded it as the gap between the two regimes within each soil type. Is that what you mean?', { wording: WORDED, v: 3, call: 4 })], calls: 4 };
   // the check against the data: a line that does not hold, one that holds, one that cannot be checked
   const RAIN = 'The C plots got the most rain.', SAME = 'Each regime has the same number of plots.', GREEN = 'The C plots looked greener last season.';
   const RAIN_FACT = 'total of rainfall_mm by regime: A 100,448 · B 102,189 · C 100,570', SAME_FACT = 'rows by regime: A 240 · B 240 · C 240';
@@ -80,7 +82,7 @@ window.galleryArchitect = (function () {
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { sent: 'Switch the clay plots to regime C next season, or keep A.', waiting: true });
       composerLock('The Architect is replying');
     },
-    brief() {        // after the conversation: the composer is the conversation's, the switch lit, one line open for typing
+    brief() {        // after the conversation: the Architect's wording waits under the question, the switch lit, one line open for typing
       show(framing);
       document.querySelector('#content-brief .ar-line[data-path="expects"] .pen').click();
     },

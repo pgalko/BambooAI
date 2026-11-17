@@ -417,9 +417,9 @@ resb = reader.read("What did I expect of B?", vb, kernel, llm, pieces, clock=lam
 _long = {"id": "1/2", "question": "q", "title": "t", "report": "r", "brief": "", "conversation": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
 check("the brief of a framed run: the second model reads it where the reader names the part, before the report, under a heading of its own; a quote from it stands, and code says it stands in the "
       "brief. What SHOW SAVED opens holds it too - without the run's id, with the cells of the earlier steps the run was built on, saved or not, and never what a cell printed - and is not cut",
-      rb["brief"] == "Decision: keep the taller arm\nWhat they expect to see: B leads by at least 2 units"
+      rb["brief"] == "What the answer is for: keep the taller arm\nWhat they expect to see: B leads by at least 2 units"
       and reader.piece(vb, rb, ["brief", "report"]) == "=== 800/801 ===\nQUESTION: Is B above A?\nTITLE: B is above A\nBRIEF:\n" + rb["brief"] + "\nREPORT:\n# B is above A\n\nB leads by 3 units [cell 1]."
-      and "BRIEF:" not in reader.piece(vb, rb, ["report"]) and reader.place_of(vb, rb, "keep the taller arm") == "brief" and "\nBRIEF:\nDecision: keep the taller arm\n" in sent["pieces"][0][1]
+      and "BRIEF:" not in reader.piece(vb, rb, ["report"]) and reader.place_of(vb, rb, "keep the taller arm") == "brief" and "\nBRIEF:\nWhat the answer is for: keep the taller arm\n" in sent["pieces"][0][1]
       and "\nREPORT:\n" not in sent["pieces"][0][1] and [(f["id"], f["where"], f["quote"]) for f in resb["found"]] == [("800/801", "brief", "B leads by at least 2 units")]
       and reader.shown(vb, rb) == ("QUESTION: Is B above A?\nTITLE: B is above A\nBRIEF:\n" + rb["brief"] + "\nREPORT:\n# B is above A\n\nB leads by 3 units [cell 1].\n"
                                    "CELL 1, code:\ngap = b - a\nCELL 1, results:\ngap: 3 units")

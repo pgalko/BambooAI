@@ -102,21 +102,29 @@ check('what is fixed: a part set or cleared by its name; the last one cleared re
 const F1 = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B above A?' } }] };
 const t1 = el(b.brief(F1, { chain: 71, state: 'framing' })), root1 = t1.querySelector('.ar-brief');
 const h3s = root => root.querySelectorAll('h3').map(h => h.textContent).join('|');
-check('an empty brief: the question as the title with its pencil; v1 "from your question", both arrows off; the parts in the brief\'s order - with From saved analyses and its button last where the framing '
+check('an empty brief (0307): on top what the Analyst will be asked - said in those words, with the version beside it: v1 "from your question", both arrows off - the question in its box with its pencil, and '
+  + 'under it one line that says this is what the Analyst gets; then the parts under plain names, in the brief\'s order - with From saved analyses and its button last where the framing '
   + 'says the coach has saved analyses, and neither where it says none',
-  root1.querySelector('h1.ar-line.ar-q .tx').textContent === 'Is B above A?' && root1.querySelector('h1 .pen[data-ar="edit"]') && root1.querySelector('h1').getAttribute('data-path') === 'question'
+  root1.elements[0].className === 'ar-top' && root1.querySelector('.ar-top .label').textContent === 'What the Analyst will be asked' && root1.querySelector('.ar-top .ar-ver')
+  && root1.elements[1].tag === 'h1' && root1.elements[2].className === 'ar-gets' && root1.elements[2].textContent === 'This is what the Analyst gets. Change any line before you start.'
+  && root1.querySelector('h1.ar-line.ar-q .tx').textContent === 'Is B above A?' && root1.querySelector('h1 .pen[data-ar="edit"]') && root1.querySelector('h1').getAttribute('data-path') === 'question'
   && root1.querySelector('.ar-ver .step b').textContent === 'v1' && root1.querySelector('.ar-ver .why').textContent === 'from your question'
   && root1.querySelectorAll('.ar-ver [data-ar="step"]').every(x => x.hasAttribute('disabled'))
-  && h3s(root1) === 'Decision|What you think|It rests on|You expect|Also check|Fixed before the run' && !root1.querySelector('[data-ar="look"]')
+  && h3s(root1) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run' && !root1.querySelector('[data-ar="look"]')
   && !el(b.brief(Object.assign({ saved: 0 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]')
-  && h3s(el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' }))) === 'Decision|What you think|It rests on|You expect|Also check|Fixed before the run|From saved analyses'
+  && h3s(el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' }))) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run|From saved analyses'
   && el(b.brief(Object.assign({ saved: 3 }, F1), { chain: 71, state: 'framing' })).querySelector('[data-ar="look"]').textContent === 'Look in saved analyses', t1.innerHTML);
-check('an empty brief: every part reads "not said yet" and opens on a click; what is fixed reads "left to the Analyst"; the standing checks are one line marked "always", never changed; a rival is added under it; Start analysis at the foot',
-  ['decision', 'thinks', 'rests_on.+', 'expects', 'would_change'].every(p => { const t = root1.querySelector('.ar-line[data-path="' + p + '"] .tx'); return t.textContent === 'not said yet' && t.className === 'tx open' && t.getAttribute('data-ar') === 'edit'
+const noData = el(b.brief(Object.assign({ data: false }, F1), { chain: 71, state: 'framing' })).querySelector('.ar-brief');
+check('an empty brief: no part reads as if it held something - each is a place to type it, "+ Add", that opens on a click; of what is fixed before the run nothing stands, and each part not fixed is offered by its plain name; '
+  + 'the standing checks are one line marked "always", never changed, and stand only where data is loaded; a rival is added under it; Start analysis at the foot',
+  ['decision', 'thinks', 'rests_on.+', 'expects', 'would_change', 'also_check.+'].every(p => { const t = root1.querySelector('.ar-line.adds[data-path="' + p + '"] .tx'); return t.textContent === '+ Add' && t.className === 'tx add' && t.getAttribute('data-ar') === 'edit'
     && t.getAttribute('role') === 'button' && t.getAttribute('tabindex') === '0'; })
+  && !/not said|left to/.test(t1.textContent)
   && root1.querySelector('.ar-line[data-path="would_change"] .pre').textContent === 'You would change your mind if:'
-  && ['comparison', 'measure', 'period'].every(p => root1.querySelector('.ar-grid .ar-line[data-path="fixed.' + p + '"] .tx').textContent === 'left to the Analyst')
-  && root1.querySelectorAll('.ar-grid .k').map(k => k.textContent).join() === 'Compare,Measure,Period'
+  && !root1.querySelector('.ar-grid') && root1.querySelectorAll('.ar-chips .ar-line.adds').map(l => l.getAttribute('data-path') + '=' + l.querySelector('.tx.add[data-ar="edit"]').textContent).join()
+     === 'fixed.comparison=+ What is compared,fixed.measure=+ Measured by,fixed.period=+ Period'
+  && !noData.querySelector('.src') && h3s(noData) === h3s(root1) && noData.querySelector('.ar-line.adds[data-path="also_check.+"]')
+  && el(b.brief(Object.assign({ data: true }, F1), { chain: 71, state: 'framing' })).querySelector('.src').textContent === 'always'
   && root1.querySelectorAll('.src').length === 1 && root1.querySelector('.src').textContent === 'always' && root1.querySelector('.src').parent.querySelector('.tx').textContent === 'Chance, measurement error, how the cases were chosen'
   && !root1.querySelector('.src').parent.getAttribute('data-path') && root1.querySelector('.ar-line.adds[data-path="also_check.+"] .tx.add').textContent === '+ Add'
   && root1.querySelector('.ar-foot .ui-btn.primary[data-ar="start"]').textContent === 'Start analysis', t1.innerHTML);
@@ -162,13 +170,16 @@ check('what the Architect proposed has a box to tick, its mark as the one who br
   && acceptedRun.querySelector('button.tick.on') && acceptedRun.querySelector('.tick').hasAttribute('disabled') && !acceptedRun.querySelector('[data-ar]'), accepted.outerHTML + proposed.outerHTML);
 const old = el(b.brief(F3, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief');
 const ran = el(b.brief(F3, { chain: 71, state: 'run' })).querySelector('.ar-brief');
-check('an older version is read, not changed: no pencil, no cross, no Start analysis, what it did not say reads "not said"; both arrows live',
+check('an older version is read, not changed: no pencil, no cross, no Start analysis, and only the parts it held - a part it did not say has no line and no heading, and nothing says this is what the Analyst gets; both arrows live',
   old.querySelector('.ar-ver .step b').textContent === 'v2' && old.getAttribute('data-shown') === '2' && old.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step'
-  && !old.querySelectorAll('[data-ar="step"]').some(x => x.hasAttribute('disabled')) && lineOf(old, 'thinks').querySelector('.tx').textContent === 'not said'
+  && !old.querySelectorAll('[data-ar="step"]').some(x => x.hasAttribute('disabled')) && !lineOf(old, 'thinks') && !old.querySelector('.adds') && !old.querySelector('.ar-gets') && h3s(old) === 'What it is for|Also check'
   && lineOf(old, 'decision').className === 'ar-line changed' && !old.querySelector('.ar-foot'), old.outerHTML);
-check('the brief of a run that has started is read, not changed, at its last version; its versions can still be stepped through',
+check('the brief of a run that has started is read, not changed, at its last version: what the Analyst got - of what is fixed the part that was fixed, under its plain name, and no place to type another; its versions can still be stepped through',
   ran.getAttribute('data-state') === 'run' && ran.querySelector('.ar-ver .step b').textContent === 'v3' && ran.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'step,step'
-  && !ran.querySelector('.ar-foot') && lineOf(ran, 'fixed.period').querySelector('.tx').textContent === 'left to the Analyst');
+  && !ran.querySelector('.ar-foot') && !lineOf(ran, 'fixed.period') && !ran.querySelector('.ar-chips') && !ran.querySelector('.adds') && !ran.querySelector('.ar-gets')
+  && ran.querySelectorAll('.ar-grid .k').map(k => k.textContent).join() === 'Measured by' && lineOf(ran, 'fixed.measure').querySelector('.tx').textContent === 'x'
+  && root3.querySelectorAll('.ar-grid .k').map(k => k.textContent).join() === 'Measured by' && root3.querySelectorAll('.ar-chips .ar-line').map(l => l.getAttribute('data-path')).join() === 'fixed.comparison,fixed.period'
+  && h3s(ran) === 'What it is for|What you think|It rests on|What you expect to see|Also check|Fixed before the run|From saved analyses|Set aside');
 const whyOf = v => el(b.brief({ versions: [F1.versions[0], v] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent;
 check('the first version of a follow-up says where it came from; a version of the Architect\'s says what it was made from - the question, an answer, or a check against the data',
   el(b.brief({ versions: [{ n: 1, by: 'person', changed: ['from the last brief'], brief: FULL }] }, { chain: 1, state: 'framing' })).querySelector('.why').textContent === 'from the last brief'
@@ -320,6 +331,56 @@ check('the line being typed: a field holding the text, bounded as a line of the 
   && el(b.editor('q', true)).querySelector('textarea').getAttribute('maxlength') === '4000'
   && ed.querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar') + ':' + x.getAttribute('title')).join() === 'keep:Keep,cancel:Cancel', ed.innerHTML);
 
+// ------------------------------------------------------------ the question worded, and a part opened (0307)
+const turnW = { who: 'architect', text: 'Is that it?', wording: 'Plot <x>\nagainst z.', v: 1, call: 2, choices: ['Change it'] };
+const FW = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Plot it' } }], turns: [turnW] };
+const took = v => Object.assign({}, FW, { versions: FW.versions.concat([v]) });
+const TAKEN = took({ n: 2, by: 'person', changed: ['question'], brief: { question: 'Plot <x>\nagainst z.' } });
+check('pending(): the Architect\'s wording waits for the coach - the last message that gave one - until the question changes, taken or changed by hand; a change to another part leaves it waiting; a wording that '
+  + 'says what the question says already does not wait; nothing waits where no message of the Architect\'s gave one. As the engine has it (analyst/architect.py)',
+  A.pending(FW) === turnW && A.pending(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } })) === turnW
+  && A.pending(TAKEN) === null && A.pending(took({ n: 2, by: 'person', changed: ['question'], brief: { question: 'My own words' } })) === null
+  && A.pending(took({ n: 2, by: 'architect', why: 'answer', changed: ['question', 'expects'], brief: { question: 'Plot <x>\nagainst z.', expects: 'e' } })) === null
+  && A.pending({ versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Plot <x>\nagainst z.' } }], turns: [turnW] }) === null
+  && A.pending({ versions: FW.versions, turns: [turnW, { who: 'person', text: 'no' }, { who: 'architect', text: 'Then?', wording: 'Plot y.', v: 1 }] }).wording === 'Plot y.'
+  && A.pending({ versions: TAKEN.versions, turns: [turnW, { who: 'architect', text: 'Or so?', wording: 'Plot y.', v: 2 }] }).wording === 'Plot y.'
+  && A.pending({ versions: FW.versions, turns: [{ who: 'person', text: 'x', wording: 'w' }, { who: 'architect', text: 'no wording' }] }) === null && A.pending({}) === null && A.pending(null) === null
+  && /^def pending\(framing: dict\)/m.test(fs.readFileSync(path.join(__dirname, '..', '..', 'analyst', 'architect.py'), 'utf8')));
+const entryW = f => ({ chain_id: 71, queryText: 'Plot it', framing: f });
+const talkW = el(b.talk(entryW(FW), { live: true })), cardW = talkW.querySelector('.ar-msg.arch .ar-wording');
+const twoW = { versions: FW.versions, turns: [turnW, { who: 'person', text: 'no' }, { who: 'architect', text: 'Then?', wording: 'Plot y.', v: 1 }] };
+check('a wording in the conversation: under the Architect\'s message, before its choices - the wording as text, never markup, with its lines - and while it waits the button that takes it; none while a '
+  + 'reply is awaited or in a conversation only read; of two wordings the later one waits; once the question reads so the card says it is in use, wherever it is read',
+  cardW.className === 'ar-wording waits' && cardW.querySelector('.tx').textContent === 'Plot <x>\nagainst z.' && !cardW.querySelector('.tx b') && !cardW.querySelector('.k')
+  && cardW.querySelector('button.ar-use[data-ar="use"]').textContent === 'Use this wording'
+  && talkW.querySelector('.ar-msg.arch').elements.map(e => e.className).join() === 'who,ar-wording waits,ar-choices'
+  && !el(b.talk(entryW(FW), { live: true, waiting: true })).querySelector('.ar-use') && el(b.talk(entryW(FW), { live: true, waiting: true })).querySelector('.ar-wording').className === 'ar-wording'
+  && !el(b.talk(entryW(FW))).querySelector('.ar-use') && el(b.talk(entryW(FW))).querySelector('.ar-wording .tx').textContent === 'Plot <x>\nagainst z.'
+  && el(b.talk(entryW(twoW), { live: true })).querySelectorAll('.ar-wording').map(w => w.className + ':' + !!w.querySelector('.ar-use')).join() === 'ar-wording:false,ar-wording waits:true'
+  && [{ live: true }, {}].every(o => { const w = el(b.talk(entryW(TAKEN), o)).querySelector('.ar-wording'); return w.className === 'ar-wording used' && w.querySelector('.ok').textContent === 'in use' && !w.querySelector('.ar-use'); })
+  && !el(b.said({ who: 'architect', text: 'No wording.' }, 71, true, '')).querySelector('.ar-wording'), talkW.innerHTML);
+const tabW = el(b.brief(FW, { chain: 71, state: 'framing' })).querySelector('.ar-brief');
+check('a wording that waits stands on the Brief tab too, under the question\'s box and before the line that says what the Analyst gets: whose it is, its text, the same button. None once it is taken, in '
+  + 'an older version, or on a brief that runs',
+  tabW.elements.slice(0, 4).map(e => e.tag + '.' + e.className).join() === 'div.ar-top,h1.ar-line ar-q,div.ar-wording waits,p.ar-gets'
+  && tabW.querySelector('.ar-wording .k').textContent === 'The Architect\'s wording' && tabW.querySelector('.ar-wording .tx').textContent === 'Plot <x>\nagainst z.'
+  && tabW.querySelector('.ar-wording button.ar-use[data-ar="use"]').textContent === 'Use this wording' && tabW.querySelector('h1 .tx').textContent === 'Plot it'
+  && !el(b.brief(TAKEN, { chain: 71, state: 'framing' })).querySelector('.ar-wording') && !el(b.brief(FW, { chain: 71, state: 'run' })).querySelector('.ar-wording')
+  && !el(b.brief(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } }), { chain: 71, state: 'framing', shown: 1 })).querySelector('.ar-wording')
+  && el(b.brief(took({ n: 2, by: 'person', changed: ['decision'], brief: { question: 'Plot it', decision: 'd' } }), { chain: 71, state: 'framing' })).querySelector('.ar-wording.waits'), tabW.innerHTML);
+const rowO = el(b.opened({ who: 'opened', what: 'cell', n: 5, label: 'cell <5>', chars: 12345 })).querySelector('.sp-row');
+const rowN = el(b.opened({ who: 'opened', missing: 'there is no cell 99: the cells are 1 to 5' })).querySelector('.sp-row');
+const talkO = el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'person', text: 'How was it drawn?' }, { who: 'architect', text: 'I am opening the cell.', v: 1 },
+                                                               { who: 'opened', what: 'cell', n: 5, label: 'cell 5', chars: 66 }, { who: 'architect', text: 'It draws one line a month.', v: 1 }] })));
+check('a part of an earlier analysis the Architect opened is a row of the conversation, as the pane shows a tool\'s: READ, what was read - as text - and how long it is; a part that is not there says so in '
+  + 'the place of both, marked as a step that did not run. The row stands where the part was opened: after the message that asked, before the one that speaks of it',
+  rowO.className === 'sp-row tool read' && rowO.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=READ|out=cell <5>|t=12,345 characters' && !rowO.querySelector('.out b')
+  && rowN.className === 'sp-row tool read skipped' && rowN.elements.map(e => e.className + '=' + e.textContent).join('|') === '=–|in=READ|out=there is no cell 99: the cells are 1 to 5'
+  && talkO.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,ar-msg.arch', talkO.innerHTML);
+check('the field of a part that has no lead-in says what it holds, while it is empty; any other field says nothing',
+  el(b.editor('', false, 'What is compared')).querySelector('.ar-input').getAttribute('placeholder') === 'What is compared'
+  && !el(b.editor('x', false)).querySelector('.ar-input').hasAttribute('placeholder') && !el(b.editor('', true, '')).querySelector('.ar-input').hasAttribute('placeholder'));
+
 // ------------------------------------------------------------ the report's part "Against the brief", as a card
 const LIST = '<h1 id="t">B is above A</h1>\n<p>For the decision: keep B.</p>\n<h2 id="against-the-brief">Against the brief</h2>\n<ul>\n<li>Expected: not met - the gap is 0.4 <span class="cite cell" onclick="x()">cell 2</span></li>\n' +
   '<li>Would change their mind: seen</li>\n<li>chance: the interval includes 0</li>\n<li>measurement error: cannot tell, nothing says how x was measured</li>\n<li>the two halves differ: the same in both</li>\n</ul>\n' +
@@ -414,7 +475,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   serve();
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.tx'));
   let field = lineOf(brief(), 'decision').querySelector('textarea.ar-input');
-  check('a click on a part not said yet: the field opens in its line, empty, with Keep and Cancel', field && field.textContent === '' && lineOf(brief(), 'decision').classList.contains('editing')
+  check('a click on a part with nothing in it: the field opens in its line, empty, with Keep and Cancel', field && field.textContent === '' && lineOf(brief(), 'decision').classList.contains('editing')
     && lineOf(brief(), 'decision').querySelectorAll('[data-ar]').map(x => x.getAttribute('data-ar')).join() === 'keep,cancel', lineOf(brief(), 'decision').outerHTML);
   field.value = '  keep one   arm ';
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('[data-ar="keep"]')); await tick();
@@ -434,8 +495,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   const opened = doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.tx'), { key: 'Enter' });
   field = lineOf(brief(), 'thinks').querySelector('.ar-input'); field.value = 'B is better';
   const esc = doc.dispatch('keydown', field, { key: 'Escape' }); await tick();
-  check('a part not said yet opens from the keyboard too (Enter on it, no other key); Escape leaves the line as it was: nothing sent',
-    !other.defaulted && opened.defaulted === true && calls.length === n && esc.defaulted === true && !brief().querySelector('.editing') && lineOf(brief(), 'thinks').querySelector('.tx').textContent === 'not said yet');
+  check('a part with nothing in it opens from the keyboard too (Enter on it, no other key); Escape leaves the line as it was: nothing sent',
+    !other.defaulted && opened.defaulted === true && calls.length === n && esc.defaulted === true && !brief().querySelector('.editing') && lineOf(brief(), 'thinks').querySelector('.tx').textContent === '+ Add');
   doc.dispatch('click', lineOf(brief(), 'would_change').querySelector('.tx'));
   field = lineOf(brief(), 'would_change').querySelector('.ar-input'); field.value = 'a gap under 1';
   const stillLabelled = lineOf(brief(), 'would_change').querySelector('.pre').textContent === 'You would change your mind if:';
@@ -481,7 +542,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('a cross clicked while another line is being typed: the typed line is kept first, then the other is left out - two versions, nothing lost',
     calls.length === n + 2 && same(calls[n][1].changed, ['also_check.0']) && same(calls[n][1].brief.also_check, [{ text: 'the season' }]) && calls[n][1].brief.rests_on.length === 1
     && same(calls[n + 1][1].changed, ['rests_on']) && !('rests_on' in calls[n + 1][1].brief) && same(calls[n + 1][1].brief.also_check, [{ text: 'the season' }])
-    && lineOf(brief(), 'also_check.0').querySelector('.tx').textContent === 'the season' && lineOf(brief(), 'rests_on.+').querySelector('.tx.open'), [calls[n], calls[n + 1]]);
+    && lineOf(brief(), 'also_check.0').querySelector('.tx').textContent === 'the season' && lineOf(brief(), 'rests_on.+').querySelector('.tx.add'), [calls[n], calls[n + 1]]);
 
   // the question
   doc.dispatch('click', brief().querySelector('h1 .pen'));
@@ -763,6 +824,74 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && same(then, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: null }], sent: 2, row: '✓SAVED analysesnothing found · read 12 of 123 s', said: ['you|YouLook in my saved analyses.', 'arch wait|Architectreading…'] })
     && pane()[pane().length - 1] === 'arch|Architect⌘Nothing more was found.'
     && same(calls[n][1].changed, ['saved']) && !('saved' in calls[n][1].brief) && !lineOf(brief(), 'saved.0'), [accepted, shown, closed, gone, asked, then, calls[n]]);
+  // the question worded (0307): the Architect's wording waits under its message and under the question's box; the coach's click makes it the question - a change of their own, kept like any other
+  held(); n = calls.length;
+  A.tell('How would you put it?'); await tick();
+  const worded = JSON.parse(JSON.stringify(entry.framing)), was7 = worded.versions.length, asked7 = latest().brief.question;
+  worded.turns = worded.turns.concat([{ who: 'person', text: 'How would you put it?' }, { who: 'architect', text: 'Like this. Is that what you mean?', wording: 'Is B above A,\non the plot means?', v: was7, cost: 0.01, call: 16 }]);
+  const inFlight = !!$('streamOutput').querySelector('.ar-use') || !!brief().querySelector('.ar-use');
+  reply([200, stream({ framing: worded })]); await tick();
+  const waits = { pane: $('streamOutput').querySelectorAll('.ar-wording').map(w => w.className + '|' + w.querySelector('.tx').textContent + '|' + (w.querySelector('.ar-use') || {}).textContent).slice(-1)[0],
+                  tab: brief().querySelector('.ar-wording.waits .tx').textContent, box: brief().querySelector('h1 .tx').textContent, sent: calls.length - n };
+  doc.dispatch('click', lineOf(brief(), 'expects').querySelector('.pen'));
+  lineOf(brief(), 'expects').querySelector('.ar-input').value = 'B above A by 5';
+  serve(); n = calls.length;
+  doc.dispatch('click', $('streamOutput').querySelector('.ar-use')); await tick();
+  const taken = { calls: calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.question, c[1].brief.expects]), box: brief().querySelector('h1 .tx').textContent, bar: brief().querySelector('h1').className,
+                  why: brief().querySelector('.why').textContent, v: brief().querySelector('.step b').textContent, tab: !!brief().querySelector('.ar-wording'),
+                  pane: $('streamOutput').querySelectorAll('.ar-wording').map(w => w.className + '|' + !!w.querySelector('.ar-use') + '|' + (w.querySelector('.ok') || {}).textContent).slice(-1)[0], text: entry.queryText };
+  check('a wording of the Architect\'s: none can be taken while the reply is on its way; then it stands under its message and under the question\'s box, each with the button, and the question is as it was. '
+    + 'A click on the button - a line being typed in the brief kept first, as its own version - sends the brief with that question: one more version of the coach\'s, no word to the Architect; the box '
+    + 'shows the wording, marked as changed, the chain\'s own text follows, the card under the message says it is in use and the one under the box is gone',
+    !inFlight && same(waits, { pane: 'ar-wording waits|Is B above A,\non the plot means?|Use this wording', tab: 'Is B above A,\non the plot means?', box: asked7, sent: 1 })
+    && same(taken.calls, [['/architect/brief', ['expects'], asked7, 'B above A by 5'], ['/architect/brief', ['question'], 'Is B above A,\non the plot means?', 'B above A by 5']])
+    && taken.box === 'Is B above A,\non the plot means?' && taken.bar === 'ar-line ar-q changed' && taken.why === 'changed by you' && taken.v === 'v' + (was7 + 2) && taken.tab === false
+    && taken.pane === 'ar-wording used|false|in use' && taken.text === 'Is B above A,\non the plot means?' && A.pending(entry.framing) === null, [waits, taken]);
+  // ... and the button under the box does the same; a click with nothing waiting sends nothing
+  held(); n = calls.length;
+  A.tell('Shorter.'); await tick();
+  const shorter = JSON.parse(JSON.stringify(entry.framing));
+  shorter.turns = shorter.turns.concat([{ who: 'person', text: 'Shorter.' }, { who: 'architect', text: 'Then so?', wording: 'Is B above A?', v: shorter.versions.length, cost: 0.01, call: 17 }]);
+  reply([200, stream({ framing: shorter })]); await tick();
+  serve(); n = calls.length;
+  doc.dispatch('click', brief().querySelector('.ar-wording .ar-use')); await tick();
+  const fromTab = { calls: calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.question]), box: brief().querySelector('h1 .tx').textContent };
+  const stale = el(b.wording('x', 'waits')).querySelector('.ar-use'); $('streamOutput').appendChild(stale); n = calls.length;
+  doc.dispatch('click', stale); await tick();
+  check('the button under the question\'s box takes the wording as the one under the message does; with no wording waiting a click sends nothing',
+    same(fromTab, { calls: [['/architect/brief', ['question'], 'Is B above A?']], box: 'Is B above A?' }) && calls.length === n && entry.queryText === 'Is B above A?', fromTab);
+  // a part of an earlier analysis opened (0307): a row of the conversation, and the Architect goes on at once
+  held(); n = calls.length;
+  A.tell('How was the figure drawn?'); await tick();
+  const opening = JSON.parse(JSON.stringify(entry.framing));
+  opening.turns = opening.turns.concat([{ who: 'person', text: 'How was the figure drawn?' }, { who: 'architect', text: 'I am opening the cell that drew it.', v: opening.versions.length, cost: 0.01, call: 18 },
+                                        { who: 'opened', what: 'cell', n: 5, label: 'cell 5', chars: 1234 }]);
+  reply([200, stream({ framing: opening })]); await tick();
+  const openedNow = { calls: calls.slice(n), row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], wait: pane().slice(-1)[0], lock: locks[locks.length - 1] };
+  const spoke = JSON.parse(JSON.stringify(opening));
+  spoke.turns.push({ who: 'architect', text: 'It draws one line a month.', v: spoke.versions.length, cost: 0.01, call: 19 });
+  reply([200, stream({ framing: spoke })]); await tick();
+  check('a reply that opened a part of an earlier analysis: the part is a row under its message - READ, what it is, how long - and the Architect is asked again at once with nothing said; its next message '
+    + 'stands under the row, and no further call is made',
+    same(openedNow.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'How was the figure drawn?' }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && openedNow.row === '✓READcell 51,234 characters' && openedNow.wait === 'arch wait|Architectreading…' && same(openedNow.lock, ['lock', 'The Architect is replying'])
+    && calls.length === n + 2 && pane()[pane().length - 1] === 'arch|Architect⌘It draws one line a month.' && same(locks[locks.length - 1], ['unlock']), openedNow);
+  // a part of what is fixed that the brief does not hold: offered by its name, typed where it is offered, and then a line of the brief
+  serve(); n = calls.length;
+  const chip = brief().querySelector('.ar-chips .ar-line[data-path="fixed.comparison"]');
+  doc.dispatch('click', chip.querySelector('.tx'));
+  const typing = { hint: chip.querySelector('.ar-input').getAttribute('placeholder'), editing: chip.classList.contains('editing') };
+  chip.querySelector('.ar-input').value = 'B against A';
+  doc.dispatch('click', chip.querySelector('[data-ar="keep"]')); await tick();
+  doc.dispatch('click', lineOf(brief(), 'fixed.comparison').querySelector('.pen'));
+  const inLine = lineOf(brief(), 'fixed.comparison').querySelector('.ar-input');
+  const named = { text: inLine.textContent, hint: inLine.hasAttribute('placeholder') };
+  doc.dispatch('click', lineOf(brief(), 'fixed.comparison').querySelector('[data-ar="cancel"]'));
+  check('a part of what is fixed that the brief does not hold is offered by its plain name; a click opens a field in its place that says what it holds; kept, it is a line of the brief under that name, and '
+    + 'the offer is gone - its field, opened again, holds the text and needs no word of what it is: the name stands beside it',
+    same(typing, { hint: 'What is compared', editing: true }) && same(named, { text: 'B against A', hint: false }) && same(calls.slice(n).map(c => [c[0], c[1].changed, c[1].brief.fixed.comparison]), [['/architect/brief', ['fixed.comparison'], 'B against A']])
+    && brief().querySelectorAll('.ar-grid .k').map(k => k.textContent).indexOf('What is compared') >= 0 && lineOf(brief(), 'fixed.comparison').querySelector('.tx').textContent === 'B against A'
+    && !brief().querySelector('.ar-chips .ar-line[data-path="fixed.comparison"]'), [typing, calls.slice(n)]);
   const parts = [];
   const whole = await A.readStream({ text: async () => '{"a": 1}\n\nnot json\n{"b": 2}' }, d => parts.push(d));
   const fed = liveBody(), parts2 = [];
@@ -820,6 +949,13 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
     && tabsCss.includes('#content-answer .ar-against {') && tabsCss.includes('#content-answer .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-answer .ar-against .v.' + v + ' {')));
+  check('the stylesheets, 0307: the wording\'s card and its button are styled where they stand - under a message in pane.css, under the question\'s box in tabs.css - with what the Analyst will be asked, the line '
+    + 'under it and the parts on offer; the page\'s words for the Brief tab are plain ones, and none says a part is "not said" or "left to" anyone',
+    ['.ar-wording {', '.ar-wording.used {', '.ar-wording .ok {', '.ar-use {', '.ar-use:hover {'].every(s => paneCss.includes('#streamOutput ' + s))
+    && ['.ar-wording {', '.ar-wording .k {', '.ar-use {', '.ar-use:hover {', '.ar-top {', '.ar-top .label {', '.ar-gets {', '.ar-chips {', '.ar-chips .ar-line.editing {'].every(s => tabsCss.includes('#content-brief ' + s))
+    && !tabsCss.includes('.tx.open') && !/not said|left to the Analyst|unsaid/.test(js('architect.js'))
+    && ["asked: 'What the Analyst will be asked'", "gets: 'This is what the Analyst gets. Change any line before you start.'", "decision: 'What it is for'", "expects: 'What you expect to see'",
+        "['comparison', 'What is compared'], ['measure', 'Measured by'], ['period', 'Period']", "use: 'Use this wording'", "opened: 'READ'"].every(s => js('architect.js').includes(s)));
   const engine = f => fs.readFileSync(path.join(root, '..', 'analyst', f), 'utf8'), own = js('architect.js');
   check('the saved analyses: the page counts the readings of a brief as the engine does and knows a skipped reading by the reader\'s own sentence; the dialog of a saved analysis lies over the page, '
     + 'the row\'s Skip is styled in pane.css, the passages in tabs.css',

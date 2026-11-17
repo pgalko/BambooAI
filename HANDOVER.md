@@ -24,7 +24,8 @@
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
 - **2.8, the Architect and memory from saved analyses** (`docs/ARCHITECT_DESIGN.md`: the design, the decisions, the
-  build patch by patch). Released as 2.8.0 with 0305; 0306 follows it, after the product owner's first live run.
+  build patch by patch). Released as 2.8.0 with 0305; 0306 and 0307 follow it, after the product owner's first and
+  second live runs.
   Until the release steps are taken the series goes to the private repository and the dev box only, and the tag
   goes on the last patch.
   **0294 (2026-11-15): the old memory is retired.** Gone: the knowledge pack and its code (`knowledge_pack.py`,
@@ -360,6 +361,61 @@
   (+2); the battery 2,287; the walk 193, and 186 of 190 in the local edition. *Not changed:* the Brief tab's
   heading *Decision*, which for a learner holds what they want to learn; the three checks made in every run, also
   on a question without data. Not run against a live model: the instructions are tuned from the run logs.
+  **0307 (2026-11-17): the question the coach takes; what the Analyst gets; opening on request** (the design's
+  §2.17, decisions 32-36; decision 19 reversed). The second live run - a plot, then a follow-up on another subject
+  - showed five faults, each traced in its run log: a reading asked for on the follow-up and passed over in
+  silence while the Architect said it was looking; a message cut at 1,500 characters; a wording agreed in the
+  conversation and never written, with the task piled up under *Compare*, nothing ticked by "build on it" and a
+  BRIEF block of "not said" and "left to you"; a Brief tab that did not say what it shows; a follow-up Architect
+  that knew two sentences of the analysis before it. *The question* (`analyst/architect.py`): the model writes
+  none - `question` under a reply's `brief` is dropped, `_stood`/`_words` are gone. A reply gives `wording`
+  (kept on its turn); `pending(framing)` is the message whose wording waits: the last one that gave one, while no
+  later version changed `question` and the question does not read so already. The coach takes it on the page - the
+  button sends the brief with that question through `/architect/brief`, a version of theirs, no model call - or
+  says yes, and the next reply's `accept` makes the engine write it. `conversation(turns, waits)` lists a wording
+  under its message, marked while it waits. *Ticks:* `saved` passages are numbered in `block()`; a reply's `tick`
+  accepts them (`brief.tick`, never unticks). *A request that cannot be met:* the reply is asked for once more in
+  the same exchange with `NOT_DONE` and the reason - a reading (`_unread`: `READ_ALL`, `READ_SINCE`,
+  `NO_READER`), a fourth part (`OPENED_ALL`), a third round of lookups (`LOOKED_ALL`); a `Failed` there carries
+  every call. `prompt(unread=)` says so on the `SAVED` line. A reading the Architect asks for runs on a follow-up
+  too. `SAY_CHARS` 6,000. *Opening:* `earlier(cells=True)` adds, for the Architect, *To open:* under each
+  analysis and of the last a line to each cell (`Notebook.headline` + `_drew`); a reply's `open` is answered from
+  the record by `_part(nb, run_id, what, k, n)` - `("the report", text)`, or `("", why not)`; the turn is
+  `{who: "opened", what, run | n, label, chars}` or `{who: "opened", missing}` and never holds the text;
+  `opened()` writes the *OPENED* block for the parts opened since the person last spoke, `_fit` cutting the
+  middle beyond `OPEN_CHARS` 16,000; `OPENS` 3. `_since(turns, who)` counts a kind of turn since the person last
+  spoke. *The brief* (`analyst/brief.py`): `render(brief, record, data)` writes the parts that hold something -
+  no `UNSAID`, no `LEFT` - with *What the answer is for* and the standing checks only where `data`; `held(brief,
+  data)`; `tick()`; `said(framing, question)` - the conversation as text, a wording on a line of its own - which
+  `memory._conversation` and the opened conversation both use; `wording()` is the public name of the question's
+  clean-up. `notebook.has_data(record)`: only `source: "none"` with no `aux` is no data. *The Analyst*
+  (`analyst/session.py`): `Session._brief(run)` renders with the run's data; `contract(..., held=)` asks for
+  *Against the brief* (`BRIEF_AGAINST`) only where `brief.held`, and for *Did not fit* (`BRIEF_MISFIT`) with any
+  brief; `BRIEF_UNANSWERED` only where held; `REWRITE_BRIEF` keeps whichever part the report has;
+  `contract_brief.md` says a part the brief does not fix is the Analyst's. `memory.FORMAT` 4. *The host:*
+  `open_framing` starts a follow-up from `decision` and `thinks`, and from the whole brief only where the parent
+  ended on the Analyst's question; `framing["data"]` says whether data is loaded, kept current by
+  `architect_say`. *The instructions* (`analyst/architect.md`): a short message; starting is no choice; the
+  section *The question* (wording, accept, keep it current, claim nothing `QUESTION` does not show); a brief line
+  as a sentence of the person's, `fixed` only for a comparison of data; a reading on a follow-up where it goes
+  somewhere new, and "I am having a look" only in the reply that asks; `tick` on "build on it"; the section *The
+  analyses this question follows* (open one part a reply; no picture is shown). *The page* (`architect.js`):
+  `pending()`; `build.wording` (the card: *Use this wording* while it waits, *in use* once the question reads
+  so), under a message and under the question's box; `useWording()`; `build.opened` (the row READ) and the
+  exchange going on after it; `build.brief` - *What the Analyst will be asked* with the version, the line *This
+  is what the Analyst gets. Change any line before you start.*, the parts under plain names, an empty part as
+  *+ Add* while the brief can be changed and no line when it is only read, the fixed parts *What is compared*,
+  *Measured by*, *Period* as lines when used and offers when not, the standing checks only where
+  `framing.data` is not false; `build.editor(text, question, hint)`. Styles in `tabs.css` and `pane.css`. *The
+  stack:* the scripted Architect gives `wording` and `accept`, still writes a question itself on
+  `ARCHITECT_UNREAD`, and on `FOLLOW_QUESTION` has the saved analyses read, opens the report, speaks from it and
+  ticks; a briefed run with nothing loaded reports through `report_bare`; `walk_tutor` has eight checks; the
+  story's pictures are `tutor_first`, `tutor_wording`, `tutor_question`, `tutor_brief`, `tutor_follow`,
+  `tutor_build`; the gallery's `architect_brief` has a wording that waits. Tests: `test_analyst.py` 339 (+15),
+  `test_app_path.py` 264 (+3), `test_architect.js` 115 (+10); the battery 2,315; the walk 198, and 191 of 195 in the
+  local edition. *Not in it:* the picture - a figure is not on the server's record, the page holds it; the Architect
+  is told to ask what the coach sees. Not run against a live model: whether it gives the wording under its key and
+  keeps its messages short is judged from the run logs.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -436,8 +492,8 @@
   under WSL2 in mirrored networking (8000) serving Qwen3.8-27B in FP8 with Marlin kernels, CUDA graphs
   without `torch.compile`, MTP speculation (~40 tokens/s); the runbook is `vLLM_on_WSL.md` in the
   2026-10-02 outputs folder.
-- **The tests.** `run_battery.sh` (324/261/31/28/18/49/44/72/34/261/60/93/27/32/37/15/88/59/66/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/105/27 JS; 2,287 on 2026-11-17; the public CI runs the battery on every push); `tests/e2e/test_stack.py
-  [--edition local] [--compute local|direct]` (193 hosted on 2026-11-17; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
+- **The tests.** `run_battery.sh` (339/264/31/28/18/49/44/72/34/261/60/93/27/32/37/15/88/59/66/1/1 Python; 62/7/50/71/24/174/14/25/4/15/67/41/115/27 JS; 2,315 on 2026-11-17; the public CI runs the battery on every push); `tests/e2e/test_stack.py
+  [--edition local] [--compute local|direct]` (198 hosted on 2026-11-17; 101 local before the code map and the reach chain; the walk needs a real marked 4.x in tools/stack/browser/vendor/ -
   `vendor.prepare()` copies one from a node_modules on the machine or fetches it with network); `tests/e2e/test_local_store.py` (17);
   `tests/e2e/test_package.py` (39); `tests/e2e/test_date_inputs.py` (8, Chromium over the dialogs' date inputs); `tests/e2e/test_pill_strip.py` (6, Chromium over the bar's chip row); `tests/e2e/test_integrations.py` (147; hosted only - the loaders need the executor; the
   stack's fake Intervals.icu and Endura behind the real loaders); `tools/stack/flows.py`; `tools/render_gallery.py --compare`.

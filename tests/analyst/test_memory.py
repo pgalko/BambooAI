@@ -17,7 +17,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT]
 
-from analyst import memory                                     # noqa: E402
+from analyst import brief as briefs, memory                    # noqa: E402
 from analyst.notebook import Notebook, NotebookStore, Turn     # noqa: E402
 from _saved import add, favourite, routine                     # noqa: E402
 
@@ -450,13 +450,13 @@ _hit8 = memory.search(_v8, "taller")
 check("a framed run's brief is memory: the view holds what was agreed - the decision, what was expected, what was fixed, a line each and nothing for a part not said or left open - with how the "
       "report stood against it; a run that had none holds neither. Plain search finds a word only the brief holds and says it stands in the brief; there a word counts for less than in what was "
       "asked - an older analysis that was asked it stands before a newer one whose brief holds it - and for more than in code; the checks every run makes are no words of a brief",
-      _by8["800/801"]["brief"] == "Decision: keep the taller arm\nWhat they expect to see: B leads by at least 2 units\nFixed before the run:\n- measure: height\n- period: winter and spring"
+      _by8["800/801"]["brief"] == "What the answer is for: keep the taller arm\nWhat they expect to see: B leads by at least 2 units\nFixed before the run:\n- measure: height\n- period: winter and spring"
       and _by8["800/801"]["outcome"] == {"expected": "met", "would_change": ""} and (_by8["800/802"]["brief"], _by8["800/802"]["outcome"]) == ("", {})
-      and [h["id"] for h in _hit8] == ["800/801"] and _hit8[0]["passages"] == [{"where": "brief", "text": "Decision: keep the taller arm"}]
-      and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("Decision: keep it above the line", {"expected": "", "would_change": ""})
+      and [h["id"] for h in _hit8] == ["800/801"] and _hit8[0]["passages"] == [{"where": "brief", "text": "What the answer is for: keep the taller arm"}]
+      and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("What the answer is for: keep it above the line", {"expected": "", "would_change": ""})
       and [h["id"] for h in memory.search(_v8, "above")] == ["800/801", "800/803", "800/802"] and [h["id"] for h in memory.search(_v8, "height")] == ["800/801", "800/802"]
       and memory.search(_v8, "height")[0]["passages"] == [{"where": "brief", "text": "- measure: height"}] and memory.search(_v8, "chance") == [] and memory.search(_v8, "comparison") == []
-      and memory.FORMAT == 3 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 3,
+      and memory.FORMAT == 4 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 4,
       (_by8["800/801"]["brief"], _by8["800/801"]["outcome"], _hit8, [h["id"] for h in memory.search(_v8, "above")], memory.search(_v8, "height")))
 shutil.rmtree(S8, ignore_errors=True)
 
@@ -471,8 +471,8 @@ _framing9 = {"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"que
                        {"who": "architect", "text": "Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?", "choices": ["The shape", "How they part"], "v": 1, "cost": 0.001, "call": 2},
                        {"who": "person", "text": "How they part - the butterfly is new to me"},
                        {"who": "check", "found": [{"k": 1, "about": "x", "fact": "rows: 12 quokkas", "ran": True}], "secs": 0.1},
-                       {"who": "architect", "text": " ", "v": 2}, {"who": "note", "text": "said by neither: a numbat"},
-                       {"who": "architect", "text": "Then: plot x against z for two starts.", "v": 2, "cost": 0.001, "call": 3}], "calls": 3, "saved": 3}
+                       {"who": "architect", "text": " ", "v": 2}, {"who": "note", "text": "said by neither: a numbat"}, {"who": "opened", "what": "report", "label": "the report of an echidna", "chars": 10},
+                       {"who": "architect", "text": "Then like this?", "wording": "Plot x against z\nfor two starts.", "v": 2, "cost": 0.001, "call": 3}], "calls": 3, "saved": 3}
 add(_nb9, "901", "Plot x against z for two starts", at=1, report="# Two starts\n\nThey part after 20 units [cell 1].", cells=[("plot(x, z)", "", ["parted at: 20"])],
     brief={"question": "Plot x against z for two starts", "decision": "see where they part"}, framing=_framing9)
 add(_nb9, "902", "And three starts?", at=2, report="# Three starts\n\nAll part [cell 1].", cells=[("plot3(x, z)", "", [])],
@@ -485,11 +485,13 @@ for _chain in (901, 902, 903, 904):
 _v9 = memory.refresh(S9)
 _by9 = {r["id"]: r for r in _v9["runs"]}
 _long9 = "Person: A long talk\nPerson: " + ("w " * 30_000).strip()
-check("a framed run's conversation is memory: the view holds what the person and the Architect said, each message under who said it, with its lines, and the question as it was first asked before them - "
-      "not what was looked up or read meanwhile, nor a turn that is neither's, and no message without words; a run framed without a word said, and one not framed, hold none; a long one is kept up to its bound, the cut said. Plain "
+check("a framed run's conversation is memory: the view holds what the person and the Architect said, each message under who said it, with its lines, the question as it was first asked before them, and a "
+      "wording of the question the Architect gave on a line of its own (0307: the message no longer holds it) - "
+      "not what was looked up, read or opened meanwhile, nor a turn that is neither's, and no message without words; a run framed without a word said, and one not framed, hold none; a long one is kept up to its bound, the cut said. Plain "
       "search finds a word only the conversation holds, says it stands there and gives its line; a word counts there as in the brief, twice what it counts in code",
       _by9["900/901"]["conversation"] == ("Person: Plot the thing\nArchitect: Let me have a look.\nArchitect: Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?\n"
-                                          "Person: How they part - the butterfly is new to me\nArchitect: Then: plot x against z for two starts.")
+                                          "Person: How they part - the butterfly is new to me\nArchitect: Then like this?\nArchitect's wording of the question: Plot x against z\nfor two starts.")
+      and memory.search(_v9, "echidna") == [] and _by9["900/901"]["conversation"] == briefs.said(_framing9, "x")
       and (_by9["900/902"]["conversation"], _by9["900/904"]["conversation"]) == ("", "")
       and _by9["900/903"]["conversation"] == _long9[:memory.SAID] + f"\n... ({len(_long9) - memory.SAID:,} more characters not kept)" and memory.SAID == 40_000 and len(_long9) > memory.SAID
       and [h["id"] for h in memory.search(_v9, "butterfly")] == ["900/901"] and memory.search(_v9, "butterfly")[0]["passages"] == [{"where": "conversation", "text": "Person: How they part - the butterfly is new to me"}]

@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.19 (2026-11-17; released as 2.8.0, 0305, then 0306; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306)
+# The Architect and memory from saved analyses — design v0.20 (2026-11-17; released as 2.8.0, 0305, then 0306 and 0307; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307)
 
 Release 2.8 does three things.
 
@@ -37,7 +37,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 16 | The sapling moves into the Architect, as its quick follow-up designer. Everything about formulating a question is in one place. |
 | 17 | The coach can change the Architect's results in place, to save a turn. |
 | 18 | Next questions keep their five levels. The sapling button leaves the question box and sits in the left pane. |
-| 19 | On a follow-up through the Architect, saved analyses are looked up only when the coach asks. |
+| 19 | On a follow-up through the Architect, saved analyses are looked up only when the coach asks. *Reversed by decision 34.* |
 | 20 | The five candidate questions are kept with the analysis they follow. |
 | 21 | A lookup may count, list or total what is there, to check an anchor. It may not compare, model or test. |
 | 22 | What the Architect proposes, and each saved analysis it finds, stays unticked until the coach accepts it. |
@@ -50,6 +50,11 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 29 | The Architect talks as a tutor: it explains, suggests and offers choices, in no fixed order, never asks again what the coach could not answer, and stays for as long as the coach wants (2026-11-17, after the first live run; §2.16). |
 | 30 | The question worked out in the conversation is said back. Once the coach agrees, that wording is the run's question (§2.16). |
 | 31 | The conversation of a saved analysis is memory, with its brief and its report (§3.9). |
+| 32 | The question is the coach's to take. The Architect gives a wording; it becomes the question by the coach's click or their word, never by the model's own writing. This replaces how decision 30 was built (2026-11-17, after the second live run; §2.17). |
+| 33 | The Analyst is given what was agreed and nothing else: no line for a part the coach did not state, and the three standing checks only where the run has data (§2.17). |
+| 34 | The Architect has the saved analyses read on a follow-up too. Whatever it asks for that cannot be done, it is told at once, so that no message says a thing is under way that is not (§2.17). |
+| 35 | A follow-up's brief starts from what the last answer was for and what the coach thinks. Only an answer to the Analyst's own question starts from the whole brief (§2.17). |
+| 36 | The Architect opens a part of an analysis the question follows on request - its report, a cell, the conversation - and reads it until the coach next speaks. Its prompt carries a line to each cell, not the work (§2.17). |
 
 ## 2. The Architect
 
@@ -220,7 +225,8 @@ bounds it; a brief with nothing in it is no brief.
 frame rests on says what it is worth: checked against the data and what the check found, cannot be checked, an
 earlier result - a claim to test - or the person's word. The three standing checks follow the coach's own under
 Also check. A part of what is fixed that the coach left empty reads "left to you"; a part of the frame they did not
-state reads "not said".
+state reads "not said". *Since 0307 a part the coach did not state has no line, and the standing checks are listed
+only for a run on data (§2.17).*
 
 **The rules.** The contract gains a section, The brief (`analyst/contract_brief.md`), only when the run has one.
 Without a brief the contract, the reviewer's prompt and every prompt of the run are what they were, byte for byte.
@@ -268,7 +274,8 @@ brief not yet run is not saved with its thread.
 parts in the brief's order: Decision, What you think, It rests on, You expect (with "You would change your mind
 if"), Also check, Fixed before the run (Compare, Measure, Period). A part not said reads "not said yet"; a fixed
 part reads "left to the Analyst". The three standing checks are one line marked "always". A line shows its mark and
-the fact beside it when it was checked, and who brought it in when that was not the coach.
+the fact beside it when it was checked, and who brought it in when that was not the coach. *The tab as it is since
+0307: §2.17.*
 
 **Changing in place (§2.6).** A pencil on each line, a cross on a line of a list, "+ Add" under a list: at most four
 lines under It rests on and two under Also check, the counts of §2.2. Enter or the tick keeps; Escape or the cross
@@ -574,14 +581,15 @@ punctuation aside - in an earlier message of the Architect's, or in a message of
 wording written in the reply that first says it, or one that stands nowhere, is passed over; the rest of the
 reply is taken in. The host makes the wording the run's question (`architect_say`), and the analysis of a framed
 run asks its brief's question whatever the page sends, so the Analyst receives it and the record is saved under it. The first version keeps the question as it was asked, the conversation on the page
-opens on it, and the Architect reads both: `QUESTION` with a line *(first asked as: ...)*.
+opens on it, and the Architect reads both: `QUESTION` with a line *(first asked as: ...)*. *How a wording becomes
+the question changed in 0307: the coach takes it, and the model writes none (§2.17).*
 
 **The limits.**
 
 | | Was | Is |
 |---|---|---|
 | Replies in one brief (`TURNS_MAX`) | 20 | 200 |
-| A message (`SAY_CHARS`) | 600 characters, on one line | 1,500 characters, its lines kept (`_say()`) |
+| A message (`SAY_CHARS`) | 600 characters, on one line | 1,500 characters, its lines kept (`_say()`); 6,000 since 0307 |
 | Readings of the saved analyses in one brief (`READINGS`) | 2 | 4 |
 | Passages a brief holds (`MAX["saved"]`) | 6 | 10: what one reading returns at most |
 | Effort (`EFFORT`) | low, else medium | medium, else low; the template's Architect seat is set to medium |
@@ -599,7 +607,8 @@ may answer "the second one".
 
 - *When.* The Architect has them read as soon as it can tell what the question is about - most often with its
   first message, which then only says that it is having a look. One reading serves one direction of the
-  conversation. On a follow-up only the coach asks, as before (decision 19).
+  conversation. On a follow-up only the coach asks, as before (decision 19). *Since 0307 on a follow-up too
+  (§2.17).*
 - *What it says.* What the person did, said and found then, in plain words, and when; no count of passages. It lets
   them choose: build on it, or go another way. It brings a passage up again later, when the person heads for
   something an earlier analysis tried or warned against. Where nothing was found it says so in a few words.
@@ -619,6 +628,113 @@ one nobody has read, which the engine does not keep. The walk's `walk_tutor` che
 loaded.
 
 Not run against a live model: the instructions are judged on the dev box, and tuned from the run logs.
+
+### 2.17 The question the coach takes, what the Analyst gets, opening on request — built (0307, 2026-11-17)
+
+**Why.** The second live run - two questions, a plot and a follow-up on another subject - went well as a
+conversation and showed five faults, each traced in its run log.
+
+1. On the follow-up the Architect said it was looking in the saved analyses, and went on saying so. It had asked
+   for a reading three times; the engine passed each request over (decision 19) and told it nothing.
+2. A message of 1,559 characters lost its last sentence at the bound of 1,500.
+3. The Analyst was asked the first wording the coach had agreed to. A later one, with a second figure, was agreed
+   in the conversation and never written: the model said it was in the brief and wrote nothing. What it had
+   settled meanwhile piled up under *Compare*. "Build on it" ticked nothing, so the Analyst could not open the
+   earlier analysis. The block it read held three lines "not said", two "left to you" and three checks of a data
+   comparison, for a simulation.
+4. The Brief tab did not say that it shows what the Analyst will get, nor that a line can be changed; *Compare*
+   held a fragment in lower case.
+5. The Architect of the follow-up knew two sentences of the analysis before it: not its report, its code or what
+   had been said.
+
+**The question** (decision 32). The model no longer writes it: `question` under a reply's `brief` is dropped,
+always. A reply gives a `wording` - the whole question as it would put it to the Analyst - which stands with its
+message (`turn["wording"]`) and waits. It becomes the question in two ways.
+
+- *On the page.* The wording stands under the Architect's message and under the question's box, each with **Use
+  this wording**. The click sends the brief with that question, as any change of the coach's (`/architect/brief`):
+  one more version of theirs, no model call.
+- *In words.* When the coach says yes, the Architect's next reply gives `"accept": true` and the engine writes
+  the wording that waited: a version of the Architect's, made from the answer.
+
+Which wording waits is worked out, not stored (`architect.pending()`, and the same in `architect.js`): the last
+message that gave one, while the question has not changed since - taken, or changed by the coach's own hand - and
+does not read so already. An agreement with nothing waiting writes nothing. The Architect reads the state:
+`QUESTION` as it stands, and under its own message *(wording given, not taken yet: ...)* while it waits. Its
+instructions: give the whole wording again whenever what is to be done changes; never say the question holds
+something that `QUESTION` does not show; what is only in the conversation does not reach the Analyst. The word
+check of 0306 (`_stood()`) is gone with what it guarded.
+
+**What the Analyst gets** (decision 33). `brief.render()` writes the parts that hold something: no "not said", no
+"left to you", and of what is fixed the parts the coach fixed. *Decision* reads *What the answer is for*. The
+three standing checks are listed for a run on data: `notebook.has_data()` reads the run's data record, and only
+one that says nothing is loaded - no frame, no file beside one - has none. A brief gives something to hold the
+result against where it says what the coach expects, what would change their mind, or a check - the standing
+ones among them (`brief.held()`). Only then does the contract ask for *Against the brief*
+(`contract(held=)`, `BRIEF_AGAINST`) and the report's foot say when it is missing; *Did not fit* stays with every
+brief (`BRIEF_MISFIT`). The contract's section says a part the brief does not fix is the Analyst's to choose.
+In the memory view a brief's record reads the same (`memory.FORMAT` 4).
+
+**A brief line.** The instructions ask for a full sentence in the person's own voice, and keep `fixed` for an
+analysis that compares data; what is to be done belongs in the wording.
+
+**"Build on it"** ticks. The passages under `saved` are numbered in what the Architect reads, and a reply names
+the ones of the analysis the coach chose (`tick`, `brief.tick()`): they are accepted as part of that reply's
+version. Nothing is ever unticked by a reply.
+
+**A request that cannot be met** (decision 34). The Architect's own request for a reading is carried out on a
+follow-up as on any question. Where a reply asks for a reading that cannot be made - four made, or one since the
+coach last spoke - for a fourth part to open, or for a third round of lookups, the engine tells it at once
+(`NOT_DONE`, with the reason) and asks for the reply again, in the same exchange; that reply is the one kept, and
+what it still asks for is not done. The prompt says beforehand when no reading can be made (`SAVED: n (no
+reading can be made now: ...)`), and the instructions keep "I am having a look" to the reply that asks.
+
+**A message** is kept whole: the bound is 6,000 characters (`SAY_CHARS`), for a reply that does not end. The
+instructions ask for a short one - a few plain sentences, about a hundred words - and no longer offer starting
+the analysis as a choice: that is the coach's button.
+
+**A follow-up starts clean** (decision 35, `open_framing`). Its brief opens with what the last answer was for
+and what the coach thinks, marked *from the last brief*; what was expected, what it rested on, what was fixed and
+the saved analyses chosen belonged to the question before. Where the Analyst had stopped and asked, the new
+question is the coach's answer, and the brief opens as the last one, whole. The framing also says whether data is
+loaded (`framing["data"]`), for the page.
+
+**Opening on request** (decision 36). `EARLIER` gains, for the Architect, what each analysis has to open and of
+the last a line to each cell: its number, what it was for, what came out, what it drew (`earlier(cells=True)`).
+A reply opens one part: `{"what": "report" | "cell" | "conversation", "n": <cell>, "run": <its number>}`. The
+engine answers from the thread's record (`_part()`): the turn it keeps names the part and its length and never
+holds its text (`{"who": "opened", ...}`); the next exchange, which the page starts at once, reads the part in a
+block of its own after the conversation (`opened()`, *OPENED*), cut in the middle beyond 16,000 characters. Three
+parts after one message of the coach's, all in view for the replies that follow; once the coach has spoken they
+are gone from view and the conversation says only what was opened - as the Analyst's SHOW lasts one prompt. A
+part that is not there is a turn that says so.
+
+In the live run the report was 9,701 characters, the code 32,878, the conversation 8,345: some 12,700 tokens,
+which would have ridden in each of the follow-up's six prompts of about 3,800. The index costs a line a cell.
+
+*The picture is not opened.* A figure is not on the server's record: the page holds it. The Architect is told so,
+and to ask the coach what they see; the cell's code says how the figure was drawn.
+
+**On the page.**
+
+- *The Brief tab.* On top **What the Analyst will be asked**, with the version beside it; the question in a box;
+  a wording that waits under it; then one line: *This is what the Analyst gets. Change any line before you
+  start.* The parts under plain names: What it is for, What you think, It rests on, What you expect to see, Also
+  check, Fixed before the run. While the brief can be changed a part with nothing in it is a place to type it
+  (*+ Add*); the three fixed parts - **What is compared**, **Measured by**, **Period** - are lines when used and
+  offers by name when not. A brief only read - an older version, one that runs - shows the parts it holds. The
+  standing checks show where data is loaded.
+- *The conversation.* A wording is a card under its message: the button while it waits, *in use* once the
+  question reads so. A part opened is a row - READ, what, how long - and the Architect goes on at once.
+
+**The stack.** The scripted Architect gives its wording under the reply's own key and reports an agreement; it
+still writes a question itself when told to, which the engine drops. A briefed run with nothing loaded reports
+without the part *Against the brief*. On a question that follows the tutor's analysis it has the saved analyses
+read, opens the report, speaks from it, and ticks a passage when told to build on it. `walk_tutor` checks all of
+it on the page.
+
+Not run against a live model: whether the model gives the wording under its key, keeps it current and keeps its
+messages short is judged on the dev box, from the run logs.
 
 ## 3. Memory from saved analyses
 
@@ -1021,6 +1137,7 @@ on the last one.
 | 0304 | The Analyst opens a saved analysis the brief names. The brief of a saved analysis is memory. The new seats in the templates and in Usage. README (§3.8). | built |
 | 0305 | Release 2.8.0. | built |
 | 0306 | After the first live run: the Architect as a tutor, the question said back, the conversation of a saved analysis in memory (§2.16, §3.9). | built |
+| 0307 | After the second live run: the question is the coach's to take; the Analyst gets what was agreed; a reading on a follow-up, and no request passed over in silence; a follow-up starts clean; a part of the analysis before is opened on request; the Brief tab in plain words (§2.17). | built |
 
 ## 8. Not in this release
 

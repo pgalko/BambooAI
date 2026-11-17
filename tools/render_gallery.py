@@ -29,7 +29,7 @@ STATES = {
     'dlg_codebook': "CodebookUI.open();",
     'architect_talk': ARCHITECT + "galleryArchitect.talk();",          # the Architect's first question, with its choices (docs/ARCHITECT_DESIGN.md §2.12)
     'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Architect reading, the composer held
-    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation, one line open (§2.11)
+    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the wording waiting (§2.17), one line open (§2.11)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)

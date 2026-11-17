@@ -2,9 +2,9 @@
 
 The person framed this question before the run, and BRIEF holds what was agreed.
 
-- The decision is what the answer is for: the report's opening paragraph says what the result means for it.
-- What is fixed - the comparison, the measure, the period - is what you compute. A part marked "left to you"
-  is yours to choose.
+- What the answer is for: the report's opening paragraph says what the result means for it.
+- What is fixed before the run - the comparison, the measure, the period - is what you compute. A part the brief
+  does not fix is yours to choose.
 - What it rests on is the person's frame, not evidence: a line marked "does not hold" or "cannot be checked" is
   not relied on, and a line from an earlier result is a claim to test.
 - Every line under Also check is tested.

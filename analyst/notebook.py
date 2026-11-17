@@ -83,6 +83,12 @@ def subject_name_of(d: Optional[dict]) -> str:
     return str(_subject(d).get("name") or "")
 
 
+def has_data(d: Optional[dict]) -> bool:
+    """Whether a data record names something to run on: a frame, or files beside one. Only a record that says nothing
+    is loaded does not; one that does not say - none was kept, or it predates the source - is taken to."""
+    return not (isinstance(d, dict) and d.get("source") == "none" and not d.get("aux"))
+
+
 def data_signature(d: Optional[dict]) -> str:
     """A data record's identity by content, for the same frame loaded again under another id (2026-10-12: an upload
     gets a fresh id every time, so the same file in a new session is a new frame to the cache): the name, the rows,
@@ -168,8 +174,9 @@ class Run:
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
     framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Architect: {versions: [{n, by, changed, why, brief}],
-                                                  # turns: [{who, text, choices, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}], calls,
-                                                  # proposed} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14); {} for a run not framed
+                                                  # turns: [{who, text, choices, wording, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}
+                                                  # | {who: "memory", found, ...} | {who: "opened", what, run, n, label, chars} or {who: "opened", missing}], calls,
+                                                  # proposed, saved, data} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14, §2.17); {} for a run not framed
     next_questions: List[dict] = field(default_factory=list)   # the sets of questions proposed to follow this run, as they were asked for (analyst/next_questions.py):
                                                   # [{level, questions: [{title, text, from: [{kind, text}], ran: the chain it started}], cost, at, chain}]
 

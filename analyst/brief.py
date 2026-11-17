@@ -1,7 +1,7 @@
 """The brief: what the person agreed before a run, as the analyst receives it (docs/ARCHITECT_DESIGN.md §2.2, §2.5).
 
-A brief is a plain dict, kept with its run. Every part is optional: one left empty is left to the analyst, and the
-prompt says so.
+A brief is a plain dict, kept with its run. Every part is optional: the analyst is given the parts that hold
+something, and one the person did not state is the analyst's to choose.
 
     {"version": 2,
      "question": "...",          the run's question: the person's words, or a wording of the Architect's they agreed to
@@ -20,9 +20,11 @@ A line's source is who it comes from (SOURCES); its mark is what a check against
 nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
 person's own carries neither. A passage of a saved analysis is there as the reader found it (remember()), and says
 whether the person accepted it. normalise() brings what a caller sends into this shape, agreed() is the brief as the
-analyst receives it, render() writes the BRIEF block of the prompt, and outcome() reads back what a report says
-against the brief. While a brief is being written it is kept as versions on its run (version(), latest()); write()
-takes in what a reply of the Architect's names, and mark() the marks it gives after its lookups.
+analyst receives it, render() writes the BRIEF block of the prompt, held() says whether the report is to answer to
+it, and outcome() reads back what a report says against the brief. While a brief is being written it is kept as
+versions on its run (version(), latest()); write() takes in what a reply of the Architect's names, mark() the marks
+it gives after its lookups and tick() the passages it accepts on the person's word; said() is the conversation the
+brief came from, as text.
 """
 from __future__ import annotations
 
@@ -37,9 +39,7 @@ TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
 MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8}     # bounds on what a prompt carries, not the design's counts; saved: what one reading returns at most
 COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
-LEFT = "left to you"             # a part of what is fixed that the person did not fix: the analyst chooses it
-UNSAID = "not said"              # a part of the frame the person did not state
-ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run
+ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run on data
 VERDICTS = ("not met", "cannot tell", "met")                     # read in this order: "not met" holds "met"
 SEEN = ("not seen", "cannot tell", "seen")
 
@@ -48,8 +48,9 @@ def _text(value) -> str:
     return re.sub(r"\s+", " ", str(value)).strip()[:TEXT_CHARS] if isinstance(value, (str, int, float)) and not isinstance(value, bool) else ""
 
 
-def _question(value) -> str:
-    """The question as the person typed it: its lines kept, runs of spaces folded, bounded as a question is."""
+def wording(value) -> str:
+    """A wording of the question, the person's or the Architect's: its lines kept, runs of spaces folded, bounded as
+    a question is."""
     if not isinstance(value, str):
         return ""
     return "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in value.strip().splitlines())[:QUESTION_CHARS]
@@ -93,8 +94,8 @@ def normalise(brief) -> dict:
         return {}
     version = brief.get("version")
     out["version"] = int(version) if isinstance(version, int) and not isinstance(version, bool) and version > 0 else 1
-    if _question(brief.get("question")):
-        out["question"] = _question(brief.get("question"))
+    if wording(brief.get("question")):
+        out["question"] = wording(brief.get("question"))
     return out
 
 
@@ -112,8 +113,8 @@ def working(brief) -> dict:
     """The brief while it is being written: in its known shape, without a version number; one that so far holds only
     the question keeps it."""
     out = {k: v for k, v in normalise(brief).items() if k != "version"}
-    if not out and isinstance(brief, dict) and _question(brief.get("question")):
-        out = {"question": _question(brief.get("question"))}
+    if not out and isinstance(brief, dict) and wording(brief.get("question")):
+        out = {"question": wording(brief.get("question"))}
     return out
 
 
@@ -141,8 +142,8 @@ def write(brief, parts) -> tuple:
     out = working(brief)
     parts = parts if isinstance(parts, dict) else {}
     changed = []
-    if _question(parts.get("question")) and _question(parts["question"]) != out.get("question", ""):
-        out["question"] = _question(parts["question"])
+    if wording(parts.get("question")) and wording(parts["question"]) != out.get("question", ""):
+        out["question"] = wording(parts["question"])
         changed.append("question")
     for key in ("decision", "thinks", "expects", "would_change"):
         if isinstance(parts.get(key), str) and _text(parts[key]) != out.get(key, ""):
@@ -240,10 +241,42 @@ def mark(brief, marks, facts) -> tuple:
     return working(out), changed
 
 
+def tick(brief, numbers) -> tuple:
+    """The brief with passages of saved analyses accepted on the person's word, as a reply of the Architect's names
+    them (analyst/architect.py): by their numbers under `saved`, from 1. A number the brief does not have is passed
+    over, and no tick is taken back here: that is the person's own. Returns the brief and the passages that changed,
+    as the page names them."""
+    out = working(brief)
+    saved, changed = out.get("saved", []), []
+    for n in numbers if isinstance(numbers, list) else []:
+        if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= len(saved) and not saved[n - 1]["accepted"]:
+            saved[n - 1]["accepted"] = True
+            changed.append(f"saved.{n - 1}")
+    return out, changed
+
+
 def latest(framing: dict) -> dict:
     """The brief of a framing's last version, numbered with it; {} when there is none."""
     versions = (framing or {}).get("versions") or []
     return {**versions[-1].get("brief", {}), "version": versions[-1].get("n", len(versions))} if versions and versions[-1].get("brief") else {}
+
+
+def said(framing, question: str = "") -> str:
+    """What the person and the Architect said while a brief was written, as text: each message under who said it,
+    the question as it was first asked before them - `question` where the framing kept no first version - and a
+    wording of the question the Architect proposed on a line of its own. "" where nothing was said. What was looked
+    up, read or opened meanwhile is no part of it."""
+    framing = framing if isinstance(framing, dict) else {}
+    turns = [t for t in framing.get("turns") or [] if t.get("who") in ("person", "architect") and str(t.get("text") or "").strip()]
+    if not turns:
+        return ""
+    first = str(((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or question or "").strip()
+    lines = [f"Person: {first}"] if first else []
+    for t in turns:
+        lines.append(f"{'Architect' if t['who'] == 'architect' else 'Person'}: {str(t['text']).strip()}")
+        if t.get("wording"):
+            lines.append(f"Architect's wording of the question: {t['wording']}")
+    return "\n".join(lines)
 
 
 def carried(parent) -> dict:
@@ -275,22 +308,30 @@ def _standing(anchor: dict) -> str:
     return "the person's word, not checked" + note
 
 
-def render(brief: dict, record: bool = False) -> str:
-    """The BRIEF block of the analyst's prompt: every part on its line; an empty part of the frame is not said, an
-    empty part of what is fixed is left to the analyst. `record`: the brief as a record keeps it (the memory view) -
-    the parts that hold something, without the heading and the checks every run makes."""
+def held(brief, data: bool = True) -> bool:
+    """Whether a brief gives something to hold the result against: what the person expects to see, what would change
+    their mind, or a check - among them the ones every run on data makes. The report answers to such a brief in a
+    part of its own."""
+    brief = brief if isinstance(brief, dict) else {}
+    return bool(brief) and bool(data or brief.get("expects") or brief.get("would_change") or brief.get("also_check"))
+
+
+def render(brief: dict, record: bool = False, data: bool = True) -> str:
+    """The BRIEF block of the analyst's prompt: the parts that hold something, each on its line; a part the person
+    did not state is not there. `data`: whether the run has data to run on - the checks every such run makes are
+    listed then. `record`: the brief as a record keeps it (the memory view) - without the heading and those checks."""
     if not brief:
         return ""
-    part = lambda label, text: [f"{label}: {text or UNSAID}"] if text or not record else []      # noqa: E731
+    part = lambda label, text: [f"{label}: {text}"] if text else []      # noqa: E731
     lines = [] if record else ["BRIEF (agreed before your question; the QUESTION above is the person's answer, and it stands where the two differ):"
                                if brief.get("carried_from") else "BRIEF (agreed with the person before this run):"]
-    lines += part("Decision", brief.get("decision")) + part("What the person thinks", brief.get("thinks"))
-    lines += ["What it rests on:"] + [f"- {a['text']} [{_standing(a)}]" for a in brief["rests_on"]] if brief.get("rests_on") else part("What it rests on", "")
+    lines += part("What the answer is for", brief.get("decision")) + part("What the person thinks", brief.get("thinks"))
+    lines += ["What it rests on:"] + [f"- {a['text']} [{_standing(a)}]" for a in brief["rests_on"]] if brief.get("rests_on") else []
     lines += part("What they expect to see", brief.get("expects")) + part("What would change their mind", brief.get("would_change"))
     also = [f"- {r['text'].rstrip('.')}: it would show {r['shows']}" if r.get("shows") else f"- {r['text']}" for r in brief.get("also_check", [])]
-    also += [] if record else [f"- {x} [always]" for x in ALWAYS]
+    also += [f"- {x} [always]" for x in ALWAYS] if data and not record else []
     lines += ["Also check:"] + also if also else []
-    fixed = [f"- {k}: {brief.get('fixed', {}).get(k) or LEFT}" for k in FIXED if brief.get("fixed", {}).get(k) or not record]
+    fixed = [f"- {k}: {brief['fixed'][k]}" for k in FIXED if brief.get("fixed", {}).get(k)]
     lines += ["Fixed before the run:"] + fixed if fixed else []
     if brief.get("saved"):
         lines.append("Saved analyses the person chose (earlier results: claims to test, not evidence):")

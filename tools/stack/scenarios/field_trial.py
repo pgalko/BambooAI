@@ -73,17 +73,24 @@ ARCHITECT_TICK = " What I proposed under Also check can be ticked."
 # the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Architect says while they are read, and when passages were found
 ARCHITECT_LOOKING = "I am looking in your saved analyses."
 ARCHITECT_FOUND = " What your saved analyses hold is in the brief, to tick."
-# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16): what could be looked at, the question said back, the wording written
+# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16, §2.17): what could be looked at, the question worded and taken
 TUTOR_QUESTION = "Plot the two regimes side by side"                 # a bare request: the question is worked out in the conversation
 TUTOR_FIRST = ("Two regimes can be put side by side in more than one way. What should the plot show?\n\n"
                "- what each regime gives, season by season;\n- how the plots of one regime spread against the other's.")
 TUTOR_CHOICES = ["Season by season", "The spread", "I cannot tell yet"]
-ARCHITECT_BACK = "Then the question could be:\n\n{wording}\n\nIs that what you mean?"
-ARCHITECT_YES = ["Yes, that is it", "Leave it as it is"]
-ARCHITECT_WRITTEN = "Written. Start the analysis when you are ready, or go on."
-ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own
-ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes one nobody has read
-ARCHITECT_UNREAD_WORDING = "A wording nobody has read"
+ARCHITECT_BACK = "This is how I would put it to the Analyst. Is that what you mean?"      # said with a wording: the wording stands under the message, to take
+ARCHITECT_YES = ["Yes, that is it", "Change something"]
+ARCHITECT_WRITTEN = "Taken. Start the analysis when you are ready, or go on."
+ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Architect gives it back as its wording
+ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question itself: the engine keeps none of it
+ARCHITECT_UNREAD_WORDING = "A wording nobody took"
+# a question that follows the tutor's analysis (§2.17): the saved analyses are read on a follow-up too, a part of the analysis before is opened and read, and "build on it" ticks a passage
+FOLLOW_QUESTION = "And regime B beside them - how was the first plot made?"
+ARCHITECT_OPENING = "I am opening the report of the analysis before this one."
+ARCHITECT_OPENED = "Its report opens: "
+ARCHITECT_BUILD = ["Build on it", "Go another way"]
+ARCHITECT_TICKED = "Ticked: the Analyst gets that passage, and can open the analysis it comes from."
+BARE_DONE = "Nothing is loaded, so one cell stood in for the work"      # how a briefed run without data reports
 SAVED_JUDGE = "What was compared, and what was found?"
 SAVED_NOTE = "An earlier analysis that names what this question asks about."
 SAVED_QUESTION = "Is regime C still worth switching to from regime A?"      # a question the briefed analysis, once saved, bears on
@@ -130,7 +137,7 @@ def _brief(user):
     block = m.group(1) if m else ""
     one = lambda label: (re.search(rf"^{label}: (.*)$", block, re.M) or [None, ""])[1].strip()
     also = re.search(r"^Also check:\n((?:- .*\n?)+)", block, re.M)
-    return {"decision": one("Decision"), "expects": one("What they expect to see"), "would_change": one("What would change their mind"),
+    return {"decision": one("What the answer is for"), "expects": one("What they expect to see"), "would_change": one("What would change their mind"),
             "also": [ln[2:].strip() for ln in (also.group(1).splitlines() if also else []) if not ln.rstrip().endswith("[always]")],
             "fixed": dict(re.findall(r"^- (comparison|measure|period): (.*)$", block, re.M))}
 
@@ -376,15 +383,28 @@ class Scenario:
         the brief ready, that what they hold is in the brief.
 
         The question worked out in the conversation (2026-11-17): to a bare request (TUTOR_QUESTION) it says what
-        the plot could show, in a message of several lines with choices; the first choice taken, it says the
-        question back, with two choices; when the person agrees it writes that wording as the question. A wording
-        the person gives (ARCHITECT_OWN) it writes as given; left to word it itself (ARCHITECT_UNREAD), it writes
-        one nobody has read - which the engine does not keep."""
+        the plot could show, in a message of several lines with choices; the first choice taken, it gives its
+        wording of the question, with two choices; a wording the person gives (ARCHITECT_OWN) it gives back as its
+        own. When the person says yes it reports that (`accept`). Left to word it itself (ARCHITECT_UNREAD), it
+        writes the question under the brief - which the engine does not keep.
+
+        A question that follows the tutor's analysis (FOLLOW_QUESTION): it has the saved analyses read, then opens
+        the report of the analysis before, then says how that report opens, with two choices; told to build on it,
+        it ticks the first passage."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
-        said_so_far = find(r"^CONVERSATION:\n(.*?)\n\nReply with")
+        said_so_far = find(r"^CONVERSATION:\n(.*?)\n\n(?:OPENED \(|Reply with)")
         talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
+        if question == FOLLOW_QUESTION:
+            if talk and talk[-1] == ("Person", ARCHITECT_BUILD[0]):
+                return json.dumps({"say": ARCHITECT_TICKED, "tick": [1]})
+            if "\nOPENED (" in user:                            # the part it opened is in view: it speaks from it
+                opens = (re.search(r"^--- the report ---\n(?:#+ *)?(.*)$", user, re.M) or [None, ""])[1]
+                return json.dumps({"say": ARCHITECT_OPENED + opens, "choices": ARCHITECT_BUILD})
+            if "\nSaved analyses" in "\n" + said_so_far:        # the reading is done: the report of the analysis before
+                return json.dumps({"say": ARCHITECT_OPENING, "open": {"what": "report"}})
+            return json.dumps({"say": ARCHITECT_LOOKING, "recall": True})
         asked = [key for key, ask in ARCHITECT_ASKS if ("Architect", ask) in talk]
         pair = re.search(r"regime (\w)\b.*\bregime (\w)\b", question)
         writes = {}
@@ -398,12 +418,13 @@ class Scenario:
                 writes["fixed"] = {"comparison": f"regime {pair.group(1)} against regime {pair.group(2)}"}
         elif talk[-1][0] == "Person":
             said, before = talk[-1][1].strip(), talk[-2][1] if len(talk) > 1 and talk[-2][0] == "Architect" else ""
-            if said == TUTOR_CHOICES[0]:
-                return json.dumps({"say": ARCHITECT_BACK.format(wording=question.rstrip("?.") + ", season by season"), "choices": ARCHITECT_YES})
-            back = re.search(r"\n\n(.*)\n\nIs that what you mean\?\n\(choices offered: .*\)\nPerson: " + re.escape(ARCHITECT_YES[0]) + r"\Z", said_so_far)
-            wording = back.group(1) if back else said[len(ARCHITECT_OWN):] if said.startswith(ARCHITECT_OWN) else ARCHITECT_UNREAD_WORDING if said == ARCHITECT_UNREAD else ""
-            if wording:
-                return json.dumps({"brief": {"question": wording}, "say": ARCHITECT_WRITTEN})
+            if said == TUTOR_CHOICES[0] or said.startswith(ARCHITECT_OWN):
+                wording = said[len(ARCHITECT_OWN):] if said.startswith(ARCHITECT_OWN) else question.rstrip("?.") + ", season by season"
+                return json.dumps({"say": ARCHITECT_BACK, "wording": wording, "choices": ARCHITECT_YES})
+            if said == ARCHITECT_YES[0]:
+                return json.dumps({"say": ARCHITECT_WRITTEN, "accept": True})
+            if said == ARCHITECT_UNREAD:
+                return json.dumps({"brief": {"question": ARCHITECT_UNREAD_WORDING}, "say": ARCHITECT_WRITTEN})
             part = next((key for key, ask in ARCHITECT_ASKS + (("thinks", ARCHITECT_NOW),) if ask == before), None)
             measure = re.match(r"(?i)the measure is (.+?)\.?$", said)
             if measure:
@@ -630,6 +651,10 @@ class Scenario:
     def briefed(self, user, q, turn, forced):
         b = _brief(user)
         measure = b["fixed"].get("measure", "")
+        if "\nDATA:\n(no dataset attached" in "\n" + user:      # nothing is loaded: one cell stands in for the work, then the report
+            if forced or turn >= 2:
+                return self.report_bare(user, q, b)
+            return _cell("Nothing is loaded: one cell stands in for the work the question asks.", _note(q, plan="one cell, then report", names="-"), CELL_ALONE)
         if turn == 1 and not forced and "\nSaved analyses the person chose" in user:      # the brief names a saved analysis: it is opened first (SHOW SAVED 1)
             return _action("The brief names a saved analysis. I open it before computing anything.", _note(q, plan="read the saved analysis; then the fixed comparison", names="df"), "SHOW SAVED 1")
         # the measure the brief fixes is not in the data - unless the person's answer to that question, which stands where
@@ -658,8 +683,7 @@ class Scenario:
         cell = max(nos) if nos else 1
         if d is None:
             return _report("The comparison did not print.", _note(q, plan="report"), "## Not established\n\nThe cell did not print the comparison the brief fixes; nothing can be reported.")
-        # a part the brief gives as "not said" has no line, as the contract says
-        said = lambda part: b[part] if b[part] and b[part] != "not said" else ""
+        said = lambda part: b[part]                           # a part the brief does not give has no line, as the contract says
         want, under = _first_number(said("expects"), 0.3), _first_number(said("would_change"), 0.1)
         expected = "met" if lo >= want else ("not met" if hi < want else "cannot tell")
         changed = "seen" if hi < under else ("not seen" if lo >= under else "cannot tell")
@@ -846,6 +870,16 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         said = f"{left:.2f}" if left is not None else "an amount the cell did not print"
         return _report("The cell printed what is left; that is the answer.", _note(q, est=f"{said} left", plan="report", names="start, share, steps, left"),
                        f"## What is left\n\nAfter 40 steps of losing 5%, {said} of the 100 is left [cell {cell}]. No data was read: the answer follows from the starting value, the share and the number of steps.")
+
+    def report_bare(self, user, q, b):
+        """A briefed run with nothing loaded: what the cell printed and what did not fit - nothing - and, only where
+        the brief says what the person expects, how the result stands against it."""
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        left = _grab(user, "LEFT")
+        against = f"\n\n## Against the brief\n- Expected: cannot tell - nothing was measured [cell {cell}]." if b["expects"] else ""
+        return _report("The cell ran; that is all there is to report.", _note(q, plan="report", names="start, share, steps, left"),
+                       f"## What was done\n\n{BARE_DONE}: it printed {left if left is not None else 0:.2f} [cell {cell}]." + against + "\n\n## Did not fit\n- Nothing.")
 
     def report_generic(self, user, q):
         # the cell this chain ran (the newest in the prompt: a follow-up's cells are numbered along the path), cited
