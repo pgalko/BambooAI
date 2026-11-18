@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.22 (2026-11-18; released as 2.8.0, 0305, then 0306, 0307, 0308 and 0309; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.23 (2026-11-18; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309 and 0310; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -60,8 +60,12 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 39 | The brief shows the parts that hold something, and no other. One control adds a part (§2.18). |
 | 40 | A saved analysis is chosen by answering the Architect, a whole analysis at a time. What a reading found is shown to read, in both panes; nothing is ticked (§2.18). |
 | 41 | A figure the coach asks to see is a part of the brief. The Architect describes it and the Brief tab sketches it; nothing has to be accepted. Three at most; changed by saying so, taken out with a cross (2026-11-18, the product owner's idea after testing 0308; §2.19). |
-| 42 | A sketch shows no result. What the data decides is drawn as a grey stand-in; only a shape known before the run, given as rough points, is drawn (§2.19). |
+| 42 | A sketch shows no result and no shape: it is a grey stand-in for where things go. It stands in a figure's place while its draft is drawn, and where there is none (§2.19; 0310: the rough points of 0309 are gone - what a model writes down is no shape). |
 | 43 | The Analyst and the step that draws read the agreed figures in words, and the step draws them first, under their titles. Code holds the titles: a reply that leaves one out is asked again once, and the report says where one was not drawn (§2.19). |
+| 44 | A figure of the brief is shown as a draft before the run: a model writes one cell, it runs where no data is, and the Brief tab draws the plot. A shape that follows from a rule alone is computed; any other is drawn on made-up numbers, and marked so. In doubt, made up (2026-11-18, from the product owner's test of 0309; §2.20). |
+| 45 | The draft's cell is given no data, is screened before it runs and is stopped after a few seconds. A draft never fails the exchange: the reply stands, and the figure is a sketch (§2.20). |
+| 46 | The step that draws is given the cell that drew the draft and draws the agreed figures as it did, from the run's own values. Beside the agreed figures it may add two of its own (§2.20). |
+| 47 | Where the brief builds on a saved analysis, what that analysis drew is shown under its line, and its code is given to the model that writes the draft (§2.20). |
 
 ## 2. The Architect
 
@@ -837,7 +841,7 @@ Not run against a live model: whether the model words the question when it shoul
 whether it gives `build` from the coach's answer, is judged on the dev box, from the run logs. Every change it
 makes is a version the coach can see and step back from.
 
-### 2.19 The figures, sketched before the run — built (0309, 2026-11-18)
+### 2.19 The figures in the brief — built (0309, 2026-11-18; the sketch a stand-in since 0310, §2.20)
 
 **Why.** The product owner asked the Architect for figures and could not picture, from its words, what the result
 would look like. A sketch on the Brief tab shows it before anything runs.
@@ -848,31 +852,28 @@ note}` (`brief.normalise()`). A figure is its title, which names one figure what
 is what the figure holds: up to four names. Every text is bounded. There is no step to accept a sketch: what the
 Brief tab shows is what the Analyst gets (decision 37).
 
-**The Architect describes, the page draws.** The description comes in the reply that carries the message: no
-model call is added, and no code is run. The reply's key is `figures` - every figure as it is to stand, in order.
-One that stays as it is comes as its number in BRIEF alone, a new or changed one in full; `[]` takes them all out;
-a reply without the key leaves them (`brief.sketch()`). The change is one more version of the Architect's, with
-each place named (`figures.1`), and the message that made it keeps how many then stand (`turn["sketched"]`): the
-page's row *FIGURES 2 sketched · version 4*. The Architect reads the figures in its BRIEF block, each under its
-number, in words. Its instructions: sketch when the person asks for a figure, or asks to see what the result will
-look like, and not otherwise; say that it sketched, and ask whether that is what they want to see.
+**The Architect describes.** The description comes in the reply that carries the message. The reply's key is
+`figures` - every figure as it is to stand, in order. One that stays as it is comes as its number in BRIEF alone,
+a new or changed one in full; `[]` takes them all out; a reply without the key leaves them (`brief.sketch()`). The
+change is one more version of the Architect's, with each place named (`figures.1`). The Architect reads the
+figures in its BRIEF block, each under its number, in words. Its instructions: describe a figure when the person
+asks for one, or asks to see what the result will look like, and not otherwise. What is drawn from the
+description is the draft (§2.20).
 
-**A sketch shows no result** (decision 42). Where the data decides a shape the Architect gives no points, and the
-page draws a stand-in, grey and dashed: a wave where a line goes, rings for points, bars and boxes of equal size
-with their names, one mound for a histogram, a grid for a heat map. Where the shape is known before anything is
-computed - a curve that is given, a system that only follows its rule - a series comes with rough `points`: up to
-24 pairs, on any scale; triples for a line in three dimensions. The page fits them to the frame, all the points
-of a figure on one scale, and draws the line or the dots in the series' colour; the triples of a `line3d` stand
-inside the frame of its box - across, into the depth, up. Only `line`, `scatter` and `line3d` draw from points. A
-line named again under its figure's title keeps its points unless the reply gives others; `"points": []` takes
-them out. The points are for the person's eyes: they are on the record and on the page, and in no prompt. The
-Architect's own block says only *[sketched with points]*.
+**A sketch shows no result, and no shape** (decision 42). The page draws a figure's description as a stand-in,
+grey and dashed: a wave where a line goes, rings for points, bars and boxes of equal size with their names, one
+mound for a histogram, a grid for a heat map, the frame of a box for three dimensions. In 0309 a series could come
+with rough `points` - up to 24, written by the Architect - and the page drew a line through them. The product
+owner's test showed what that is worth: a model cannot write down a shape it would have to compute, and where it
+rightly gave none, the sketch was a wave that looked like nothing. In 0310 the points are gone - from the brief,
+the Architect's instructions and the page - and a brief that still holds some is read without them.
 
 **On the page.** **What it will look like** stands after what is fixed and before **Builds on**: a panel to a
-figure, numbered, marked *sketch*, side by side while there is room. A sketch with nothing drawn from points says
-under it: *The data decides the shapes.* While the brief can be changed each panel has a cross, which takes the
-figure out - a version of the coach's (`unfigure()`, `/architect/brief`). A figure is changed by saying so to the
-Architect; none is added by hand. The brief of a run keeps its sketches, to hold against what was drawn.
+figure, numbered. A panel is the figure's draft where one was drawn, across the whole row (§2.20); otherwise its
+sketch, marked *sketch*, side by side with the next while there is room. While the brief can be changed each panel
+has a cross, which takes the figure out - a version of the coach's (`unfigure()`, `/architect/brief`). A figure
+is changed by saying so to the Architect; none is added by hand. The brief of a run keeps its figures, to hold
+against what was drawn.
 
 **The Analyst and the step that draws** (decision 43). The Analyst's BRIEF block lists the figures after what is
 fixed, numbered, in words (`brief.figure_lines()`: the title, the kind, what is on each axis, what it holds, what
@@ -880,39 +881,160 @@ it is to make clear). The contract of a run under a brief says that they are dra
 kernel holds: compute what each one needs, and keep it in a variable. The step that draws had never seen the
 brief. It now reads the same lines under its question - *THE FIGURES AGREED WITH THE PERSON* - to draw first, in
 that order, each as described and under its title, word for word; a figure of its own only where the report needs
-one the list does not have, three in all.
+one the list does not have - two at most (0310; *three in all* had left the report none beside three agreed
+figures).
 
 Code holds the titles:
 
 - *Before anything runs.* A reply that leaves an agreed figure out - NONE, or a cell whose code does not carry
-  the title (`session.carries()`: its words in their order, whatever the case and the spacing) - is not run. It
+  the title (`brief.carries()`: its words in their order, whatever the case and the spacing) - is not run. It
   is an attempt on the record, and the step is asked again with the titles it left out. Once: the next cell runs
   as it is.
 - *After the run.* The titles the figures were drawn under are held against the agreed ones, and the report's
   foot names each one missing: *A figure agreed in the brief was not drawn: "..."*. A plot the kernel saved
   itself (not Plotly) has no title to read; the cell's code stands for it.
 
-Each agreed figure is a figure of its own in the report, in the agreed order. Two plots joined in one figure are
-not in this patch.
+Each agreed figure is a figure of its own in the report, in the agreed order. A figure of several panels is one
+figure: its note says how it is laid out (0310).
 
-**The record.** A brief's `figures`, and a turn's `sketched`. A brief without figures reads, and runs, as before.
+**The record.** A brief's `figures`. A brief without figures reads, and runs, as before.
 
 **The cost.** The Architect's instructions grew by about 1,700 characters: some 400 tokens more on each of its
 calls.
 
-**The stack.** Asked to show the figures (`ARCHITECT_SKETCH`), the scripted Architect sketches three: the yield of
-two regimes by season - with the target, a line known before the run, as rough points - the plot yields of each
-as boxes, and bars by soil type. Asked for the second first (`ARCHITECT_SWAP`), it gives them by number. The
-scripted step that draws draws the agreed figures under their titles, and leaves the last one out on its first
-reply. `walk_sketch`, on data: the three sketches - grey where the data decides, the target solid in its colour,
-the panels side by side; the other order, the line keeping its points; the cross, and the arrows through the
-versions; then the analysis - what the Analyst and the step that draws read, the reply that left a figure out
-asked again, both figures in the report. The gallery gains `architect_sketch`.
+**The stack.** Asked to show the figures (`ARCHITECT_SHOW`), the scripted Architect describes three: the yield
+of two regimes by season, the plot yields of each as boxes, and the target. Asked for the second first
+(`ARCHITECT_SWAP`), it gives them by number. The scripted step that draws draws the agreed figures under their
+titles, and leaves the last one out on its first reply. The walk is the draft's (`walk_draft`, §2.20).
 
-Not run against a live model: whether it sketches when asked and not otherwise, gives points only where the
-shape is known, and describes a figure the Analyst can compute. Code checks the title of each figure drawn;
-whether the figure follows the rest of its description - the kind, the axes - is the model's work, to be judged
-on the dev box.
+Not run against a live model: whether it describes a figure when asked and not otherwise, and describes one the
+Analyst can compute. Code checks the title of each figure drawn; whether the figure follows the rest of its
+description - the kind, the axes - is the model's work, to be judged on the dev box.
+
+### 2.20 The draft of the figures — built (0310, 2026-11-18)
+
+**Why.** The product owner tested 0309 on a figure whose shape follows from a rule, in a brief that built on a
+saved analysis which had drawn that very figure. The Architect described two figures and gave no points -
+rightly: a model cannot compute a shape in its head. The page drew one grey wave in each panel, under *The data
+decides the shapes*, where there was no data. "The two sketches look nothing like what we would expect." Four
+things were wrong: no shape was computed; a figure of several panels could not be described; the caption was
+wrong; and the saved analysis' own figure and code went unused. The drawing library was never the problem.
+
+**What was agreed** (decisions 44-47).
+
+- A figure of the brief is shown as a **draft**: a model writes one short cell, the sandbox runs it, and the Brief
+  tab draws the plot with Plotly - the library the report's figures are drawn with.
+- A shape that follows from a rule alone is **computed**. One that only the data can give is drawn on **made-up
+  numbers**, and marked. The cell is given no data, so the wait does not grow with the data.
+- Where the brief builds on a saved analysis, what that analysis drew is shown, and its code is given to the
+  model that writes the cell.
+- The step that draws the figures of the analysis is given the draft's cell.
+- The grey sketch stays for where there is no draft (§2.19).
+
+**When a draft is drawn** (`analyst/draft.py`, `due()`). After a reply of the Architect's, in the same exchange:
+each figure of the brief in use that has no draft. A draft is kept under a key of the question as it stands and
+the figure as it is described (`key()`). The same figure under the same question is drawn once: another order, a
+figure taken out and a step through the versions draw nothing. A change to the question or to the figure is
+another draft. None is drawn while the Architect goes on by itself, after its lookups, a reading or a part it
+opened: the reply the coach reads is the one after. A figure whose draft could not be drawn is tried once more,
+after the coach next speaks, and then left (`TRIES`).
+
+**The cell** (`analyst/draft.md`, `prompt()`, `draw()`). One model call on the seat of the step that draws
+(*Figures*; the Analyst's where the configuration has none), at a low effort, logged as *Draft* under the
+brief's chain and charged with it. The model reads the question as it stands and the figures in words. Where
+there are any, it also reads the cell that last drew figures for the question, and the code of the saved analyses
+the brief builds on (`saved_code()`: the cells along each one's path, from the thread's record). It reads nothing
+of the data. Its reply is one cell that draws each figure with Plotly, under its title. For each figure it
+decides which of two it is:
+
+- *Its shape follows from a rule alone.* The cell computes it in full and says so on the figure:
+  `fig.update_layout(meta="computed")`.
+- *Anything else.* The cell draws the figure as it will stand - traces, panels, axes, names - on numbers it makes
+  up, says nothing, and prints `?` where the figure is to print a value. In doubt, this.
+
+A reply without a cell, a cell that is not run and one that leaves a figure without a plot - it failed before it
+drew it, or drew none under its title - are asked for once more, with what went wrong. What a cell drew before it
+failed counts, and each figure keeps the last plot drawn for it.
+
+**Where it runs** (`bambooai.py`, `_draft()`, `_run_draft()`). Through the executor, as the Architect's lookups
+do - with no frame, none of the thread's names and no folder to write to. Three things are held in code:
+
+- *No data.* The cell is given none, and it is screened before it runs (`screen()`): it imports numpy, scipy,
+  pandas, plotly and the maths modules and nothing else, calls nothing that reads or writes a file, and uses no
+  name that leads out of the cell. The screen is no sandbox - the executor is one. It keeps a cell that means
+  well from the coach's files.
+- *A few seconds* (`SECONDS`, 20). On the coach's own machine the cell's kernel is stopped then
+  (`code_executor.execute(step_timeout=)`). An executor answers past its limit and leaves the script's thread
+  running; there the cell carries a guard that raises in its thread shortly before (`DRAFT_GUARD`). A cell that
+  never ends is ended - unless it never comes back from compiled code.
+- *Computed only where the cell said so* (`read()`). A plot is computed where its layout says so; every other
+  draft is shown as made up. A plot stands for the figure whose title it carries. Only a Plotly figure counts, and
+  none longer than 1.5 million characters.
+
+A draft never fails the exchange (decision 45). The reply is kept before the cell is written. A round that drew
+nothing, or broke off, is a turn that says so, and the figure is a sketch.
+
+**What is kept.** Beside each version of the brief, the keys of its figures (`keyed()`: `versions[].keys`). In the
+framing, by key, what each draft is: `{"basis": "computed" | "made up"}`, or `{"failed": why, "tries": n}`
+(`framing.drafts`). The round is a turn of the conversation: `{who: "draft", drawn: [{title, basis}], missing,
+failed, v, secs, cost, call}`. On the run, the cells that drew, each with the keys of its figures (`Run.drafts`).
+The plots are files beside the thread's record - `storage/<user>/drafts/<thread>/<run>/<key>.json` (`Plots`) -
+and never in the record or in the framing, which rides in the page's markup. The folder goes with its thread
+(`cleanup.py`). `GET /architect/draft/<thread>/<run>/<key>` gives a plot to the page.
+
+**On the page** (`architect.js`). The stream of an exchange first carries the framing with the reply (`architect_draft`):
+the message stands, a row under it says *FIGURES drawing a draft…*, the composer is held, and the figures are
+sketches that say *Drawing a draft…*. The stream ends on the framing with the draft; one that ends before it
+leaves the reply standing, its figures sketches, and nothing says the Architect did not reply. Each plot is
+fetched once and drawn by Plotly in its figure's place, across the whole row (`mount()`; `draftLayout()`: the
+figure's own layout, fitted to the panel). The panel says *draft*. On made-up numbers it says *draft · made-up
+numbers*, those words stand across the plot, and a line under it reads: *The numbers are made up. The analysis
+puts in the real ones.* The row reads *FIGURES 2 drawn · 6 s*, with the button to the draft's prompt. Where no
+draft could be drawn, the panel is the sketch with *No draft could be drawn.*, the reason under the mouse. Where
+a plot cannot be had, or the page has no Plotly, the figure is its sketch again. The brief of a run keeps its
+drafts.
+
+**What a saved analysis drew** (decision 47). Under each line of **Builds on** stands the picture that analysis'
+favourite keeps of its first figure (`GET /get_chain_preview`), with the words *What it drew then*. The coach sees
+what they are building on before anything is drawn anew.
+
+**The Architect.** It describes; it does not draw, and it does not see the draft. Its instructions: a draft is
+drawn right after the reply; say that it is being drawn, and nothing of how it looks; when the coach wants it
+another way, change the description - or the wording, where the change is to what is computed. A figure's `note`
+also says how a figure of several panels is laid out. What a draft came to is a line of CONVERSATION (`line()`):
+*Draft of the figures: drawn - "…" (computed), "…" (on made-up numbers); not drawn - "…": why*.
+
+**The step that draws** (decision 46). Under the agreed figures its prompt holds *THE DRAFT THE PERSON SAW*: the
+cell that drew them, a cell once, with the figures it drew and which of them stand on made-up numbers
+(`draft.agreed()`). Its instructions: draw each as the draft drew it - the same traces, panels, axes, colours and
+names - from what the kernel holds; no number comes from the draft, and where the draft prints `?` the figure
+prints the value.
+
+**The wait and the cost.** One short model call and a cell that takes a second or two. The coach reads the reply
+meanwhile. The draft's instructions are some 500 tokens; the Architect's are as long as before.
+
+**The stack.** The scripted model that drafts (`draft()`, `draft_cell()`) draws the yield of two regimes by season
+and the plot yields of each on made-up numbers, and the target - 5 percent more each season - computed. The
+stand-in Plotly's figures carry their title and what the cell said of them. The stand-in for the page's library
+draws a figure plainly: lines, bars, boxes, the words across. `walk_draft`, on data: the three drafts on the Brief
+tab; the record, the files and the route; the draft's prompt; another order, with nothing drawn again; the cross
+and the arrows; the analysis - the step that draws is given the cell and is asked again for the figure it left
+out - and the Brief tab after the run. `walk_saved`: what the analysis built on drew. The gallery gains
+`architect_draft`; `architect_sketch` is now the reply with its figures still sketches.
+
+**Not run against a live model, nor with Plotly.** Every reply in the tests is scripted, and the test machine
+has neither Plotly nor the page's library: stand-ins take their place. Whether the model writes a cell that runs,
+draws what was described, computes where a rule gives the shape and makes numbers up where it does not - and how
+the draft looks - is for the dev box.
+
+**Known limits.**
+
+- A change the coach makes to the question by hand leaves the figures as sketches until the Architect next
+  replies.
+- What a draft's numbers are is the cell's word. Code holds only that a draft without that word is marked as
+  made up.
+- On an executor, a cell stuck inside compiled code past its limit runs on until it returns.
+- A saved analysis shows the picture of its first figure only, and only where it was saved with one.
 
 ## 3. Memory from saved analyses
 
@@ -1286,7 +1408,10 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
 ## 6. Parts touched by the release
 
 - The Analyst's contract and session: the brief comes in, `RECALL` and the ideas path go out, the report gains two
-  parts. The step that draws the figures reads the ones agreed in the brief (0309).
+  parts. The step that draws the figures reads the ones agreed in the brief (0309), and the cell that drew their
+  draft (0310).
+- New in 0310: the draft of the figures (`analyst/draft.py`), its plots beside the thread's record, a time limit
+  for a script on the coach's own machine.
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
@@ -1323,6 +1448,7 @@ on the last one.
 | 0308 | From the product owner's test of 0307: the question changes as the conversation goes, with no step to take it; the version on screen is the one in use, for an answer, a change and Start analysis; the brief shows only the parts that hold something, with one + Add; what a reading found is shown to read in both panes, and an analysis is chosen by answering (§2.18). | built |
 
 | 0309 | The product owner's idea after testing 0308: the figures sketched before the run. The Architect describes each figure and the Brief tab draws it - grey where the data decides, a line known in advance from rough points. The Analyst and the step that draws read the agreed figures; code holds their titles (§2.19). | built |
+| 0310 | From the product owner's test of 0309: the sketches looked like nothing. A draft of each figure, drawn by a cell a model writes and the sandbox runs with no data - computed where a rule gives the shape, on made-up numbers, marked, where the data will; what a saved analysis drew; the draft's cell handed to the step that draws; the model's own points gone (§2.20). | built |
 
 ## 8. Not in this release
 

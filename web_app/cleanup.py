@@ -78,6 +78,13 @@ def _remove_documents(user_id, thread_id):
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def _remove_drafts(user_id, thread_id):
+    """The drafts of a thread's figures go with the thread (docs/ARCHITECT_DESIGN.md §2.20)."""
+    folder = get_user_path(user_id, 'storage', 'drafts', str(thread_id))
+    if os.path.isdir(folder):
+        shutil.rmtree(folder, ignore_errors=True)
+
+
 def cleanup_orphan_documents(user_id, max_age_seconds=24 * 3600):
     """Documents folders whose thread never got a question - the upload minted the thread and
     nothing followed - are removed once they are a day old; a thread with a JSON or a favourite is kept."""
@@ -138,6 +145,7 @@ def cleanup_threads_for_user(user_id, debug_mode=False):
                 except Exception as e:
                     logger.error(f"Failed to delete {thread_id}: {str(e)}")
                 _remove_documents(user_id, thread_id)
+                _remove_drafts(user_id, thread_id)
             else:
                 # Thread exists in favorites - clean unfavorited chains
                 try:

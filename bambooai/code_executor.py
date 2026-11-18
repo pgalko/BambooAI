@@ -106,19 +106,21 @@ pio.show = show
             f.write(f"[INFO] {timestamp} - {message}\n")
 
     def execute(self, output_manager, kill_signal, code, df=None, df_id=None, generated_datasets_path=None,
-                persist_df=True, timeout=None):
+                persist_df=True, timeout=None, step_timeout=None):
+        # step_timeout: the seconds the script may take where it runs on this machine - the kernel's own limit where
+        # none is given (the draft of the figures, 2026-11-18: a look ahead that is not to take the time of an analysis)
         # Store the original DataFrame for resetting if needed
         self._original_df = df.copy() if df is not None else None
 
         if self.mode == 'local':
-            return self._execute_local(code, df, generated_datasets_path)
+            return self._execute_local(code, df, generated_datasets_path, step_timeout)
         elif self.mode == 'api':
             return self._execute_via_api_client(code, df, df_id, generated_datasets_path, output_manager, kill_signal,
                                                 persist_df=persist_df, timeout=timeout)
         else:
             raise ValueError("Invalid mode. Choose 'local' or 'api'.")
         
-    def _execute_local(self, code, df=None, generated_datasets_path=None):
+    def _execute_local(self, code, df=None, generated_datasets_path=None, step_timeout=None):
         """The reproduction run on this machine (docs/OSS_DESIGN.md D5, 2026-09-14): a fresh
         PersistentKernel in a subprocess, the same kernel the analysis runs in, with the frame
         loaded and the plotly capture the executor uses. Never exec() in the web app's process:
@@ -150,7 +152,8 @@ pio.show = show
         script = prelude + patch + "\n" + code
         kernel = None
         try:
-            kernel = PersistentKernel(df=df, generated_dir=generated_datasets_path)   # DS.save in the replay (2026-10-06)
+            kernel = PersistentKernel(df=df, generated_dir=generated_datasets_path,   # DS.save in the replay (2026-10-06)
+                                      **({"step_timeout": step_timeout} if step_timeout else {}))
             stdout, error, plots = kernel.execute(script, analysis_dir=os.path.join(tmp, "analysis"))
             if error:
                 # the traceback's line numbers back in the caller's code, which the prelude and the patch pushed down - as the

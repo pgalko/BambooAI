@@ -24,8 +24,8 @@
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
 - **2.8, the Architect and memory from saved analyses** (`docs/ARCHITECT_DESIGN.md`: the design, the decisions, the
-  build patch by patch). Released as 2.8.0 with 0305; 0306 to 0309 follow it, after the product owner's
-  first and second live runs, his test of 0307 and his idea after 0308.
+  build patch by patch). Released as 2.8.0 with 0305; 0306 to 0310 follow it, after the product owner's
+  first and second live runs, his test of 0307, his idea after 0308 and his test of 0309.
   Until the release steps are taken the series goes to the private repository and the dev box only, and the tag
   goes on the last patch.
   **0294 (2026-11-15): the old memory is retired.** Gone: the knowledge pack and its code (`knowledge_pack.py`,
@@ -497,6 +497,55 @@
   in the report (two plots joined in one are not built); the check before the run reads the cell's code, once.
   Not run against a live model: whether it sketches when asked and not otherwise, gives points only where the
   shape is known, and whether the step that draws follows a figure's description beyond its title.
+  **0310 (2026-11-18): the figures, drafted before the run** (the design's §2.20, decisions 42 and 44-47). The
+  product owner could not picture the final figure from 0309's sketches: their shapes were rough points a model
+  had put down. A draft of each figure is now drawn for real - a model writes one Plotly cell from the question
+  as it stands, the sandbox runs it with no data, and the page draws the plot in the brief. *The draft*
+  (`analyst/draft.py`, its instructions `analyst/draft.md`): `key(question, figure)` - 12 hex of the wording and
+  the description, so another order, the cross and the arrows redraw nothing; `keyed(framing)` puts each
+  version's `keys` beside its brief; `due(framing)` - the figures of the brief in use without a draft, one that
+  failed until `TRIES` (2) rounds, none while the Architect goes on by itself; `prompt()` (QUESTION, FIGURES TO
+  DRAW, THE DRAFT BEFORE, A SAVED ANALYSIS THE QUESTION BUILDS ON), `cell()`, `screen()` (an AST pass: the
+  modules a draft may import - `MODULES` -, no call that reads or writes a file - `FILES` -, no name that leads
+  out of the cell - `NAMES`; it is no sandbox), `read()` (a plot to a figure by its title; `basis` is `computed`
+  only where the cell set `meta="computed"`, else `made up`; `PLOT_CHARS`), `draw()` (one call at a low effort,
+  one correction - `ATTEMPTS` 2 - with what went wrong; what a cell drew before it failed counts), `settle()`
+  (the framing's `drafts` by key and `draft_calls`, the turn `{who: "draft", drawn, missing, failed, v, secs,
+  cost, call}`, the cells on `Run.drafts`), `line()` (the turn in the Architect's CONVERSATION), `agreed(run)`
+  (the cells for the step that draws), `saved_code()` (the code of a saved analysis the brief builds on,
+  `SAVED_CHARS`), `Plots` (the plots as files, `<storage>/drafts/<thread>/<run>/<key>.json`: neither the record
+  nor the framing holds one). *The brief and the Architect:* the points a model wrote are gone (`_points()`,
+  `POINTS`, *[sketched with points]*, the turn's `sketched`); `carries()` moved to `analyst/brief.py`;
+  `architect.md` has the Architect describe a figure - a `note` for the layout of several panels -, say that a
+  draft is being drawn and not describe it. *The host* (`bambooai/bambooai.py`): `architect_say()` calls
+  `_draft(run)` after the exchange - the stream first carries `{"type": "architect_draft", "framing"}` -, the
+  call on the figures' seat, logged as `Draft`; `_run_draft()` runs the cell through the executor with no frame
+  for `draft.SECONDS` (20) - `code_executor.execute(..., step_timeout=)` for the local kernel, `DRAFT_GUARD`
+  around the cell for an executor, which leaves a thread running past its limit; `_saved_code()`.
+  `GET /architect/draft/<thread>/<run>/<key>` (`web_app/architect_routes.py`); the drafts go with their thread
+  (`web_app/cleanup.py`). *The Analyst's side* (`analyst/session.py`): `_figures_prompt()` gives the step that
+  draws THE DRAFT THE PERSON SAW - the cell, the figures it drew, which of them on made-up numbers -, and
+  `FIGURES_SYSTEM` has it draw each as the draft drew it, take no number from the draft, and add two figures of
+  its own at most (was three in all). *The page* (`architect.js`): `build.figure` (drawn: the tag *draft* or
+  *draft · made-up numbers* and the plot's place; else the grey sketch, with *Drawing a draft…* or *No draft
+  could be drawn.*), `mount()` draws each plot with Plotly (`draftLayout()`: fitted, not to be dragged, *made-up
+  numbers* across a made-up one) and falls back to the sketch (`sketchAgain()`); `fetched()` keeps what the
+  server holds and asks again where an answer failed;
+  `build.drafted` (the row *FIGURES 2 drawn 7 s ⌘*), `build.drawingRow`; the composer is held while a draft is
+  drawn; under a saved analysis the brief builds on stands what it drew then (`.ar-was`, the favourite's
+  `plotPreview`); a stream that ends while the draft is drawn leaves the reply standing (`lost()` in
+  `exchange()`). *The stack:* the scripted draft writer (`Scenario.draft`, `draft_cell()`); the stand-in
+  Plotly.js draws a JSON figure plainly (`libs_stub_plotly.js`) and the stand-in `plotly` carries `title` and
+  `meta`; `walk_draft` has five checks and `walk_saved` one more; the story's `sketch_*` pictures are `draft_*`,
+  with `draft_computed` new; the gallery gains `architect_draft` (28 states). Tests: `test_analyst.py` 362
+  (+13), `test_app_path.py` 272 (+6), `test_architect.js` 131 (+4), `test_documents_app.py` 45 (+1); the battery
+  2,363; the walk 206, and 199 of 203 in the local edition. *Known limits:* a change made by hand to the
+  question leaves the figures as sketches until the Architect next replies; that a figure is computed is the
+  cell's word; on an executor a cell that never comes back from compiled code runs on past the guard; a saved
+  analysis shows the picture of its first figure only, where its favourite kept one. Not run against a live
+  model, and neither Plotly nor Plotly.js was at hand where it was built - stand-ins in the tests and the
+  screens: whether the model's cell draws what the description says, says *computed* only where a rule gives
+  the shape, and whether the final figure follows its draft is the product owner's test.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

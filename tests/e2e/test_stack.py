@@ -746,8 +746,19 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           and dlg["said"][1].startswith("What the answer is for: ") and "left to you" not in dlg["said"][1]
           and "BRIEF_DIFF" in dlg["code"] and dlg["folded"] and dlg["seen"] and dlg["chain"] == str(cid) and shut == "none" and brief_on_screen(page) == b1, (dlg, shut))
 
-    # the coach answers the Architect: build on that one
+    # the coach answers the Architect: build on that one. Its favourite keeps a picture of what it drew - put there by hand here: the stack's stand-in for Plotly makes none
+    picture = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    fav = os.path.join(storage, "favourites", str(tid), f"{cid2}.json")
+    page_copy = json.load(open(fav, encoding="utf-8"))
+    json.dump({**page_copy, "plotPreview": picture}, open(fav, "w", encoding="utf-8"))
     tell(page, choice=mine)
+    page.wait_for_selector("#content-brief .ar-was img", timeout=15000)
+    drew_then = page.evaluate("""() => { const was = [...document.querySelectorAll('#content-brief .ar-was')], line = document.querySelector('#content-brief .ar-built');
+        return { holders: was.map(w => [w.dataset.thread, w.dataset.run]), src: (was[0].querySelector('img') || {}).src || '', cap: (was[0].querySelector('.cap') || {}).textContent || '',
+                 under: line.nextElementSibling === was[0], seen: was[0].getBoundingClientRect().height > 0 }; }""")
+    check("what the analysis the brief builds on drew stands under its line (0310): the picture its favourite keeps, with the words that it is what the analysis drew then - the coach sees "
+          "what they are building on before anything is drawn anew",
+          drew_then == {"holders": [[str(tid), str(cid2)]], "src": picture, "cap": "What it drew then", "under": True, "seen": True}, drew_then)
     b2, t2, s2 = brief_on_screen(page), talk_on_screen(page), saved_on_screen(page)
     last2 = (thread_run(wa, user, tid3, cid).get("framing", {}).get("versions") or [{}])[-1]
     check("the coach chooses by answering the Architect - the choice that names the analysis: the brief builds on it, as one more version - Builds on, with the day and what was asked then, View "
@@ -1019,30 +1030,28 @@ def walk_tutor(page, mod, wa, edition, user):
 
 
 def figures_on_screen(page):
-    """The figures sketched on the Brief tab as the coach sees them: the part's heading; each panel's number, title and tag, whether it is marked as changed and has its cross, the names in its
-    key with the stroke each is drawn in - a colour, or the grey dash - how many lines are drawn from points, how many dashed shapes stand in, the names at its marks and at its axes, its
-    caption; whether a line drawn from points and a stand-in differ on screen - the one solid in a colour, the other dashed - and whether the first two panels stand side by side; and the
-    conversation's rows about the figures."""
-    return page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), figs = [...r.querySelectorAll('.ar-fig')];
-        const n = (f, sel) => f.querySelectorAll(':scope > svg ' + sel).length, css = (f, sel) => { const x = f.querySelector(':scope > svg ' + sel); return x ? getComputedStyle(x) : null; };
-        const known = figs.map(f => [css(f, '.ln'), css(f, 'path.ph')]).find(x => x[0] && x[1]);
-        const box = f => f.getBoundingClientRect();
+    """The figures on the Brief tab as the coach sees them: the part's heading; each panel's number, title and tag, whether it is marked as changed, has its cross and stands as a drawn draft -
+    then, of its plot: the key it is kept under, whether a drawing stands in its place and under which title, whether it is marked as made up and what stands across it; whether its sketch
+    shows, with the names in its key; its caption; whether it takes the whole row; and the conversation's rows about the figures."""
+    return page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), figs = [...r.querySelectorAll('.ar-fig')], row = r.querySelector('.ar-figs');
+        const shown = x => !!x && getComputedStyle(x).display !== 'none', wide = x => Math.round(x.getBoundingClientRect().width);
         return { head: [...r.querySelectorAll('h3')].map(h => h.textContent).filter(h => /look/.test(h)),
-                 figs: figs.map(f => ({ n: f.querySelector('.n').textContent, title: f.querySelector('.t').textContent, tag: f.querySelector('.tag').textContent,
-                     changed: f.classList.contains('changed'), cross: !!f.querySelector('[data-ar="unfigure"]'),
-                     key: [...f.querySelectorAll('.key span')].map(s => [s.textContent, s.querySelector('i').className]), drawn: [n(f, '.ln'), n(f, '.ph')],
-                     at: [...f.querySelectorAll(':scope > svg text.tk')].map(t => t.textContent), axes: [...f.querySelectorAll(':scope > svg text:not(.tk)')].map(t => t.textContent),
-                     cap: (f.querySelector('.cap') || {}).textContent || '' })),
-                 apart: known ? [known[0].stroke !== known[1].stroke, known[0].strokeDasharray, known[1].strokeDasharray !== 'none'] : null,
-                 beside: figs.length > 1 ? Math.abs(box(figs[0]).top - box(figs[1]).top) < 2 && box(figs[1]).left > box(figs[0]).right : null,
+                 figs: figs.map(f => { const plot = f.querySelector('.plot'), drawing = plot && plot.querySelector('svg');
+                     return { n: f.querySelector('.n').textContent, title: f.querySelector('.t').textContent, tag: f.querySelector('.tag').textContent,
+                              changed: f.classList.contains('changed'), cross: !!f.querySelector('[data-ar="unfigure"]'), drawn: f.classList.contains('drawn'),
+                              plot: plot ? { key: plot.dataset.key, live: !!drawing, head: drawing ? (drawing.querySelector('text') || {}).textContent || '' : '', made: plot.dataset.madeUp === '1',
+                                             across: drawing ? [...drawing.querySelectorAll('text[transform]')].map(t => t.textContent) : [] } : null,
+                              sketch: shown(f.querySelector(':scope > svg')), key: [...f.querySelectorAll('.key span')].map(s => s.textContent), cap: (f.querySelector('.cap') || {}).textContent || '',
+                              row: !!row && wide(f) === wide(row) }; }),
                  rows: [...document.querySelectorAll('#streamOutput .sp-stream > .sp-row.tool.read')].filter(x => x.children[1].textContent === 'FIGURES').map(x => [...x.children].slice(1).map(c => c.textContent)) }; }""")
 
 
-def walk_sketch(page, st, mod, wa, edition, user):
-    """The figures sketched (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19), on data. Asked to show the figures, the Architect describes them and the Brief tab sketches them: what the data decides
-    in grey, a line known before any run in colour. Asked for another order, it names the figures by their numbers, and the line keeps its points. The coach takes one out with its cross and
-    steps through the versions. The analysis then runs under the brief: the Analyst reads the figures that stand, the step that draws reads the same lines - its first reply leaves one out, and
-    it is asked again before anything runs - and the report holds each agreed figure under its title."""
+def walk_draft(page, st, mod, wa, edition, user):
+    """The figures and their draft (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data. Asked to show the figures, the Architect describes them, and a draft of each is drawn in the
+    same exchange: a cell written by the model that drafts, run where no data is, each plot kept beside the thread's record and drawn on the Brief tab - on made-up numbers what the data will
+    give, computed what follows from a rule. Asked for another order, the Architect names the figures by their numbers and nothing is drawn again. The coach takes one out with its cross and
+    steps through the versions. The analysis then runs under the brief: the Analyst reads the figures that stand, the step that draws reads the same lines and the cell that drew their draft -
+    its first reply leaves one out, and it is asked again before anything runs - and the report holds each agreed figure under its title."""
     page.evaluate("handleNewConversation()")
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
@@ -1053,78 +1062,107 @@ def walk_sketch(page, st, mod, wa, edition, user):
     page.wait_for_timeout(500)
     if page.evaluate("() => document.getElementById('architectSwitch').getAttribute('aria-pressed')") != "true":
         page.click("#architectSwitch")
-    page.fill("#queryInput", mod.SKETCH_QUESTION)
+    page.fill("#queryInput", mod.FIGURES_QUESTION)
     page.click("#submitQuery")
     page.wait_for_selector("#content-brief .ar-brief", timeout=15000)
     architect_said(page, 1)
     tid, cid = page.evaluate("() => [currentData.thread_id, currentData.chain_id]")
-    read_last = lambda: (page.click("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt >> nth=-1"),
-                         page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000),
-                         page.inner_text("#userInstructions"),
-                         page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }"))[2]
-    want = mod.sketches("C", "A")
-    line, boxes, bars = (f["title"] for f in want)
-    f0 = figures_on_screen(page)
-    tell(page, mod.ARCHITECT_SKETCH)
+    shut = "() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }"
+    read = lambda button, mark: (page.click(button), page.wait_for_function("(mark) => { const u = document.getElementById('userInstructions'); return u && u.textContent.includes(mark); }", arg=mark, timeout=15000),      # noqa: E731
+                                 page.inner_text("#userInstructions"), page.evaluate(shut))[2]
+    drawn = lambda n: page.wait_for_function("(n) => document.querySelectorAll('#content-brief .ar-fig.drawn .plot svg').length === n", arg=n, timeout=30000)      # noqa: E731
+    want = mod.described("C", "A")
+    line, boxes, target = (f["title"] for f in want)
+    made = "The numbers are made up. The analysis puts in the real ones."
+    lines_of = lambda *figs: "".join(f'{k}. "{f["title"]}" - {"a line chart" if f["kind"] == "line" else "box plots"}; x: {f["x"]}; y: {f["y"]}; holds: {", ".join(s["name"] for s in f["series"])}; '      # noqa: E731
+                                     f'to make clear: {f["note"]}\n' for k, f in enumerate(figs, 1))
+    f0, rows0 = figures_on_screen(page), len(usage_rows(wa, edition, user))
+    tell(page, mod.ARCHITECT_SHOW)
+    drawn(3)
     f1, t1, b1 = figures_on_screen(page), talk_on_screen(page), brief_on_screen(page)
-    rec1 = thread_run(wa, user, tid, cid).get("framing", {})
-    v1 = (rec1.get("versions") or [{}])[-1]
-    n1 = len(rec1.get("versions", []))
-    check("asked to show the figures, the Architect sketches them: the Brief tab has a part for them, under a plain heading - a panel to a figure, numbered, each marked as a sketch, as changed "
-          "in this version, with a cross. What the data decides is grey and dashed - two lines whose names stand beside dashes, two boxes and three bars of equal size with their names at "
-          "them - and the caption says the data decides the shapes; the target's line, known before any run, is drawn through its points, solid, in its colour. The panels stand side by side. A "
-          "row under the Architect's message says three were sketched, and in which version. On the record the figures are one more version of the Architect's, each named as changed, the "
-          "target's points with it; before the sketch the brief had no such part",
-          f0["head"] == [] and f0["figs"] == [] and f1["head"] == ["What it will look like"] and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"]) for f in f1["figs"]]
-          == [("1", line, "sketch", True, True), ("2", boxes, "sketch", True, True), ("3", bars, "sketch", True, True)]
-          and f1["figs"][0]["key"] == [["regime C", "ph"], ["regime A", "ph"], [mod.SKETCH_TARGET, "s2"]] and f1["figs"][0]["drawn"] == [1, 2] and f1["figs"][0]["axes"] == ["season", "yield, t/ha"]
-          and f1["figs"][0]["cap"] == want[0]["note"]
-          and (f1["figs"][1]["key"], f1["figs"][1]["drawn"], f1["figs"][1]["at"]) == ([], [0, 2], ["regime C", "regime A"]) and f1["figs"][1]["cap"] == want[1]["note"] + " The data decides the shapes."
-          and (f1["figs"][2]["key"], f1["figs"][2]["drawn"], f1["figs"][2]["at"], f1["figs"][2]["cap"]) == ([], [0, 3], ["clay", "loam", "sand"], "The data decides the shapes.")
-          and f1["apart"] == [True, "none", True] and f1["beside"] is True and f1["rows"] == [["FIGURES", "3 sketched", f"version {n1}"]]
-          and t1["said"][-2:] == [["You", mod.ARCHITECT_SKETCH], ["Architect", mod.ARCHITECT_SKETCHED]] and t1["choices"] == mod.ARCHITECT_YES
-          and (v1.get("by"), v1.get("why"), v1.get("changed")) == ("architect", "answer", ["figures.0", "figures.1", "figures.2"]) and b1["v"] == f"{n1} of {n1}"
-          and [f["title"] for f in v1.get("brief", {}).get("figures", [])] == [line, boxes, bars] and v1["brief"]["figures"][0]["series"][2] == {"name": mod.SKETCH_TARGET, "points": [[1, 5], [6, 5]]}
-          and rec1.get("turns", [{}])[-1].get("sketched") == 3, (f0, f1, t1["said"][-2:], v1))
+    ran1 = thread_run(wa, user, tid, cid)
+    rec1 = ran1.get("framing", {})
+    v1, n1 = (rec1.get("versions") or [{}])[-1], len(rec1.get("versions", []))
+    keys = (v1.get("keys") or []) + [None] * 3
+    kept = [os.path.join(wa, "storage", user, "drafts", str(tid), str(cid), f"{k}.json") for k in keys[:3]]
+    plots = [json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {} for p in kept]
+    served = page.evaluate("(u) => window.authService.fetch(u).then(r => r.json().then(j => [r.status, j]))", f"/architect/draft/{tid}/{cid}/{keys[2]}")
+    absent = page.evaluate("(u) => window.authService.fetch(u).then(r => r.status)", f"/architect/draft/{tid}/{cid}/000000000000")
+    check("asked to show the figures, the Architect describes them and a draft of each is drawn in the same exchange: the Brief tab has a part for them, under a plain heading - a panel to a "
+          "figure, numbered, as changed in this version, with a cross, each across the whole row. What the data will give is a draft on made-up numbers: the tag says so, a line under the "
+          "figure says so, and the words stand across the plot; the target, which follows from its rule, is a draft with none of that. Each plot is drawn in its figure's place, under its "
+          "title; the sketch under it does not show. A row under the Architect's message says three were drawn, with the seconds and the button to the draft's prompt, and the reply's choices "
+          "can still be clicked. Before, the brief had no such part",
+          f0["head"] == [] and f0["figs"] == [] and f1["head"] == ["What it will look like"]
+          and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"], f["drawn"], f["row"], f["sketch"]) for f in f1["figs"]]
+          == [("1", line, "draft · made-up numbers", True, True, True, True, False), ("2", boxes, "draft · made-up numbers", True, True, True, True, False), ("3", target, "draft", True, True, True, True, False)]
+          and [f["plot"] for f in f1["figs"]] == [{"key": keys[0], "live": True, "head": line, "made": True, "across": ["made-up numbers"]},
+                                                 {"key": keys[1], "live": True, "head": boxes, "made": True, "across": ["made-up numbers"]},
+                                                 {"key": keys[2], "live": True, "head": target, "made": False, "across": []}]
+          and [f["cap"] for f in f1["figs"]] == [want[0]["note"] + " " + made, want[1]["note"] + " " + made, want[2]["note"]]
+          and len(f1["rows"]) == 1 and f1["rows"][0][:2] == ["FIGURES", "3 drawn"] and bool(re.fullmatch(r"\d+ s", f1["rows"][0][2])) and f1["rows"][0][3:] == ["⌘"]
+          and t1["said"][-2:] == [["You", mod.ARCHITECT_SHOW], ["Architect", mod.ARCHITECT_DRAFTING]] and t1["choices"] == mod.ARCHITECT_YES and b1["v"] == f"{n1} of {n1}", (f0, f1, t1["said"][-2:], t1["choices"]))
+    check("the draft on the record and on disk: the figures are one more version of the Architect's, each named as changed, each a description and no more, with its key beside the version; "
+          "the framing says of each key what its draft is - made up, made up, computed - and the round is the conversation's last turn. The cell that drew stands on the run's record with "
+          "the keys it drew; each plot is a file of its own beside the thread's record, the target's with its rule's numbers and the word that it is computed. The page is served a plot by "
+          "its key, and none under a key that has no draft. Two calls were made and logged: the Architect's and the draft's",
+          (v1.get("by"), v1.get("why"), v1.get("changed")) == ("architect", "answer", ["figures.0", "figures.1", "figures.2"]) and len(set(keys[:3])) == 3 and None not in keys[:3]
+          and [f["title"] for f in v1.get("brief", {}).get("figures", [])] == [line, boxes, target] and "points" not in json.dumps(v1.get("brief", {}))
+          and rec1.get("drafts") == {keys[0]: {"basis": "made up"}, keys[1]: {"basis": "made up"}, keys[2]: {"basis": "computed"}} and rec1.get("draft_calls") == 1
+          and {k: v for k, v in rec1.get("turns", [{}])[-1].items() if k not in ("secs", "cost")}
+          == {"who": "draft", "drawn": [{"title": line, "basis": "made up"}, {"title": boxes, "basis": "made up"}, {"title": target, "basis": "computed"}], "v": n1, "call": 1}
+          and ran1.get("drafts") == [{"code": mod.draft_cell([line, boxes, target]), "keys": keys[:3]}]
+          and all(os.path.isfile(p) for p in kept) and [(p.get("layout") or {}).get("meta") for p in plots] == [None, None, "computed"]
+          and [(p.get("layout", {}).get("title") or {}).get("text") for p in plots] == [line, boxes, target] and plots[2]["data"][0]["y"] == [4.0, 4.2, 4.41, 4.63, 4.86, 5.11]
+          and [t.get("name") for t in plots[0]["data"]] == ["regime C", "regime A"] and served == [200, {"plot": plots[2]}] and absent == 404
+          and len(usage_rows(wa, edition, user)) == rows0 + 2, (v1, rec1.get("drafts"), rec1.get("turns", [{}])[-1], ran1.get("drafts"), served, absent, len(usage_rows(wa, edition, user)) - rows0))
 
-    # another order, asked for in words: the Architect names the figures by their numbers
+    # the draft's prompt; then another order, asked for in words: the Architect names the figures by their numbers, and nothing is drawn again
+    asked = read('#streamOutput .sp-stream > .sp-row .sp-prompt[data-agent="Draft"]', "FIGURES TO DRAW:")
     rows1 = len(usage_rows(wa, edition, user))
     tell(page, mod.ARCHITECT_SWAP)
+    drawn(3)
     f2 = figures_on_screen(page)
-    read2 = read_last()
-    rec2 = thread_run(wa, user, tid, cid).get("framing", {})
+    read2 = read("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt >> nth=-1", "CONVERSATION:")
+    ran2 = thread_run(wa, user, tid, cid)
+    rec2 = ran2.get("framing", {})
     v2 = (rec2.get("versions") or [{}])[-1]
-    check("asked for the second figure first: the Architect read the figures of the brief each under its number, in words - the kind, what is on each axis, what it holds, what it is to make "
-          "clear - and that the first is sketched with points, the points themselves nowhere in its prompt. Its reply names the figures by number, the first two the other way round: the "
-          "panels change places, the line that was known keeps its points and its colour, and the two that moved are marked as changed - one more version of the Architect's, one more row",
-          f'\nfigures:\n- [1] "{line}" - a line chart; x: season; y: yield, t/ha; holds: regime C, regime A, {mod.SKETCH_TARGET}; to make clear: {want[0]["note"]} [sketched with points]\n'
-          f'- [2] "{boxes}" - box plots; x: regime; y: yield, t/ha; holds: regime C, regime A; to make clear: {want[1]["note"]}\n- [3] "{bars}" - bars; x: soil type; y: yield, t/ha; holds: clay, loam, sand\n' in read2
-          and "[1, 5]" not in read2 and "[[" not in read2.split("\nfigures:\n")[1].split("CONVERSATION:")[0]
-          and [(f["n"], f["title"], f["changed"]) for f in f2["figs"]] == [("1", boxes, True), ("2", line, True), ("3", bars, False)]
-          and f2["figs"][1]["key"][2] == [mod.SKETCH_TARGET, "s2"] and f2["figs"][1]["drawn"] == [1, 2]
-          and f2["rows"] == [["FIGURES", "3 sketched", f"version {n1}"], ["FIGURES", "3 sketched", f"version {n1 + 1}"]]
-          and (v2.get("by"), v2.get("changed")) == ("architect", ["figures.0", "figures.1"]) and v2["brief"]["figures"][1] == v1["brief"]["figures"][0]
-          and len(usage_rows(wa, edition, user)) == rows1 + 1, (read2[-1500:], f2, v2))
+    check("the draft was written from the question as it stands and the figures in words - the kind, what is on each axis, what it holds, what it is to make clear - and nothing of the data. "
+          "Asked for the second figure first, the Architect read the figures each under its number, and what the draft came to as a line of the conversation; its reply names the figures by "
+          "number, the first two the other way round: the panels change places with their drafts - each under the key it had - the two that moved marked as changed. One more version of "
+          "the Architect's, and one call: nothing was drawn again",
+          asked.startswith(f"QUESTION:\n{mod.FIGURES_QUESTION}\n\nFIGURES TO DRAW:\n{lines_of(*want)}\nReply with the cell.") and "regime B" not in asked and "yield_t_ha" not in asked
+          and f"\nfigures:\n{lines_of(*want)}".replace("\n1. ", "\n- [1] ").replace("\n2. ", "\n- [2] ").replace("\n3. ", "\n- [3] ") in read2 and "sketched" not in read2
+          and f'\nDraft of the figures: drawn - "{line}" (on made-up numbers), "{boxes}" (on made-up numbers), "{target}" (computed)\nPerson: {mod.ARCHITECT_SWAP}' in read2
+          and [(f["n"], f["title"], f["changed"], f["drawn"], f["plot"]["key"], f["plot"]["live"]) for f in f2["figs"]]
+          == [("1", boxes, True, True, keys[1], True), ("2", line, True, True, keys[0], True), ("3", target, False, True, keys[2], True)]
+          and len(f2["rows"]) == 1 and (v2.get("by"), v2.get("changed"), v2.get("keys")) == ("architect", ["figures.0", "figures.1"], [keys[1], keys[0], keys[2]])
+          and v2["brief"]["figures"][1] == v1["brief"]["figures"][0] and [t["who"] for t in rec2.get("turns", [])].count("draft") == 1 and rec2.get("draft_calls") == 1 and len(ran2.get("drafts", [])) == 1
+          and len(usage_rows(wa, edition, user)) == rows1 + 1, (asked[:700], read2[-1500:], f2, v2))
 
-    # the cross on the third sketch, and the arrows through the versions
+    # the cross on the third figure, and the arrows through the versions
     rows2 = len(usage_rows(wa, edition, user))
     page.click('#content-brief .ar-fig [data-ar="unfigure"][data-path="figures.2"]')
     page.wait_for_function("(n) => { const r = document.querySelector('#content-brief .ar-brief'); return r && JSON.parse(r.dataset.framing).versions.length === n; }", arg=n1 + 2, timeout=15000)
+    drawn(2)
     f3, b3 = figures_on_screen(page), brief_on_screen(page)
     v3 = (thread_run(wa, user, tid, cid).get("framing", {}).get("versions") or [{}])[-1]
     page.click('#content-brief [data-ar="step"][data-step="-1"]')
+    drawn(3)
     f4, b4 = figures_on_screen(page), brief_on_screen(page)
     page.click('#content-brief [data-ar="step"][data-step="1"]')
+    drawn(2)
     f5 = figures_on_screen(page)
-    check("the cross on a sketch takes the figure out: one more version, the coach's, that names the part as changed - two panels stay, and no model was called. The arrow back shows the "
-          "version before with its three sketches, and Start analysis names that version; the arrow forward shows the two again",
-          [f["title"] for f in f3["figs"]] == [boxes, line] and not any(f["changed"] for f in f3["figs"]) and b3["v"] == f"{n1 + 2} of {n1 + 2}" and b3["start"] == "Start analysis"
-          and (v3.get("by"), v3.get("changed")) == ("person", ["figures"]) and [f["title"] for f in v3.get("brief", {}).get("figures", [])] == [boxes, line]
+    check("the cross on a figure takes it out: one more version, the coach's, that names the part as changed - two panels stay, each with its draft, and no model was called. The arrow back "
+          "shows the version before with its three drafts, and Start analysis names that version; the arrow forward shows the two again",
+          [(f["title"], f["drawn"], f["plot"]["key"], f["plot"]["live"]) for f in f3["figs"]] == [(boxes, True, keys[1], True), (line, True, keys[0], True)] and not any(f["changed"] for f in f3["figs"])
+          and b3["v"] == f"{n1 + 2} of {n1 + 2}" and b3["start"] == "Start analysis"
+          and (v3.get("by"), v3.get("changed"), v3.get("keys")) == ("person", ["figures"], [keys[1], keys[0]]) and [f["title"] for f in v3.get("brief", {}).get("figures", [])] == [boxes, line]
           and len(usage_rows(wa, edition, user)) == rows2
-          and [f["title"] for f in f4["figs"]] == [boxes, line, bars] and b4["v"] == f"{n1 + 1} of {n1 + 2}" and b4["start"] == f"Start analysis with version {n1 + 1}"
+          and [(f["title"], f["drawn"]) for f in f4["figs"]] == [(boxes, True), (line, True), (target, True)] and b4["v"] == f"{n1 + 1} of {n1 + 2}" and b4["start"] == f"Start analysis with version {n1 + 1}"
           and [f["title"] for f in f5["figs"]] == [boxes, line], (f3, v3, b4["v"], b4["start"]))
 
-    # Start analysis: the Analyst and the step that draws read the figures that stand
+    # Start analysis: the Analyst reads the figures that stand, the step that draws reads them and the cell that drew their draft
     page.evaluate("setMode('deep')")
     page.click('#content-brief [data-ar="start"]')
     wait_run_end(page, 1)
@@ -1133,31 +1171,32 @@ def walk_sketch(page, st, mod, wa, edition, user):
     ran = thread_run(wa, user, tid, cid)
     drew = []
     for k in range(page.locator('.sp-turn .sp-prompt[data-agent="Figures"]').count()):
-        page.click(f'.sp-turn .sp-prompt[data-agent="Figures"] >> nth={k}')
-        page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /THE REPORT, AS WRITTEN:/.test(u.textContent); }", timeout=15000)
-        drew.append(page.inner_text("#userInstructions"))
-        page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+        drew.append(read(f'.sp-turn .sp-prompt[data-agent="Figures"] >> nth={k}', "THE REPORT, AS WRITTEN:"))
         page.wait_for_timeout(200)
     steps = [(t["kind"], t.get("cell_no"), (t.get("stdout") or "").strip()[:120], [f.get("title") for f in t.get("figures", []) if isinstance(f, dict)]) for t in ran.get("turns", []) if t.get("step") == "figures"]
-    lines = (f'1. "{boxes}" - box plots; x: regime; y: yield, t/ha; holds: regime C, regime A; to make clear: {want[1]["note"]}\n'
-             f'2. "{line}" - a line chart; x: season; y: yield, t/ha; holds: regime C, regime A, {mod.SKETCH_TARGET}; to make clear: {want[0]["note"]}\n')
+    lines = lines_of(want[1], want[0])
+    saw = (f'THE DRAFT THE PERSON SAW (it drew "{boxes}", "{line}" - on made-up numbers: "{boxes}", "{line}"):\n```python\n' + mod.draft_cell([line, boxes, target]) + "\n```\n")
     answer = page.inner_text("#content-answer")
     page.click("#tab-brief")
+    drawn(2)
     f6, b6 = figures_on_screen(page), brief_on_screen(page)
-    check("Start analysis under a brief with figures: the Analyst reads the two that stand in its BRIEF block, numbered, in words - the one taken out and the target's points are not in its "
-          "prompt. The step that draws reads the same lines under its question, to draw first and under their titles. Its first reply left the second figure out: nothing ran, the attempt is "
-          "on the record with what was left out, and it was asked again with that title; its next cell drew both, each under its agreed title. The report's Figures part holds the two, with no "
-          "line about a figure not drawn. The Brief tab, read after the run, still shows the two sketches - with no cross",
-          ("\nFigures agreed with the person:\n" + lines) in prompt and bars not in prompt and "[1, 5]" not in prompt
-          and len(drew) == 2 and drew[0].startswith(f"QUESTION:\n{mod.SKETCH_QUESTION}\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n{lines}")
-          and "YOUR LAST REPLY LEFT OUT" not in drew[0] and "[1, 5]" not in drew[0] and bars not in drew[0]
+    check("Start analysis under a brief with figures: the Analyst reads the two that stand in its BRIEF block, numbered, in words - the one taken out is not in its prompt, nor the draft's "
+          "cell. The step that draws reads the same lines under its question, to draw first and under their titles, and under them the cell that drew their draft, with the word that both "
+          "stand on made-up numbers. Its first reply left the second figure out: nothing ran, the attempt is on the record with what was left out, and it was asked again with that title; "
+          "its next cell drew both from the data, each under its agreed title. The report's Figures part holds the two, with no line about a figure not drawn. The Brief tab, read after "
+          "the run, still shows the two drafts - with no cross - and the run keeps the cell that drew them",
+          ("\nFigures agreed with the person:\n" + lines) in prompt and target not in prompt and "THE DRAFT THE PERSON SAW" not in prompt
+          and len(drew) == 2 and drew[0].startswith(f"QUESTION:\n{mod.FIGURES_QUESTION}\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n"
+                                                    f"{lines}\n{saw}\nTHE REPORT, AS WRITTEN:\n")
+          and "YOUR LAST REPLY LEFT OUT" not in drew[0] and drew[0].count("THE DRAFT THE PERSON SAW") == 1
           and f'YOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt 1 of 4): "{line}". Nothing was run.' in drew[1]
           and [s[0] for s in steps] == ["error", "cell"] and steps[0][2] == f'the reply left out a figure agreed with the person: "{line}"' and steps[1][1] is not None and steps[1][3] == [boxes, line]
-          and ran.get("status") == "answered" and [f["title"] for f in ran.get("brief", {}).get("figures", [])] == [boxes, line]
+          and ran.get("status") == "answered" and [f["title"] for f in ran.get("brief", {}).get("figures", [])] == [boxes, line] and ran.get("drafts") == ran1.get("drafts")
           and f"## Figures\n\n- [fig {steps[1][1]}] {boxes[:1].lower() + boxes[1:]}\n- [fig {steps[1][1]}] {line[:1].lower() + line[1:]}" in ran.get("report", "") and "not drawn" not in ran.get("report", "")
           and "Figures" in answer and line[1:] in answer
-          and b6["state"] == "run" and [(f["title"], f["cross"]) for f in f6["figs"]] == [(boxes, False), (line, False)] and f6["figs"][1]["drawn"] == [1, 2],
-          (prompt[:900], [d[:500] for d in drew], steps, ran.get("report", "")[-400:], f6))
+          and b6["state"] == "run" and [(f["title"], f["cross"], f["drawn"], f["plot"]["key"], f["plot"]["live"], f["tag"]) for f in f6["figs"]]
+          == [(boxes, False, True, keys[1], True, "draft · made-up numbers"), (line, False, True, keys[0], True, "draft · made-up numbers")],
+          (prompt[:900], [d[:1500] for d in drew], steps, ran.get("report", "")[-400:], f6))
 
 
 def turn_prompt(page, turn):
@@ -2311,8 +2350,8 @@ def main():
             walk_tutor(page, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
 
-            # the figures sketched (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19): on data, in a workflow of its own
-            walk_sketch(page, st, mod, wa, edition, USER)
+            # the figures and their draft (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19, §2.20): on data, in a workflow of its own
+            walk_draft(page, st, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 

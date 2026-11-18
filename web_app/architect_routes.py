@@ -5,13 +5,15 @@ brief is kept as a version. The analysis then continues that run through /query,
 
 An exchange may have the person's saved analyses read (§3.7): the stream then carries how far the reading is, the
 person can skip it (/architect/skip), and a saved analysis the brief names can be read whole (/architect/saved).
+Where the brief holds figures, a draft of them is drawn after the reply (§2.20): the stream carries the framing as
+the reply left it, and the page then asks for each figure's plot (/architect/draft).
 
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
 month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say).
 
 After a finished analysis the person may ask for the questions that could follow it, at one of five levels (§2.7,
 §2.15): one call of the Architect's, which is a query of its own - authorised, counted and charged like one."""
-from flask import Blueprint, jsonify, request, session
+from flask import Blueprint, Response, jsonify, request, session
 
 from analyst.architect import Failed
 from analyst.brief import QUESTION_CHARS
@@ -58,7 +60,8 @@ def architect_say():
     goes on after a round of lookups, a reading of the saved analyses or a part of an earlier analysis it opened;
     `version`: the version of the brief on the person's screen, which the exchange goes on from - as a stream that
     ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no reply was kept. While the saved
-    analyses are read the stream carries {"type": "architect_saved", "read", "of"}."""
+    analyses are read the stream carries {"type": "architect_saved", "read", "of"}; where a draft of the figures
+    follows the reply, {"type": "architect_draft", "framing": the framing with the reply} before it is drawn."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400
@@ -110,6 +113,18 @@ def architect_saved(thread_id, run_id):
     return jsonify({**{k: run[k] for k in ("id", "when", "kind", "question", "title", "brief", "conversation", "report", "marks")},
                     "data": {"name": run["data"]["name"], "period": run["data"]["period"], "person": subject_name_of(record.data if record else None)},
                     "cells": [{"n": c["n"], "code": c["code"]} for c in reader.path_cells(view, run)]}), 200
+
+
+@architect_bp.route('/architect/draft/<thread_id>/<run_id>/<key>', methods=['GET'])
+@requires_auth
+def architect_draft(thread_id, run_id, key):
+    """The plot of a figure's draft, for the page to draw: {"plot": the figure as Plotly takes it}, under the key the
+    framing gives the figure (analyst/draft.py). 404 where none is kept."""
+    from analyst.draft import Plots
+    plot = Plots(_app().user_path('storage')).get(thread_id, run_id, key)
+    if plot is None:
+        return jsonify({'error': 'No draft is kept for this figure.'}), 404
+    return Response('{"plot": ' + plot + '}', mimetype='application/json')      # as it was kept: read() took it only where it parses
 
 
 @architect_bp.route('/architect/next', methods=['POST'])

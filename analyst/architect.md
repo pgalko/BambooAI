@@ -70,8 +70,8 @@ go back to an earlier version of the brief.
 
 ## The figures
 
-When the person asks for a figure, or asks to see what the result will look like, sketch it: give `figures`, three
-at most, and the person sees each one as a sketch in the brief. Sketch nothing where no figure is asked for.
+When the person asks for a figure, or asks to see what the result will look like, describe it: give `figures`,
+three at most. Describe none where no figure is asked for.
 
 | key | what it holds |
 |---|---|
@@ -79,20 +79,19 @@ at most, and the person sees each one as a sketch in the brief. Sketch nothing w
 | `kind` | `line`, `scatter`, `bar`, `histogram`, `box`, `heatmap` or `line3d` |
 | `x`, `y` | what is on each axis; `z` too for `line3d`, and for `heatmap` what the colour shows |
 | `series` | the lines, the groups of points, the bars or the boxes it holds, four at most: `[{"name": "..."}]` |
-| `note` | what the figure is to make clear - never what will be found |
+| `note` | how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |
 
-- A sketch shows no result. Where the data decides a shape, give no `points`: the person sees where things go, in
-  grey.
-- Where the shape is known before anything is computed - a curve that is given, a system that only follows its
-  rule - add rough `points` to a series: up to 24 pairs `[x, y]` in the order the line runs, on any scale; for
-  `line3d`, triples `[x, y, z]`.
+- Right after your reply a draft of each figure is drawn from QUESTION and your description, and the person sees
+  it in the brief. A shape that follows from a rule alone is computed. One that only the data can give is drawn
+  on made-up numbers, and marked so. You do not see the draft: CONVERSATION says what came of it.
 - `figures` is every figure as it is to stand, in order. One that stays as it is: its number in BRIEF alone -
-  `"figures": [1, {"title": "...", "kind": "line"}]`. A line given again under its figure's title keeps its
-  points unless you give others; `"points": []` takes them out. `"figures": []` takes every figure out.
-- In your message say that you sketched it, and ask whether it is what they want to see. Do not describe the
-  sketch again.
-- The analysis draws each figure after its report, under its title. What is to be computed for it belongs in the
-  wording.
+  `"figures": [1, {"title": "...", "kind": "line"}]`. `"figures": []` takes every figure out.
+- In your message say that a draft is being drawn, and ask whether it is what they want to see. Say nothing of
+  how the draft looks.
+- When they want it another way, change the description, or the wording where the change is to what is computed:
+  the draft is drawn again.
+- The analysis draws each figure after its report, under its title, as its draft drew it. What is to be computed
+  for it belongs in the wording.
 
 ## The brief
 
@@ -218,10 +217,10 @@ help them - open the part that holds it:
 - BRIEF: the brief as it stands, part by part. A line under `rests_on` that was checked shows its mark in brackets,
   with what was found. A line under `also_check` that you proposed says so, and whether the person accepted it.
   `builds_on` lists the saved analyses the brief builds on, each under its number. `figures` lists the figures
-  sketched, each under its number.
+  described, each under its number.
 - CONVERSATION: what was said since, oldest first, with the question as you worded it and the choices you offered,
-  what each round of lookups found, what the saved analyses hold, what you opened, and where the person went to
-  another version of the brief.
+  what each round of lookups found, what the saved analyses hold, what you opened, what came of each draft of the
+  figures, and where the person went to another version of the brief.
 - OPENED: the parts you opened since the person last spoke, whole.
 
 ## Your reply

@@ -30,6 +30,24 @@ from logger_config import get_logger
 
 logger = get_logger(__name__)
 
+# The cell of a draft as an executor runs it (2026-11-18). The executor runs a script in a thread and, past the
+# time it gives it, answers and leaves the thread running: a cell that never ends would run on there. The guard
+# raises in that thread shortly before, so the cell ends; where it never comes back from compiled code, it cannot.
+# The cell is compiled under a name of its own, so that an error tells its lines from the guard's (_run_draft).
+DRAFT_GUARD = """import ctypes as _guard_c, threading as _guard_t
+class _OutOfTime(BaseException):
+    pass
+_guard = _guard_t.Timer({seconds}, lambda ident=_guard_t.get_ident(): _guard_c.pythonapi.PyThreadState_SetAsyncExc(_guard_c.c_ulong(ident), _guard_c.py_object(_OutOfTime)))
+_guard.daemon = True
+_guard.start()
+try:
+    exec(compile({code!r}, "<draft>", "exec"), globals())
+except _OutOfTime:
+    raise TimeoutError("the cell took longer than {seconds} seconds") from None
+finally:
+    _guard.cancel()
+"""
+
 
 class ExecutionInterrupted(Exception):
     """The user stopped the run."""
@@ -1228,15 +1246,17 @@ class BambooAI:
 
     def save_brief(self, thread_id, run_id, brief, changed=None, question=None):
         """One more version of a framing run's brief, as the person left it; the question follows when they changed
-        it. Returns the framing, or None when the run is not one being framed."""
-        from analyst import brief as briefs
+        it. No draft is drawn for it: a figure the change left as it was keeps its draft, and one it changed - with
+        the question, every one - has none until the Architect next replies. Returns the framing, or None when the
+        run is not one being framed."""
+        from analyst import brief as briefs, draft
         nb = self._thread_notebook(thread_id)
         run = nb.runs.get(str(run_id))
         if run is None or run.status != "framing":
             return None
         if question and str(question).strip():
             run.question = str(question).strip()
-        run.framing = briefs.version(run.framing, {**(brief if isinstance(brief, dict) else {}), "question": run.question}, changed=changed)
+        run.framing = draft.keyed(briefs.version(run.framing, {**(brief if isinstance(brief, dict) else {}), "question": run.question}, changed=changed))
         self.store.save(nb)
         return run.framing
 
@@ -1246,10 +1266,12 @@ class BambooAI:
         brief and the conversation; a part of an earlier analysis it opens comes from the thread's record, in the engine;
         the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
         (_architect_recall) where the reply asks for it. `version`: the version of the brief on the person's screen -
-        the exchange goes on from it. The calls are the run's own: logged under its chain as the Architect's, and
-        charged with its analysis - or when the instance is torn down, if no analysis follows (cleanup). Returns the
-        framing, or None when the run is not one being framed; raises architect.Failed with the reason to show."""
-        from analyst import architect, brief as briefs, memory
+        the exchange goes on from it. After the reply, the figures of the brief that have no draft are drawn one
+        (_draft). The calls are the run's own: logged under its chain as the Architect's - the draft's as the
+        draft's -, and charged with its analysis - or when the instance is torn down, if no analysis follows
+        (cleanup). Returns the framing, or None when the run is not one being framed; raises architect.Failed with
+        the reason to show."""
+        from analyst import architect, brief as briefs, draft, memory
         from analyst.notebook import has_data
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
@@ -1265,8 +1287,9 @@ class BambooAI:
             framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
                                          self.notebook, run, text, data=self._data_description(), look=self._architect_look,
                                          recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]), version=version)
-            run.framing = {**framing, "data": has_data(self._data_record(light=True))}             # as it is now: data may have been loaded since the brief opened
+            run.framing = draft.keyed({**framing, "data": has_data(self._data_record(light=True))})      # as it is now: data may have been loaded since the brief opened
             run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
+            self._draft(run)
         except architect.Failed as exc:
             # nothing of the exchange is kept but its calls: the log holds them, and the next reply's number counts them
             run.framing = {**run.framing, "calls": int(run.framing.get("calls") or 0) + exc.calls}
@@ -1279,6 +1302,70 @@ class BambooAI:
             except Exception:                                  # noqa: BLE001
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
+
+    def _draft(self, run):
+        """The draft of a framing run's figures (analyst/draft.py; docs/ARCHITECT_DESIGN.md §2.20), after a reply of
+        the Architect's. Where figures of the brief in use are due one, the page is first given the framing as it
+        stands - it shows the reply while the draft is drawn. Then a model writes the cell on the figures' seat,
+        logged as the draft's under the run's chain; the cell runs with no data (_run_draft); each plot is kept
+        beside the thread's record; and the round is a turn of the conversation. A round that could not be made is
+        a round that drew nothing, said as such: the reply stands either way."""
+        from analyst import brief as briefs, draft
+        figures = draft.due(run.framing)
+        if not figures:
+            return
+        self.store.save(self.notebook)
+        self._pane('architect_draft', framing=run.framing)
+        began, seat, replies = time.time(), self._figures_seat(), []
+
+        def llm(system, user, **kw):
+            replies.append(self._llm(system, user, seat=seat, label="Draft", **kw))      # counted: the turn names its last call among the draft's
+            return replies[-1]
+        try:
+            made = draft.draw(llm, self._run_draft, run, figures, saved=self._saved_code(briefs.latest(run.framing)))
+            plots = draft.Plots(self._user_storage())
+            for key, got in made["drawn"].items():
+                plots.put(self.notebook.thread_id, run.id, key, got["plot"])
+        except Exception as exc:                               # noqa: BLE001
+            logger.exception("The draft of the figures could not be drawn")
+            made = draft.lost(f"it could not be drawn: {str(exc).strip().splitlines()[-1][:200] if str(exc).strip() else type(exc).__name__}", len(replies))
+        draft.settle(run, figures, made, time.time() - began)
+
+    def _run_draft(self, code):
+        """The cell of a draft, run where the analysis' cells run and with no data: one script through the executor
+        with no frame, none of the thread's names and no folder to write to, for draft.SECONDS at most - on this
+        machine the kernel is stopped then; an executor is asked for that long, and the cell carries a guard that
+        ends it (DRAFT_GUARD). A cell out of time is the draft's to say, not a message on the page. Returns (its
+        plots as the executor gives them, its error - '' where it ran - with the cell's own lines, as a cell's
+        traceback names them, and none of the guard's)."""
+        from analyst import draft
+        guarded = self.executor.mode == 'api'
+        script = DRAFT_GUARD.format(seconds=draft.SECONDS - 2, code=code) if guarded else code
+        quiet = type("Quiet", (), {"display_system_messages": staticmethod(lambda *a, **k: None)})()
+        try:
+            _, _, error, plots, _ = self.executor.execute(quiet, self.kill_signal, script, None, None, None, persist_df=False,
+                                                          timeout=draft.SECONDS, step_timeout=draft.SECONDS)
+        except Exception as exc:                               # noqa: BLE001
+            plots, error = [], str(exc) or type(exc).__name__
+        error = str(error or "")
+        if guarded:
+            error = "\n".join(ln for ln in error.splitlines() if 'File "<string>"' not in ln).replace('File "<draft>"', 'File "<string>"')
+        return plots or [], error
+
+    def _saved_code(self, brief):
+        """The code of the saved analyses a brief builds on, for the model that drafts its figures: of each one that
+        is still saved, the cells along its path as the thread's record holds them (draft.saved_code), under its
+        day and what was asked then. '' where the brief builds on none."""
+        from analyst import brief as briefs, draft, memory
+        built = briefs.analyses([s for s in (brief or {}).get("saved", []) if s.get("accepted") and s.get("thread") and s.get("run")])
+        if not built:
+            return ""
+        saved = {(r["thread"], r["run"]) for r in memory.view(self._user_storage())["runs"]}
+        out = []
+        for s in (group[0] for group in built):
+            code = draft.saved_code(self.store.read(s["thread"]), s["run"], draft.SAVED_CHARS // len(built)) if (str(s["thread"]), str(s["run"])) in saved else ""
+            out += [f"{s.get('when', '')} \"{s.get('question', '')}\"\n{code}"] if code else []
+        return "\n\n".join(out)
 
     def _architect_recall(self, question, brief):
         """The person's saved analyses read for a brief (memory_read), under the framing run's chain: the calls are

@@ -177,6 +177,8 @@ class Run:
                                                   # turns: [{who, text, choices, wording, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}
                                                   # | {who: "memory", found, ...} | {who: "opened", what, run, n, label, chars} or {who: "opened", missing}], calls,
                                                   # proposed, saved, data} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14, §2.17); {} for a run not framed
+    drafts: List[dict] = field(default_factory=list)   # the cells that drew the drafts of the brief's figures, in the order drawn (analyst/draft.py):
+                                                  # [{code, keys: the figures whose draft is this cell's}]; the plots are files beside the record
     next_questions: List[dict] = field(default_factory=list)   # the sets of questions proposed to follow this run, as they were asked for (analyst/next_questions.py):
                                                   # [{level, questions: [{title, text, from: [{kind, text}], ran: the chain it started}], cost, at, chain}]
 

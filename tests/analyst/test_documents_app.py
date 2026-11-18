@@ -214,10 +214,15 @@ docs.attach(os.path.join("storage", "u1", "documents", "3001"), md_path, "a.md")
 docs.attach(os.path.join("storage", "u1", "documents", "3002"), md_path, "b.md")     # no thread JSON: an orphan
 old = time.time() - 2 * 24 * 3600
 os.utime(os.path.join("storage", "u1", "documents", "3002"), (old, old))
+for _thread in ("3001", "3003"):                         # drafts of two threads' figures: the first thread is not saved, the second is
+    os.makedirs(os.path.join("storage", "u1", "drafts", _thread, "9"), exist_ok=True); open(os.path.join("storage", "u1", "drafts", _thread, "9", "k.json"), "w").write("{}")
+open(os.path.join("storage", "u1", "threads", "3003.json"), "w").write("{}"); os.makedirs(os.path.join("storage", "u1", "favourites", "3003"), exist_ok=True)
 n = C.cleanup_orphan_documents("u1")
 check("cleanup: an orphan documents folder older than a day is removed, a thread's folder is kept", n == 1 and not os.path.exists(os.path.join("storage", "u1", "documents", "3002")) and os.path.exists(os.path.join("storage", "u1", "documents", "3001")))
 C.cleanup_threads_for_user("u1")
 check("cleanup: a non-favourite thread's documents go with its JSON", not os.path.exists(os.path.join("storage", "u1", "threads", "3001.json")) and not os.path.exists(os.path.join("storage", "u1", "documents", "3001")))
+check("cleanup: the drafts of a thread's figures go with the thread too, and those of a saved thread stay (0310)",
+      not os.path.exists(os.path.join("storage", "u1", "drafts", "3001")) and os.path.isfile(os.path.join("storage", "u1", "drafts", "3003", "9", "k.json")) and os.path.exists(os.path.join("storage", "u1", "threads", "3003.json")))
 
 os.chdir("/"); shutil.rmtree(work, ignore_errors=True); shutil.rmtree(exec_cwd, ignore_errors=True)
 print(f"\n{len(passed)} passed, {len(failed)} failed")

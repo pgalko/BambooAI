@@ -9,6 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location('rp', os.path.join(HERE, 'render_page.py')); rp = importlib.util.module_from_spec(spec); spec.loader.exec_module(rp)
 FILL = open(os.path.join(HERE, 'fixtures', 'fill_page.js')).read() if os.path.exists(os.path.join(HERE, 'fixtures', 'fill_page.js')) else ''
 ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # the Architect's states (2026-11-15): an invented brief and a report against it
+PLOTLY = open(os.path.join(HERE, 'stack', 'browser', 'libs_stub_plotly.js')).read()      # the stack's stand-in for Plotly: here the library's address is not reached (2026-11-18, the drafts of the figures)
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
 STATES = {
     'page_answer': "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a);",
@@ -32,7 +33,8 @@ STATES = {
     'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
     'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
     'architect_version': ARCHITECT + "galleryArchitect.version();",    # an earlier version on screen: Start analysis names it (§2.18)
-    'architect_sketch': ARCHITECT + "galleryArchitect.sketch();",      # the figures sketched on the Brief tab: grey where the data decides, a known line in colour (§2.19)
+    'architect_sketch': ARCHITECT + "galleryArchitect.sketch();",      # the figures as sketches while their draft is drawn: the reply above the row that says so (§2.19, §2.20)
+    'architect_draft': PLOTLY + ARCHITECT + "galleryArchitect.draft();",      # the drafts drawn on the Brief tab: one on made-up numbers, marked, one computed (§2.20)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)
@@ -45,6 +47,7 @@ def render_all(out, light=False):
     from playwright.sync_api import sync_playwright
     html = rp.static_index(); fixtures = json.load(open(os.path.join(HERE, 'fixtures', 'workflows.json'))); ROOT = rp.ROOT
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'codebook.json'))))     # the codebook screen's book (2026-10-16), a file of its own
+    fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'drafts.json'))))       # the plots of the drafts the Architect's state shows (2026-11-18), by the address the page asks
     usage_fx = os.path.join(HERE, 'fixtures', 'usage.json')                               # the usage dialog's answers (2026-10-31): a synthetic month, made on demand
     if not os.path.exists(usage_fx):
         import subprocess; subprocess.run([sys.executable, os.path.join(HERE, 'usage_fixture.py'), usage_fx], check=True, env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, 'tools', 'stack', 'fakepkgs')))

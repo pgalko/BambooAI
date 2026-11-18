@@ -51,6 +51,11 @@ class FakeModels:
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             return state["memory"].pop(0)
+        if messages[0]["content"].startswith("You draw a draft of the figures"):
+            state.setdefault("draft_seen", []).append((agent, kw, chain_id, user))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["draft"].pop(0) if state.get("draft") else ""
         if user.startswith("Rewrite the technical report"):
             return "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
@@ -2059,6 +2064,24 @@ try:
                       "REPORT:\n# B led in spring\n\nB led A by 3 units [cell 1].\nCELL 1, code:\ngap = b - a\nCELL 1, results:\ngap: 3 units")
           and [r["peek"] for r in _rows3] == [f'saved analysis 1: {_kept_m["when"]} "Was B above A in spring?" (another person\'s data)']
           and "First Person" not in _shown3 and "p-9" not in _shown3 and BAMBOO._saved_analysis("7301", "9999") is None and BAMBOO._saved_analysis("1077", "7302") is None, _shown3)
+    from analyst import draft as _draft, memory as _mem0
+    _view_was, _code_was, _rooms = _mem0.view, _draft.saved_code, []
+    try:
+        _mem0.view = lambda storage: {"runs": []}             # the analysis is on its thread's record still, and saved no more
+        _unsaved = BAMBOO._saved_code({"saved": [_kept_b]})
+        _mem0.view = lambda storage: {"runs": [{"thread": "7301", "run": "7302"}, {"thread": "7301", "run": "7303"}]}
+        _draft.saved_code = lambda nb, run, chars: (_rooms.append((run, chars)), f"code of {run}")[1]
+        _two = BAMBOO._saved_code({"saved": [_kept_b, {"thread": "7301", "run": "7303", "when": "2026-04-02", "question": "And in April?", "accepted": True}]})
+    finally:
+        _mem0.view, _draft.saved_code = _view_was, _code_was
+    check("the host's code of the saved analyses a brief builds on (0310): of each one still saved, the cells along its path from the thread's record, under its day and what was asked then - for "
+          "the model that drafts the figures; a passage not built on, an analysis saved no more - on its thread's record or not - and a brief that builds on none give nothing. Two analyses "
+          "share the room the code may take",
+          BAMBOO._saved_code({"saved": [_kept_b, {"thread": "7301", "run": "9999", "question": "gone", "accepted": True}]}) == f'{_kept_m["when"]} "Was B above A in spring?"\n--- cell 1 ---\n```python\ngap = b - a\n```'
+          and BAMBOO._saved_code({"saved": [_kept_m]}) == "" and BAMBOO._saved_code({}) == "" and BAMBOO._saved_code(None) == ""
+          and BAMBOO._saved_code({"saved": [{"thread": "7301", "run": "9999", "accepted": True}]}) == "" and _unsaved == ""
+          and _rooms == [("7302", _draft.SAVED_CHARS // 2), ("7303", _draft.SAVED_CHARS // 2)] and _draft.SAVED_CHARS == 16000
+          and _two == f'{_kept_m["when"]} "Was B above A in spring?"\ncode of 7302\n\n2026-04-02 "And in April?"\ncode of 7303', (BAMBOO._saved_code({"saved": [_kept_b]}), _unsaved, _rooms, _two))
     _read_was = BAMBOO.memory_read
     def _boom(*a, **kw):
         raise RuntimeError("the executor is away")
@@ -2136,55 +2159,203 @@ try:
           and "And the hours?" not in _wprompt and "month by month" not in _wprompt and "What the person thinks" not in _wprompt
           and _wrun.question == _wording and _wrun.status == "answered" and _wrun.framing["at"] == 4 and len(_wrun.framing["versions"]) == 5
           and (_wrun.brief.get("decision"), _wrun.brief.get("thinks"), _wrun.brief.get("version")) == ("to see which arm works more", None, 4), (_wprompt[:500], _wrun.question, _wrun.framing.get("at")))
-    # the figures sketched (0309, §2.19): the figures a reply gives are a part of the brief - a version; the person takes one out by hand; the Analyst and the step that draws read the ones that stand
+    # the figures and their draft (0309, 0310; §2.19, §2.20): the figures a reply gives are a part of the brief - a version; after the reply a draft of them is drawn, by a cell that
+    # runs with no data, and kept beside the record; the person takes one out by hand; the Analyst and the step that draws read the ones that stand - the step with the cell that drew them
+    from analyst import draft as _draft, tools as _tools
+    from bambooai.bambooai import DRAFT_GUARD
+    import subprocess as _sub
+    _pp_was = os.environ.get("PYTHONPATH")
+    if _sub.run([sys.executable, "-c", "import plotly.graph_objects"], capture_output=True).returncode:      # the cell's kernel has no Plotly here: the stack's stand-in, by its whole path
+        os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp_was if _pp_was else "")
     _opf = _wac.post("/architect/open", json={"question": "Chart the hours of each arm."}).get_json()
-    _cf = _opf["chain_id"]
+    _cf, _tf = _opf["chain_id"], _opf["thread_id"]
     _figs = [{"title": "Hours of each arm", "kind": "bar", "x": "arm", "y": "hours", "series": ["A", "B"], "note": "Which arm works more."},
              {"title": "The rule given", "kind": "line", "x": "x", "y": "y", "series": [{"name": "the rule", "points": [[0, 0], [1, 1], [2, 4]]}]},
              {"title": "Hours by month", "kind": "line", "series": ["A", "B"]}]
-    state["architect"] = [json.dumps({"say": "I sketched them. Is that what you want to see?", "figures": _figs})]
-    _stf, _lnf = _say({"thread_id": _opf["thread_id"], "chain_id": _cf, "text": "Show me what it will look like."})
+    _cell_f = ("import plotly.graph_objects as go\ntry:\n    rows = len(df)\nexcept Exception:\n    rows = -1\n"
+               "f1 = go.Figure(go.Bar(x=['A', 'B'], y=[rows, rows])); f1.update_layout(title='Hours of each arm'); f1.show()\n"
+               "f2 = go.Figure(go.Scatter(x=[0, 1, 2], y=[0, 1, 4])); f2.update_layout(title='The rule given', meta='computed'); f2.show()\n"
+               "f3 = go.Figure(go.Scatter(x=[1, 2], y=[3, 4])); f3.update_layout(title='Hours by month'); f3.show()")
+    state["architect"] = [json.dumps({"say": "A draft is being drawn. Is that what you want to see?", "figures": _figs})]
+    state["draft"], state["draft_seen"] = ["```python\n" + _cell_f + "\n```"], []
+    _nlog = len(_logged(_cf))
+    _stf, _lnf = _say({"thread_id": _tf, "chain_id": _cf, "text": "Show me what it will look like."})
     _ff = _lnf[-1]["architect"]["framing"]
-    _bf = _ff["versions"][-1]["brief"]
-    _filef = json.load(open(os.path.join(work, "storage", "u1", "threads", f'{_opf["thread_id"]}.json'), encoding="utf-8"))["runs"][str(_cf)]
-    _ff2 = _wac.post("/architect/brief", json={"thread_id": _opf["thread_id"], "chain_id": _cf, "changed": ["figures"],
-                                               "brief": {**_bf, "figures": _bf["figures"][:2]}}).get_json()["framing"]      # the cross on the third sketch: the page sends the brief without it
-    state["architect"] = [json.dumps({"say": "Two figures, as they stand."})]
-    _ff3 = _say({"thread_id": _opf["thread_id"], "chain_id": _cf, "text": "Good."})[1][-1]["architect"]["framing"]
-    _seenf = state["architect_seen"][-1][3]
-    check("/architect/say and /architect/brief, the figures (0309): the figures a reply gives are the brief's from that reply on - a version of the Architect's that names each one's place, kept on the "
-          "record with the rough points a sketch draws its lines from. A figure the person takes out is a version of theirs - the page sends the brief without it - and the Architect then reads the "
-          "ones that stand, each under its number, in words",
+    _bf, _kf = _ff["versions"][-1]["brief"], _ff["versions"][-1].get("keys") or [None] * 3
+    _midf = [e for e in _lnf if e.get("type") == "architect_draft"]
+    _thread_text = open(os.path.join(work, "storage", "u1", "threads", f"{_tf}.json"), encoding="utf-8").read()
+    _filef = json.loads(_thread_text)["runs"][str(_cf)]
+    _plotf = lambda k: os.path.join(work, "storage", "u1", "drafts", str(_tf), str(_cf), f"{k}.json")      # noqa: E731
+    _got2 = _wac.get(f"/architect/draft/{_tf}/{_cf}/{_kf[1]}")
+    check("/architect/say, the figures and their draft (0310): the figures a reply gives are the brief's from that reply on - a version of the Architect's, each figure a description and no more: "
+          "points a reply gives are not kept. The framing names each figure's key beside its version. A draft follows the reply in the same exchange: the stream first carries the framing with the "
+          "reply - the page shows it while the draft is drawn - and ends on the framing with the draft's turn: each figure drawn, with what its numbers are, the seconds, the cost, its call",
           _stf == 200 and (_ff["versions"][-1]["by"], _ff["versions"][-1]["changed"]) == ("architect", ["figures.0", "figures.1", "figures.2"])
-          and [f["title"] for f in _bf["figures"]] == ["Hours of each arm", "The rule given", "Hours by month"] and _bf["figures"][0]["series"] == [{"name": "A"}, {"name": "B"}]
-          and _bf["figures"][1]["series"] == [{"name": "the rule", "points": [[0, 0], [1, 1], [2, 4]]}] and _filef["framing"]["versions"][-1]["brief"]["figures"] == _bf["figures"]
-          and (_ff2["versions"][-1]["by"], _ff2["versions"][-1]["changed"], len(_ff2["versions"][-1]["brief"]["figures"])) == ("person", ["figures"], 2) and len(_ff3["versions"]) == 3
-          and '\nfigures:\n- [1] "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n- [2] "The rule given" - a line chart; x: x; y: y; holds: the rule '
-              '[sketched with points]\n\nCONVERSATION:' in _seenf and "Hours by month" not in _seenf.split("BRIEF (version 3):")[1].split("CONVERSATION:")[0] and "[2, 4]" not in _seenf,
-          (_ff["versions"][-1], _ff2["versions"][-1], _seenf[-900:]))
+          and [f["title"] for f in _bf["figures"]] == ["Hours of each arm", "The rule given", "Hours by month"] and _bf["figures"][1]["series"] == [{"name": "the rule"}]
+          and _kf == [_draft.key("Chart the hours of each arm.", f) for f in _bf["figures"]] and len(set(_kf)) == 3
+          and len(_midf) == 1 and _lnf.index(_midf[0]) < len(_lnf) - 1 and str(_midf[0]["chain_id"]) == str(_cf) and _midf[0]["framing"]["turns"][-1]["who"] == "architect"
+          and "drafts" not in _midf[0]["framing"] and _midf[0]["framing"]["versions"] == _ff["versions"]
+          and [t["who"] for t in _ff["turns"]] == ["person", "architect", "draft"]
+          and {k: v for k, v in _ff["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "draft", "drawn": [{"title": "Hours of each arm", "basis": "made up"}, {"title": "The rule given", "basis": "computed"},
+                                                                                                           {"title": "Hours by month", "basis": "made up"}], "v": 2, "call": 1}
+          and _ff["turns"][-1]["secs"] > 0 and _ff["turns"][-1]["cost"] > 0
+          and _ff["drafts"] == {_kf[0]: {"basis": "made up"}, _kf[1]: {"basis": "computed"}, _kf[2]: {"basis": "made up"}} and _ff["draft_calls"] == 1, (_ff["turns"][-1], _ff.get("drafts"), _kf))
+    import re as _re_r
+    _routes_src = open(os.path.join(ROOT, "web_app", "architect_routes.py"), encoding="utf-8").read()
+    _routes = _re_r.findall(r"@architect_bp\.route\('([^']+)'[^\n]*\)\n(@requires_auth\n)?", _routes_src)      # this suite's sign-in is a stand-in: that each route asks for one is read off the source
+    check("the draft's cell through the host (0310): one model call on the figures' seat, at a low effort, logged as the draft's under the brief's chain; its prompt is the question as it stands and "
+          "the figures in words. The cell ran where no data is - the frame of the analysis was not there for it - and each plot is a file of its own beside the thread's record, which holds the "
+          "cell and the keys of the figures it drew, and no plot. /architect/draft gives a figure's plot by its key, as Plotly takes it; a key that has none is not found. Every route of the "
+          "Architect's asks for the sign-in, the draft's among them",
+          [(a, k.get("label"), k.get("reasoning_effort"), str(c)) for a, k, c, _ in state["draft_seen"]] == [(BAMBOO._figures_seat(), "Draft", ("low",), str(_cf))]
+          and len(_routes) == 7 and all(asks for _, asks in _routes) and "/architect/draft/<thread_id>/<run_id>/<key>" in [r for r, _ in _routes]
+          and state["draft_seen"][0][3] == _draft.prompt("Chart the hours of each arm.", _bf["figures"]) and _logged(_cf)[_nlog:] == ["Architect", "Draft"]
+          and all(os.path.isfile(_plotf(k)) for k in _kf) and json.load(open(_plotf(_kf[0])))["data"][0]["y"] == [-1, -1] and len(BAMBOO.df) == 200
+          and sorted(os.listdir(os.path.dirname(_plotf(_kf[0])))) == sorted(f"{k}.json" for k in _kf)
+          and _filef["drafts"] == [{"code": _cell_f, "keys": _kf}] and '"y": [-1, -1]' not in _thread_text and _filef["framing"]["drafts"] == _ff["drafts"]
+          and _got2.status_code == 200 and (_got2.get_json()["plot"]["layout"]["title"]["text"], _got2.get_json()["plot"]["layout"]["meta"]) == ("The rule given", "computed")
+          and _got2.get_json()["plot"]["data"][0]["y"] == [0, 1, 4] and _got2.mimetype == "application/json"
+          and _wac.get(f"/architect/draft/{_tf}/{_cf}/000000000000").status_code == 404 and "error" in _wac.get(f"/architect/draft/{_tf}/9999/{_kf[1]}").get_json()
+          and _wac.get(f"/architect/draft/..%2F..%2Fthreads/{_cf}/{_kf[1]}").status_code == 404, (state["draft_seen"][0][:3], _logged(_cf)[_nlog:], _filef.get("drafts")))
+    _ff2 = _wac.post("/architect/brief", json={"thread_id": _tf, "chain_id": _cf, "changed": ["figures"],
+                                               "brief": {**_bf, "figures": _bf["figures"][:2]}}).get_json()["framing"]      # the cross on the third figure: the page sends the brief without it
+    state["architect"] = [json.dumps({"say": "Two figures, as they stand."})]
+    _ff3 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Good."})[1][-1]["architect"]["framing"]
+    _seenf = state["architect_seen"][-1][3]
+    check("/architect/brief and the draft (0309, 0310): a figure the person takes out is a version of theirs - the page sends the brief without it. The figures that stay keep their keys, so their "
+          "drafts stand: nothing is drawn again, by that change or by the reply after it. The Architect then reads the figures that stand, each under its number, in words, and what the draft "
+          "came to as a line of the conversation",
+          (_ff2["versions"][-1]["by"], _ff2["versions"][-1]["changed"], len(_ff2["versions"][-1]["brief"]["figures"])) == ("person", ["figures"], 2) and _ff2["versions"][-1]["keys"] == _kf[:2]
+          and _ff2["drafts"] == _ff["drafts"] and [t["who"] for t in _ff2["turns"]] == ["person", "architect", "draft"]
+          and len(_ff3["versions"]) == 3 and [t["who"] for t in _ff3["turns"]] == ["person", "architect", "draft", "person", "architect"] and len(state["draft_seen"]) == 1
+          and '\nfigures:\n- [1] "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n- [2] "The rule given" - a line chart; x: x; y: y; holds: the rule'
+              '\n\nCONVERSATION:' in _seenf and "Hours by month" not in _seenf.split("BRIEF (version 3):")[1].split("CONVERSATION:")[0]
+          and '\nDraft of the figures: drawn - "Hours of each arm" (on made-up numbers), "The rule given" (computed), "Hours by month" (on made-up numbers)\nPerson: Good.' in _seenf,
+          (_ff2["versions"][-1], _seenf[-900:]))
+    # a draft that cannot be drawn never fails the exchange; its figures are tried once more, after the person next speaks, and then left
+    _new_fig = {"title": "The rule given", "kind": "scatter", "x": "x", "y": "y"}
+    state["architect"] = [json.dumps({"say": "As points, then. A draft is being drawn.", "figures": [1, _new_fig]}), json.dumps({"say": "It could not be drawn. I will have it tried again."}),
+                          json.dumps({"say": "It still cannot be drawn."}), json.dumps({"say": "Start when you are ready."})]
+    state["draft"] = ["No cell this time.", "```python\nimport os\n```", "```python\n1/0\n```", "```python\nraise ValueError('still wrong')\n```"]
+    _fx1 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Make the second one points."})[1][-1]["architect"]["framing"]
+    _kx = _fx1["versions"][-1]["keys"][1]
+    _fx2 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Try again."})[1][-1]["architect"]["framing"]
+    _fx3 = _say({"thread_id": _tf, "chain_id": _cf, "text": "And again."})[1][-1]["architect"]["framing"]
+    _run_was = BAMBOO._run_draft
+    check("a draft that cannot be drawn (0310): the exchange is kept all the same - the reply, the version, and a turn that says which figure has no draft and why; a figure that stayed as it was is "
+          "not drawn again. The figure without a draft is tried once more after the person next speaks, with the reason of that round, and after that it is left: no call is made for it. Every "
+          "call the draft made is counted, round after round",
+          _fx1["versions"][-1]["keys"][0] == _kf[0] and _kx not in _kf and [t["who"] for t in _fx1["turns"]][-3:] == ["person", "architect", "draft"]
+          and {k: v for k, v in _fx1["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "draft", "drawn": [], "missing": ["The rule given"], "v": 4, "call": 3,
+              "failed": "the cell was not run: it imports os: a draft imports numpy, scipy, pandas, plotly and the standard maths modules, and nothing else"}
+          and _fx1["drafts"][_kx] == {"failed": _fx1["turns"][-1]["failed"], "tries": 1} and _fx1["drafts"][_kf[0]] == {"basis": "made up"} and "1. \"The rule given\" - a scatter of points; x: x; y: y\n" in state["draft_seen"][1][3]
+          and "Hours of each arm" not in state["draft_seen"][1][3].split("THE DRAFT BEFORE")[0] and "\n\nTHE DRAFT BEFORE:\n```python\n" + _cell_f + "\n```\n\n" in state["draft_seen"][1][3]
+          and _fx2["drafts"][_kx] == {"failed": "the cell failed: ValueError: still wrong", "tries": 2} and _fx2["turns"][-1]["call"] == 5 and _fx2["draft_calls"] == 5 and len(state["draft_seen"]) == 5
+          and [t["who"] for t in _fx3["turns"]][-2:] == ["person", "architect"] and _fx3["drafts"] == _fx2["drafts"] and len(state["draft_seen"]) == 5 and not os.path.exists(_plotf(_kx)),
+          (_fx1["turns"][-1], _fx2["drafts"].get(_kx), len(state["draft_seen"])))
+    # the question changed by hand: every figure is under another key and has no draft, until the Architect next replies - and a round that breaks off is a round that drew nothing
+    _bx = _fx3["versions"][-1]["brief"]
+    _fh = _wac.post("/architect/brief", json={"thread_id": _tf, "chain_id": _cf, "changed": ["question", "figures"],
+                                              "brief": {**_bx, "question": "Chart the hours of each arm, in all.", "figures": _bx["figures"][:1]}}).get_json()["framing"]
+    _kh = _fh["versions"][-1]["keys"]
+    state["architect"], state["draft"] = [json.dumps({"say": "A draft is being drawn."}), json.dumps({"say": "Drawn."})], ["```python\nx = 1\n```", "```python\n" + _cell_f + "\n```"]
+    BAMBOO._run_draft = lambda code: (_ for _ in ()).throw(RuntimeError("the sandbox is away\nit did not answer"))
+    try:
+        _fh1 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Is that right?"})[1][-1]["architect"]["framing"]
+    finally:
+        BAMBOO._run_draft = _run_was
+    # the round after, on a configuration with a seat for the figures and one for the Architect, under a brief that builds on a saved analysis (its code as the host would give it)
+    _seats_was, _saved_was, _on_disk = list(FakeModels.config["agent_configs"]), BAMBOO._saved_code, []
+    FakeModels.config["agent_configs"] = _seats_was + [{"agent": a_, "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium"}} for a_ in ("Figures", "Architect")]
+    BAMBOO._saved_code = lambda brief: "--- cell 9 ---"
+    BAMBOO._run_draft = lambda code: (_on_disk.append(len(json.load(open(os.path.join(work, "storage", "u1", "threads", f"{_tf}.json"), encoding="utf-8"))["runs"][str(_cf)]["framing"]["turns"])), _run_was(code))[1]
+    try:
+        _fh2 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Once more."})[1][-1]["architect"]["framing"]
+    finally:
+        FakeModels.config["agent_configs"], BAMBOO._saved_code, BAMBOO._run_draft = _seats_was, _saved_was, _run_was
+    check("the question changed by hand, and a round that breaks off (0310): under another wording the figure has another key and no draft - none is drawn for a change made by hand. The Architect's "
+          "next reply has it drawn; where the round breaks off - the sandbox away - the exchange stands, the turn says so in its last line, and the call it made is counted; the round after "
+          "draws the figure, the cell before it in the prompt - on the figures' seat where the configuration has one, not the Architect's, with the code of the saved analysis the brief builds "
+          "on, and with the reply already on the thread's record when the cell runs",
+          len(_kh) == 1 and _kh[0] not in _fx3["drafts"] and _fh["drafts"] == _fx3["drafts"] and _kh[0] == _draft.key("Chart the hours of each arm, in all.", _bx["figures"][0])
+          and {k: v for k, v in _fh1["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "draft", "drawn": [], "missing": ["Hours of each arm"], "failed": "it could not be drawn: it did not answer", "v": 5, "call": 6}
+          and _fh1["drafts"][_kh[0]] == {"failed": "it could not be drawn: it did not answer", "tries": 1}
+          and _fh2["drafts"][_kh[0]] == {"basis": "made up"} and _fh2["turns"][-1]["call"] == 7 and _fh2["turns"][-1]["drawn"] == [{"title": "Hours of each arm", "basis": "made up"}]
+          and os.path.isfile(_plotf(_kh[0])) and state["draft_seen"][-1][3].startswith("QUESTION:\nChart the hours of each arm, in all.\n\nFIGURES TO DRAW:\n1. \"Hours of each arm\" - bars;")
+          and (state["draft_seen"][-1][0], state["architect_seen"][-1][0]) == ("Figures", "Architect") and "\n\nA SAVED ANALYSIS THE QUESTION BUILDS ON:\n--- cell 9 ---\n\n" in state["draft_seen"][-1][3]
+          and _on_disk == [len(_fh2["turns"]) - 1] and _fh2["turns"][-2]["who"] == "architect",
+          (_fh1["turns"][-1], _fh2["turns"][-1], _kh, state["draft_seen"][-1][0], _on_disk))
+    # the cell's run: with no data, for a few seconds at most - on this machine the kernel is stopped; an executor is asked for that long and the cell carries a guard of its own
+    _secs_was, _exec_was2, _mode_was = _draft.SECONDS, BAMBOO.executor.execute, BAMBOO.executor.mode
+    _sent = []
+    def _guarded(code, seconds):
+        """What the guard does where an executor runs the script in a thread it cannot stop: (how it ended, the seconds, whether the thread still runs)."""
+        out = {}
+        def target():
+            try:
+                exec(DRAFT_GUARD.format(seconds=seconds, code=code), {"__name__": "cell"})
+                out["end"] = "ran"
+            except BaseException as exc:                       # noqa: BLE001
+                out["end"] = f"{type(exc).__name__}: {exc}"
+        t = _thr.Thread(target=target, daemon=True); t0 = _time.time(); t.start(); t.join(15)
+        return out.get("end"), _time.time() - t0, t.is_alive()
+    try:
+        _draft.SECONDS = 2
+        _t0 = _time.time(); _late = BAMBOO._run_draft("import time\ntime.sleep(30)"); _took = _time.time() - _t0
+        _plain = BAMBOO._run_draft("print(1)")
+        _draft.SECONDS = _secs_was
+        BAMBOO.executor.mode = "api"
+        BAMBOO.executor.execute = lambda *a, **k: (_sent.append((a, k)), (None, "", None, [{"data": "{}", "format": "json"}], []))[1]
+        _api = BAMBOO._run_draft("x = 1")
+        BAMBOO.executor.execute = lambda *a, **k: (_ for _ in ()).throw(RuntimeError("the executor is away"))
+        _away = BAMBOO._run_draft("x = 1")
+        _told = ('Error occurred in the following code snippet:\n\n9: --> exec(compile(...))\n\nError on line 9:\nZeroDivisionError: division by zero\n\nTraceback (most recent call last):\n'
+                 '  File "<string>", line 23, in <module>\n  File "<draft>", line 2, in <module>\nZeroDivisionError: division by zero')
+        BAMBOO.executor.execute = lambda *a, **k: (None, None, _told, [], [])
+        _named = BAMBOO._run_draft("x = 1\n1/0")
+    finally:
+        _draft.SECONDS, BAMBOO.executor.execute, BAMBOO.executor.mode = _secs_was, _exec_was2, _mode_was
+    _endless, _swallow, _fine, _wrong = _guarded("while True:\n    pass", 1), _guarded("try:\n    while True:\n        pass\nexcept Exception:\n    pass", 1), _guarded("y = 1 + 1", 5), _guarded("1/0", 5)
+    check("the draft's cell is stopped (0310): on this machine the kernel ends it at the draft's limit - a cell that sleeps past it comes back as an error that names the limit, and no plot - and "
+          "a cell that draws nothing gives none. An executor is sent the cell with no frame, no frame's id and no folder to write to, not to be kept, for the same limit - inside a guard that "
+          "ends it shortly before: the executor answers past its limit and leaves the thread running, so a cell that never ends would run on. The guard ends such a cell - one that catches "
+          "every error too - and leaves one that runs, or fails, as it is. A cell out of time shows no message on the page; an executor that cannot be reached is an error in words; and an "
+          "error from inside the guard names the cell's own line, as a cell's traceback does, and none of the guard's",
+          _late[0] == [] and "exceeded 2s time limit" in _late[1] and 1.5 < _took < 15 and _plain == ([], "")
+          and len(_sent) == 1 and _sent[0][0][2] == DRAFT_GUARD.format(seconds=_secs_was - 2, code="x = 1") and _sent[0][0][3:] == (None, None, None)
+          and _sent[0][1] == {"persist_df": False, "timeout": _secs_was, "step_timeout": _secs_was} and _sent[0][0][0] is not BAMBOO.output_manager
+          and _sent[0][0][0].display_system_messages("Execution timed out after 20 seconds.") is None and _api == ([{"data": "{}", "format": "json"}], "") and _away == ([], "the executor is away")
+          and _named[1].endswith('Traceback (most recent call last):\n  File "<string>", line 2, in <module>\nZeroDivisionError: division by zero') and "line 23" not in _named[1]
+          and _tools.condense_error(_named[1], code="x = 1\n1/0") == "ZeroDivisionError: division by zero\nin your cell, line 2:  1/0" and 'compile({code!r}, "<draft>", "exec")' in DRAFT_GUARD
+          and _endless[0] == "TimeoutError: the cell took longer than 1 seconds" and 0.9 < _endless[1] < 5 and not _endless[2] and _swallow[0] == _endless[0] and not _swallow[2]
+          and _fine[0] == "ran" and _fine[1] < 2 and _wrong[0] == "ZeroDivisionError: division by zero" and _secs_was == 20 and "exec(compile(" in DRAFT_GUARD,
+          (_late, round(_took, 1), _plain, _sent[:1], _endless, _swallow, _fine, _wrong))
     _keep_s5, _nf = (state["script"], state["i"]), len(state["calls"])
     state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nh = df.groupby('arm')['x'].sum().round(2)\nprint('hours', h.to_dict())\n```",
                               "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# Hours\n\n## Answer\nThe hours of each arm [cell 1].\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."],
-                 figures=["```python\nimport matplotlib.pyplot as plt\nplt.figure(); plt.bar(list(h.index), list(h.values)); plt.title('Hours of each arm'); plt.show()\n"
-                          "plt.figure(); plt.plot([0, 1, 2], [0, 1, 4]); plt.title('The rule given'); plt.show()\n```\nCAPTION: the hours of each arm\nCAPTION: the rule"])
+                 figures=["```python\nimport matplotlib.pyplot as plt\nplt.figure(); plt.bar(list(h.index), list(h.values)); plt.title('Hours of each arm'); plt.show()\n```\nCAPTION: the hours of each arm"])
     BAMBOO.output_manager.add_user_input("Chart the hours of each arm.")
     while not q.empty(): q.get()
-    BAMBOO.pd_agent_converse(thread_id=_opf["thread_id"], chain_id=None, mode="deep", run_id=_cf)
+    BAMBOO.pd_agent_converse(thread_id=_tf, chain_id=None, mode="deep", run_id=_cf)
     state["script"], state["i"] = _keep_s5
     state["figures"] = None
     _aprompt = next((u for a, u in state["calls"][_nf:] if "TASK: turn 1" in u), "")
     _dprompts = [u for a, u in state["calls"][_nf:] if "THE REPORT, AS WRITTEN:" in u and u.startswith("QUESTION:")]
     _frun = BAMBOO.notebook.runs[str(_cf)]
-    _lines2 = ('1. "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n2. "The rule given" - a line chart; x: x; y: y; holds: the rule\n')
-    check("Start analysis under a brief with figures (0309): the Analyst reads the figures that stand in its BRIEF block, and the step that draws reads the same lines under its question, to draw first "
-          "and under their titles - the figure taken out is in neither, and no rough point; the run keeps the brief with them, and the report holds both figures and no line about a missing one",
+    _lines2 = '1. "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n'
+    check("Start analysis under a brief with figures (0309, 0310): the Analyst reads the figure that stands in its BRIEF block, and the step that draws reads the same line under its question, to "
+          "draw first and under its title - and under it the cell that drew the figure's draft, with the word that its numbers were made up; the figures taken out are in neither. The run keeps "
+          "the brief, its framing and the draft's cells, and the report holds the figure and no line about a missing one",
           ("\nFigures agreed with the person:\n" + _lines2) in _aprompt and len(_dprompts) == 1
-          and _dprompts[0].startswith("QUESTION:\nChart the hours of each arm.\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n"
-                                      + _lines2 + "\nTHE REPORT, AS WRITTEN:\n")
-          and all("Hours by month" not in u and "[2, 4]" not in u for u in (_aprompt, _dprompts[0]))
-          and _frun.status == "answered" and [f["title"] for f in _frun.brief["figures"]] == ["Hours of each arm", "The rule given"]
-          and _frun.brief["figures"][1]["series"][0]["points"] == [[0, 0], [1, 1], [2, 4]]
-          and "## Figures\n\n- [fig 2] the hours of each arm\n- [fig 2] the rule" in _frun.report and "not drawn" not in _frun.report, (_aprompt[:700], [u[:400] for u in _dprompts], _frun.report[-300:]))
+          and _dprompts[0].startswith("QUESTION:\nChart the hours of each arm, in all.\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n"
+                                      + _lines2 + '\nTHE DRAFT THE PERSON SAW (it drew "Hours of each arm" - on made-up numbers: "Hours of each arm"):\n```python\n' + _cell_f + "\n```\n\nTHE REPORT, AS WRITTEN:\n")
+          and all("Hours by month" not in u.split("THE DRAFT THE PERSON SAW")[0] and "The rule given" not in u.split("THE DRAFT THE PERSON SAW")[0] for u in (_aprompt, _dprompts[0]))
+          and "THE DRAFT THE PERSON SAW" not in _aprompt
+          and _frun.status == "answered" and [f["title"] for f in _frun.brief["figures"]] == ["Hours of each arm"] and [d["keys"] for d in _frun.drafts] == [_kf, _kh]
+          and _frun.framing["drafts"] == _fh2["drafts"]
+          and "## Figures\n\n- [fig 2] the hours of each arm" in _frun.report and "not drawn" not in _frun.report, (_aprompt[:700], [u[:900] for u in _dprompts], _frun.report[-300:]))
+    if _pp_was is None: os.environ.pop("PYTHONPATH", None)
+    else: os.environ["PYTHONPATH"] = _pp_was
     # the brief opened earlier with nothing loaded, on its own thread: an exchange made now, with data loaded, says so (the section's last step: it takes the instance to that thread)
     state["architect"] = ['{"say": "What is it for?"}']
     _o7s = json.loads(_wac.post("/architect/say", json={"thread_id": "1907", "chain_id": _o7nj["chain_id"]}).get_data(as_text=True).strip().splitlines()[-1])["architect"]["framing"]

@@ -1,0 +1,9 @@
+{
+  "/architect/draft/1763203300/1763203380/d1": {"plot": {"data": [
+      {"type": "scatter", "mode": "lines+markers", "name": "regime C", "x": [1, 2, 3, 4, 5, 6], "y": [4.1, 4.6, 4.3, 4.9, 4.7, 5.2]},
+      {"type": "scatter", "mode": "lines+markers", "name": "regime A", "x": [1, 2, 3, 4, 5, 6], "y": [3.9, 4.2, 4.4, 4.3, 4.6, 4.5]}],
+    "layout": {"template": "plotly_dark", "title": {"text": "Yield by season, regime C and regime A"}}}},
+  "/architect/draft/1763203300/1763203380/d2": {"plot": {"data": [
+      {"type": "scatter", "mode": "lines", "name": "the target", "x": [1, 2, 3, 4, 5, 6], "y": [4.0, 4.2, 4.41, 4.63, 4.86, 5.11]}],
+    "layout": {"template": "plotly_dark", "title": {"text": "The target: 5 percent more each season"}, "meta": "computed"}}}
+}

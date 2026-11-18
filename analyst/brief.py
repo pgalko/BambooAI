@@ -13,8 +13,7 @@ something, and one the person did not state is the analyst's to choose.
      "also_check": [{"text": "...", "shows": "...", "source": "architect", "accepted": false}],     other explanations, and what each would show
      "fixed": {"comparison": "...", "measure": "...", "period": "..."},             fixed before the run
      "figures": [{"title": "...", "kind": "line", "x": "...", "y": "...", "z": "...", "note": "...",
-                  "series": [{"name": "...", "points": [[0, 1], [2, 3]]}]}],          the figures the person asked to see; `points`: rough, for the sketch alone -
-                                                                                       pairs, or triples for a line in three dimensions
+                  "series": [{"name": "..."}]}],                                    the figures the person asked to see, each as it is described
      "saved": [{"thread": "...", "run": "...", "when": "...", "question": "...", "passage": "...", "where": "...", "note": "...", "marks": "...", "data": "...", "period": "...",
                 "person": "...", "other": true, "accepted": true}],                  passages of the saved analyses it builds on; `other`: of another person's data than the one loaded
      "set_aside": ["..."]}       considered and dropped
@@ -22,9 +21,9 @@ something, and one the person did not state is the analyst's to choose.
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
 nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
 person's own carries neither. The passages under `saved` are those of the saved analyses the person chose to build
-on, as the reader found them (gather(), build_on()). A figure is one the person asked to see: the page sketches
-it, the analyst computes for it and the step that draws is given it in words (figure_lines()) - its rough points
-are for the sketch alone (sketch()). normalise() brings what a caller sends into this shape,
+on, as the reader found them (gather(), build_on()). A figure is one the person asked to see, as the Architect
+describes it (sketch()): a draft of it is drawn before the run (analyst/draft.py), the analyst computes for it and
+the step that draws is given it in words (figure_lines()). normalise() brings what a caller sends into this shape,
 agreed() is the brief as the analyst receives it, render() writes the BRIEF block of the prompt, held() says
 whether the report is to answer to it, and outcome() reads back what a report says against the brief. While a brief
 is being written it is kept as versions on its run: version() adds one, latest() is the one in use - the last, or
@@ -33,7 +32,6 @@ the marks it gives after its lookups; said() is the conversation the brief came 
 """
 from __future__ import annotations
 
-import math
 import re
 from typing import Optional
 
@@ -44,11 +42,11 @@ SAVED = ("thread", "run", "when", "question", "passage", "where", "note", "marks
 TEXT_CHARS = 600                 # one line of a brief, at most
 QUESTION_CHARS = 4000            # the question, at most: the person's words, not a line of the brief
 MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8, "figures": 3}     # bounds on what a prompt carries, not the design's counts; saved: the passages of the analyses built on
-# the figures a sketch can show, each as the analyst reads it
+# the kinds of figure a description names, each as the analyst reads it
 KINDS = {"line": "a line chart", "scatter": "a scatter of points", "bar": "bars", "histogram": "a histogram", "box": "box plots", "heatmap": "a heat map",
          "line3d": "a line in three dimensions"}
 FIGURE_CHARS = {"title": 120, "axis": 80, "name": 60, "note": 240}
-SERIES, POINTS = 4, 24           # the lines or groups one figure holds; the rough points of one line
+SERIES = 4                       # the lines or groups one figure holds by name
 COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
 ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run on data
 VERDICTS = ("not met", "cannot tell", "met")                     # read in this order: "not met" holds "met"
@@ -67,20 +65,10 @@ def wording(value) -> str:
     return "\n".join(re.sub(r"[ \t]+", " ", line).strip() for line in value.strip().splitlines())[:QUESTION_CHARS]
 
 
-def _points(value) -> list:
-    """The rough points of a line, as a sketch draws it: pairs of numbers in the order the line runs - triples, for a
-    line in three dimensions - on any scale, POINTS at most, each of as many numbers as the first. Fewer than two
-    are no line."""
-    number = lambda v: isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)      # noqa: E731
-    points = [p for p in value if isinstance(p, (list, tuple)) and len(p) in (2, 3) and all(number(v) for v in p)] if isinstance(value, list) else []
-    points = [p for p in points if len(p) == len(points[0])]
-    return [[int(v) if v == int(v) else float(f"{v:.4g}") for v in p] for p in points[:POINTS]] if len(points) >= 2 else []
-
-
 def _figure(f) -> dict:
-    """One figure in its known shape: its title - without one it is no figure - its kind where it is one a sketch can
-    show, what is on each axis, the lines or groups it holds by name - each with its rough points where it has
-    them - and what the figure is to make clear."""
+    """One figure in its known shape: its title - without one it is no figure - its kind where it is one of KINDS,
+    what is on each axis, the lines or groups it holds by name, and its note: how it is laid out and what it is to
+    make clear."""
     if not isinstance(f, dict) or not _text(f.get("title")):
         return {}
     out = {"title": _text(f["title"])[:FIGURE_CHARS["title"]], **({"kind": f["kind"]} if isinstance(f.get("kind"), str) and f["kind"] in KINDS else {})}
@@ -88,9 +76,9 @@ def _figure(f) -> dict:
     series = []
     for s in f.get("series") if isinstance(f.get("series"), list) else []:
         s = s if isinstance(s, dict) else {"name": s}
-        name, points = _text(s.get("name"))[:FIGURE_CHARS["name"]], _points(s.get("points"))
+        name = _text(s.get("name"))[:FIGURE_CHARS["name"]]
         if name and name not in [x["name"] for x in series]:
-            series.append({"name": name, **({"points": points} if points else {})})
+            series.append({"name": name})
     if series:
         out["series"] = series[:SERIES]
     if _text(f.get("note")):
@@ -233,30 +221,19 @@ def sketch(brief, given) -> tuple:
     """The brief with its figures as a reply of the Architect's gives them (analyst/architect.py): every figure as it
     is to stand, in order - one that stays as it is by its number among the brief's, from 1, a new or changed one
     in full; [] takes them all out. A number the brief does not have is passed over, as is a figure without a
-    title or under a title another carries; MAX["figures"] are kept. A line named again under its figure's title
-    keeps the rough points it had, unless the reply gives it others - or none: `"points": []`. Returns the brief
-    and what changed, as the page names it: each place whose figure is new or another than before, and `figures`
-    where fewer stand."""
+    title or under a title another carries; MAX["figures"] are kept. Returns the brief and what changed, as the
+    page names it: each place whose figure is new or another than before, and `figures` where fewer stand."""
     out = working(brief)
     was, given = out.get("figures", []), given if isinstance(given, list) else []
     stays = lambda f: isinstance(f, int) and not isinstance(f, bool) and 1 <= f <= len(was)      # noqa: E731
     now = normalise({"figures": [was[f - 1] if stays(f) else f for f in given]}).get("figures", [])
-    had = {(f["title"].casefold(), s["name"]): s["points"] for f in was for s in f.get("series", []) if s.get("points")}
-    emptied = {(_text(f.get("title"))[:FIGURE_CHARS["title"]].casefold(), _text(s.get("name"))[:FIGURE_CHARS["name"]])
-               for f in given if isinstance(f, dict) for s in (f.get("series") if isinstance(f.get("series"), list) else []) if isinstance(s, dict) and s.get("points") == []}
-    for f in now:
-        for s in f.get("series", []):
-            line = (f["title"].casefold(), s["name"])
-            if "points" not in s and line in had and line not in emptied:
-                s["points"] = had[line]
     changed = [f"figures.{i}" for i, f in enumerate(now) if i >= len(was) or f != was[i]] + (["figures"] if len(now) < len(was) else [])
     return working({**out, "figures": now}), changed
 
 
 def figure_lines(brief) -> list:
-    """The figures of a brief in words, a line each, for the analyst and for the step that draws them: the title,
-    the kind, what is on each axis, what the figure holds by name and what it is to make clear. The rough points of
-    a sketch are the person's to look at: they are in no line."""
+    """The figures of a brief in words, a line each, for the analyst, for the model that drafts them and for the step
+    that draws them: the title, the kind, what is on each axis, what the figure holds by name, and its note."""
     lines = []
     for f in (brief or {}).get("figures", []):
         parts = ([KINDS[f["kind"]]] if f.get("kind") else []) + [f"{axis}: {f[axis]}" for axis in ("x", "y", "z") if f.get(axis)]
@@ -264,6 +241,13 @@ def figure_lines(brief) -> list:
         parts += [f"to make clear: {f['note']}"] if f.get("note") else []
         lines.append(f"\"{f['title']}\"" + (" - " + "; ".join(parts) if parts else ""))
     return lines
+
+
+def carries(text: str, title: str) -> bool:
+    """Whether a text - a cell's code, the title a figure was drawn under - carries a figure's title: its words in
+    their order, whatever the case and the spacing."""
+    fold = lambda s: re.sub(r"\s+", " ", str(s or "")).strip().casefold()      # noqa: E731
+    return bool(fold(title)) and fold(title) in fold(text)
 
 
 def _passage(f: dict) -> dict:

@@ -23,7 +23,7 @@ import time
 from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import tools, report as rep, reach, brief as briefs
+from . import tools, report as rep, reach, brief as briefs, draft as drafts
 from .notebook import Notebook, NotebookStore, Run, Turn, has_data
 from .replay import verify
 
@@ -167,7 +167,7 @@ Reply with one of two things and nothing else:
 - the single word NONE, when a number, a table or a definition answers the question and a figure would add nothing;
 - one Python cell, as a ```python block, that draws the one to three figures the report's reader needs - the figure the question asks for, or the estimate and its uncertainty, first; each further figure shows something the others do not; nothing the report does not say - from what the kernel holds, with Plotly and one fig.show() per figure; then, after the block, one line per figure in the order drawn: CAPTION: what the figure shows, in the reader's words.
 
-Where the prompt lists THE FIGURES AGREED WITH THE PERSON, NONE is no reply: draw each of them first, in the order given, as it is described - its kind, what is on each axis, what it holds - and under its title, word for word; add a figure of your own only where the report needs one the list does not have, three figures in all.
+Where the prompt lists THE FIGURES AGREED WITH THE PERSON, NONE is no reply: draw each of them first, in the order given, as it is described - its kind, what is on each axis, what it holds - and under its title, word for word; add a figure of your own only where the report needs one the list does not have, two at most. Where the prompt gives THE DRAFT THE PERSON SAW, it is the cell that drew those figures before the run, where no data was: draw each as the draft drew it - the same traces, panels, axes, colours and names - from what the kernel holds. No number comes from the draft, and where the draft prints `?` the figure prints the value.
 
 The drawing's own arithmetic - bins, positions, a smoothed line - is the cell's to compute; the numbers the report states are not recomputed but read from the objects that hold them. Every number drawn or written - a point, a bar, an interval, a title (an f-string) - comes from a variable, never typed: a figure of typed numbers is a picture of this run alone, wrong the day the method runs on other data. The kernel has no display: you see nothing; the cell's figures are captured and shown to the reader with the report. A cell that fails comes back to you with its error for a corrected cell, three times at most; then the report stands without figures."""
 FIGURES_CUT = ("YOUR LAST REPLY WAS CUT OFF at the length limit before a cell arrived (attempt {k} of {n}). Write the cell now, "
@@ -175,9 +175,11 @@ FIGURES_CUT = ("YOUR LAST REPLY WAS CUT OFF at the length limit before a cell ar
 FIGURES_NO_BLOCK = ("YOUR LAST REPLY carried no python block and was not NONE (attempt {k} of {n}). Reply with one ```python block "
                     "and its CAPTION lines, or the word NONE.")
 FIGURES_FAILED = ("YOUR LAST CELL FAILED - it was rolled back (attempt {k} of {n}); write a corrected cell:\n```python\n{code}\n```\nERROR:\n{error}")
-# the figures the person agreed in the brief (docs/ARCHITECT_DESIGN.md §2.19): the step is given them, a reply that leaves
-# one out is asked again once - before anything runs - and the report says where one was not drawn
+# the figures the person agreed in the brief (docs/ARCHITECT_DESIGN.md §2.19, §2.20): the step is given them - and the
+# cell that drew their draft, where one was drawn -, a reply that leaves one out is asked again once - before anything
+# runs - and the report says where one was not drawn
 FIGURES_AGREED = "THE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):"
+FIGURES_DRAFT = "THE DRAFT THE PERSON SAW"
 FIGURES_LEFT_OUT = ("YOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt {k} of {n}): {titles}. Nothing was run. Write the "
                     "cell again with every agreed figure in it, each under its title, word for word.")
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
@@ -620,13 +622,6 @@ def figures_outcome(reasons: list) -> str:
     if len(kinds) == 1:
         return f"{reasons[0].split(' (')[0]} {len(reasons)} times" + (f" (last: {reasons[-1].split(' (', 1)[1].rstrip(')')})" if " (" in reasons[-1] else "")
     return f"after {len(reasons)} attempts (last: {reasons[-1]})"
-
-
-def carries(text: str, title: str) -> bool:
-    """Whether a text - a cell's code, the title a figure was drawn under - carries a title: its words in their
-    order, whatever the case and the spacing."""
-    fold = lambda s: re.sub(r"\s+", " ", str(s or "")).strip().casefold()      # noqa: E731
-    return bool(fold(title)) and fold(title) in fold(text)
 
 
 def answers_none(text: str) -> bool:
@@ -1291,7 +1286,7 @@ class Session:
             usage = usage or {}
             code, captions = parse_figures_reply(text)
             declined = code is None and answers_none(text)
-            left_out = [t for t in agreed if declined or (code is not None and not carries(code, t))] if again and attempt < FIGURES_ATTEMPTS else []
+            left_out = [t for t in agreed if declined or (code is not None and not briefs.carries(code, t))] if again and attempt < FIGURES_ATTEMPTS else []
             if left_out:
                 again = False
                 why = peek = "the reply left out a figure agreed with the person: " + "; ".join(f'"{t}"' for t in left_out)
@@ -1372,7 +1367,7 @@ class Session:
             break
         self._save()
         note = "" if section or not reasons else "The figures were not drawn: " + figures_outcome(reasons) + "."
-        missing = [f'"{t}"' for t in agreed if section and not any(carries(d, t) for d in drawn)]
+        missing = [f'"{t}"' for t in agreed if section and not any(briefs.carries(d, t) for d in drawn)]
         if missing:
             note = ("A figure agreed in the brief was not drawn: " if len(missing) == 1 else "Figures agreed in the brief were not drawn: ") + "; ".join(missing) + "."
         return section, note
@@ -1381,8 +1376,11 @@ class Session:
         cells = self.nb.computed_cells(run.id)        # the cells whose variables are in the kernel (2026-10-12)
         code = "\n\n".join(f"--- cell {t.cell_no} ---\n```python\n{t.code.rstrip()}\n```" for t in cells)
         results = result_lines(run)
-        agreed = [f"{k}. {line}" for k, line in enumerate(briefs.figure_lines(run.brief), 1)]      # in words: a sketch's rough points are not for this step
+        agreed = [f"{k}. {line}" for k, line in enumerate(briefs.figure_lines(run.brief), 1)]
         parts = [f"QUESTION:\n{run.question.strip()}"] + ([FIGURES_AGREED + "\n" + "\n".join(agreed)] if agreed else [])
+        for d in drafts.agreed(run):                  # the cell that drew them before the run: the figure follows its draft
+            drew = ", ".join(f'"{t}"' for t in d["titles"]) + (" - on made-up numbers: " + ", ".join(f'"{t}"' for t in d["made_up"]) if d["made_up"] else "")
+            parts.append(f"{FIGURES_DRAFT} (it drew {drew}):\n```python\n{d['code'].rstrip()}\n```")
         parts += ["THE REPORT, AS WRITTEN:\n" + (report_text or "").strip(),
                   "THE CELLS (their code; the variables they define are in the kernel):\n" + code]
         if results:

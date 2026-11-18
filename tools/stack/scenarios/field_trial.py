@@ -86,13 +86,13 @@ ARCHITECT_WRITTEN = "Good. Start the analysis when you are ready, or go on."
 ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Architect gives it as its wording
 ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question under the brief: the engine keeps none of it
 ARCHITECT_UNREAD_WORDING = "A wording written in the wrong place"
-# the figures sketched (§2.19): asked to show them, the Architect describes the figures - the page sketches them; asked for another order, it names each by its number
-SKETCH_QUESTION = "Plot the yield of regime C against regime A"
-ARCHITECT_SKETCH = "Show me what the figures will look like."
-ARCHITECT_SKETCHED = "I sketched the figures. Is that what you want to see?"
+# the figures and their draft (§2.19, §2.20): asked to show them, the Architect describes the figures - a draft of each is then drawn; asked for another order, it names each by its number
+FIGURES_QUESTION = "Plot the yield of regime C against regime A"
+ARCHITECT_SHOW = "Show me what the figures will look like."
+ARCHITECT_DRAFTING = "A draft of the figures is being drawn. Is that what you want to see?"
 ARCHITECT_SWAP = "Put the second figure first."
 ARCHITECT_SWAPPED = "Done: the second figure stands first."
-SKETCH_TARGET = "the target"                                         # a line known before any run: the same in every season
+TARGET = "the target"                                                # what follows from a rule: 5 percent more each season, from 4.0 t/ha
 # a question that follows the tutor's analysis (§2.17, §2.18): the saved analyses are read on a follow-up too, a part of the analysis before is opened and read, and "build on it" brings an analysis into the brief
 FOLLOW_QUESTION = "And regime B beside them - how was the first plot made?"
 ARCHITECT_OPENING = "I am opening the report of the analysis before this one."
@@ -128,16 +128,35 @@ def make_dataset(path, seed=20260909):
     return df
 
 
-def sketches(first, second):
-    """The figures the scripted Architect sketches for a question about two regimes: the yield of each by season -
-    with the target, whose line is known before any run and so comes with rough points - the plot yields of each,
-    and the mean yield by soil type."""
+def described(first, second):
+    """The figures the scripted Architect describes for a question about two regimes: the yield of each by season
+    and the plot yields of each - both for the data to give - and the target, which follows from its rule."""
     pair = [{"name": f"regime {first}"}, {"name": f"regime {second}"}]
-    return [{"title": f"Yield by season, regime {first} and regime {second}", "kind": "line", "x": "season", "y": "yield, t/ha",
-             "series": pair + [{"name": SKETCH_TARGET, "points": [[1, 5], [6, 5]]}], "note": "Whether the gap holds from season to season."},
+    return [{"title": f"Yield by season, regime {first} and regime {second}", "kind": "line", "x": "season", "y": "yield, t/ha", "series": pair,
+             "note": "Whether the gap holds from season to season."},
             {"title": f"Plot yields in regime {first} and regime {second}", "kind": "box", "x": "regime", "y": "yield, t/ha", "series": pair,
              "note": "How much the plots of one regime differ among themselves."},
-            {"title": "Mean yield by soil type", "kind": "bar", "x": "soil type", "y": "yield, t/ha", "series": [{"name": s} for s in ("clay", "loam", "sand")]}]
+            {"title": "The target: 5 percent more each season", "kind": "line", "x": "season", "y": "yield, t/ha", "series": [{"name": TARGET}],
+             "note": "What a rise of 5 percent a season from 4.0 t/ha comes to."}]
+
+
+def draft_cell(titles):
+    """The cell that drafts figures where no data is, each under its title: the target computed from its rule, and
+    said so; the yield of each regime by season as lines and the plot yields of each as boxes, on made-up numbers -
+    as any other, as bars."""
+    lines = ["# A draft of the figures: nothing is loaded here", "import random", "import plotly.graph_objects as go", "random.seed(7)", "seasons = list(range(1, 7))"]
+    for k, title in enumerate(titles, 1):
+        pair = [f"regime {r}" for r in re.findall(r"regime (\w)\b", title)] or ["regime C", "regime A"]
+        if "target" in title.lower():
+            traces, said = f"[go.Scatter(x=seasons, y=[round(4.0 * 1.05 ** (s - 1), 2) for s in seasons], name={TARGET!r})]", ", meta='computed'"
+        elif "by season" in title.lower():
+            traces, said = f"[go.Scatter(x=seasons, y=[round(4.0 + 0.1 * s + random.uniform(-0.3, 0.3), 2) for s in seasons], name=name) for name in {pair!r}]", ""
+        elif "plot yields" in title.lower():
+            traces, said = f"[go.Box(y=[round(random.gauss(4.4, 0.4), 2) for _ in range(24)], name=name) for name in {pair!r}]", ""
+        else:
+            traces, said = "[go.Bar(x=['clay', 'loam', 'sand'], y=[round(random.uniform(3.6, 4.8), 2) for _ in range(3)])]", ""
+        lines += [f"fig{k} = go.Figure(data={traces})", f"fig{k}.update_layout(title={title!r}{said})", f"fig{k}.show()"]
+    return "\n".join(lines)
 
 
 # ----------------------------------------------------------------- helpers
@@ -273,12 +292,14 @@ print('figure drawn: yield by regime within soil')"""
 
 def agreed_cell(titles):
     """The cell that draws the figures agreed in a brief, each under its title: the yield of each regime by season as
-    lines, the plot yields of each regime as boxes, any other as bars of the mean yield by soil type."""
+    lines, the plot yields of each regime as boxes, the target from its rule, any other as bars of the mean yield
+    by soil type."""
     lines = ["# The figures agreed with the person, each under its title", "import plotly.graph_objects as go",
              "by_season = df.groupby(['season', 'regime'])['yield_t_ha'].mean().unstack()", "by_soil = df.groupby('soil')['yield_t_ha'].mean()"]
     for k, title in enumerate(titles, 1):
         traces = ("[go.Scatter(x=list(by_season.index), y=list(by_season[r]), name='regime ' + r) for r in by_season.columns]" if "by season" in title.lower() else
                   "[go.Box(y=list(df[df.regime == r]['yield_t_ha']), name='regime ' + r) for r in sorted(df.regime.unique())]" if "plot yields" in title.lower() else
+                  f"[go.Scatter(x=list(range(1, 7)), y=[round(4.0 * 1.05 ** k, 2) for k in range(6)], name={TARGET!r})]" if "target" in title.lower() else
                   "[go.Bar(x=list(by_soil.index), y=list(by_soil.values))]")
         lines += [f"fig{k} = go.Figure(data={traces})", f"fig{k}.update_layout(title={title!r})", f"fig{k}.show()"]
     return "\n".join(lines)
@@ -391,6 +412,8 @@ class Scenario:
             return "", self.next_questions(user)
         if system.startswith("You are drawing the figures"):
             return "", self.figures(user)
+        if system.startswith("You draw a draft of the figures"):
+            return "", self.draft(user)
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
         if system.startswith("You look things up in a person's saved analyses"):
@@ -430,9 +453,9 @@ class Scenario:
         the report of the analysis before, then says how that report opens, with two choices; told to build on it,
         it names the first analysis found.
 
-        The figures (2026-11-18): asked to show them (ARCHITECT_SKETCH) it sketches three, for the two regimes the
-        question names; asked for the second first (ARCHITECT_SWAP) it gives the figures of BRIEF by their numbers,
-        the first two the other way round."""
+        The figures (2026-11-18): asked to show them (ARCHITECT_SHOW) it describes three, for the two regimes the
+        question names, and says a draft is being drawn; asked for the second first (ARCHITECT_SWAP) it gives the
+        figures of BRIEF by their numbers, the first two the other way round."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
@@ -465,8 +488,8 @@ class Scenario:
                 return json.dumps({"say": ARCHITECT_BACK, "wording": wording, "choices": ARCHITECT_YES})
             if said == ARCHITECT_YES[0]:
                 return json.dumps({"say": ARCHITECT_WRITTEN})
-            if said == ARCHITECT_SKETCH:
-                return json.dumps({"say": ARCHITECT_SKETCHED, "figures": sketches(*(pair.groups() if pair else ("C", "A"))), "choices": ARCHITECT_YES})
+            if said == ARCHITECT_SHOW:
+                return json.dumps({"say": ARCHITECT_DRAFTING, "figures": described(*(pair.groups() if pair else ("C", "A"))), "choices": ARCHITECT_YES})
             if said == ARCHITECT_SWAP:
                 held = len(re.findall(r"^- \[\d+\] ", (re.search(r"^figures:\n((?:- \[\d+\] .*\n)+)", user, re.M) or [None, ""])[1], re.M))
                 return json.dumps({"say": ARCHITECT_SWAPPED, "figures": [2, 1] + list(range(3, held + 1))})
@@ -639,6 +662,13 @@ class Scenario:
                  "replace": "RESULT(f\"yield, regime {INPUTS['regime']} vs A within soil type, plot means\", est, lo, hi, 't/ha', f\"{INPUTS['regime']} higher\")"}] if e["find"] in user],
             "kept": ["the 500 bootstrap draws and the seed are the method's", "soil is the stratification, not an input"]})
 
+    # ------------------------------------------------------------ the draft of the figures (2026-11-18)
+    def draft(self, user):
+        """Before the analysis (docs/ARCHITECT_DESIGN.md §2.20): one cell that draws each figure under FIGURES TO DRAW
+        under its title, with no data (draft_cell)."""
+        listed = re.search(r"^FIGURES TO DRAW:\n((?:\d+\. .*(?:\n|$))+)", user, re.M)
+        return "```python\n" + draft_cell(re.findall(r'^\d+\. "(.*?)"(?: - .*)?$', listed.group(1) if listed else "", re.M)) + "\n```"
+
     # ------------------------------------------------------------ the figures step (2026-10-11)
     def figures(self, user):
         """After the report: the first question's figure, drawn once from the kernel's variables (the plot means and the
@@ -646,14 +676,14 @@ class Scenario:
         each. The follow-ups need none: a number answers, or the earlier chain's figure is cited.
 
         Where the prompt lists the figures agreed with the person (docs/ARCHITECT_DESIGN.md §2.19), each is drawn
-        from the data under its title, word for word. With two or more agreed, the first reply leaves the last one
-        out: the step is asked again, and then draws them all."""
+        from the data under its title, word for word - whatever cell drew its draft. With two or more agreed, the
+        first reply leaves the last one out: the step is asked again, and then draws them all."""
         agreed = re.search(r"^THE FIGURES AGREED WITH THE PERSON[^\n]*\n((?:\d+\. .*\n)+)", user, re.M)
         if agreed:
             titles = re.findall(r'^\d+\. "(.*?)"(?: - .*)?$', agreed.group(1), re.M)
             draw = titles if len(titles) < 2 or "YOUR LAST REPLY LEFT OUT" in user else titles[:-1]
             return "```python\n" + agreed_cell(draw) + "\n```\n" + "\n".join(f"CAPTION: {t[:1].lower() + t[1:]}" for t in draw)
-        m = re.search(r"QUESTION:\n(.*?)\n\n(?:THE FIGURES AGREED|THE REPORT)", user, re.S)
+        m = re.search(r"QUESTION:\n(.*?)\n\n(?:THE FIGURES AGREED|THE DRAFT THE PERSON SAW|THE REPORT)", user, re.S)
         q = (m.group(1) if m else "").strip()
         if q != QUESTIONS[0]:
             return "NONE"

@@ -28,7 +28,10 @@ class Figure:
         return pio.show(self, *args, **kwargs)
 
     def to_json(self):
-        return json.dumps({"data": [dict(t) for t in self.data], "layout": {"template": "plotly_dark"}})
+        # the title as the real layout holds one, and what the cell said of the figure (2026-11-18: a draft is read by both)
+        title, meta = getattr(self.layout, "title", None), getattr(self.layout, "meta", None)
+        layout = {"template": "plotly_dark", **({"title": {"text": title} if isinstance(title, str) else title} if title is not None else {}), **({"meta": meta} if meta is not None else {})}
+        return json.dumps({"data": [dict(t) for t in self.data], "layout": layout})
 
     def write_json(self, filename):
         with open(filename, "w", encoding="utf-8") as fh:

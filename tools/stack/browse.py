@@ -449,11 +449,13 @@ def story(w, mod, dataset, questions):
             w.shot("tutor_build")
         p.click("#architectSwitch")
 
-    # the figures sketched (docs/ARCHITECT_DESIGN.md §2.19), on data: asked to show them, the Architect describes the figures and
-    # the Brief tab sketches them - what the data decides in grey, a line known before any run in colour; another order by
-    # their numbers, a sketch taken out with its cross, then the analysis, which draws the ones that stand
-    sketch_question = getattr(mod, "SKETCH_QUESTION", None)
-    if brief_question and sketch_question and p.query_selector("#architectSwitch"):
+    # the figures and their draft (docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data: asked to show them, the Architect describes
+    # the figures and a draft of each is drawn on the Brief tab - on made-up numbers what the data will give, computed what
+    # follows from a rule; another order by their numbers, a figure taken out with its cross, then the analysis, which
+    # draws the ones that stand
+    figures_question = getattr(mod, "FIGURES_QUESTION", None)
+    drawn = lambda n: p.wait_for_function("(n) => document.querySelectorAll('#content-brief .ar-fig.drawn .plot svg').length === n", arg=n, timeout=30000)      # noqa: E731
+    if brief_question and figures_question and p.query_selector("#architectSwitch"):
         w.js("handleNewConversation()")
         p.wait_for_url("**/?new=true", timeout=60000)
         p.wait_for_selector("#queryInput", state="visible", timeout=60000)
@@ -463,30 +465,34 @@ def story(w, mod, dataset, questions):
         p.wait_for_selector(".primary-dataset-pill", timeout=60000)
         p.wait_for_timeout(500)
         p.click("#architectSwitch")
-        p.fill("#queryInput", sketch_question)
+        p.fill("#queryInput", figures_question)
         p.click("#submitQuery")
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
         said(1)
-        for k, (text, shot) in enumerate(((mod.ARCHITECT_SKETCH, "sketch_figures"), (mod.ARCHITECT_SWAP, "sketch_reordered")), 2):
+        for k, (text, shot) in enumerate(((mod.ARCHITECT_SHOW, "draft_figures"), (mod.ARCHITECT_SWAP, "draft_reordered")), 2):
             p.fill("#queryInput", text)
             p.click("#submitQuery")
             said(k)
+            drawn(3)
             w.shot(shot)
-        versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
-        p.click('#content-brief .ar-fig [data-ar="unfigure"][data-path="figures.2"]')      # the cross on the third sketch
-        p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
+        w.js("document.querySelector('#content-brief .ar-fig:last-child').scrollIntoView()")
         p.wait_for_timeout(300)
-        w.shot("sketch_taken_out")
+        w.shot("draft_computed")                             # the third figure, further down: computed, with nothing across it
+        versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
+        p.click('#content-brief .ar-fig [data-ar="unfigure"][data-path="figures.2"]')      # the cross on the third figure
+        p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
+        drawn(2)
+        w.shot("draft_taken_out")
         w.js("setMode('deep')")
         p.click('#content-brief [data-ar="start"]')
         w.wait_text(".sp-done", "Run complete", timeout=240000)
         p.wait_for_timeout(600)
         w.js("activateTab('answer'); const h = [...document.querySelectorAll('#content-answer h2')].find(x => /Figures/.test(x.textContent)); if (h) h.scrollIntoView();")
         p.wait_for_timeout(500)
-        w.shot("sketch_run")                                 # the report's Figures part, and in the pane the step that drew them, asked again
+        w.shot("draft_run")                                  # the report's Figures part, and in the pane the step that drew them, asked again
         w.js("activateTab('brief')")
-        p.wait_for_timeout(300)
-        w.shot("sketch_brief_after_run")
+        drawn(2)
+        w.shot("draft_brief_after_run")
         p.click("#architectSwitch")
 
 
