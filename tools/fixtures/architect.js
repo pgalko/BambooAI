@@ -2,9 +2,9 @@
 // Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
 // the Architect worded it, a line being changed by hand - an earlier version on screen, what the brief rests on checked
 // against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
-// the saved analyses - being read, and what was found with the one the brief builds on - and the figures: as sketches
-// while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json). An invented
-// field trial, as the stack's scenario has it.
+// the saved analyses - being read, and what was found with the one the brief builds on - and the figures: as grey
+// windows while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json). An
+// invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
@@ -22,12 +22,12 @@ window.galleryArchitect = (function () {
                      series: [{ name: 'regime C' }, { name: 'regime A' }] },
                    { title: 'The target: 5 percent more each season', kind: 'line', x: 'season', y: 'yield, t/ha', note: 'What a rise of 5 percent a season from 4.0 t/ha comes to.',
                      series: [{ name: 'the target' }] }];
-  const sketched = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['decision', 'figures.0', 'figures.1'], keys: ['d1', 'd2'],
+  const described = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['decision', 'figures.0', 'figures.1'], keys: ['d1', 'd2'],
                                           brief: { question: Q, decision: 'Switch the clay plots to regime C next season, or keep A.', fixed: { comparison: 'regime C against regime A' }, figures: FIGURES } }],
                      turns: [ASK, you('Switch the clay plots to regime C next season, or keep A. Show me what the figures will look like.'),
                              said('A draft is being drawn. Is that what you want to see?', { choices: ['Yes, that is it', 'Change something'], v: 3, call: 2 })], calls: 2 };
-  const drafted = Object.assign({}, sketched, { drafts: { d1: { basis: 'made up' }, d2: { basis: 'computed' } }, draft_calls: 1,
-                    turns: sketched.turns.concat([{ who: 'draft', drawn: [{ title: FIGURES[0].title, basis: 'made up' }, { title: FIGURES[1].title, basis: 'computed' }], v: 3, secs: 7.4, cost: 0.003, call: 1 }]) });
+  const drafted = Object.assign({}, described, { drafts: { d1: { basis: 'made up' }, d2: { basis: 'computed' } }, draft_calls: 1,
+                    turns: described.turns.concat([{ who: 'draft', drawn: [{ title: FIGURES[0].title, basis: 'made up' }, { title: FIGURES[1].title, basis: 'computed' }], v: 3, secs: 7.4, cost: 0.003, call: 1 }]) });
   const framing = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: Object.assign({}, BRIEF, { fixed: { comparison: 'regime C against regime A' }, also_check: undefined }) },
                                { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF },
                                { n: 5, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED }) }],      // the question as the Architect worded it: written at once
@@ -110,8 +110,8 @@ window.galleryArchitect = (function () {
       show(framing);
       for (let k = 0; k < 2; k++) document.querySelector('#content-brief [data-ar="step"][data-step="-1"]').click();
     },
-    sketch() {       // the reply stands, its figures as sketches while their draft is drawn: the row that says so, the composer held
-      const entry = show(sketched);
+    drawing() {      // the reply stands, a grey window to each figure while its draft is drawn: the row that says so, the composer held
+      const entry = show(described);
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { waiting: true, drawing: true });
       document.getElementById('content-brief').innerHTML = ArchitectUI.build.brief(entry.framing, { chain: entry.chain_id, thread: entry.thread_id, state: 'framing', drawing: true });
       composerLock('A draft of the figures is being drawn');

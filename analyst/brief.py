@@ -45,7 +45,7 @@ MAX = {"rests_on": 6, "also_check": 4, "saved": 10, "set_aside": 8, "figures": 3
 # the kinds of figure a description names, each as the analyst reads it
 KINDS = {"line": "a line chart", "scatter": "a scatter of points", "bar": "bars", "histogram": "a histogram", "box": "box plots", "heatmap": "a heat map",
          "line3d": "a line in three dimensions"}
-FIGURE_CHARS = {"title": 120, "axis": 80, "name": 60, "note": 240}
+FIGURE_CHARS = {"title": 120, "axis": 80, "name": 60, "note": TEXT_CHARS}      # the note: a line of the brief - how the figure is laid out, and what it is to make clear
 SERIES = 4                       # the lines or groups one figure holds by name
 COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
 ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run on data

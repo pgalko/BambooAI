@@ -254,39 +254,25 @@
 #content-brief .ar-kinds button:hover { border-color: var(--c-model); color: var(--c-model); }
 #content-brief .ar-built { align-items: center; gap: 12px; }
 #content-brief .ar-built .drop { margin-left: 2px; }
-#content-brief .ar-was:empty { display: none; }                                  /* what a saved analysis drew: there where it kept a picture */
-#content-brief .ar-was { margin: 2px 0 10px; }
-#content-brief .ar-was img { display: block; width: 100%; max-width: 460px; height: auto; border: 1px solid var(--border-color); border-radius: 8px; }
-#content-brief .ar-was .cap { margin-top: 3px; font-size: 12px; color: var(--text-tertiary); }
-/* the figures of a brief, sketched (0309): a panel to a figure, side by side while there is room. A stroke in colour was known before the run; grey and dashed is where things go */
-#content-brief .ar-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin: 6px 0 2px; }
-#content-brief .ar-fig { position: relative; min-width: 0; box-sizing: border-box; padding: 9px 12px 8px; border: 1px dashed var(--border-color); border-radius: 8px; background: var(--bg-secondary); }
+/* the figures of a brief (0309-0311): a panel to a figure, one under another - its draft, drawn by Plotly, or a grey window with one line where it has none */
+#content-brief .ar-figs { display: grid; gap: 12px; margin: 6px 0 2px; }
+#content-brief .ar-fig { position: relative; min-width: 0; box-sizing: border-box; padding: 9px 12px 8px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); }
 #content-brief .ar-fig.changed::before { content: ''; position: absolute; left: -7px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--c-kernel); }   /* changed in the version shown */
 #content-brief .ar-fig .hd { display: flex; align-items: baseline; gap: 8px; }
 #content-brief .ar-fig .hd .n { flex-shrink: 0; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-tertiary); }
 #content-brief .ar-fig .hd .t { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 #content-brief .ar-fig .hd .tag { flex-shrink: 0; padding: 0 7px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 10px; line-height: 15px; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
 #content-brief .ar-fig .hd .tag.mu { border-color: var(--chip-kernel-border); color: var(--c-kernel); }      /* a draft on made-up numbers */
-#content-brief .ar-fig.drawn { grid-column: 1 / -1; border-style: solid; }       /* a draft takes the row: it is the figure, not a sketch of it */
-#content-brief .ar-fig.drawn > .key, #content-brief .ar-fig.drawn > svg { display: none; }
 #content-brief .ar-fig .plot { min-height: 280px; margin-top: 6px; border-radius: 6px; overflow: hidden; }
 #content-brief .ar-fig .drop { flex-shrink: 0; align-self: flex-start; display: inline-grid; place-items: center; width: 18px; height: 18px; margin: 1px -4px 0 -2px; padding: 0; border: none; border-radius: 4px; background: none; color: var(--text-tertiary); cursor: pointer; opacity: .85; }
 #content-brief .ar-fig .drop:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 #content-brief .ar-fig .drop svg { width: 12px; height: 12px; margin: 0; fill: currentColor; }
-#content-brief .ar-fig .key { display: flex; flex-wrap: wrap; gap: 3px 14px; margin-top: 4px; font-size: 12px; color: var(--text-secondary); }
-#content-brief .ar-fig .key i { display: inline-block; width: 16px; margin-right: 6px; vertical-align: middle; border-top: 2px dashed var(--text-tertiary); }
-#content-brief .ar-fig .key i.sq { width: 10px; height: 10px; border: none; border-radius: 2px; background: var(--text-tertiary); opacity: .42; }
-#content-brief .ar-fig > svg { display: block; width: 100%; max-width: 380px; height: auto; margin-top: 2px; }
-#content-brief .ar-fig > svg .ax { fill: none; stroke: var(--text-tertiary); stroke-width: 1.2; }
-#content-brief .ar-fig > svg .bk { fill: none; stroke: var(--text-tertiary); stroke-width: 1; stroke-dasharray: 3 4; opacity: .55; }
-#content-brief .ar-fig > svg text { fill: var(--text-tertiary); font-size: 11px; font-family: inherit; }
-#content-brief .ar-fig > svg .tk { fill: var(--text-secondary); }
-#content-brief .ar-fig > svg .ph { fill: none; stroke: var(--text-tertiary); stroke-width: 1.6; stroke-dasharray: 6 5; }
-#content-brief .ar-fig > svg .dot { fill: none; stroke: var(--text-tertiary); stroke-width: 1.2; }
-#content-brief .ar-fig > svg .cell { fill: var(--text-tertiary); opacity: .14; } #content-brief .ar-fig > svg .cell.c1 { opacity: .28; } #content-brief .ar-fig > svg .cell.c2 { opacity: .42; }
-#content-brief .ar-fig .cap { margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--text-secondary); }
-#content-brief .ar-fig .cap .ph { color: var(--text-tertiary); }
-#content-brief .ar-fig .cap .mu { color: var(--c-kernel); }
+#content-brief .ar-fig .ar-wait { display: grid; place-items: center; height: 200px; margin-top: 6px; border-radius: 6px; background: var(--bg-tertiary); font-size: 13px; color: var(--text-tertiary); }   /* no draft: one line in a grey window */
+#content-brief .ar-fig.drawn > .ar-wait { display: none; }                       /* under a draft it waits: it shows if the plot cannot be shown */
+#content-brief .ar-fig .ar-wait.live span { animation: ar-wait 2.4s ease-in-out infinite; }      /* a draft on its way: the line breathes, and nothing else moves */
+@keyframes ar-wait { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #content-brief .ar-fig .ar-wait.live span { animation: none; } }
+#content-brief .ar-fig .cap { margin-top: 2px; font-size: 12.5px; line-height: 1.45; color: var(--c-kernel); }      /* under a draft on made-up numbers: the line that says so */
 #content-brief .ar-memory { margin-top: 24px; padding-top: 4px; border-top: 1px solid var(--border-color); }
 #content-brief .ar-memory .note { margin: 4px 0 6px; font-size: 12px; color: var(--text-tertiary); }
 #content-brief .ar-memory .it { padding: 9px 0 3px; }

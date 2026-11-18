@@ -244,7 +244,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           and t4["said"] == [["You", mod.BRIEF_QUESTION], ["Architect", asks[0]], ["You", "Switch to regime C"], ["Architect", asks[1]], ["You", because], ["Architect", asks[2]], ["You", expects],
                              ["Architect", mod.ARCHITECT_CHECKING], ["Architect", not_held]] and t4["prompts"] == 5 and t4["choices"] == mod.ARCHITECT_KEEP and not t4["waiting"]
           and row4["n"] == 2 and row4["text"][:3] == ["✓", "CHECK data", "2 things looked up"] and re.fullmatch(r"\d+ s", row4["text"][3]) and row4["title"] == rain_fact + "\n" + same_fact
-          and row4["savedClass"] == "sp-row tool read" and row4["saved"][:3] == ["✓", "SAVED analyses", "nothing found · 1 saved"] and re.fullmatch(r"\d+ s", row4["saved"][3])
+          and row4["savedClass"] == "sp-row tool read" and row4["saved"][:3] == ["✓", "MEMORY", "nothing found · 1 saved"] and re.fullmatch(r"\d+ s", row4["saved"][3])
           and row4["before"] == "ar-msg arch" and row4["after"] == "ar-msg arch" and row4["last"], (b4, t4, row4))
     tell(page, choice=0)
     b_kept, t_kept = brief_on_screen(page), talk_on_screen(page)
@@ -698,13 +698,13 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     asked = [mod.BRIEF_ANSWER, later.get("question")] if mine == 0 else [later.get("question"), mod.BRIEF_ANSWER]
     line = {"asked": f"{as_written(day)} · {mod.BRIEF_ANSWER}", "view": [str(tid), str(cid2)], "label": "View"}
     check("a saved analysis is memory, and the Architect is told how many there are: SAVED, above the question, in what it read for its first message. With nothing left to ask - the coach skipped two "
-          "parts - it says that it is looking, and the saved analyses are read: a row of the conversation says how many are looked through, then how many the second model has read, with Skip; done, "
+          "parts - it says that it is looking, and the saved analyses are read: a row of the conversation says that memory is being searched (0311) and how many the second model has read, with Skip; done, "
           "the row says how many analyses were found and how many of the saved ones were read, the passages a line each on hover with what was found across them, and under the row stand the "
           "analyses found, a line each - the day, what was asked then, View. The Architect goes on at once: the brief is ready, and which analysis to build on - a choice to each, and one for none",
           str(cid2) in kept and framed.get("marks") == ["picked"] and framed.get("question") == mod.BRIEF_ANSWER and f"\n\nSAVED: {len(mem['runs'])}\n\nQUESTION:\n{mod.SAVED_QUESTION}\n" in told
           and before == {"left": [], "right": [], "head": "", "note": "", "built": [], "boxes": 0, "look": False}
-          and live == [f"SAVED analyses · looking through {len(mem['runs'])} · Skip", "SAVED analyses · reading 2 of 2 · Skip"]
-          and row["n"] == 1 and row["cls"] == "sp-row tool read" and row["text"][:3] == ["✓", "SAVED analyses", f"2 analyses found · read 2 of {len(mem['runs'])}"] and re.fullmatch(r"\d+ s", row["text"][3])
+          and live == [f"SEARCHING MEMORY · 0 of {len(mem['runs'])} read · Skip", "SEARCHING MEMORY · 2 of 2 read · Skip"]
+          and row["n"] == 1 and row["cls"] == "sp-row tool read" and row["text"][:3] == ["✓", "MEMORY", f"2 analyses found · read 2 of {len(mem['runs'])}"] and re.fullmatch(r"\d+ s", row["text"][3])
           and sorted(row["title"].split("\n")[:2]) == sorted([f'{day} · {mod.BRIEF_ANSWER}: "{quote}"', f'{day} · {later.get("question")}: "{other}"'])
           and row["title"].split("\n")[2:] == ["What was compared: 2 × it reports a comparison"] and row["found"] and row["after"] == "ar-msg arch"
           and len(s1["left"]) == 2 and s1["left"][mine] == line and s1["left"][1 - mine]["asked"] == f"{as_written(later.get('when', '')[:10])} · {later.get('question')}"
@@ -751,14 +751,18 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     fav = os.path.join(storage, "favourites", str(tid), f"{cid2}.json")
     page_copy = json.load(open(fav, encoding="utf-8"))
     json.dump({**page_copy, "plotPreview": picture}, open(fav, "w", encoding="utf-8"))
+    previews = []
+    watch = lambda request: previews.append(request.url) if "/get_chain_preview/" in request.url else None      # noqa: E731
+    page.on("request", watch)
     tell(page, choice=mine)
-    page.wait_for_selector("#content-brief .ar-was img", timeout=15000)
-    drew_then = page.evaluate("""() => { const was = [...document.querySelectorAll('#content-brief .ar-was')], line = document.querySelector('#content-brief .ar-built');
-        return { holders: was.map(w => [w.dataset.thread, w.dataset.run]), src: (was[0].querySelector('img') || {}).src || '', cap: (was[0].querySelector('.cap') || {}).textContent || '',
-                 under: line.nextElementSibling === was[0], seen: was[0].getBoundingClientRect().height > 0 }; }""")
-    check("what the analysis the brief builds on drew stands under its line (0310): the picture its favourite keeps, with the words that it is what the analysis drew then - the coach sees "
-          "what they are building on before anything is drawn anew",
-          drew_then == {"holders": [[str(tid), str(cid2)]], "src": picture, "cap": "What it drew then", "under": True, "seen": True}, drew_then)
+    page.wait_for_selector("#content-brief .ar-built", timeout=15000)
+    page.wait_for_timeout(400)
+    page.remove_listener("request", watch)
+    under = page.evaluate("""() => { const line = document.querySelector('#content-brief .ar-built'), next = line.nextElementSibling;
+        return { pictures: document.querySelectorAll('#content-brief img').length, next: next ? next.className.split(' ')[0] : '' }; }""")
+    check("nothing of the analysis the brief builds on is drawn under its line (0311; 0310 had put the picture its favourite keeps there, and a live brief was too busy): the Brief tab holds "
+          "no picture, and the page asked the server for none",
+          under["pictures"] == 0 and under["next"] != "ar-was" and previews == [], (under, previews))
     b2, t2, s2 = brief_on_screen(page), talk_on_screen(page), saved_on_screen(page)
     last2 = (thread_run(wa, user, tid3, cid).get("framing", {}).get("versions") or [{}])[-1]
     check("the coach chooses by answering the Architect - the choice that names the analysis: the brief builds on it, as one more version - Builds on, with the day and what was asked then, View "
@@ -789,9 +793,9 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     check("one more reading, asked for in words: the reading starts - its row under the coach's words while it goes, the composer held and saying why. Skip ends it: the Architect's message "
           "that it is looking stands above the row, which says it was skipped, with nothing listed under it; the brief and what was found before stand as they were, and the Architect goes on. On "
           "the usage record the brief's chain holds the Architect's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
-          mid == {"last": ["ar-msg you", mod.ARCHITECT_AGAIN], "wait": False, "row": ["SAVED analyses", f"looking through {len(mem['runs'])}", "Skip"], "under": True,
+          mid == {"last": ["ar-msg you", mod.ARCHITECT_AGAIN], "wait": False, "row": ["SEARCHING MEMORY", f"0 of {len(mem['runs'])} read", "Skip"], "under": True,
                   "held": "Your saved analyses are being read"}
-          and row2["n"] == 2 and row2["cls"] == "sp-row tool read skipped" and row2["text"][:3] == ["–", "SAVED analyses", "skipped"] and not row2["found"] and row2["after"] == "ar-msg arch"
+          and row2["n"] == 2 and row2["cls"] == "sp-row tool read skipped" and row2["text"][:3] == ["–", "MEMORY", "skipped"] and not row2["found"] and row2["after"] == "ar-msg arch"
           and t3["said"][-3:] == [["You", mod.ARCHITECT_AGAIN], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_READY]] and s3 == s2 and b3 == b2
           and [t["who"] for t in f3.get("turns", [])][-4:] == ["person", "architect", "memory", "architect"] and len(m3) == 2 and (m3[1]["failed"], m3[1]["found"]) == ("The person skipped it.", [])
           and len(f3.get("versions", [])) == 4 and len(f3.get("found", [])) == 2 and f3.get("calls") == 8
@@ -1005,7 +1009,7 @@ def walk_tutor(page, mod, wa, edition, user):
           and [t["who"] for t in recf.get("turns", [])] == ["architect", "memory", "architect", "opened", "architect"]
           and recf["turns"][3] == {"who": "opened", "what": "report", "label": "the report", "chars": len(report)} and "## Did not fit" in report and "## Did not fit" not in json.dumps(recf)
           and t5["said"] == [["You", mod.FOLLOW_QUESTION], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_OPENING], ["Architect", mod.ARCHITECT_OPENED + opens]]
-          and t5["choices"] == mod.ARCHITECT_BUILD and len(pane) == 7 and pane[2][:2] == ["✓", "SAVED analyses"] and pane[3] == "ar-found" and pane[5] == ["✓", "READ", "the report", f"{len(report):,} characters"]
+          and t5["choices"] == mod.ARCHITECT_BUILD and len(pane) == 7 and pane[2][:2] == ["✓", "MEMORY"] and pane[3] == "ar-found" and pane[5] == ["✓", "READ", "the report", f"{len(report):,} characters"]
           and [pane[k] for k in (1, 4, 6)] == ["ar-msg arch"] * 3 and len(s5["left"]) >= 1 and [it["asked"] for it in s5["right"]] == [it["asked"] for it in s5["left"]]
           and s5["built"] == [] and s5["boxes"] == 0, (recf.get("versions", [{}])[0], [t["who"] for t in recf.get("turns", [])], t5, pane, s5))
     check("what the Architect read for the message it wrote from the report: the analysis before in a few lines, with what there is to open and a line to each of its cells; that no reading can be "
@@ -1030,18 +1034,18 @@ def walk_tutor(page, mod, wa, edition, user):
 
 
 def figures_on_screen(page):
-    """The figures on the Brief tab as the coach sees them: the part's heading; each panel's number, title and tag, whether it is marked as changed, has its cross and stands as a drawn draft -
-    then, of its plot: the key it is kept under, whether a drawing stands in its place and under which title, whether it is marked as made up and what stands across it; whether its sketch
-    shows, with the names in its key; its caption; whether it takes the whole row; and the conversation's rows about the figures."""
+    """The figures on the Brief tab as the coach sees them: the part's heading; each panel's number, title and tag - none where it has no draft -, whether it is marked as changed, has its
+    cross and stands as a drawn draft - then, of its plot: the key it is kept under, whether a drawing stands in its place and under which title, whether it is marked as made up and what
+    stands across it; the line of its grey window, where that shows; the line under it; whether it takes the whole row; and the conversation's rows about the figures."""
     return page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), figs = [...r.querySelectorAll('.ar-fig')], row = r.querySelector('.ar-figs');
         const shown = x => !!x && getComputedStyle(x).display !== 'none', wide = x => Math.round(x.getBoundingClientRect().width);
         return { head: [...r.querySelectorAll('h3')].map(h => h.textContent).filter(h => /look/.test(h)),
                  figs: figs.map(f => { const plot = f.querySelector('.plot'), drawing = plot && plot.querySelector('svg');
-                     return { n: f.querySelector('.n').textContent, title: f.querySelector('.t').textContent, tag: f.querySelector('.tag').textContent,
+                     return { n: f.querySelector('.n').textContent, title: f.querySelector('.t').textContent, tag: (f.querySelector('.tag') || {}).textContent || '',
                               changed: f.classList.contains('changed'), cross: !!f.querySelector('[data-ar="unfigure"]'), drawn: f.classList.contains('drawn'),
                               plot: plot ? { key: plot.dataset.key, live: !!drawing, head: drawing ? (drawing.querySelector('text') || {}).textContent || '' : '', made: plot.dataset.madeUp === '1',
                                              across: drawing ? [...drawing.querySelectorAll('text[transform]')].map(t => t.textContent) : [] } : null,
-                              sketch: shown(f.querySelector(':scope > svg')), key: [...f.querySelectorAll('.key span')].map(s => s.textContent), cap: (f.querySelector('.cap') || {}).textContent || '',
+                              window: shown(f.querySelector('.ar-wait')) ? f.querySelector('.ar-wait').textContent : '', cap: (f.querySelector('.cap') || {}).textContent || '',
                               row: !!row && wide(f) === wide(row) }; }),
                  rows: [...document.querySelectorAll('#streamOutput .sp-stream > .sp-row.tool.read')].filter(x => x.children[1].textContent === 'FIGURES').map(x => [...x.children].slice(1).map(c => c.textContent)) }; }""")
 
@@ -1077,8 +1081,28 @@ def walk_draft(page, st, mod, wa, edition, user):
     lines_of = lambda *figs: "".join(f'{k}. "{f["title"]}" - {"a line chart" if f["kind"] == "line" else "box plots"}; x: {f["x"]}; y: {f["y"]}; holds: {", ".join(s["name"] for s in f["series"])}; '      # noqa: E731
                                      f'to make clear: {f["note"]}\n' for k, f in enumerate(figs, 1))
     f0, rows0 = figures_on_screen(page), len(usage_rows(wa, edition, user))
+    # what stands between the reply and its drafts: the first the page shows of the figures, taken as it is drawn
+    page.evaluate("""() => { window.__drawing = null;
+        const watch = new MutationObserver(() => {
+            const live = [...document.querySelectorAll('#content-brief .ar-fig .ar-wait.live')], row = document.querySelector('#streamOutput .sp-stream > .sp-row.pending');
+            if (!live.length || !row) return;
+            watch.disconnect();
+            const input = document.getElementById('queryInput'), above = row.previousElementSibling;
+            const words = m => { const c = m.cloneNode(true); c.querySelectorAll('.who, .ar-choices').forEach(x => x.remove()); return c.textContent; };
+            window.__drawing = { above: above && above.matches('.ar-msg.arch') ? words(above) : '', row: [...row.children].map(c => c.textContent).filter(Boolean), hold: [input.disabled, input.placeholder],
+                figs: live.map(w => { const fig = w.closest('.ar-fig'), box = w.getBoundingClientRect();
+                    return [fig.querySelector('.t').textContent, [...fig.children].map(c => c.className), w.textContent, getComputedStyle(w).display, Math.round(box.height),
+                            getComputedStyle(w.querySelector('span')).animationName]; }) };
+        });
+        watch.observe(document.body, { childList: true, subtree: true }); }""")
     tell(page, mod.ARCHITECT_SHOW)
     drawn(3)
+    during = page.evaluate("() => window.__drawing")
+    check("while the draft is drawn (0311): the Architect's reply stands, the row under it says what is being done - DRAWING A DRAFT - and the composer is held with the same words. Each of "
+          "the three figures is its title over a grey window that shows, with one line in its middle - Drawing a draft… - that breathes; none is tagged as a draft, and nothing else is "
+          "in its place",
+          during == {"above": mod.ARCHITECT_DRAFTING, "row": ["DRAWING A DRAFT"], "hold": [True, "A draft of the figures is being drawn"],
+                     "figs": [[title, ["hd", "ar-wait live"], "Drawing a draft…", "grid", 200, "ar-wait"] for title in (line, boxes, target)]}, during)
     f1, t1, b1 = figures_on_screen(page), talk_on_screen(page), brief_on_screen(page)
     ran1 = thread_run(wa, user, tid, cid)
     rec1 = ran1.get("framing", {})
@@ -1091,15 +1115,15 @@ def walk_draft(page, st, mod, wa, edition, user):
     check("asked to show the figures, the Architect describes them and a draft of each is drawn in the same exchange: the Brief tab has a part for them, under a plain heading - a panel to a "
           "figure, numbered, as changed in this version, with a cross, each across the whole row. What the data will give is a draft on made-up numbers: the tag says so, a line under the "
           "figure says so, and the words stand across the plot; the target, which follows from its rule, is a draft with none of that. Each plot is drawn in its figure's place, under its "
-          "title; the sketch under it does not show. A row under the Architect's message says three were drawn, with the seconds and the button to the draft's prompt, and the reply's choices "
-          "can still be clicked. Before, the brief had no such part",
+          "title; the grey window under it does not show, and nothing of how the Architect described the figure is on the page (0311). A row under the Architect's message says three were "
+          "drawn, with the seconds and the button to the draft's prompt, and the reply's choices can still be clicked. Before, the brief had no such part",
           f0["head"] == [] and f0["figs"] == [] and f1["head"] == ["What it will look like"]
-          and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"], f["drawn"], f["row"], f["sketch"]) for f in f1["figs"]]
-          == [("1", line, "draft · made-up numbers", True, True, True, True, False), ("2", boxes, "draft · made-up numbers", True, True, True, True, False), ("3", target, "draft", True, True, True, True, False)]
+          and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"], f["drawn"], f["row"], f["window"]) for f in f1["figs"]]
+          == [("1", line, "draft · made-up numbers", True, True, True, True, ""), ("2", boxes, "draft · made-up numbers", True, True, True, True, ""), ("3", target, "draft", True, True, True, True, "")]
           and [f["plot"] for f in f1["figs"]] == [{"key": keys[0], "live": True, "head": line, "made": True, "across": ["made-up numbers"]},
                                                  {"key": keys[1], "live": True, "head": boxes, "made": True, "across": ["made-up numbers"]},
                                                  {"key": keys[2], "live": True, "head": target, "made": False, "across": []}]
-          and [f["cap"] for f in f1["figs"]] == [want[0]["note"] + " " + made, want[1]["note"] + " " + made, want[2]["note"]]
+          and [f["cap"] for f in f1["figs"]] == [made, made, ""] and not any(f["note"] in page.inner_text("#content-brief") for f in want)
           and len(f1["rows"]) == 1 and f1["rows"][0][:2] == ["FIGURES", "3 drawn"] and bool(re.fullmatch(r"\d+ s", f1["rows"][0][2])) and f1["rows"][0][3:] == ["⌘"]
           and t1["said"][-2:] == [["You", mod.ARCHITECT_SHOW], ["Architect", mod.ARCHITECT_DRAFTING]] and t1["choices"] == mod.ARCHITECT_YES and b1["v"] == f"{n1} of {n1}", (f0, f1, t1["said"][-2:], t1["choices"]))
     check("the draft on the record and on disk: the figures are one more version of the Architect's, each named as changed, each a description and no more, with its key beside the version; "

@@ -279,9 +279,8 @@ tab, and the conversation with the Architect takes the left pane.
   the brief a few seconds after the Architect's reply. A shape that follows from a rule is computed. One that
   only your data can give is drawn on made-up numbers, and marked so: the draft shows what you will get, not a
   result, and its cell is given no data. Say what to change, and it is drawn again; a cross takes a figure out.
-  Where the brief builds on a saved analysis, what that analysis drew stands under its line. The analysis draws
-  the figures that stand as their drafts drew them, each under its title, and its report says so if one is
-  missing.
+  The analysis draws the figures that stand as their drafts drew them, each under its title, and its report says
+  so if one is missing.
 - **Your changes.** Any line can be changed in place, with its pencil.
 - **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
   Analyst stops and asks. The report gains *Did not fit*, and - where the brief says what you expect or names a

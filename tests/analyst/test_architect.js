@@ -4,8 +4,8 @@
 // typed question opens its brief and the Architect takes its first turn, the coach answers with a click or in words, a
 // line is changed where it stands and kept as a version, the versions are stepped through, the analysis is started in the
 // same chain, the composer is the conversation's while a brief not yet run is on screen; the figures of a brief as
-// sketches, and their drafts drawn with a Plotly that keeps what it is asked for (0310). Then the page's hooks, read
-// from the source.
+// grey windows (0311), and their drafts drawn with a Plotly that keeps what it is asked for (0310). Then the page's
+// hooks, read from the source.
 // Run: node tests/analyst/test_architect.js
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -233,85 +233,53 @@ check('what the readings of the saved analyses found stands under the brief, to 
   && !el(b.brief(FMEM, { chain: 71, state: 'run' })).querySelector('.ar-memory')
   && el(b.brief(FMEM, { chain: 71, state: 'framing', shown: 2 })).querySelectorAll('.ar-memory .tag').length === 0, mem.outerHTML);
 
-// ------------------------------------------------------------ the figures of the brief: a sketch, and the draft (0309, 0310; §2.19, §2.20)
+// ------------------------------------------------------------ the figures of the brief: a draft, or a grey window (0309-0311; §2.19, §2.20)
 const CS = { edit: true, changed: ['figures.0'] }, CR = { edit: false, changed: [] };
 const sk = (fig, i, c) => el(b.figure(c || CR, fig, i || 0)).querySelector('.ar-fig');
 const KNOWN = { title: 'Two <paths>', kind: 'line', x: 'x', y: 'how far', series: [{ name: 'start <A>' }, { name: 'start B' }], note: 'They <part>.' };
-const known = sk(KNOWN, 0, CS), kSvg = known.querySelector('svg[role="img"]');
-check('a figure without a draft (0309, 0310): a panel with its number, its title as text, the word "sketch" and - while the brief can be changed - a cross that names its place; under them the series it '
-  + 'holds, each beside a dashed stroke; the drawing, named for a reader that cannot see it; what the figure is to make clear, and nothing else under it. A line is a dashed wave: a sketch has no '
-  + 'shape. A panel changed in the version shown carries the bar; one that is read has no cross',
-  known.className === 'ar-fig changed' && known.elements.map(e => e.className || e.tag).join() === 'hd,key,svg,cap'
-  && known.querySelector('.hd').elements.map(e => e.className + '=' + e.textContent).join('|') === 'n=1|t=Two <paths>|tag=sketch|drop='
-  && known.querySelector('.drop').getAttribute('data-ar') === 'unfigure' && known.querySelector('.drop').getAttribute('data-path') === 'figures.0' && known.querySelector('.drop').getAttribute('title') === 'Leave it out'
-  && known.querySelectorAll('.key span').map(s => s.querySelector('i').className + '=' + s.textContent).join('|') === 'ph=start <A>|ph=start B'
-  && kSvg.getAttribute('viewBox') === '0 0 320 190' && kSvg.getAttribute('role') === 'img' && kSvg.getAttribute('aria-label') === 'sketch: Two <paths>'
-  && sk({ title: 'A "quoted" title', kind: 'line' }).querySelector('svg[role="img"]').getAttribute('aria-label') === 'sketch: A "quoted" title'
-  && kSvg.querySelectorAll('path').map(x => x.className).join() === 'ax,ph,ph' && !known.querySelector('.plot')
-  && known.querySelector('.cap').textContent === 'They <part>.' && !known.querySelector('.cap .ph') && !known.querySelector('paths') && !known.querySelector('part')
-  && sk(KNOWN, 2).className === 'ar-fig' && !sk(KNOWN, 2).querySelector('.drop') && sk(KNOWN, 2).querySelector('.n').textContent === '3'
-  && sk(KNOWN, 1, CS).className === 'ar-fig' && sk(KNOWN, 1, CS).querySelector('.drop').getAttribute('data-path') === 'figures.1', known.outerHTML);
 const ON_DATA = { title: 'Yield by season', kind: 'line', x: 'season', y: 'yield', series: [{ name: 'A' }, { name: 'C' }], note: 'Whether the gap holds.' };
-const grey = sk(ON_DATA);
-const kindOf = (kind, more) => sk(Object.assign({ title: 'T', kind, series: [{ name: 'A' }, { name: 'C' }] }, more));
-const centred = (fig, tag) => { const at = fig.querySelectorAll('svg text.tk'), marks = fig.querySelectorAll('svg[role="img"] ' + tag);      // each name stands over the middle of its mark
-  return at.length === marks.length && marks.every((m, k) => Math.abs(Number(m.getAttribute('x')) + Number(m.getAttribute('width')) / 2 - Number(at[k].getAttribute('x'))) < 0.11); };
-const even = xs => xs.length > 0 && Math.abs(xs[0] + xs[xs.length - 1] - 348) < 0.3;      // the marks stand evenly about the middle of the frame (40 to 308)
-const namesAt = fig => fig.querySelectorAll('svg text.tk').map(t => Number(t.getAttribute('x')));
-const heights = sk({ title: 'T', kind: 'histogram' }).querySelectorAll('rect').map(r => Number(r.getAttribute('height'))), heat = sk({ title: 'T', kind: 'heatmap', z: 'how <much>' });
-const tally = fig => { const out = {}; fig.querySelector('svg[role="img"]').elements.filter(e => e.tag !== 'text').forEach(e => { const k = e.tag + '.' + e.className.split(' ')[0]; out[k] = (out[k] || 0) + 1; }); return out; };
-const OLD = [{ title: 'T', kind: 'line', series: [{ name: 'a', points: [[0, 0], [5, 50], [10, 100]] }] }, { title: 'T', kind: 'scatter', series: [{ name: 'a', points: [[1, 10], [3, 30]] }] },
-             { title: 'T', kind: 'line3d', series: [{ name: 'a', points: [[0, 0, 0], [1, 2, 3]] }] }];      // figures as a brief of 0309 kept them: with points a model wrote
-check('a sketch shows no result and no shape (0309, 0310): nothing in colour - a dashed wave where a line goes, the names beside dashed strokes. Each kind the Architect can name is drawn as itself: '
-  + 'points as small rings, bars and box plots as equal shapes with their names at them and no key, a histogram as one mound, a heat map as a grid, a line in three dimensions inside the frame of a '
-  + 'box with its third axis named; a figure of no such kind is its axes alone. A kind that names no series is drawn with as many unnamed ones as show it. Points a model wrote for a line draw '
-  + 'nothing (0310): a figure that still holds some is the same grey sketch',
-  same(tally(grey), { 'path.ax': 1, 'path.ph': 2 }) && !/class="[^"]*\b(ln|pt|s\d)\b/.test(grey.innerHTML)
-  && grey.querySelectorAll('.key i').map(i => i.className).join() === 'ph,ph' && grey.querySelector('.cap').textContent === 'Whether the gap holds.' && !grey.querySelector('.cap .ph')
-  && !sk({ title: 'T', kind: 'line' }).querySelector('.cap')
-  && same(tally(kindOf('scatter')), { 'path.ax': 1, 'circle.dot': 18 })
-  && same(tally(kindOf('bar')), { 'path.ax': 1, 'rect.ph': 2 }) && !kindOf('bar').querySelector('.key') && kindOf('bar').querySelectorAll('svg text.tk').map(t => t.textContent).join() === 'A,C'
-  && new Set(kindOf('bar').querySelectorAll('rect').map(r => r.getAttribute('height') + '/' + r.getAttribute('y') + '/' + r.getAttribute('width'))).size === 1
-  && same(tally(kindOf('box')), { 'path.ax': 1, 'path.ph': 2 }) && !kindOf('box').querySelector('.key') && kindOf('box').querySelectorAll('svg text.tk').map(t => t.textContent).join() === 'A,C'
-  && new Set(kindOf('box').querySelectorAll('path.ph').map(x => x.getAttribute('d').replace(/M[\d.]+|H[\d.]+/g, ''))).size === 1
-  && same(tally(kindOf('histogram')), { 'path.ax': 1, 'rect.ph': 7 }) && same(tally(kindOf('heatmap')), { 'path.ax': 1, 'rect.cell': 24 })
-  && same(tally(kindOf('line3d', { z: 'z' })), { 'path.bk': 1, 'path.ax': 1, 'path.ph': 2 }) && kindOf('line3d', { x: 'x', y: 'y', z: 'z' }).querySelectorAll('svg text').map(t => t.textContent).join() === 'x,y,z'
-  && !kindOf('line', { z: 'z' }).querySelector('.bk') && kindOf('line', { x: 'x', y: 'y', z: 'z' }).querySelectorAll('svg text').map(t => t.textContent).join() === 'x,y'
-  && same(tally(kindOf(undefined)), { 'path.ax': 1 }) && same(tally(kindOf('violin')), { 'path.ax': 1 }) && kindOf(undefined).querySelectorAll('.key i.ph').length === 2
-  && same(tally(sk({ title: 'T', kind: 'bar' })), { 'path.ax': 1, 'rect.ph': 3 }) && same(tally(sk({ title: 'T', kind: 'box' })), { 'path.ax': 1, 'path.ph': 2 })
-  && same(tally(sk({ title: 'T', kind: 'scatter' })), { 'path.ax': 1, 'circle.dot': 9 }) && same(tally(sk({ title: 'T', kind: 'line' })), { 'path.ax': 1, 'path.ph': 1 })
-  && !sk({ title: 'T', kind: 'line' }).querySelector('.key') && !sk({ title: 'T', kind: 'bar' }).querySelector('svg text')
-  && even(namesAt(kindOf('bar'))) && even(namesAt(kindOf('box'))) && even(namesAt(sk({ title: 'T', kind: 'bar', series: ['a', 'b', 'c', 'd'].map(name => ({ name })) }))) && same(namesAt(kindOf('box', { series: [{ name: 'a' }] })), [174])
-  && centred(kindOf('bar'), 'rect') && centred(sk({ title: 'T', kind: 'bar', series: ['a', 'b', 'c', 'd'].map(name => ({ name })) }), 'rect') && same(heights, heights.slice().reverse()) && Math.max.apply(null, heights) === 110
-  && same(Array.from(new Set(kindOf('heatmap').querySelectorAll('rect').map(r => r.className))).sort(), ['cell c0', 'cell c1', 'cell c2'])
-  && same(heat.querySelectorAll('.key span').map(s => s.querySelector('i').className + '=' + s.textContent), ['sq=how <much>']) && !kindOf('heatmap').querySelector('.key i.sq')
-  && !sk({ title: 'T', kind: 'line', z: 'depth' }).querySelector('.key') && heat.querySelectorAll('svg[role="img"] text').length === 0
-  && same(OLD.map(f => tally(sk(f))), [{ 'path.ax': 1, 'path.ph': 1 }, { 'path.ax': 1, 'circle.dot': 9 }, { 'path.bk': 1, 'path.ax': 1, 'path.ph': 1 }])
-  && OLD.every(f => !/class="[^"]*\b(ln|pt|s\d)\b/.test(sk(f).innerHTML) && sk(f).querySelector('.key i').className === 'ph')
-  && sk(OLD[0]).querySelector('path.ph').getAttribute('d') === sk({ title: 'T', kind: 'line', series: [{ name: 'a' }] }).querySelector('path.ph').getAttribute('d'), grey.outerHTML);
+const known = sk(KNOWN, 0, CS);
+const windowIn = fig => { const w = fig.querySelector('.ar-wait'); return w ? w.className + '=' + w.textContent : ''; };      // the grey window of a panel: its state and its line
+const partsOf = fig => fig.elements.map(e => e.className || e.tag).join();
+const OLD = [{ title: 'T', kind: 'line', series: [{ name: 'a', points: [[0, 0], [5, 50], [10, 100]] }] }, { title: 'T', kind: 'heatmap', z: 'how much' }, { title: 'T' }];      // one as a brief of 0309 kept it, with points a model wrote; one of a kind with a third axis; one that is a title alone
+check('a figure without a draft (0311): a panel with its number, its title as text and - while the brief can be changed - a cross that names its place; under them a grey window with one line in its '
+  + 'middle, and nothing else: no sketch, no key, nothing of how the Architect described the figure, and no word that it is a draft (a live run of 0310 was "too busy"). The line says that there '
+  + 'is no draft yet - in the brief of a run, that none was drawn; it does not move, and has nothing under the mouse. Every figure is the same window, whatever its kind and whatever a brief of '
+  + '0309 kept with it. A panel changed in the version shown carries the bar; one that is read has no cross',
+  known.className === 'ar-fig changed' && partsOf(known) === 'hd,ar-wait'
+  && known.querySelector('.hd').elements.map(e => e.className + '=' + e.textContent).join('|') === 'n=1|t=Two <paths>|drop='
+  && known.querySelector('.drop').getAttribute('data-ar') === 'unfigure' && known.querySelector('.drop').getAttribute('data-path') === 'figures.0' && known.querySelector('.drop').getAttribute('title') === 'Leave it out'
+  && windowIn(known) === 'ar-wait=No draft yet.' && known.querySelector('.ar-wait').elements.map(e => e.tag).join() === 'span' && !known.querySelector('.ar-wait').hasAttribute('title')
+  && !known.querySelector('.tag') && !known.querySelector('.plot') && !known.querySelector('.cap') && !known.querySelector('.key') && !/They|how far|start/.test(known.textContent)
+  && !known.querySelector('paths') && !known.querySelector('part')
+  && sk(KNOWN, 2).className === 'ar-fig' && !sk(KNOWN, 2).querySelector('.drop') && sk(KNOWN, 2).querySelector('.n').textContent === '3' && windowIn(sk(KNOWN, 2)) === 'ar-wait=No draft was drawn.'
+  && sk(KNOWN, 1, CS).className === 'ar-fig' && sk(KNOWN, 1, CS).querySelector('.drop').getAttribute('data-path') === 'figures.1'
+  && OLD.every(f => partsOf(sk(f)) === 'hd,ar-wait' && windowIn(sk(f, 0, CS)) === 'ar-wait=No draft yet.') && typeof b.sketch === 'undefined', known.outerHTML);
 const DC = (drafts, more) => Object.assign({ edit: true, changed: [], keys: ['k1', 'k<2>'], drafts }, more);
 const capOf = fig => (fig.querySelector('.cap') || { textContent: '' }).textContent;
-const drawnC = sk(KNOWN, 0, DC({ k1: { basis: 'computed' } })), drawnM = sk(KNOWN, 1, DC({ 'k<2>': { basis: 'made up' } })), failedF = sk(KNOWN, 0, DC({ k1: { failed: 'the cell failed: <ValueError>', tries: 2 } }));
+const drawnC = sk(KNOWN, 0, DC({ k1: { basis: 'computed' } })), drawnM = sk(KNOWN, 1, DC({ 'k<2>': { basis: 'made up' } })), failedF = sk(KNOWN, 0, DC({ k1: { failed: 'the cell failed: <ValueError> "bad"', tries: 2 } }));
 const MADE = 'The numbers are made up. The analysis puts in the real ones.';
-check('a figure and its draft (0310): where its draft was drawn the panel says "draft" and holds the place the page draws the plot in, under the figure\'s key - the sketch stays in the markup, for '
-  + 'where the plot cannot be had. On made-up numbers the word and a line under the figure say so, and the place is marked for the words drawn across it; a computed one says neither. Where no draft '
-  + 'could be drawn the panel is a sketch with a line that says so, the reason under the mouse; while a draft is on its way a line says that - for a figure whose first draft failed too, not for '
-  + 'one tried twice, nor for one that has its draft. A figure under another key, or under none, is a sketch that says nothing. The key and the reason are text',
-  drawnC.className === 'ar-fig drawn' && drawnC.elements.map(e => e.className || e.tag).join() === 'hd,plot,key,svg,cap'
+check('a figure and its draft (0310, 0311): where its draft was drawn the panel says "draft" and holds the place the page draws the plot in, under the figure\'s key - the grey window stays in the '
+  + 'markup after it, for where the plot cannot be shown. On made-up numbers the word and a line under the figure say so, and the place is marked for the words drawn across it; a computed one '
+  + 'says neither. Where no draft could be drawn the window says so, the reason under the mouse; while a draft is on its way the window says that, and is the one that breathes - for a figure '
+  + 'whose first draft failed too, not for one tried twice, nor for one that has its draft. A figure under another key, or under none, has no draft yet. The key and the reason are text',
+  drawnC.className === 'ar-fig drawn' && partsOf(drawnC) === 'hd,plot,ar-wait'
   && drawnC.querySelector('.tag').className === 'tag' && drawnC.querySelector('.tag').textContent === 'draft' && drawnC.querySelector('.plot').getAttribute('data-key') === 'k1'
-  && !drawnC.querySelector('.plot').hasAttribute('data-made-up') && drawnC.querySelector('.plot').innerHTML === '' && capOf(drawnC) === 'They <part>.' && !!drawnC.querySelector('.drop')
-  && drawnM.className === 'ar-fig drawn' && drawnM.querySelector('.tag').className === 'tag mu' && drawnM.querySelector('.tag').textContent === 'draft · made-up numbers'
-  && drawnM.querySelector('.plot').getAttribute('data-key') === 'k<2>' && drawnM.querySelector('.plot').getAttribute('data-made-up') === '1'
-  && capOf(drawnM) === 'They <part>. ' + MADE && drawnM.querySelector('.cap .mu').textContent === MADE
-  && capOf(sk({ title: 'T' }, 0, DC({ k1: { basis: 'made up' } }))) === MADE && !sk({ title: 'T' }, 0, DC({ k1: { basis: 'computed' } })).querySelector('.cap')
-  && failedF.className === 'ar-fig' && !failedF.querySelector('.plot') && failedF.querySelector('.tag').textContent === 'sketch' && capOf(failedF) === 'They <part>. No draft could be drawn.'
-  && failedF.querySelector('.cap .ph').getAttribute('title') === 'the cell failed: <ValueError>'
-  && capOf(sk(KNOWN, 0, DC({}, { drawing: true }))) === 'They <part>. Drawing a draft…' && capOf(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 1 } }, { drawing: true }))) === 'They <part>. Drawing a draft…'
-  && capOf(sk(KNOWN, 0, DC({ k1: { failed: 'x' } }, { drawing: true }))) === 'They <part>. Drawing a draft…' && capOf(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 2 } }, { drawing: true }))) === 'They <part>. No draft could be drawn.'
-  && capOf(sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { drawing: true }))) === 'They <part>.' && capOf(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 1 } }))) === 'They <part>. No draft could be drawn.'
-  && sk(KNOWN, 0, DC({ 'k<2>': { basis: 'computed' } })).className === 'ar-fig' && capOf(sk(KNOWN, 0, DC({ 'k<2>': { basis: 'computed' } }))) === 'They <part>.'
+  && !drawnC.querySelector('.plot').hasAttribute('data-made-up') && drawnC.querySelector('.plot').innerHTML === '' && !drawnC.querySelector('.cap') && !!drawnC.querySelector('.drop')
+  && windowIn(drawnC) === 'ar-wait=The draft could not be shown.' && !/They/.test(drawnC.textContent)
+  && drawnM.className === 'ar-fig drawn' && partsOf(drawnM) === 'hd,plot,cap,ar-wait' && drawnM.querySelector('.tag').className === 'tag mu' && drawnM.querySelector('.tag').textContent === 'draft · made-up numbers'
+  && drawnM.querySelector('.plot').getAttribute('data-key') === 'k<2>' && drawnM.querySelector('.plot').getAttribute('data-made-up') === '1' && capOf(drawnM) === MADE
+  && failedF.className === 'ar-fig' && partsOf(failedF) === 'hd,ar-wait' && !failedF.querySelector('.tag') && windowIn(failedF) === 'ar-wait=No draft could be drawn.'
+  && failedF.querySelector('.ar-wait').getAttribute('title') === 'the cell failed: <ValueError> "bad"' && !failedF.querySelector('ValueError')
+  && windowIn(sk(KNOWN, 0, DC({}, { drawing: true }))) === 'ar-wait live=Drawing a draft…' && !sk(KNOWN, 0, DC({}, { drawing: true })).querySelector('.ar-wait').hasAttribute('title')
+  && windowIn(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 1 } }, { drawing: true }))) === 'ar-wait live=Drawing a draft…' && windowIn(sk(KNOWN, 0, DC({ k1: { failed: 'x' } }, { drawing: true }))) === 'ar-wait live=Drawing a draft…'
+  && windowIn(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 2 } }, { drawing: true }))) === 'ar-wait=No draft could be drawn.'
+  && sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { drawing: true })).className === 'ar-fig drawn' && windowIn(sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { drawing: true }))) === 'ar-wait=The draft could not be shown.'
+  && windowIn(sk(KNOWN, 0, DC({ k1: { failed: 'x', tries: 1 } }))) === 'ar-wait=No draft could be drawn.'
+  && sk(KNOWN, 0, DC({ 'k<2>': { basis: 'computed' } })).className === 'ar-fig' && windowIn(sk(KNOWN, 0, DC({ 'k<2>': { basis: 'computed' } }))) === 'ar-wait=No draft yet.'
   && sk(KNOWN, 2, DC({ k1: { basis: 'computed' } })).className === 'ar-fig' && sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { changed: ['figures.0'] })).className === 'ar-fig drawn changed'
-  && !sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { edit: false })).querySelector('.drop') && !/k<2>/.test(drawnM.innerHTML), [drawnC.outerHTML, drawnM.outerHTML, failedF.outerHTML]);
+  && !sk(KNOWN, 0, DC({ k1: { basis: 'computed' } }, { edit: false })).querySelector('.drop') && windowIn(sk(KNOWN, 0, DC({}, { edit: false }))) === 'ar-wait=No draft was drawn.'
+  && !/k<2>/.test(drawnM.innerHTML), [drawnC.outerHTML, drawnM.outerHTML, failedF.outerHTML]);
 const LAY = { height: 900, title: { text: 'T' }, annotations: [{ text: 'a' }] }, layWas = JSON.stringify(LAY), layM = A.draftLayout(LAY, true), layC = A.draftLayout(LAY, false);
 check('the layout a draft is drawn with (0310): the figure\'s own - its title, its axes, its panels - fitted to its place: as wide as the panel, no taller than 560 and no lower than 280, 360 where '
   + 'the figure sets no height, and not to be dragged about. On made-up numbers those words stand across the figure - over the plot, after the figure\'s own notes; a computed draft has none. '
@@ -322,36 +290,23 @@ check('the layout a draft is drawn with (0310): the figure\'s own - its title, i
   && same(layC.annotations, [{ text: 'a' }]) && layC.height === 560 && JSON.stringify(LAY) === layWas
   && A.draftLayout(null, false).height === 360 && same(A.draftLayout(undefined, false).annotations, []) && A.draftLayout({ height: 100 }, false).height === 280 && A.draftLayout({ height: 400 }, true).height === 400
   && A.draftLayout({ height: 'tall' }, false).height === 360 && A.draftLayout({}, true).annotations.length === 1, [layM, layC]);
-const LONG = sk({ title: 'T', kind: 'line', x: 'x'.repeat(50), y: 'a name beside the upright axis that runs on' }), namesL = LONG.querySelectorAll('svg text');
-const turned = y => sk({ title: 'T', kind: 'line', y }).querySelector('svg text').hasAttribute('transform');
-const fourBars = sk({ title: 'T', kind: 'bar', series: ['a rather long name', 'b', 'c', 'd'].map(name => ({ name })) }).querySelectorAll('svg text.tk');
-check('the names in a drawing (0309): an axis\' name stands under it, or beside the upright one, turned along it - a letter or two stay upright; a name too long for its place is cut, and whole under the '
-  + 'mouse; a name is text, never markup; an axis without a name has none. The names at bars and boxes are cut by how many stand side by side',
-  namesL[0].innerHTML === 'x'.repeat(43) + '…<title>' + 'x'.repeat(50) + '</title>' && namesL[0].getAttribute('x') + ',' + namesL[0].getAttribute('y') + ',' + namesL[0].getAttribute('text-anchor') === '174,179,middle'
-  && !namesL[0].hasAttribute('transform') && namesL[1].innerHTML === 'a name beside the upright…<title>a name beside the upright axis that runs on</title>' && namesL[1].getAttribute('transform') === 'rotate(-90 18 86)'
-  && !turned('y') && !turned('yld') && turned('rate') && sk({ title: 'T', kind: 'line', y: 'rate' }).querySelector('svg text').innerHTML === 'rate'
-  && sk({ title: 'T', kind: 'line', x: '<b>x</b>' }).querySelector('svg text').textContent === '<b>x</b>' && !sk({ title: 'T', kind: 'line', x: '<b>x</b>' }).querySelector('svg b')
-  && !sk({ title: 'T', kind: 'line' }).querySelector('svg text') && !sk({ title: 'T', kind: 'line3d', series: [{ name: 'a' }] }).querySelector('svg text')
-  && kindOf('line3d', { x: 'x', y: 'y', z: 'depth' }).querySelectorAll('svg text').map(t => t.textContent + ':' + (t.getAttribute('text-anchor') || 'start') + ':' + t.hasAttribute('transform')).join() === 'x:middle:false,y:start:false,depth:middle:true'
-  && fourBars.map(t => t.innerHTML).join('|') === 'a rathe…<title>a rather long name</title>|b|c|d'
-  && sk({ title: 'T', kind: 'box', series: [{ name: 'a rather long name' }] }).querySelector('svg text.tk').innerHTML === 'a rather long name', LONG.outerHTML);
 const FIGS = [KNOWN, ON_DATA, { title: 'Spread', kind: 'box', series: [{ name: 'A' }, { name: 'C' }] }];
 const FF = { versions: F3.versions.concat([{ n: 4, by: 'architect', why: 'answer', changed: ['figures.0', 'figures.2'], brief: Object.assign({}, FULL, { figures: FIGS }), keys: ['kA', 'kB', 'kC'] },
                                            { n: 5, by: 'person', changed: ['figures'], brief: Object.assign({}, FULL, { figures: FIGS.slice(0, 2) }), keys: ['kA', 'kB'] }]),
              drafts: { kA: { basis: 'computed' }, kB: { basis: 'made up' }, kC: { failed: 'the cell failed', tries: 1 } } };
 const tabF = el(b.brief(FF, { chain: 71, thread: 7, state: 'framing', shown: 4 })).querySelector('.ar-brief'), figsF = tabF.querySelector('.ar-figs');
-const classesF = o => el(b.brief(FF, Object.assign({ chain: 71, thread: 7, state: 'framing', shown: 4 }, o))).querySelectorAll('.ar-fig').map(f => f.className + '/' + capOf(f).replace('They <part>. ', '').replace('Whether the gap holds. ', '')).join('|');
+const classesF = o => el(b.brief(FF, Object.assign({ chain: 71, thread: 7, state: 'framing', shown: 4 }, o))).querySelectorAll('.ar-fig').map(f => f.className + '/' + (f.classList.contains('drawn') ? capOf(f) : windowIn(f))).join('|');
 const only = (figs, more) => el(b.brief(Object.assign({ versions: [{ n: 1, by: 'architect', changed: [], brief: { question: 'q', figures: figs } }] }, more), { chain: 71, state: 'framing' }));
-check('the figures on the Brief tab (0309, 0310): under a plain heading of their own, after what is fixed before a run and before what the brief builds on - a panel to a figure, in the brief\'s order, '
+check('the figures on the Brief tab (0309-0311): under a plain heading of their own, after what is fixed before a run and before what the brief builds on - a panel to a figure, in the brief\'s order, '
   + 'each under its number, the ones this version changed marked; the version on screen shows its own figures. A figure is found drawn by its key among the version\'s keys and the drafts the framing '
-  + 'keeps: drawn, a sketch that says no draft could be drawn, or - while one is on its way - a sketch that says so; the tab carries the thread its plots are kept under, and that a draft is on '
+  + 'keeps: drawn, a grey window that says no draft could be drawn, or - while one is on its way - one that says so; the tab carries the thread its plots are kept under, and that a draft is on '
   + 'its way. While the brief can be changed each has its cross; the brief of a run that has started shows them to be read, drafts and all. A framing without keys - a brief of 0309 - shows '
-  + 'sketches. A brief without figures has no such part, and none can be added by hand: the coach asks the Architect. A brief that holds only figures is a brief: on data, what is always tested is said',
+  + 'no draft. A brief without figures has no such part, and none can be added by hand: the coach asks the Architect. A brief that holds only figures is a brief: on data, what is always tested is said',
   h3s(tabF) === 'What it is for|What you think|Why you think so|What you expect to see|What would change your mind|Other explanations to test|Measured by|What it will look like|Builds on|Set aside'
   && figsF.elements.map(e => e.className + ':' + e.querySelector('.n').textContent + ':' + e.querySelector('.t').textContent).join('|') === 'ar-fig drawn changed:1:Two <paths>|ar-fig drawn:2:Yield by season|ar-fig changed:3:Spread'
-  && classesF({}) === 'ar-fig drawn changed/They <part>.|ar-fig drawn/' + MADE + '|ar-fig changed/No draft could be drawn.'
-  && classesF({ drawing: true }) === 'ar-fig drawn changed/They <part>.|ar-fig drawn/' + MADE + '|ar-fig changed/Drawing a draft…'
-  && classesF({ shown: 5 }) === 'ar-fig drawn/They <part>.|ar-fig drawn/' + MADE && classesF({ state: 'run' }) === classesF({}) && figsF.querySelectorAll('.plot').map(x => x.getAttribute('data-key')).join() === 'kA,kB'
+  && classesF({}) === 'ar-fig drawn changed/|ar-fig drawn/' + MADE + '|ar-fig changed/ar-wait=No draft could be drawn.'
+  && classesF({ drawing: true }) === 'ar-fig drawn changed/|ar-fig drawn/' + MADE + '|ar-fig changed/ar-wait live=Drawing a draft…'
+  && classesF({ shown: 5 }) === 'ar-fig drawn/|ar-fig drawn/' + MADE && classesF({ state: 'run' }) === classesF({}) && figsF.querySelectorAll('.plot').map(x => x.getAttribute('data-key')).join() === 'kA,kB'
   && tabF.getAttribute('data-thread') === '7' && !tabF.hasAttribute('data-drawing') && el(b.brief(FF, { chain: 71, thread: 7, state: 'framing', drawing: true })).querySelector('.ar-brief').getAttribute('data-drawing') === '1'
   && el(b.brief({ versions: FF.versions.map(v => Object.assign({}, v, { keys: undefined })), drafts: FF.drafts }, { chain: 71, state: 'framing', shown: 4 })).querySelectorAll('.ar-fig.drawn').length === 0
   && el(b.brief({ versions: FF.versions }, { chain: 71, state: 'framing', shown: 4 })).querySelectorAll('.ar-fig.drawn').length === 0
@@ -407,12 +362,12 @@ const MEMORY = { who: 'memory', found: [{ id: '7/8', when: '2026-03-02', questio
                  across: { topic: 'How the gap was taken', groups: [{ label: 'B minus A', runs: [{ run: '7/8' }, { run: '7/9' }] }, { label: 'the ratio', runs: [{ run: '5/6' }] }] },
                  of: 12, read: 9, dropped: 1, failed: '', secs: 41.3, cost: 0.07, v: 3 };
 const memRow = turn => el(b.recalled(turn)).querySelector('.sp-row');
-check('a reading of the saved analyses is one row of the conversation: SAVED analyses, how many analyses were found - not how many passages (0308) - and how many of the saved runs were read, the '
-  + 'seconds; the passages and the count to each way across them are the row\'s title, as text',
-  memRow(MEMORY).className === 'sp-row tool read' && memRow(MEMORY).textContent === '✓SAVED analyses2 analyses found · read 9 of 1241 s'
+check('a reading of the saved analyses is one row of the conversation: MEMORY (0311: the row had said SAVED analyses, which read as something saved), how many analyses were found - not how many '
+  + 'passages (0308) - and how many of the saved runs were read, the seconds; the passages and the count to each way across them are the row\'s title, as text',
+  memRow(MEMORY).className === 'sp-row tool read' && memRow(MEMORY).textContent === '✓MEMORY2 analyses found · read 9 of 1241 s' && memRow(MEMORY).querySelector('.in').textContent === 'MEMORY'
   && memRow(MEMORY).getAttribute('title') === '2026-03-02 · Was B above A in <spring>?: "B led A by 3 units"\n2026-04-02 · Synthesis: Two arms: "gap = b - a"\n2026-03-02 · Was B above A in <spring>?: "gap: 3 units"\nHow the gap was taken: 2 × B minus A; 1 × the ratio'
-  && memRow(Object.assign({}, MEMORY, { found: MEMORY.found.slice(0, 1), across: null, read: 0 })).textContent === '✓SAVED analyses1 analysis found · 12 saved41 s'
-  && memRow({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 }).textContent === '✓SAVED analysesnothing found · read 12 of 121 s', b.recalled(MEMORY));
+  && memRow(Object.assign({}, MEMORY, { found: MEMORY.found.slice(0, 1), across: null, read: 0 })).textContent === '✓MEMORY1 analysis found · 12 saved41 s'
+  && memRow({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 }).textContent === '✓MEMORYnothing found · read 12 of 121 s', b.recalled(MEMORY));
 const foundList = el(b.recalled(MEMORY)).querySelector('.ar-found');
 check('under the row, what the reading found (0308): an analysis to a line, in the order found - its day as a person writes it and what was asked then, as text - with View, which names the analysis '
   + 'by its thread and run; the passages are not listed here: the Brief tab has them. Nothing can be ticked. A reading that found nothing, or was not made, has no list',
@@ -422,15 +377,15 @@ check('under the row, what the reading found (0308): an analysis to a line, in t
   && !foundList.querySelector('.qt') && !foundList.querySelector('.why') && !foundList.querySelector('.tag') && foundList.querySelectorAll('[data-ar]').length === 2 && !/B led A by 3 units/.test(foundList.textContent)
   && !el(b.recalled({ who: 'memory', found: [], of: 12, read: 12, secs: 0.2 })).querySelector('.ar-found')
   && !el(b.recalled({ who: 'memory', found: MEMORY.found, failed: 'The person skipped it.', secs: 3 })).querySelector('.ar-found'), b.recalled(MEMORY));
-check('a reading that was not made is marked as one that did not run: its row says that the coach skipped it, or why it could not be made; a reading in flight shows how far it is - looking, looking through the saved runs, reading so many of them - with Skip, '
-  + 'which can be pressed once the server has said how many are saved',
+check('a reading that was not made is marked as one that did not run: its row says that the coach skipped it, or why it could not be made; a reading in flight says what is being done - SEARCHING '
+  + 'MEMORY (0311) - and how far it is: nothing until the server has said how many are saved, then so many of them read - with Skip, which can be pressed from then on',
   memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).className === 'sp-row tool read skipped'
-  && memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).textContent === '–SAVED analysesskipped3 s'
-  && memRow({ who: 'memory', found: [], failed: 'The saved analyses could not be read: the executor is <away>', secs: 0.4 }).textContent === '–SAVED analysesnot read · The saved analyses could not be read: the executor is <away>1 s'
-  && el(b.reading({ read: 0, of: null })).querySelector('.sp-row.tool.read.pending').textContent === 'SAVED analyseslookingSkip'
+  && memRow({ who: 'memory', found: [], failed: 'The person skipped it.', secs: 3 }).textContent === '–MEMORYskipped3 s'
+  && memRow({ who: 'memory', found: [], failed: 'The saved analyses could not be read: the executor is <away>', secs: 0.4 }).textContent === '–MEMORYnot read · The saved analyses could not be read: the executor is <away>1 s'
+  && el(b.reading({ read: 0, of: null })).querySelector('.sp-row.tool.read.pending').textContent === 'SEARCHING MEMORYSkip' && el(b.reading({ read: 0, of: null })).querySelector('.in').textContent === 'SEARCHING MEMORY'
   && el(b.reading({ read: 0, of: null })).querySelector('.ar-skip').hasAttribute('disabled') && !el(b.reading({ read: 0, of: 12 })).querySelector('.ar-skip').hasAttribute('disabled')
-  && el(b.reading({ read: 0, of: 12 })).querySelector('.out').textContent === 'looking through 12' && el(b.reading({ read: 5, of: 12 })).querySelector('.out').textContent === 'reading 5 of 12'
-  && el(b.reading({ read: 1, of: 12 })).querySelector('.out').textContent === 'reading 1 of 12'
+  && el(b.reading({ read: 0, of: 12 })).querySelector('.out').textContent === '0 of 12 read' && el(b.reading({ read: 5, of: 12 })).querySelector('.out').textContent === '5 of 12 read'
+  && el(b.reading({ of: 12 })).querySelector('.out').textContent === '0 of 12 read' && el(b.reading({ read: 5, of: 12 })).querySelector('.sp-row').textContent === 'SEARCHING MEMORY5 of 12 readSkip'
   && el(b.reading({ read: 5, of: 12 })).querySelector('button.ar-skip[data-ar="skip"]').textContent === 'Skip' && el(b.reading({ read: 5, of: 12 })).querySelector('.live'), b.reading({ read: 5, of: 12 }));
 const BS = { question: 'q', saved: BUILT.slice(0, 2).concat([Object.assign({}, BUILT[2], { accepted: true })]) };
 check('unbuild() (0308): the brief builds no longer on one saved analysis, named by its id - every passage of it goes, the others stay, and with the last one the part; an analysis the brief does not '
@@ -532,8 +487,9 @@ const talkD = el(b.talk(entryW({ versions: FW.versions, turns: turnsD }), { live
 const waits = o => el(b.talk(entryW({ versions: FW.versions, turns: turnsD.slice(0, 2) }), Object.assign({ live: true, waiting: true }, o))).elements.slice(-1)[0];
 check('the draft of the figures in the conversation (0310): a row under the reply that had it drawn - how many figures were drawn, the seconds, and the button to the prompt its cell was written from, '
   + 'which names the draft\'s call; where some were not drawn the row says how many and is greyed, the reason under the mouse; where none was, it says so. The reply\'s choices can still be '
-  + 'clicked with the draft\'s row under it - not once the coach has spoken again. While the draft is on its way a row says so in the place of the Architect\'s "reading"; a reading of the '
-  + 'saved analyses is said first. Nothing in a row is markup; a reply of 0309 that says how many it sketched has no row',
+  + 'clicked with the draft\'s row under it - not once the coach has spoken again. While the draft is on its way a row says what is being done - DRAWING A DRAFT (0311: it had said FIGURES, and what '
+  + 'of them in grey after it) - in the place of the Architect\'s "reading"; a reading of the saved analyses is said first. Nothing in a row is markup; a reply of 0309 that says how many it '
+  + 'sketched has no row',
   talkD.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,sp-row.tool' && talkD.querySelectorAll('.ar-choice').length === 2
   && talkD.querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedversion 2|✓FIGURES2 drawn6 s⌘'
   && rowsD[0].className === 'sp-row tool read' && !rowsD[0].hasAttribute('title') && rowsD[0].elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=FIGURES|out=2 drawn|t=6 s|agent-instructions-btn sp-prompt=⌘'
@@ -543,9 +499,9 @@ check('the draft of the figures in the conversation (0310): a row under the repl
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD.concat([{ who: 'person', text: 'Yes' }]) }), { live: true })).querySelectorAll('.ar-choice').length === 0
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD.concat([DRAFT_PART]) }), { live: true })).querySelectorAll('.ar-choice').length === 2
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD }))).querySelectorAll('.ar-choice').length === 0
-  && el(b.drawingRow()).querySelector('.sp-row').className === 'sp-row tool read pending' && el(b.drawingRow()).querySelector('.sp-row').elements.map(e => e.className + '=' + e.textContent).join('|') === 'live=|in=FIGURES|out=drawing a draft…'
-  && waits({ drawing: true }).className === 'sp-row tool read pending' && waits({ drawing: true }).textContent === 'FIGURESdrawing a draft…' && waits({}).className === 'ar-msg arch wait'
-  && /^SAVED analyses/.test(waits({ drawing: true, saved: { read: 1, of: 3 } }).textContent) && waits({ drawing: true }).parent.querySelectorAll('.ar-choice').length === 0
+  && el(b.drawingRow()).querySelector('.sp-row').className === 'sp-row tool read pending' && el(b.drawingRow()).querySelector('.sp-row').elements.map(e => e.className + '=' + e.textContent).join('|') === 'live=|in=DRAWING A DRAFT'
+  && waits({ drawing: true }).className === 'sp-row tool read pending' && waits({ drawing: true }).textContent === 'DRAWING A DRAFT' && waits({}).className === 'ar-msg arch wait'
+  && waits({ drawing: true, saved: { read: 1, of: 3 } }).textContent === 'SEARCHING MEMORY1 of 3 readSkip' && waits({ drawing: true }).parent.querySelectorAll('.ar-choice').length === 0
   && typeof b.sketched === 'undefined' && typeof b.sketch === 'undefined'
   && el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'architect', text: 'As it was.', sketched: 2, v: 2 }] }))).querySelectorAll('.sp-row').length === 0, [talkD.innerHTML, rowsD.map(r => r.outerHTML)]);
 const wentRow = el(b.went({ who: 'version', v: 2 })).querySelector('.sp-row');
@@ -1011,9 +967,9 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('a reply that has the saved analyses read: while they are read the pane shows a row in the place of the Architect\'s wait - how many are saved, then how many are read, a line of the stream cut in two '
     + 'taken whole - the held composer says so, and Skip tells the server once; the reading done, its row stands under the Architect\'s message with the analyses found under it, the Brief tab lists them in '
     + 'full under the brief - which has not changed: no version, nothing built on - and the Architect is asked again with nothing said',
-    !early && opened === 'SAVED analyseslooking through 12Skip' && waitGone && holds === 'Your saved analyses are being read' && mid === 'reading 5 of 12' && same(skipped, { call: ['/architect/skip', {}], off: true })
+    !early && opened === 'SEARCHING MEMORY0 of 12 readSkip' && waitGone && holds === 'Your saved analyses are being read' && mid === '5 of 12 read' && same(skipped, { call: ['/architect/skip', {}], off: true })
     && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.', version: shownGo }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
-    && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓SAVED analyses2 analyses found · read 9 of 1241 s' && !went.pending
+    && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓MEMORY2 analyses found · read 9 of 1241 s' && !went.pending
     && went.left === '2 Mar 2026 · Was B above A in <spring>?|2 Apr 2026 · Synthesis: Two arms' && went.right === 2 && went.ver === shownGo + ' of ' + shownGo && !went.built && same(entry.framing, told)
     && pane()[pane().length - 1] === 'arch|Architect⌘You asked this in spring. Build on it, or go another way?Build on the spring oneGo another way', [opened, mid, skipped, went]);
   // View, in either pane: the saved analysis in a dialog over the page
@@ -1123,7 +1079,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   A.tell('Show me what it will look like'); await tick();
   const replied = answered('Show me what it will look like', 'A draft is being drawn. Is that what you want to see?',
                            { changed: ['figures.0', 'figures.1'], brief: Object.assign({}, latest().brief, { figures: [KNOWN, ON_DATA] }), keys: ['k1', 'k2'] }, { choices: ['Yes', 'Change something'] });
-  const figsNow = () => brief().querySelectorAll('.ar-fig').map(f => f.className + ':' + f.querySelector('.n').textContent + ':' + f.querySelector('.t').textContent + ':' + f.querySelector('.tag').textContent).join('|');
+  const figsNow = () => brief().querySelectorAll('.ar-fig').map(f => f.className + ':' + f.querySelector('.n').textContent + ':' + f.querySelector('.t').textContent + ':' +
+                                                                     (f.querySelector('.tag') ? f.querySelector('.tag').textContent : windowIn(f))).join('|');
   const lastRow = () => $('streamOutput').querySelectorAll('.sp-row').map(r => r.className + ':' + r.textContent).slice(-1)[0];
   const asked = () => calls.slice(n).map(c => c[0]), drew = () => plotted.map(p => p.key + ':' + p.layout.height + ':' + p.layout.annotations.map(a => a.text).join() + ':' + p.config.displayModeBar + ':' + p.data.length);
   liveD.send(JSON.stringify({ type: 'architect_saved', read: 1, of: 3 }) + '\n'); await tick();
@@ -1131,10 +1088,10 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   liveD.send(JSON.stringify({ type: 'architect_draft', chain_id: 71, framing: replied }) + '\n'); await tick();
   const taken = entry.queryText === asksNow;
   A.restore({ status: 'framing', chain_id: 73, thread_id: 7, queryText: 'q', framing: { versions: [{ n: 1, by: 'architect', changed: [], brief: { question: 'q', figures: [ON_DATA] }, keys: ['zz'] }], turns: [] } });
-  const elsewhere = { drawing: brief().getAttribute('data-drawing'), lines: brief().querySelectorAll('.ar-fig .cap .ph').length, chain: brief().getAttribute('data-chain') };
+  const elsewhere = { drawing: brief().getAttribute('data-drawing'), figs: figsNow(), chain: brief().getAttribute('data-chain') };
   A.restore(entry);
   doc.dispatch('click', brief().querySelector('[data-ar="step"][data-step="-1"]')); doc.dispatch('click', brief().querySelector('[data-ar="step"][data-step="1"]')); await tick();
-  const meanwhile = { figs: figsNow(), lines: brief().querySelectorAll('.ar-fig .cap .ph').map(x => x.textContent).join('|'), pane: pane().slice(-2), said: pane().filter(m => m === 'you|YouShow me what it will look like').length,
+  const meanwhile = { figs: figsNow(), pane: pane().slice(-2), said: pane().filter(m => m === 'you|YouShow me what it will look like').length,
                       row: lastRow(), hold: $('queryInput').placeholder, choices: $('streamOutput').querySelectorAll('.ar-choice').length, asked: asked(), drew: drew(), drawing: brief().getAttribute('data-drawing'),
                       thread: brief().getAttribute('data-thread'), versions: entry.framing.versions.length };
   const drawnF = JSON.parse(JSON.stringify(replied));
@@ -1143,25 +1100,25 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   liveD.send(JSON.stringify({ architect: { framing: drawnF } }) + '\n'); liveD.end(); await tick();
   const drawnNow = { figs: figsNow(), heads: h3s(brief()).split('|').slice(-2).join('|'), row: lastRow(), hold: $('queryInput').placeholder, choices: $('streamOutput').querySelectorAll('.ar-choice').length, asked: asked(), drew: drew(),
                      drawing: brief().getAttribute('data-drawing'), by: latest().by, crosses: brief().querySelectorAll('.ar-fig [data-ar="unfigure"]').length, held: brief().querySelectorAll('.ar-fig .plot svg').length,
-                     made: brief().querySelectorAll('.ar-fig .cap .mu').length };
+                     made: brief().querySelectorAll('.ar-fig .cap').map(x => x.textContent).join('|'), waits: brief().querySelectorAll('.ar-wait.live').length };
   const sketchedAt = entry.framing.versions.length;
   doc.dispatch('click', brief().querySelector('[data-ar="step"][data-step="-1"]')); await tick();
   const back = { figs: figsNow(), drew: plotted.length };
   doc.dispatch('click', brief().querySelector('[data-ar="step"][data-step="1"]')); await tick();
   const again = { figs: figsNow(), drew: plotted.length, asked: asked().length };
-  check('a reply and the draft of its figures (0310): the coach asks in words, like any answer. The stream first carries the framing with the reply: its message stands - once - with a row under it '
-    + 'that a draft is on its way - not the row of the reading that came before it -, the composer is held with those words, the chain\'s question is the reply\'s, the figures stand in the '
-    + 'brief as sketches that say a draft is being drawn - still after a step to another version and back, and not in another chain\'s brief - and nothing is asked of the server yet. '
+  check('a reply and the draft of its figures (0310, 0311): the coach asks in words, like any answer. The stream first carries the framing with the reply: its message stands - once - with a row under '
+    + 'it that says a draft is being drawn - not the row of the reading that came before it -, the composer is held with those words, the chain\'s question is the reply\'s, the figures stand in the '
+    + 'brief as grey windows that say a draft is being drawn - still after a step to another version and back, and not in another chain\'s brief - and nothing is asked of the server yet. '
     + 'The stream ends on the framing with the draft: each figure is drawn by Plotly in its place - its plot asked for once, under the thread, the chain and the figure\'s key - as its layout '
     + 'fitted to the panel, the words across the one on made-up numbers; the row says how many were drawn, the reply\'s choices can be clicked, the composer is the conversation\'s again. '
     + 'Stepping to a version without figures and back draws them again, with nothing asked of the server',
-    same(meanwhile, { figs: 'ar-fig changed:1:Two <paths>:sketch|ar-fig changed:2:Yield by season:sketch', lines: 'Drawing a draft…|Drawing a draft…',
-                      pane: ['you|YouShow me what it will look like', 'arch|Architect⌘A draft is being drawn. Is that what you want to see?'], said: 1, row: 'sp-row tool read pending:FIGURESdrawing a draft…',
+    same(meanwhile, { figs: 'ar-fig changed:1:Two <paths>:ar-wait live=Drawing a draft…|ar-fig changed:2:Yield by season:ar-wait live=Drawing a draft…',
+                      pane: ['you|YouShow me what it will look like', 'arch|Architect⌘A draft is being drawn. Is that what you want to see?'], said: 1, row: 'sp-row tool read pending:DRAWING A DRAFT',
                       hold: 'A draft of the figures is being drawn', choices: 0, asked: ['/architect/say'], drew: [], drawing: '1', thread: '7', versions: sketchedAt })
-    && taken && same(elsewhere, { drawing: null, lines: 0, chain: '73' })
+    && taken && same(elsewhere, { drawing: null, figs: 'ar-fig:1:Yield by season:ar-wait=No draft yet.', chain: '73' })
     && same(drawnNow, { figs: 'ar-fig drawn changed:1:Two <paths>:draft|ar-fig drawn changed:2:Yield by season:draft · made-up numbers', heads: 'What it will look like|Found in your saved analyses',
                         row: 'sp-row tool read:✓FIGURES2 drawn6 s⌘', hold: 'Answer, or say what to change', choices: 2, asked: ['/architect/say', '/architect/draft/7/71/k1', '/architect/draft/7/71/k2'],
-                        drew: ['k1:360::false:1', 'k2:560:made-up numbers:false:1'], drawing: null, by: 'architect', crosses: 2, held: 2, made: 1 })
+                        drew: ['k1:360::false:1', 'k2:560:made-up numbers:false:1'], drawing: null, by: 'architect', crosses: 2, held: 2, made: 'The numbers are made up. The analysis puts in the real ones.', waits: 0 })
     && back.figs === '' && back.drew === 2 && again.figs === drawnNow.figs && again.drew === 4 && again.asked === 3 && same(locks[locks.length - 1], ['unlock']), [meanwhile, taken, elsewhere, drawnNow, back, again]);
   answers['/architect/brief'] = body => { const f = JSON.parse(JSON.stringify(entry.framing));
     f.versions.push({ n: f.versions.length + 1, by: 'person', changed: body.changed, brief: body.brief, keys: (body.brief.figures || []).map(x => KEY[x.title]) }); return [200, { framing: f }]; };
@@ -1185,21 +1142,22 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const shown = answered('And now, ' + how + '?', 'A draft is being drawn.', { changed: ['figures.0'], brief: Object.assign({}, latest().brief, { figures: [ON_DATA] }), keys: ['cut-' + how] }, { choices: ['Yes'] });
     live.send(JSON.stringify({ type: 'architect_draft', chain_id: 71, framing: shown }) + '\n'); await tick();
     live[how](); await tick();
-    cuts.push({ told: toasts.length - told, typed: $('queryInput').value, hold: $('queryInput').placeholder, drawing: brief().getAttribute('data-drawing'), figs: figsNow(), lines: brief().querySelectorAll('.ar-fig .cap .ph').length,
+    cuts.push({ told: toasts.length - told, typed: $('queryInput').value, hold: $('queryInput').placeholder, drawing: brief().getAttribute('data-drawing'), figs: figsNow(),
                 last: pane().slice(-1)[0], choices: $('streamOutput').querySelectorAll('.ar-choice').length, lock: locks[locks.length - 1], kept: same(entry.framing, shown), rows: $('streamOutput').querySelectorAll('.sp-row.pending').length });
   }
-  check('a stream that ends while the draft is drawn (0310): the reply the page shows stands - nothing says the Architect did not reply, what was typed is not put back, the figures are sketches '
-    + 'that no longer say a draft is on its way, the row that said so is gone, the reply\'s choices can be clicked and the composer is free - whether the stream ended without its last line or was cut',
-    cuts.length === 2 && cuts.every(c => same(c, { told: 0, typed: '', hold: 'Answer, or say what to change', drawing: null, figs: 'ar-fig changed:1:Yield by season:sketch', lines: 0,
+  check('a stream that ends while the draft is drawn (0310, 0311): the reply the page shows stands - nothing says the Architect did not reply, what was typed is not put back, the figures\' windows '
+    + 'no longer say a draft is on its way - there is none yet -, the row that said so is gone, the reply\'s choices can be clicked and the composer is free - whether the stream ended without its '
+    + 'last line or was cut',
+    cuts.length === 2 && cuts.every(c => same(c, { told: 0, typed: '', hold: 'Answer, or say what to change', drawing: null, figs: 'ar-fig changed:1:Yield by season:ar-wait=No draft yet.',
                                                  last: 'arch|Architect⌘A draft is being drawn.Yes', choices: 1, lock: ['unlock'], kept: true, rows: 0 })), cuts);
-  // a plot that cannot be had, a page without Plotly, a tab that came with its markup, and what a saved analysis drew
+  // a plot that cannot be shown, a page without Plotly, a tab that came with its markup - and nothing asked for of a saved analysis the brief builds on
   const kept = entry.framing, wasPlotly = global.Plotly;
   const lone = (key, basis, more) => Object.assign({ versions: [{ n: 1, by: 'architect', changed: [], brief: Object.assign({ question: 'q', figures: [ON_DATA] }, more), keys: [key] }], drafts: { [key]: { basis } }, turns: [] });
+  const UNSHOWN = 'ar-fig:1:Yield by season:ar-wait=The draft could not be shown.';
   answers['/architect/draft/7/71/gone'] = [404, { error: 'No draft is kept for this figure.' }];
   entry.framing = lone('gone', 'made up'); n = calls.length; plotted.length = 0;
   loadResponseContent(entry); await tick();
-  const gone = { fig: figsNow(), made: brief().querySelectorAll('.cap .mu').length, tag: brief().querySelector('.ar-fig .tag').className, drew: plotted.length, asked: asked(), shown: !!brief().querySelector('.ar-fig svg[role="img"]'),
-                 place: !!brief().querySelector('.ar-fig .plot') };
+  const gone = { fig: figsNow(), parts: partsOf(brief().querySelector('.ar-fig')), drew: plotted.length, asked: asked() };
   loadResponseContent(entry); await tick();
   const goneStill = { fig: figsNow(), asked: asked().length };
   answers['/architect/draft/7/71/later'] = 'down';
@@ -1217,16 +1175,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   const bare = { fig: figsNow(), drew: plotted.length };
   global.Plotly = wasPlotly;
   const SAVED_ON = [{ thread: '7301', run: '7302', when: '2026-03-02', question: 'Was B above A in spring?', passage: 'B led', accepted: true }, { thread: '7301', run: '7309', when: '2026-04-02', question: 'And in April?', passage: 'B led again', accepted: true }];
-  answers['/get_chain_preview/7301/7302'] = [200, { threadId: '7301', chainId: '7302', hasPlotly: true, plotPreview: 'data:image/png;base64,AAAA' }];
-  answers['/get_chain_preview/7301/7309'] = [200, { threadId: '7301', chainId: '7309', hasPlotly: false }];
   entry.framing = lone('k2', 'made up', { saved: SAVED_ON }); n = calls.length;
   loadResponseContent(entry); await tick();
-  const was = brief().querySelectorAll('.ar-was');
-  const built = { holders: was.map(w => w.getAttribute('data-thread') + '/' + w.getAttribute('data-run')).join(), first: was[0].elements.map(e => e.tag + ':' + (e.getAttribute('src') || e.textContent)).join('|'),
-                  second: was[1].innerHTML, under: brief().querySelectorAll('.ar-built')[0].parent.elements.indexOf(was[0]) - brief().querySelectorAll('.ar-built')[0].parent.elements.indexOf(brief().querySelectorAll('.ar-built')[0]),
-                  asked: asked().sort(), fig: figsNow() };
-  doc.dispatch('click', brief().querySelector('[data-ar="more"]')); await tick();
-  const twice = { asked: asked().length, first: brief().querySelector('.ar-was img') ? brief().querySelector('.ar-was img').getAttribute('src') : '' };
+  const builtOn = brief().querySelectorAll('.ar-built');
+  const built = { lines: builtOn.length, under: builtOn.map(l => { const e = l.parent.elements; return e[e.indexOf(l) + 1].className.split(' ')[0]; }).join(), pictures: brief().querySelectorAll('img').length,
+                  asked: asked(), fig: figsNow() };
   entry.framing = kept;
   const restored = { chain_id: 72, thread_id: 7, parentChainId: 70, queryText: 'A run', tabContent: '<div id="tab-brief" class="tab active">Brief</div>', streamOutput: '',
                      contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(lone('k2', 'made up'), { chain: 71, thread: 7, state: 'run' }).replace('<div class="plot" data-key="k2" data-made-up="1"></div>', '<div class="plot" data-key="k2" data-made-up="1"><svg class="stale"></svg></div>') + '</div>' };
@@ -1243,20 +1196,17 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   const ran = { state: brief().getAttribute('data-state'), asked: asked(), drew: plotted.map(p => p.key).join(), cross: !!brief().querySelector('[data-ar="unfigure"]') };
   global.createOrUpdateTab = tabWas;
   responses.pop(); currentResponseIndex = 1; loadResponseContent(entry); updateNavigationButtons(); await tick();
-  check('where a plot cannot be had (0310): a figure whose plot the server no longer holds is its sketch again - the tag says so, and nothing says its numbers are made up - and the server is '
-    + 'not asked for it a second time, and the plot\'s place is gone; where the server was not reached, or its answer failed, the figure is a sketch for now and its plot is asked for again '
-    + 'when the tab is next drawn. Every figure is a sketch '
-    + 'on a page without Plotly; nothing breaks. What a saved analysis drew stands under the line that builds on it, where its favourite kept a picture - asked for once, however often the '
-    + 'tab is drawn - and nothing stands there where it kept none. A Brief tab that came with its markup - a run restored - has its drafts drawn in it again, in the place of what the markup '
-    + 'held, once however often the page looks at it; and the Brief tab of an analysis that starts has its drafts drawn, asked for under its thread and chain',
-    same(gone, { fig: 'ar-fig:1:Yield by season:sketch', made: 0, tag: 'tag', drew: 0, asked: ['/architect/draft/7/71/gone'], shown: true, place: false }) && same(goneStill, { fig: gone.fig, asked: 1 })
-    && down === 'ar-fig:1:Yield by season:sketch' && failed === down && same(up, { fig: 'ar-fig drawn:1:Yield by season:draft', drew: 'later', asked: 3 })
-    && same(bare, { fig: 'ar-fig:1:Yield by season:sketch', drew: 0 })
-    && same(built, { holders: '7301/7302,7301/7309', first: 'img:data:image/png;base64,AAAA|div:What it drew then', second: '', under: 1, asked: ['/get_chain_preview/7301/7302', '/get_chain_preview/7301/7309'],
-                     fig: 'ar-fig drawn:1:Yield by season:draft · made-up numbers' })
-    && same(twice, { asked: 2, first: 'data:image/png;base64,AAAA' })
+  check('where a plot cannot be shown (0310, 0311): a figure whose plot the server no longer holds is a grey window that says the draft could not be shown - the plot\'s place is gone, with the word '
+    + 'that it is a draft and the line that its numbers are made up - and the server is not asked for it a second time; where the server was not reached, or its answer failed, the window says '
+    + 'so for now and the plot is asked for again when the tab is next drawn. Every figure is that window on a page without Plotly; nothing breaks. Under a saved analysis the brief builds on '
+    + 'stands nothing (0311): no picture, and nothing is asked of the server for one. A Brief tab that came with its markup - a run restored - has its drafts drawn in it again, in the place of '
+    + 'what the markup held, once however often the page looks at it; and the Brief tab of an analysis that starts has its drafts drawn, asked for under its thread and chain',
+    same(gone, { fig: UNSHOWN, parts: 'hd,ar-wait', drew: 0, asked: ['/architect/draft/7/71/gone'] }) && same(goneStill, { fig: UNSHOWN, asked: 1 })
+    && down === UNSHOWN && failed === UNSHOWN && same(up, { fig: 'ar-fig drawn:1:Yield by season:draft', drew: 'later', asked: 3 })
+    && same(bare, { fig: UNSHOWN, drew: 0 })
+    && same(built, { lines: 2, under: 'ar-line,ar-always', pictures: 0, asked: [], fig: 'ar-fig drawn:1:Yield by season:draft · made-up numbers' })
     && same(cameBack, { drew: 'k2:1', live: true, stale: false, asked: [], cross: false }) && same(again2, { drew: 1, svgs: 1 })
-    && same(ran, { state: 'run', asked: ['/architect/draft/7/74/run1'], drew: 'run1', cross: false }), [gone, goneStill, down, failed, up, bare, built, twice, cameBack, again2, ran]);
+    && same(ran, { state: 'run', asked: ['/architect/draft/7/74/run1'], drew: 'run1', cross: false }), [gone, goneStill, down, failed, up, bare, built, cameBack, again2, ran]);
   }
   const parts = [];
   const whole = await A.readStream({ text: async () => '{"a": 1}\n\nnot json\n{"b": 2}' }, d => parts.push(d));
@@ -1343,30 +1293,33 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("version = request.json.get('version')")
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('version=version if isinstance(version, int) and not isinstance(version, bool) else None,')
     && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)"));
-  const kindsPy = /\nKINDS = \{([^}]*)\}/.exec(engine('brief.py'))[1].match(/"(\w+)":/g).map(k => k.slice(1, -2));
-  check('the stylesheet and the words, 0310: the panels of the figures are styled in tabs.css - side by side in equal columns while there is room, a drawn draft across the whole row, the tag - in the '
-    + 'kernel\'s sand where the numbers are made up -, the cross in view, the key, the sketch grey and dashed, no wider than a sketch needs and hidden under a drawn draft; what a saved analysis '
-    + 'drew under its line. The page sketches every kind the engine lets the Architect name. Nothing is left of the points a model wrote - in the engine, on the page or in the stylesheet. The '
-    + 'words for a draft are plain ones. The page reads what the engine keeps - the keys beside a version, the drafts by key, the draft\'s turn - and what the host sends and serves',
-    ['.ar-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));', '.ar-fig {', '.ar-fig.changed::before {', '.ar-fig .hd .tag {', '.ar-fig .hd .tag.mu {', '.ar-fig.drawn { grid-column: 1 / -1;',
-     '.ar-fig.drawn > .key, #content-brief .ar-fig.drawn > svg { display: none; }', '.ar-fig .plot {', '.ar-fig .drop {', '.ar-fig .key i {', '.ar-fig .key i.sq {', '.ar-fig > svg .ax {', '.ar-fig > svg .bk {', '.ar-fig > svg .ph {',
-     '.ar-fig > svg .dot {', '.ar-fig > svg .cell {', '.ar-fig .cap {', '.ar-fig .cap .mu {', '.ar-was:empty { display: none; }', '.ar-was img { display: block; width: 100%; max-width: 460px; height: auto;', '.ar-was .cap {', '.ar-fig .plot { min-height: 280px;'].every(s => tabsCss.includes('#content-brief ' + s))
-    && !/\.ar-fig[^{]*\.(ln|pt|s\d)\b/.test(tabsCss) && !tabsCss.includes('var(--s)') && /\.ar-fig \.key i \{[^}]*border-top: 2px dashed var\(--text-tertiary\);/.test(tabsCss)
-    && /\.ar-fig > svg \{[^}]*max-width: 380px;/.test(tabsCss) && /\.ar-fig > svg \.ph \{[^}]*stroke: var\(--text-tertiary\);[^}]*stroke-dasharray: 6 5;/.test(tabsCss) && !/\.ar-fig \.drop \{[^}]*opacity: 0;/.test(tabsCss)
-    && /\.ar-fig \.hd \.tag\.mu \{[^}]*color: var\(--c-kernel\);/.test(tabsCss) && /\.ar-fig \.cap \.mu \{ color: var\(--c-kernel\); \}/.test(tabsCss)
-    && same(kindsPy, ['line', 'scatter', 'bar', 'histogram', 'box', 'heatmap', 'line3d']) && kindsPy.every(k => Object.keys(tally(kindOf(k))).some(m => !/\.(ax|bk)$/.test(m)))
-    && engine('brief.py').includes('\nSERIES = 4 ') && !/POINTS|_points/.test(engine('brief.py')) && !/\bplaced\b|\bDRAWN\b|\bFRONT\b|\bDEPTH\b|byData|\.sketched\b|sketched[(:]/.test(own) && own.includes("const NAMED = ['bar', 'box'];")
-    && own.includes('const TRIES = 2;') && /\nTRIES = 2 /.test(engine('draft.py')) && !engine('architect.py').includes('sketched')
-    && ["figures: 'What it will look like'", "figures: 'FIGURES', sketch: 'sketch', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',",
-        "drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', drawingRow: 'drawing a draft…', drawingHold: 'A draft of the figures is being drawn',", "drewThen: 'What it drew then'"].every(s => own.includes(s))
+  check('the stylesheet and the words, 0311: the panels of the figures are styled in tabs.css - one under another, the tag - in the kernel\'s sand where the numbers are made up -, the cross in view, '
+    + 'the plot\'s place with its height, the grey window - as tall for every state, hidden under a drawn draft, its line breathing only while a draft is on its way and still for a reader who '
+    + 'asked for less motion - and the made-up line in the kernel\'s sand. Nothing is left of the sketch of 0309 - its drawing, its key, the word - nor of the points a model wrote, nor of the '
+    + 'picture of a saved analysis: in the engine, on the page or in the stylesheet. The words are plain ones, and a row in flight says what is being done. The page reads what the engine '
+    + 'keeps - the keys beside a version, the drafts by key, the draft\'s turn - and what the host sends and serves',
+    ['.ar-figs { display: grid; gap: 12px;', '.ar-fig {', '.ar-fig.changed::before {', '.ar-fig .hd .tag {', '.ar-fig .hd .tag.mu {', '.ar-fig .plot { min-height: 280px;', '.ar-fig .drop {',
+     '.ar-fig .ar-wait { display: grid; place-items: center; height: 200px;', '.ar-fig.drawn > .ar-wait { display: none; }', '.ar-fig .ar-wait.live span { animation: ar-wait 2.4s ease-in-out infinite; }',
+     '.ar-fig .cap {'].every(s => tabsCss.includes('#content-brief ' + s))
+    && tabsCss.includes('@keyframes ar-wait { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }')
+    && tabsCss.includes('@media (prefers-reduced-motion: reduce) { #content-brief .ar-fig .ar-wait.live span { animation: none; } }')
+    && /\.ar-fig \.ar-wait \{[^}]*background: var\(--bg-tertiary\);[^}]*color: var\(--text-tertiary\);/.test(tabsCss) && !/\.ar-wait(?!\.live)[^{]*\{[^}]*animation/.test(tabsCss)
+    && !/\.ar-fig[^{]*\.(ln|pt|s\d|key|ph|dot|cell|ax|bk|tk)\b/.test(tabsCss) && !/\.ar-fig[^{]*> svg/.test(tabsCss) && !tabsCss.includes('var(--s)') && !tabsCss.includes('.ar-was') && !/grid-template-columns[^}]*minmax\(250px/.test(tabsCss)
+    && !/\.ar-fig \.drop \{[^}]*opacity: 0;/.test(tabsCss) && /\.ar-fig \.hd \.tag\.mu \{[^}]*color: var\(--c-kernel\);/.test(tabsCss) && /\.ar-fig \.cap \{[^}]*color: var\(--c-kernel\);/.test(tabsCss)
+    && engine('brief.py').includes('\nSERIES = 4 ') && !/POINTS|_points/.test(engine('brief.py')) && !engine('architect.py').includes('sketched')
+    && !/\bplaced\b|\bDRAWN\b|\bFRONT\b|\bDEPTH\b|byData|\.sketched\b|sketched[(:]|\bMARKS\b|\bNAMED\b|\bCLOUD\b|function drawing|WORDS\.sketch|ar-was|drewThen|get_chain_preview|fig\.note/.test(own)
+    && own.includes('const TRIES = 2;') && /\nTRIES = 2 /.test(engine('draft.py'))
+    && ["figures: 'What it will look like'", "saved: 'MEMORY',", "searching: 'SEARCHING MEMORY', readSoFar: (r, m) => (m == null ? '' : (r || 0) + ' of ' + m + ' read'),",
+        "figures: 'FIGURES', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',",
+        "drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', noDraftYet: 'No draft yet.', notDrafted: 'No draft was drawn.', notShown: 'The draft could not be shown.',",
+        "drawingRow: 'DRAWING A DRAFT', drawingHold: 'A draft of the figures is being drawn',"].every(s => own.includes(s))
     && engine('draft.py').includes('turn = {"who": "draft", "drawn": [') && own.includes("t.who === 'draft' ? build.drafted(t, entry.chain_id)")
     && engine('draft.py').includes('"keys": [key(brief.get("question", ""), f) for f in brief["figures"]]') && own.includes('keys: v.keys || [], drafts: (framing && framing.drafts) || {}')
     && engine('draft.py').includes('COMPUTED, MADE_UP = "computed", "made up"') && own.includes("madeUp = drawn && d.basis !== 'computed'")
     && fs.readFileSync(path.join(root, '..', 'bambooai', 'bambooai.py'), 'utf8').includes("self._pane('architect_draft', framing=run.framing)") && own.includes("d.type === 'architect_draft' && d.framing")
     && fs.readFileSync(path.join(root, '..', 'bambooai', 'bambooai.py'), 'utf8').includes('label="Draft"') && own.includes('data-agent="Draft"')
     && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("@architect_bp.route('/architect/draft/<thread_id>/<run_id>/<key>', methods=['GET'])")
-    && own.includes("'/architect/draft/' + at.concat(el.getAttribute('data-key')).map(encodeURIComponent).join('/')")
-    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("@app.route('/get_chain_preview/<thread_id>/<chain_id>', methods=['GET'])") && own.includes("'/get_chain_preview/' + [el.getAttribute('data-thread'), el.getAttribute('data-run')]")
+    && own.includes("plotAt('/architect/draft/' + at.concat(el.getAttribute('data-key')).map(encodeURIComponent).join('/'))")
     && own.includes("else if (act === 'unfigure') keptFirst(root, hit.getAttribute('data-path'), null, unfigure);") && /window\.ArchitectUI = \{[^}]*\bunfigure\b[^}]*\bdraftLayout\b/.test(own));
   finish();
 })().catch(e => { check('the module ran without throwing', false, e && e.stack); finish(); });

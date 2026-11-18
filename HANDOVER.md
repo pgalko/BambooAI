@@ -24,8 +24,8 @@
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
 - **2.8, the Architect and memory from saved analyses** (`docs/ARCHITECT_DESIGN.md`: the design, the decisions, the
-  build patch by patch). Released as 2.8.0 with 0305; 0306 to 0310 follow it, after the product owner's
-  first and second live runs, his test of 0307, his idea after 0308 and his test of 0309.
+  build patch by patch). Released as 2.8.0 with 0305; 0306 to 0311 follow it, after the product owner's
+  first and second live runs, his test of 0307, his idea after 0308 and his tests of 0309 and 0310.
   Until the release steps are taken the series goes to the private repository and the dev box only, and the tag
   goes on the last patch.
   **0294 (2026-11-15): the old memory is retired.** Gone: the knowledge pack and its code (`knowledge_pack.py`,
@@ -546,6 +546,26 @@
   model, and neither Plotly nor Plotly.js was at hand where it was built - stand-ins in the tests and the
   screens: whether the model's cell draws what the description says, says *computed* only where a rule gives
   the shape, and whether the final figure follows its draft is the product owner's test.
+  **0311 (2026-11-18): the brief made plainer** (the design's decisions 42 and 47-49). The product owner ran 0310
+  live and found the brief "a little too busy". *No picture from memory:* nothing is drawn under a saved analysis
+  the brief builds on, and nothing is fetched for it (`.ar-was`, the fetch of `/get_chain_preview` and *What it
+  drew then* are gone; the analysis' code still goes to the model that writes the cell, `_saved_code()`). *A grey
+  window where a figure has no draft* (`architect.js`: `windowOf()`; `.ar-wait` in `tabs.css`): one line in its
+  middle - *Drawing a draft…*, which breathes (`.live`, `@keyframes ar-wait`, still under
+  `prefers-reduced-motion`); *No draft could be drawn.*, the reason under the mouse; *No draft yet.*; *No draft
+  was drawn.* in the brief of a run; *The draft could not be shown.* where the plot cannot be had (`unshown()`,
+  was `sketchAgain()`). The sketch of 0309 is gone from the page - `drawing()`, `MARKS`, the key, the tag
+  *sketch* - and so is the figure's note: a panel is its number, its title and its draft or its window, one
+  under another. `fetched(url, pick)` is `plotAt(url)`. *The rows in flight say what is being done:* *SEARCHING
+  MEMORY · 5 of 12 read* and *DRAWING A DRAFT* (`WORDS.searching`, `readSoFar`, `drawingRow`); a reading done is
+  *MEMORY* (was *SAVED analyses*). *A note not cut in mid-word:* `brief.FIGURE_CHARS["note"]` is `TEXT_CHARS`
+  (600; a live note was cut at 240), and `architect.md` asks for it *in a sentence or two*. *The stack:*
+  `walk_draft` holds what stands while the draft is drawn - the row, the composer held, a grey window to each
+  figure that shows and breathes -, taken by an observer as the page first draws it: until then no walk had
+  seen a figure without its draft; `walk_saved` holds that no picture stands in the brief and none is asked
+  for; the gallery's `architect_sketch` is `architect_drawing`. Tests: `test_architect.js` 129 (-2: the
+  sketch's two checks), `test_analyst.py` 362, `test_app_path.py` 272; the battery 2,361; the walk 207 (+1), and
+  200 of 204 in the local edition. Not run with Plotly, nor against a live model, where it was built.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

@@ -79,7 +79,7 @@ three at most. Describe none where no figure is asked for.
 | `kind` | `line`, `scatter`, `bar`, `histogram`, `box`, `heatmap` or `line3d` |
 | `x`, `y` | what is on each axis; `z` too for `line3d`, and for `heatmap` what the colour shows |
 | `series` | the lines, the groups of points, the bars or the boxes it holds, four at most: `[{"name": "..."}]` |
-| `note` | how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |
+| `note` | in a sentence or two: how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |
 
 - Right after your reply a draft of each figure is drawn from QUESTION and your description, and the person sees
   it in the brief. A shape that follows from a rule alone is computed. One that only the data can give is drawn

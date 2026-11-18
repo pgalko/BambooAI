@@ -2352,14 +2352,17 @@ _FIG = {"title": "  Two paths  on the curve ", "kind": "line3d", "x": "x", "y": 
         "series": [{"name": "start A", "points": [[0, 50], [7.123456, 66], [14, 38.5]]}, "start B", {"name": "start A"}, {"name": ""}]}
 _fb = briefs.normalise({"question": "q", "figures": [_FIG, {"title": "two paths on the CURVE"}, {"kind": "line"}, "no figure", {"title": "Spread", "kind": "violin", "series": ["a", "b", "c", "d", "e"]},
                                                        {"title": "T3", "kind": ["line"]}, {"title": "T4"}]})
-_long = briefs.normalise({"figures": [{"title": "t" * 300, "x": "x" * 300, "note": "n" * 300, "series": ["s" * 300, {"name": "many", "points": [[k, k] for k in range(40)]}, {"name": "one"}]}]})["figures"][0]
-check("brief.normalise, the figures (0309, 0310): a figure is its title - without one it is none, and a title names one figure whatever its case - with its kind where it is one the engine knows, what is on "
-      "each axis, the lines it holds by name, four at most and none named twice, and its note; three figures at most, every text bounded. A brief that holds only figures is a brief; agreed() and "
-      "working() keep them. A line is its name and nothing else: points a reply gives with it are not kept - a model's numbers draw no figure (0310)",
+_long = briefs.normalise({"figures": [{"title": "t" * 300, "x": "x" * 300, "note": "n" * 700, "series": ["s" * 300, {"name": "many", "points": [[k, k] for k in range(40)]}, {"name": "one"}]}]})["figures"][0]
+_layout = "Two panels side by side: on the left the full run with the five paths in five colours; on the right, on the same axes and in the same colours, its first stretch only. " * 2 + "To make clear how soon the paths part."
+check("brief.normalise, the figures (0309-0311): a figure is its title - without one it is none, and a title names one figure whatever its case - with its kind where it is one the engine knows, what is on "
+      "each axis, the lines it holds by name, four at most and none named twice, and its note; three figures at most, every text bounded - the note as a line of the brief is: one that says how "
+      "two panels are laid out and what they are to make clear is kept whole (0311: a live note was cut in the middle of a word at 240 characters). A brief that holds only figures is a brief; "
+      "agreed() and working() keep them. A line is its name and nothing else: points a reply gives with it are not kept - a model's numbers draw no figure (0310)",
       _fb["figures"] == [{"title": "Two paths on the curve", "kind": "line3d", "x": "x", "y": "y", "z": "z", "series": [{"name": "start A"}, {"name": "start B"}],
                           "note": "They run together, then part."}, {"title": "Spread", "series": [{"name": "a"}, {"name": "b"}, {"name": "c"}, {"name": "d"}]}, {"title": "T3"}]
       and briefs.MAX["figures"] == 3 and briefs.SERIES == 4 and not hasattr(briefs, "POINTS") and list(briefs.KINDS) == ["line", "scatter", "bar", "histogram", "box", "heatmap", "line3d"]
-      and [len(x) for x in (_long["title"], _long["x"], _long["series"][0]["name"], _long["note"])] == [120, 80, 60, 240] and _long["series"][1:] == [{"name": "many"}, {"name": "one"}]
+      and [len(x) for x in (_long["title"], _long["x"], _long["series"][0]["name"], _long["note"])] == [120, 80, 60, 600] and _long["series"][1:] == [{"name": "many"}, {"name": "one"}]
+      and 240 < len(_layout) < 600 and briefs.normalise({"figures": [{"title": "T", "note": _layout}]})["figures"][0]["note"] == _layout and briefs.FIGURE_CHARS["note"] == briefs.TEXT_CHARS == 600
       and briefs.normalise({"figures": [{"title": "T"}]}) == {"figures": [{"title": "T"}], "version": 1}
       and briefs.agreed(_fb)["figures"] == _fb["figures"] and briefs.working(_fb)["figures"] == _fb["figures"]
       and briefs.normalise({"figures": "none"}) == {} and briefs.normalise({"figures": [{"title": " "}, 7, None]}) == {} and "points" not in json.dumps(_fb), (_fb, _long))
@@ -2921,7 +2924,7 @@ _said10 = {"when it describes": "When the person asks for a figure, or asks to s
            "the kinds": "| `kind` | `line`, `scatter`, `bar`, `histogram`, `box`, `heatmap` or `line3d` |",
            "the axes": "| `x`, `y` | what is on each axis; `z` too for `line3d`, and for `heatmap` what the colour shows |",
            "what it holds": '| `series` | the lines, the groups of points, the bars or the boxes it holds, four at most: `[{"name": "..."}]` |',
-           "the note: the layout, and no result": "| `note` | how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |",
+           "the note: short, the layout, and no result": "| `note` | in a sentence or two: how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |",
            "a draft follows": "Right after your reply a draft of each figure is drawn from QUESTION and your description, and the person sees it in the brief.",
            "what a draft's numbers are": "A shape that follows from a rule alone is computed. One that only the data can give is drawn on made-up numbers, and marked so.",
            "it does not see the draft": "You do not see the draft: CONVERSATION says what came of it.",

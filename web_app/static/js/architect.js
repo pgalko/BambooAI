@@ -23,8 +23,7 @@
 // Where the brief holds figures, a draft of each is drawn after the Architect's reply (§2.20): the stream first
 // carries the framing with the reply, the pane shows a row while the cell runs, and the Brief tab then draws each
 // plot with Plotly (GET /architect/draft/<thread>/<chain>/<key>) - marked where its numbers are made up. A figure
-// without a draft is a grey sketch of where things go. Under an analysis the brief builds on stands what that
-// analysis drew (GET /get_chain_preview/<thread>/<chain>).
+// without a draft is a grey window with one line: a draft is on its way, none could be drawn, or none was yet.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
@@ -51,16 +50,17 @@
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
         noReply: 'The Architect did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
-        saved: 'SAVED analyses', found: n => n + (n === 1 ? ' analysis' : ' analyses') + ' found', noneFound: 'nothing found', readOf: (r, m) => r ? 'read ' + r + ' of ' + m : m + ' saved',
-        looking: (r, m) => r ? 'reading ' + r + ' of ' + m : (m == null ? 'looking' : 'looking through ' + m), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
+        saved: 'MEMORY', found: n => n + (n === 1 ? ' analysis' : ' analyses') + ' found', noneFound: 'nothing found', readOf: (r, m) => r ? 'read ' + r + ' of ' + m : m + ' saved',
+        searching: 'SEARCHING MEMORY', readSoFar: (r, m) => (m == null ? '' : (r || 0) + ' of ' + m + ' read'), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
         view: 'View', leave: 'Leave it out', builtOn: 'built on',
         memory: 'Found in your saved analyses', memoryNote: 'For you to read. The Analyst gets only what you build on.',
         notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation',
         opened: 'READ', chars: n => (Number(n) || 0).toLocaleString('en-US') + ' characters',
         question: 'QUESTION', updated: 'updated', versionN: k => 'version ' + k, brief: 'BRIEF', inUse: k => 'version ' + k + ' in use',
-        figures: 'FIGURES', sketch: 'sketch', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',
-        drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', drawingRow: 'drawing a draft…', drawingHold: 'A draft of the figures is being drawn',
-        drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)', drewThen: 'What it drew then',
+        figures: 'FIGURES', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',
+        drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', noDraftYet: 'No draft yet.', notDrafted: 'No draft was drawn.', notShown: 'The draft could not be shown.',
+        drawingRow: 'DRAWING A DRAFT', drawingHold: 'A draft of the figures is being drawn',
+        drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
     };
@@ -205,78 +205,10 @@
         return { brief: b, changed: ['figures'] };
     }
 
-    // ------------------------------------------------------------ a figure sketched (pure: returns markup)
-    // A figure as the Architect described it - its kind, what is on each axis, what it holds - as a grey sketch of
-    // where things go (docs/ARCHITECT_DESIGN.md §2.19). It stands in a figure's place while its draft is drawn and
-    // where there is none (§2.20). A sketch shows no shape and no result: a shape is the draft's cell to compute.
-    const PLOT = { x0: 52, x1: 300, y0: 150, y1: 22 };      // where the marks land, in a drawing of 320 by 190
-    const CUBE = { x0: 70, x1: 276, y0: 150, y1: 30 };      // ... and inside the frame of a figure in three dimensions
-    const NAMED = ['bar', 'box'];                            // the kinds whose series are named at their marks, not in a key
-    const CLOUD = [[0.08, 0.3], [0.2, 0.62], [0.31, 0.42], [0.43, 0.74], [0.52, 0.22], [0.63, 0.55], [0.74, 0.36], [0.85, 0.68], [0.93, 0.18]];
-    const r1 = v => Math.round(v * 10) / 10;
-    const count = n => Array.from({ length: n }, (_, i) => i);
-    const rect = (cls, x, y, w, h) => '<rect class="' + cls + '" x="' + r1(x) + '" y="' + r1(y) + '" width="' + r1(w) + '" height="' + r1(h) + '"/>';
-    // a path through points, rounded off (Catmull-Rom, written as Bézier curves)
-    function curve(pts) {
-        let d = 'M' + pts[0].map(r1).join(',');
-        for (let i = 0; i < pts.length - 1; i++) {
-            const a = pts[i - 1] || pts[i], b = pts[i], c = pts[i + 1], e = pts[i + 2] || c;
-            d += 'C' + [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6, c[0] - (e[0] - b[0]) / 6, c[1] - (e[1] - b[1]) / 6, c[0], c[1]].map(r1).join(',');
-        }
-        return d;
-    }
-    // a name in a drawing: cut where it would run past its place, whole under the mouse; beside an upright axis it is
-    // turned along it, unless it is a letter or two. o: {cls, start: it begins at x, turn}
-    function label(text, max, x, y, o) {
-        const t = String(text || ''), cut = t.length > max ? t.slice(0, max - 1) + '…' : t;
-        o = o || {};
-        return !t ? '' : '<text' + (o.cls ? ' class="' + o.cls + '"' : '') + ' x="' + x + '" y="' + y + '"' + (o.start ? '' : ' text-anchor="middle"') +
-            (o.turn && t.length > 3 ? ' transform="rotate(-90 ' + x + ' ' + y + ')"' : '') + '>' + esc(cut) + (cut === t ? '' : '<title>' + esc(t) + '</title>') + '</text>';
-    }
-    // what stands inside a sketch, by the figure's kind. held: its series - where it names none, as many unnamed ones
-    // as show the kind; box: where the marks land
-    const each = (held, spare) => (held.length ? held : count(spare).map(() => ({})));
-    const apart = (n, k) => 40 + 268 * (k + 1) / (n + 1);      // the middle of mark k of n, side by side
-    const MARKS = {
-        line(held, box) {
-            const mid = (box.y0 + box.y1) / 2;
-            return each(held, 1).map((s, k) => '<path class="ph" d="' + curve(count(21).map(i => [box.x0 + (box.x1 - box.x0) * i / 20, mid - 22 * Math.sin(i * 0.42 + k * 2.4)])) + '"/>').join('');
-        },
-        scatter(held, box) {
-            const dot = q => '<circle class="dot" cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" r="3"/>';
-            return each(held, 1).map((s, k) => CLOUD.map(f => dot([box.x0 + (box.x1 - box.x0) * f[0], box.y0 + (box.y1 - box.y0) * (0.1 + 0.8 * ((f[1] + k * 0.37) % 1))])).join('')).join('');
-        },
-        bar(held) {
-            const bars = each(held, 3), w = Math.min(44, 166 / (bars.length + 1));
-            return bars.map((s, k) => rect('ph', apart(bars.length, k) - w / 2, 70, w, 90) + label(s.name, Math.floor(268 / (bars.length + 1) / 6), r1(apart(bars.length, k)), 62, { cls: 'tk' })).join('');
-        },
-        histogram() {
-            const w = (PLOT.x1 - PLOT.x0) / 7;
-            return [0.25, 0.5, 0.8, 1, 0.8, 0.5, 0.25].map((h, i) => rect('ph', PLOT.x0 + w * i, 160 - 110 * h, w, 110 * h)).join('');
-        },
-        box(held) {
-            const boxes = each(held, 2);
-            return boxes.map((s, k) => { const cx = r1(apart(boxes.length, k));
-                return '<path class="ph" d="M' + (cx - 22) + ',62H' + (cx + 22) + 'V110H' + (cx - 22) + 'ZM' + (cx - 22) + ',86H' + (cx + 22) + 'M' + cx + ',62V38M' + (cx - 10) + ',38H' + (cx + 10) +
-                    'M' + cx + ',110V134M' + (cx - 10) + ',134H' + (cx + 10) + '"/>' + label(s.name, Math.floor(268 / (boxes.length + 1) / 6), cx, 154, { cls: 'tk' }); }).join('');
-        },
-        heatmap() {
-            const w = (PLOT.x1 - PLOT.x0) / 6, h = (PLOT.y0 - PLOT.y1) / 4;
-            return count(24).map(i => rect('cell c' + (i % 6 + 2 * Math.floor(i / 6)) % 3, PLOT.x0 + w * (i % 6), PLOT.y1 + h * Math.floor(i / 6), w - 2, h - 2)).join('');
-        }
-    };
-    MARKS.line3d = MARKS.line;
-    // the drawing: the axes under their names - the frame of a box for three dimensions - and the marks of the figure's
-    // kind; a figure of no kind the page knows is its axes alone
-    function drawing(fig) {
-        const deep = fig.kind === 'line3d', held = fig.series || [];
-        const frame = deep
-            ? '<path class="bk" d="M118,16H298V124H118ZM46,58L118,16M226,58L298,16M226,166L298,124M46,166L118,124M226,58V166M46,58H226"/><path class="ax" d="M46,58V166H226"/>' +
-              label(fig.x, 30, 136, 181) + label(fig.y, 20, 96, 158, { start: true }) + label(fig.z, 18, 34, 112, { turn: true })
-            : '<path class="ax" d="M40,12V160H308"/>' + label(fig.x, 44, 174, 179) + label(fig.y, 26, 18, 86, { turn: true });
-        return '<svg viewBox="0 0 320 190" role="img" aria-label="' + esc(WORDS.sketch + ': ' + (fig.title || '')) + '">' + frame +
-            (MARKS[fig.kind] ? MARKS[fig.kind](held, deep ? CUBE : PLOT) : '') + '</svg>';
-    }
+    // ------------------------------------------------------------ a figure without a draft (pure: returns markup)
+    // The grey window that stands in a figure's place: one line in its middle - softly pulsing while the draft is on
+    // its way (live) - and, where there is one, the reason under the mouse (docs/ARCHITECT_DESIGN.md §2.20).
+    const windowOf = (line, live, why) => '<div class="ar-wait' + (live ? ' live' : '') + '"' + (why ? ' title="' + esc(why) + '"' : '') + '><span>' + line + '</span></div>';
 
     // ------------------------------------------------------------ the report's part "Against the brief", as a card (pure)
     const INLINE = '(?:\\s*</?(?:strong|em|b|i|code)\\b[^>]*>\\s*)*';
@@ -359,33 +291,26 @@
         view(thread, run) {
             return thread && run ? '<button type="button" class="ar-open" data-ar="open" data-thread="' + esc(thread) + '" data-run="' + esc(run) + '">' + WORDS.view + '</button>' : '';
         },
-        // a saved analysis the brief builds on: its day and what was asked then; View, and a cross to build on it no
-        // longer; under it the place for what that analysis drew, which the page fills where it kept a picture (mount())
+        // a saved analysis the brief builds on: its day and what was asked then; View, and a cross to build on it no longer
         built(c, g) {
             return '<div class="ar-line ar-built' + (g.paths.some(p => c.changed.indexOf(p) >= 0) ? ' changed' : '') + '"><span class="tx">' + esc(day(g.when) + ' · ' + g.question) + '</span>' +
-                build.view(g.thread, g.run) + (c.edit ? '<button type="button" class="drop" data-ar="unbuild" data-id="' + esc(g.id) + '" title="' + WORDS.leave + '">' + ICON.x + '</button>' : '') + '</div>' +
-                '<div class="ar-was" data-thread="' + esc(g.thread) + '" data-run="' + esc(g.run) + '"></div>';
+                build.view(g.thread, g.run) + (c.edit ? '<button type="button" class="drop" data-ar="unbuild" data-id="' + esc(g.id) + '" title="' + WORDS.leave + '">' + ICON.x + '</button>' : '') + '</div>';
         },
         // a figure of the brief (i: its place): its number and title, and a cross to take it out while the brief can
         // be changed. Where its draft was drawn (c.drafts, by the figure's key): the word that it is a draft - on
-        // made-up numbers, where they are - and the place the page draws its plot in (mount()). Otherwise it is a
-        // sketch: the series it holds, each beside a stroke - and what a heat map's colour shows - and the drawing,
-        // with a line where a draft is on its way (c.drawing) or could not be drawn. Under either, what the figure
-        // is to make clear. The sketch is in the markup of a drawn figure too: it is what shows if the plot cannot be had
+        // made-up numbers, where they are -, the place the page draws its plot in (mount()) and, on made-up numbers,
+        // the line that says so. Otherwise the grey window, with one line: a draft is on its way (c.drawing: for a
+        // figure whose first draft failed too, not for one tried twice), none could be drawn - why, under the mouse -,
+        // or none was drawn: yet, while the brief can be changed. The window is in the markup of a drawn figure too:
+        // it is what shows if the plot cannot be shown. How the Architect described the figure is not on the page
         figure(c, fig, i) {
             const key = (c.keys || [])[i], d = (key && (c.drafts || {})[key]) || {}, drawn = !!d.basis, madeUp = drawn && d.basis !== 'computed';
-            const names = (NAMED.indexOf(fig.kind) < 0 ? fig.series || [] : []).map(s => '<span><i class="ph"></i>' + esc(s.name) + '</span>')
-                .concat(fig.kind === 'heatmap' && fig.z ? ['<span><i class="sq"></i>' + esc(fig.z) + '</span>'] : []);      // what a heat map's colour shows
-            const left = d.failed && !(c.drawing && (Number(d.tries) || 1) < TRIES);      // no draft, and none on its way
-            const state = madeUp ? '<span class="mu">' + WORDS.madeUpNote + '</span>' : drawn ? '' : left ? '<span class="ph" title="' + esc(d.failed) + '">' + WORDS.noDraft + '</span>'
-                : c.drawing ? '<span class="ph">' + WORDS.drawing + '</span>' : '';
-            const cap = [esc(fig.note || ''), state].filter(Boolean).join(' ');
+            const live = c.drawing && !drawn && !(d.failed && (Number(d.tries) || 1) >= TRIES);
             return '<div class="ar-fig' + (drawn ? ' drawn' : '') + (c.changed.indexOf('figures.' + i) >= 0 ? ' changed' : '') + '"><div class="hd"><span class="n">' + (i + 1) + '</span><span class="t">' + esc(fig.title) + '</span>' +
-                '<span class="tag' + (madeUp ? ' mu' : '') + '">' + (drawn ? WORDS.draft + (madeUp ? ' · ' + WORDS.madeUp : '') : WORDS.sketch) + '</span>' +
+                (drawn ? '<span class="tag' + (madeUp ? ' mu' : '') + '">' + WORDS.draft + (madeUp ? ' · ' + WORDS.madeUp : '') + '</span>' : '') +
                 (c.edit ? '<button type="button" class="drop" data-ar="unfigure" data-path="figures.' + i + '" title="' + WORDS.leave + '">' + ICON.x + '</button>' : '') + '</div>' +
-                (drawn ? '<div class="plot" data-key="' + esc(key) + '"' + (madeUp ? ' data-made-up="1"' : '') + '></div>' : '') +
-                (names.length ? '<div class="key">' + names.join('') + '</div>' : '') +
-                drawing(fig) + (cap ? '<div class="cap">' + cap + '</div>' : '') + '</div>';
+                (drawn ? '<div class="plot" data-key="' + esc(key) + '"' + (madeUp ? ' data-made-up="1"' : '') + '></div>' + (madeUp ? '<div class="cap">' + WORDS.madeUpNote + '</div>' : '') : '') +
+                (drawn ? windowOf(WORDS.notShown) : live ? windowOf(WORDS.drawing, true) : d.failed ? windowOf(WORDS.noDraft, false, d.failed) : windowOf(c.edit ? WORDS.noDraftYet : WORDS.notDrafted)) + '</div>';
         },
         // the saved analyses a reading found, to read: an analysis to a line with View - under the conversation's row -
         // or in full (o.full: its passages and the reader's notes), marked where the brief builds on it (o.built: ids)
@@ -465,9 +390,9 @@
                 '<span class="out">' + (n ? WORDS.drawn(n) + (m ? ' · ' + WORDS.notDrawn(m) : '') : WORDS.noneDrawn) + '</span><span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span>' +
                 prompt + '</div>';
         },
-        // a draft on its way: the reply stands above it, and the Brief tab shows the sketches meanwhile
+        // a draft on its way: the reply stands above the row, which says what is being done
         drawingRow() {
-            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.figures + '</span><span class="out">' + WORDS.drawingRow + '</span></div>';
+            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.drawingRow + '</span></div>';
         },
         // the coach went to another version of the brief before the message under it: the conversation goes on from that one
         went(turn) {
@@ -499,10 +424,10 @@
                 '<span class="out">' + esc(out) + '</span><span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span></div>' +
                 (groups.length ? '<div class="ar-found">' + build.found(groups) + '</div>' : '');
         },
-        // a reading in flight: how far it is, and Skip - once the server has said how many are saved: it has started
-        // then, and a skip sent before would be lost. at: {read, of}
+        // a reading in flight: what is being done, how far it is, and Skip - once the server has said how many are
+        // saved: it has started then, and a skip sent before would be lost. at: {read, of}
         reading(at) {
-            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.saved + '</span><span class="out">' + WORDS.looking(at.read, at.of) + '</span>' +
+            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.searching + '</span><span class="out">' + WORDS.readSoFar(at.read, at.of) + '</span>' +
                 '<button type="button" class="ar-skip" data-ar="skip"' + (at.of == null ? ' disabled' : '') + '>' + WORDS.skip + '</button></div>';
         },
         // the conversation: the question, then what was said, what was looked up, what the saved analyses hold, what
@@ -579,8 +504,8 @@
 
     // ---- the drafts on the page (§2.20). The builders leave a place for each plot; once the tab stands, Plotly draws
     // it there. A plot is fetched once, by where it is kept; where it cannot be had - or the page has no Plotly - the
-    // figure is its sketch again. What a saved analysis drew is fetched the same way, a picture kept with the favourite.
-    const fetchedOnce = new Map();      // by its address: what the server holds - or that it holds none - is kept for the page's life; an answer that failed, and a server not reached, are asked for again
+    // grey window stands in its place and says so.
+    const plots = new Map();      // by a plot's address: the plot - or that the server holds none -, kept for the page's life; an answer that failed, and a server not reached, are asked for again
     const ACROSS = { xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false, textangle: -18, opacity: 0.28, font: { size: 30, color: '#8a8a8a' } };
     // the layout a draft is drawn with (pure): the figure's own, fitted to its place and not to be dragged about - and,
     // on made-up numbers, with those words across it
@@ -589,18 +514,16 @@
         return Object.assign({}, own, { autosize: true, width: undefined, height: Math.max(280, Math.min(Number(own.height) || 360, 560)), dragmode: false,
                                         annotations: (own.annotations || []).concat(madeUp ? [Object.assign({ text: WORDS.madeUp }, ACROSS)] : []) });
     }
-    function fetched(url, pick) {
-        if (!fetchedOnce.has(url)) fetchedOnce.set(url, window.authService.fetch(url).then(r => (r.ok ? r.json() : r.status === 404 ? null : Promise.reject(new Error('HTTP ' + r.status))))
-            .then(json => (json && pick(json)) || null).catch(() => { fetchedOnce.delete(url); return null; }));
-        return fetchedOnce.get(url);
+    function plotAt(url) {
+        if (!plots.has(url)) plots.set(url, window.authService.fetch(url).then(r => (r.ok ? r.json() : r.status === 404 ? null : Promise.reject(new Error('HTTP ' + r.status))))
+            .then(json => (json && json.plot) || null).catch(() => { plots.delete(url); return null; }));
+        return plots.get(url);
     }
-    // a figure whose plot cannot be drawn is its sketch again: the plot's place goes, with the words that said it was a draft
-    function sketchAgain(fig) {
-        if (!fig) return;
-        const tag = fig.querySelector('.tag');
+    // a figure whose plot cannot be shown: its place goes, with the words that said it was a draft, and the grey window under it says so
+    function unshown(el) {
+        const fig = el.closest('.ar-fig');
         fig.classList.remove('drawn');
-        if (tag) { tag.textContent = WORDS.sketch; tag.classList.remove('mu'); }
-        [fig.querySelector('.plot'), fig.querySelector('.cap .mu')].forEach(el => { if (el) el.remove(); });
+        [fig.querySelector('.tag'), fig.querySelector('.cap'), el].forEach(x => { if (x) x.remove(); });
     }
     function mount(root) {
         if (!root) return;
@@ -608,15 +531,10 @@
         root.querySelectorAll('.ar-fig.drawn .plot').forEach(el => {
             if (el.arLive) return;
             el.arLive = true;                              // on the element, not in its markup: a tab restored from kept markup is drawn again
-            fetched('/architect/draft/' + at.concat(el.getAttribute('data-key')).map(encodeURIComponent).join('/'), json => json.plot).then(plot => {
+            plotAt('/architect/draft/' + at.concat(el.getAttribute('data-key')).map(encodeURIComponent).join('/')).then(plot => {
                 el.innerHTML = '';                         // what kept markup held of an earlier drawing
                 return Plotly.newPlot(el, plot.data, draftLayout(plot.layout, el.getAttribute('data-made-up') === '1'), { responsive: true, displayModeBar: false, scrollZoom: false });
-            }).catch(() => sketchAgain(el.closest('.ar-fig')));      // no plot, no Plotly on the page, or a plot it cannot draw
-        });
-        root.querySelectorAll('.ar-was').forEach(el => {
-            fetched('/get_chain_preview/' + [el.getAttribute('data-thread'), el.getAttribute('data-run')].map(encodeURIComponent).join('/'), json => json.plotPreview).then(src => {
-                if (src) el.innerHTML = '<img src="' + esc(src) + '" alt=""><div class="cap">' + WORDS.drewThen + '</div>';
-            });
+            }).catch(() => unshown(el));                   // no plot, no Plotly on the page, or a plot it cannot draw
         });
     }
     function mountAll() { document.querySelectorAll('.ar-brief').forEach(mount); }
@@ -627,7 +545,7 @@
         pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true, saved: talking.saved, drawing: talking.drawing } : {});
         pane.scrollTop = pane.scrollHeight;
     }
-    // the Brief tab of a brief not yet run, as it stands now - its figures as sketches while their draft is on its way
+    // the Brief tab of a brief not yet run, as it stands now - its figures saying so while their draft is on its way
     function briefOf(entry) {
         return build.brief(entry.framing, { chain: entry.chain_id, thread: entry.thread_id, state: 'framing', drawing: !!(talking && talking.entry === entry && talking.drawing) });
     }
@@ -728,9 +646,9 @@
     // looked up, the saved analyses read or a part of an earlier analysis opened, the Architect goes on at once: one
     // more exchange, with nothing said. While the saved analyses are read the pane follows the count. Where a draft of
     // the figures follows the reply, the stream carries the framing with the reply first: the page shows it, and the
-    // figures as sketches, until the stream ends on the framing with the draft - a stream that ends before it leaves
-    // the reply standing, its figures sketches. Resolves to whether the last reply was kept; when one was not, the
-    // brief stands as it did and the reason is said.
+    // figures as grey windows, until the stream ends on the framing with the draft - a stream that ends before it
+    // leaves the reply standing, its figures without a draft. Resolves to whether the last reply was kept; when one
+    // was not, the brief stands as it did and the reason is said.
     function exchange(entry, text, version) {
         if (busy || !entry || entry.status !== 'framing') return Promise.resolve(false);
         busy = true;
