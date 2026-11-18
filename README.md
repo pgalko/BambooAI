@@ -275,6 +275,10 @@ tab, and the conversation with the Architect takes the left pane.
   Each line is marked *holds*, *does not hold* or *cannot be checked*, with the numbers beside it.
 - **Other explanations.** The Architect may propose up to two, each from a column the data has. A proposal stays
   unticked until you accept it.
+- **The figures.** Ask for a figure, or ask to see what the result will look like, and the Architect sketches it
+  in the brief: what stands on each axis and what the figure holds. What the data decides is drawn in grey - a
+  sketch shows no result - and a curve known before any run is drawn. Say what to change; a cross takes a sketch
+  out. The analysis draws the figures that stand, each under its title, and its report says so if one is missing.
 - **Your changes.** Any line can be changed in place, with its pencil.
 - **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
   Analyst stops and asks. The report gains *Did not fit*, and - where the brief says what you expect or names a

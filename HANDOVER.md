@@ -24,8 +24,8 @@
   for self-hosted work. A release is a version bump in `pyproject.toml` within the series, then a `v*`
   tag pushed to the public remote (`release.yml`, trusted publisher, scoped to `pgalko/BambooAI`).
 - **2.8, the Architect and memory from saved analyses** (`docs/ARCHITECT_DESIGN.md`: the design, the decisions, the
-  build patch by patch). Released as 2.8.0 with 0305; 0306, 0307 and 0308 follow it, after the product owner's
-  first and second live runs and his test of 0307.
+  build patch by patch). Released as 2.8.0 with 0305; 0306 to 0309 follow it, after the product owner's
+  first and second live runs, his test of 0307 and his idea after 0308.
   Until the release steps are taken the series goes to the private repository and the dev box only, and the tag
   goes on the last patch.
   **0294 (2026-11-15): the old memory is retired.** Gone: the knowledge pack and its code (`knowledge_pack.py`,
@@ -460,6 +460,43 @@
   and not yet run is best started again - what its readings found has no numbers to build on. Not run against a
   live model: whether it words the question when it should and gives `build` from the coach's answer is judged
   from the run logs.
+  **0309 (2026-11-18): the figures, sketched before the run** (the design's §2.19, decisions 41-43). The product
+  owner could not picture a figure from the Architect's words. A figure is now a part of the brief. *The brief*
+  (`analyst/brief.py`): `figures`, three at most (`MAX`), each `{title, kind, x, y, z, series: [{name, points}],
+  note}` through `_figure()` - `KINDS` (line, scatter, bar, histogram, box, heatmap, line3d), `SERIES` 4,
+  `POINTS` 24, `FIGURE_CHARS`; `_points()` keeps pairs of finite numbers - triples for a line in three dimensions -
+  two points at least; `sketch(brief, given)`
+  takes a reply's list - a number for a figure that stays, a dict for a new or changed one - keeps the points of
+  a line named again under its figure's title, and returns the brief with the places changed (`figures.i`, and
+  `figures` where fewer stand); `figure_lines(brief)` is each figure in words, without points; `render()` lists
+  them under *Figures agreed with the person:*. *The Architect* (`analyst/architect.py`): the reply key `figures`
+  (`parse()`), `block()` lists `figures:` each under its number and says *[sketched with points]*, `exchange()`
+  writes them through `sketch()` as part of the reply's version and marks the turn (`sketched`: how many then
+  stand). *Its instructions* (`analyst/architect.md`): the section *The figures* - sketch when asked for a figure
+  or to see the result, nothing where none is asked; no result in a sketch; rough points only where the shape is
+  known before anything is computed; a figure that stays by its number. About 400 tokens more a call. *The
+  Analyst's side* (`analyst/session.py`): `_figures_prompt()` puts the agreed figures under the question
+  (`FIGURES_AGREED`), `FIGURES_SYSTEM` puts them first and takes NONE for no reply; `_figures()` does not run a
+  reply that leaves an agreed title out (`carries()`; NONE counts) and asks again once (`FIGURES_LEFT_OUT`),
+  then holds the titles drawn against the agreed ones and returns the report's line *A figure agreed in the
+  brief was not drawn: ...* (a plot the kernel saved itself has no title: the cell's code stands for it);
+  `analyst/contract_brief.md` tells the Analyst to compute what each figure needs and keep it in a variable.
+  *The page* (`architect.js`): `drawing(fig)` - an SVG by kind (`MARKS`), rough points fitted to the frame
+  (`placed()`, `curve()`; the triples of a `line3d` inside its box, `FRONT` and `DEPTH`), names cut to their
+  place (`label()`); `build.sketch` (the panel: number, title,
+  *sketch*, the cross, the key, the caption, *The data decides the shapes.*), the part **What it will look
+  like** in `build.brief`, `build.sketched` (the row *FIGURES n sketched · version k*), `unfigure()` and its
+  click, `given()` counts figures. Styles in `tabs.css` (`.ar-figs`, `.ar-fig`; a series' colour once, as
+  `--s`). *The stack:* the scripted Architect sketches when asked (`ARCHITECT_SKETCH`, `sketches()`) and gives
+  the figures by number in another order (`ARCHITECT_SWAP`); the scripted step that draws draws the agreed
+  figures (`agreed_cell()`), leaving the last one out on its first reply; the stand-in Plotly has a box trace;
+  `walk_sketch` has four checks (`figures_on_screen`); the story gains `sketch_figures`, `sketch_reordered`,
+  `sketch_taken_out`, `sketch_run` and `sketch_brief_after_run`; the gallery gains `architect_sketch`. Tests:
+  `test_analyst.py` 349 (+9), `test_architect.js` 127 (+9), `test_app_path.py` 266 (+2); the battery 2,339; the
+  walk 204, and 197 of 201 in the local edition. *Decided on the way:* each agreed figure is a figure of its own
+  in the report (two plots joined in one are not built); the check before the run reads the cell's code, once.
+  Not run against a live model: whether it sketches when asked and not otherwise, gives points only where the
+  shape is known, and whether the step that draws follows a figure's description beyond its title.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

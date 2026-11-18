@@ -37,7 +37,7 @@
         answer: 'Answer, or say what to change', replying: 'The Architect is replying', reading: 'reading…', readingSaved: 'Your saved analyses are being read',
         asked: 'What the Analyst will be asked', gets: 'This is what the Analyst gets. Change any line before you start.',
         head: { decision: 'What it is for', thinks: 'What you think', rests_on: 'Why you think so', expects: 'What you expect to see', would_change: 'What would change your mind',
-                also_check: 'Other explanations to test', builds: 'Builds on', aside: 'Set aside' },
+                also_check: 'Other explanations to test', figures: 'What it will look like', builds: 'Builds on', aside: 'Set aside' },
         add: '+ Add', another: 'Another explanation to test', tick: 'Have the analysis test it',
         always: 'Always tested on data: chance, measurement error, how the cases were chosen.',
         version: 'Version', of: (k, n) => k + ' of ' + n, before: 'The version before', after: 'The version after',
@@ -52,6 +52,7 @@
         notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation',
         opened: 'READ', chars: n => (Number(n) || 0).toLocaleString('en-US') + ' characters',
         question: 'QUESTION', updated: 'updated', versionN: k => 'version ' + k, brief: 'BRIEF', inUse: k => 'version ' + k + ' in use',
+        figures: 'FIGURES', sketched: n => n ? n + ' sketched' : 'none', sketch: 'sketch', byData: 'The data decides the shapes.',
         notStarted: 'The analysis did not start',
         against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
     };
@@ -131,7 +132,7 @@
     function given(brief) {
         const b = brief || {};
         return !!(b.decision || b.thinks || b.expects || b.would_change || (b.rests_on || []).length || (b.also_check || []).some(r => r.source !== 'architect' || r.accepted) ||
-                  Object.keys(b.fixed || {}).length || builtOn(b).length || (b.set_aside || []).length);
+                  Object.keys(b.fixed || {}).length || builtOn(b).length || (b.set_aside || []).length || (b.figures || []).length);
     }
 
     // ------------------------------------------------------------ the brief with one line changed (pure)
@@ -185,6 +186,104 @@
         if (kept.length === (b.saved || []).length) return null;
         if (kept.length) b.saved = kept; else delete b.saved;
         return { brief: b, changed: ['saved'] };
+    }
+    // the brief without one of its figures, named by its place (pure): {brief, changed}, or null when no figure stands there
+    function unfigure(brief, path) {
+        const b = JSON.parse(JSON.stringify(brief || {})), at = /^figures\.(\d+)$/.exec(String(path));
+        if (!at || !(b.figures || [])[Number(at[1])]) return null;
+        b.figures.splice(Number(at[1]), 1);
+        if (!b.figures.length) delete b.figures;
+        return { brief: b, changed: ['figures'] };
+    }
+
+    // ------------------------------------------------------------ a figure sketched (pure: returns markup)
+    // A figure as the Architect described it - its kind, what is on each axis, what it holds - drawn as a sketch
+    // (docs/ARCHITECT_DESIGN.md §2.19). A line or a set of points that comes with rough points is drawn from them, in
+    // colour: its shape was known before any run. All else is grey and dashed - where things go: a sketch shows no result.
+    const PLOT = { x0: 52, x1: 300, y0: 150, y1: 22 };      // where the marks land, in a drawing of 320 by 190
+    const CUBE = { x0: 70, x1: 276, y0: 150, y1: 30 };      // ... and inside the frame of a figure in three dimensions
+    const FRONT = { x0: 46, x1: 226, y0: 166, y1: 58 }, DEPTH = [72, -42];      // that frame: its front face, and how far the depth runs across and up
+    const DRAWN = ['line', 'scatter', 'line3d'];             // the kinds that draw a series from its rough points
+    const NAMED = ['bar', 'box'];                            // the kinds whose series are named at their marks, not in a key
+    const CLOUD = [[0.08, 0.3], [0.2, 0.62], [0.31, 0.42], [0.43, 0.74], [0.52, 0.22], [0.63, 0.55], [0.74, 0.36], [0.85, 0.68], [0.93, 0.18]];
+    const r1 = v => Math.round(v * 10) / 10;
+    const count = n => Array.from({ length: n }, (_, i) => i);
+    const rect = (cls, x, y, w, h) => '<rect class="' + cls + '" x="' + r1(x) + '" y="' + r1(y) + '" width="' + r1(w) + '" height="' + r1(h) + '"/>';
+    // a path through points, rounded off (Catmull-Rom, written as Bézier curves)
+    function curve(pts) {
+        let d = 'M' + pts[0].map(r1).join(',');
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i - 1] || pts[i], b = pts[i], c = pts[i + 1], e = pts[i + 2] || c;
+            d += 'C' + [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6, c[0] - (e[0] - b[0]) / 6, c[1] - (e[1] - b[1]) / 6, c[0], c[1]].map(r1).join(',');
+        }
+        return d;
+    }
+    // where a rough point lands: the points of a figure share one scale, whatever scale they were written on. A pair
+    // stands in the box, across and up. Where every point of a figure in three dimensions (deep) is a triple, each
+    // stands inside the frame: across, into the depth, up - a little off its faces
+    function placed(held, box, deep) {
+        const all = held.reduce((out, s) => out.concat(s.points || []), []);
+        const along = k => { const v = all.map(q => q[k]), lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); return t => hi > lo ? (t - lo) / (hi - lo) : 0.5; };
+        const share = [along(0), along(1), along(2)];      // how far along its range a value stands
+        if (!deep || !all.every(q => q.length === 3)) return q => [box.x0 + (box.x1 - box.x0) * share[0](q[0]), box.y0 + (box.y1 - box.y0) * share[1](q[1])];
+        return q => {
+            const at = q.map((v, k) => 0.08 + 0.84 * share[k](v));
+            return [FRONT.x0 + (FRONT.x1 - FRONT.x0) * at[0] + DEPTH[0] * at[1], FRONT.y0 + (FRONT.y1 - FRONT.y0) * at[2] + DEPTH[1] * at[1]];
+        };
+    }
+    // a name in a drawing: cut where it would run past its place, whole under the mouse; beside an upright axis it is
+    // turned along it, unless it is a letter or two. o: {cls, start: it begins at x, turn}
+    function label(text, max, x, y, o) {
+        const t = String(text || ''), cut = t.length > max ? t.slice(0, max - 1) + '…' : t;
+        o = o || {};
+        return !t ? '' : '<text' + (o.cls ? ' class="' + o.cls + '"' : '') + ' x="' + x + '" y="' + y + '"' + (o.start ? '' : ' text-anchor="middle"') +
+            (o.turn && t.length > 3 ? ' transform="rotate(-90 ' + x + ' ' + y + ')"' : '') + '>' + esc(cut) + (cut === t ? '' : '<title>' + esc(t) + '</title>') + '</text>';
+    }
+    // what stands inside a sketch, by the figure's kind. held: its series - where it names none, as many unnamed ones
+    // as show the kind; box: where the marks land
+    const each = (held, spare) => (held.length ? held : count(spare).map(() => ({})));
+    const apart = (n, k) => 40 + 268 * (k + 1) / (n + 1);      // the middle of mark k of n, side by side
+    const MARKS = {
+        line(held, box, deep) {
+            const at = placed(held, box, deep), mid = (box.y0 + box.y1) / 2;
+            return each(held, 1).map((s, k) => s.points ? '<path class="ln s' + k + '" d="' + curve(s.points.map(at)) + '"/>'
+                : '<path class="ph" d="' + curve(count(21).map(i => [box.x0 + (box.x1 - box.x0) * i / 20, mid - 22 * Math.sin(i * 0.42 + k * 2.4)])) + '"/>').join('');
+        },
+        scatter(held, box) {
+            const at = placed(held, box), dot = (cls, q) => '<circle class="' + cls + '" cx="' + r1(q[0]) + '" cy="' + r1(q[1]) + '" r="3"/>';
+            return each(held, 1).map((s, k) => (s.points ? s.points.map(q => dot('pt s' + k, at(q)))
+                : CLOUD.map(f => dot('dot', [box.x0 + (box.x1 - box.x0) * f[0], box.y0 + (box.y1 - box.y0) * (0.1 + 0.8 * ((f[1] + k * 0.37) % 1))]))).join('')).join('');
+        },
+        bar(held) {
+            const bars = each(held, 3), w = Math.min(44, 166 / (bars.length + 1));
+            return bars.map((s, k) => rect('ph', apart(bars.length, k) - w / 2, 70, w, 90) + label(s.name, Math.floor(268 / (bars.length + 1) / 6), r1(apart(bars.length, k)), 62, { cls: 'tk' })).join('');
+        },
+        histogram() {
+            const w = (PLOT.x1 - PLOT.x0) / 7;
+            return [0.25, 0.5, 0.8, 1, 0.8, 0.5, 0.25].map((h, i) => rect('ph', PLOT.x0 + w * i, 160 - 110 * h, w, 110 * h)).join('');
+        },
+        box(held) {
+            const boxes = each(held, 2);
+            return boxes.map((s, k) => { const cx = r1(apart(boxes.length, k));
+                return '<path class="ph" d="M' + (cx - 22) + ',62H' + (cx + 22) + 'V110H' + (cx - 22) + 'ZM' + (cx - 22) + ',86H' + (cx + 22) + 'M' + cx + ',62V38M' + (cx - 10) + ',38H' + (cx + 10) +
+                    'M' + cx + ',110V134M' + (cx - 10) + ',134H' + (cx + 10) + '"/>' + label(s.name, Math.floor(268 / (boxes.length + 1) / 6), cx, 154, { cls: 'tk' }); }).join('');
+        },
+        heatmap() {
+            const w = (PLOT.x1 - PLOT.x0) / 6, h = (PLOT.y0 - PLOT.y1) / 4;
+            return count(24).map(i => rect('cell c' + (i % 6 + 2 * Math.floor(i / 6)) % 3, PLOT.x0 + w * (i % 6), PLOT.y1 + h * Math.floor(i / 6), w - 2, h - 2)).join('');
+        }
+    };
+    MARKS.line3d = (held, box) => MARKS.line(held, box, true);
+    // the drawing: the axes under their names - the frame of a box for three dimensions - and the marks of the figure's
+    // kind; a figure of no kind the page knows is its axes alone
+    function drawing(fig) {
+        const deep = fig.kind === 'line3d', held = fig.series || [];
+        const frame = deep
+            ? '<path class="bk" d="M118,16H298V124H118ZM46,58L118,16M226,58L298,16M226,166L298,124M46,166L118,124M226,58V166M46,58H226"/><path class="ax" d="M46,58V166H226"/>' +
+              label(fig.x, 30, 136, 181) + label(fig.y, 20, 96, 158, { start: true }) + label(fig.z, 18, 34, 112, { turn: true })
+            : '<path class="ax" d="M40,12V160H308"/>' + label(fig.x, 44, 174, 179) + label(fig.y, 26, 18, 86, { turn: true });
+        return '<svg viewBox="0 0 320 190" role="img" aria-label="' + esc(WORDS.sketch + ': ' + (fig.title || '')) + '">' + frame +
+            (MARKS[fig.kind] ? MARKS[fig.kind](held, deep ? CUBE : PLOT) : '') + '</svg>';
     }
 
     // ------------------------------------------------------------ the report's part "Against the brief", as a card (pure)
@@ -273,6 +372,21 @@
             return '<div class="ar-line ar-built' + (g.paths.some(p => c.changed.indexOf(p) >= 0) ? ' changed' : '') + '"><span class="tx">' + esc(day(g.when) + ' · ' + g.question) + '</span>' +
                 build.view(g.thread, g.run) + (c.edit ? '<button type="button" class="drop" data-ar="unbuild" data-id="' + esc(g.id) + '" title="' + WORDS.leave + '">' + ICON.x + '</button>' : '') + '</div>';
         },
+        // a figure of the brief, sketched (i: its place): its number and title, that it is a sketch, a cross to take it
+        // out while the brief can be changed; the series it holds, each beside the stroke it is drawn in - and what a
+        // heat map's colour shows; the drawing; what the figure is to make clear - and, where no shape was known in
+        // advance, that the data decides them
+        sketch(c, fig, i) {
+            const held = fig.series || [], lit = s => !!(s.points && DRAWN.indexOf(fig.kind) >= 0);
+            const cap = [esc(fig.note || ''), held.some(lit) ? '' : '<span class="ph">' + WORDS.byData + '</span>'].filter(Boolean).join(' ');
+            const key = (NAMED.indexOf(fig.kind) < 0 ? held : []).map((s, k) => '<span><i class="' + (lit(s) ? 's' + k : 'ph') + '"></i>' + esc(s.name) + '</span>')
+                .concat(fig.kind === 'heatmap' && fig.z ? ['<span><i class="sq"></i>' + esc(fig.z) + '</span>'] : []);      // what a heat map's colour shows
+            return '<div class="ar-fig' + (c.changed.indexOf('figures.' + i) >= 0 ? ' changed' : '') + '"><div class="hd"><span class="n">' + (i + 1) + '</span><span class="t">' + esc(fig.title) + '</span>' +
+                '<span class="tag">' + WORDS.sketch + '</span>' +
+                (c.edit ? '<button type="button" class="drop" data-ar="unfigure" data-path="figures.' + i + '" title="' + WORDS.leave + '">' + ICON.x + '</button>' : '') + '</div>' +
+                (key.length ? '<div class="key">' + key.join('') + '</div>' : '') +
+                drawing(fig) + (cap ? '<div class="cap">' + cap + '</div>' : '') + '</div>';
+        },
         // the saved analyses a reading found, to read: an analysis to a line with View - under the conversation's row -
         // or in full (o.full: its passages and the reader's notes), marked where the brief builds on it (o.built: ids)
         found(groups, o) {
@@ -310,6 +424,7 @@
                 part(WORDS.head.would_change, one('would_change')) +
                 part(WORDS.head.also_check, build.lines(c, 'also_check', b.also_check, x => ({ shows: x.shows, source: x.source, tick: x.source === 'architect' ? !!x.accepted : null }), adding)) +
                 FIXED.map(f => part(f[1], one('fixed.' + f[0]))).join('') +
+                part(WORDS.head.figures, (b.figures || []).length ? '<div class="ar-figs">' + b.figures.map((f, i) => build.sketch(c, f, i)).join('') + '</div>' : '') +
                 part(WORDS.head.builds, built.map(g => build.built(c, g)).join('')) +
                 part(WORDS.head.aside, aside) +
                 (given(b) && !(framing && framing.data === false) ? '<p class="ar-always">' + WORDS.always + '</p>' : '') +      // the checks of a briefed run on data
@@ -336,6 +451,11 @@
         // the question changed with the reply above it: the Architect worded it, and it is the top box of that version
         asked(turn) {
             return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.question + '</span><span class="out">' + WORDS.updated + '</span><span class="t">' + WORDS.versionN(esc(turn.v)) + '</span></div>';
+        },
+        // the figures changed with the reply above it: how many stand sketched in the brief of that version
+        sketched(turn) {
+            return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.figures + '</span><span class="out">' + WORDS.sketched(Number(turn.sketched) || 0) + '</span>' +
+                '<span class="t">' + WORDS.versionN(esc(turn.v)) + '</span></div>';
         },
         // the coach went to another version of the brief before the message under it: the conversation goes on from that one
         went(turn) {
@@ -374,7 +494,7 @@
                 '<button type="button" class="ar-skip" data-ar="skip"' + (at.of == null ? ' disabled' : '') + '>' + WORDS.skip + '</button></div>';
         },
         // the conversation: the question, then what was said, what was looked up, what the saved analyses hold, what
-        // was opened, where the question changed and where the coach went to another version. o: {live: the last
+        // was opened, where the question or the figures changed and where the coach went to another version. o: {live: the last
         // message's choices can be clicked, sent: a message on its way, waiting: the Architect is replying, saved: the
         // saved analyses are being read - how far}
         talk(entry, o) {
@@ -384,7 +504,8 @@
             const worded = t => { const v = versions[(t.v || 0) - 1]; return !!(t.wording && v && v.by === 'architect' && (v.changed || []).indexOf('question') >= 0 && (v.brief || {}).question === t.wording); };
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
                 turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t) : t.who === 'version' ? build.went(t)
-                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && i === turns.length - 1) + (worded(t) ? build.asked(t) : '') : build.you(t.text)).join('') +
+                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && i === turns.length - 1) + (worded(t) ? build.asked(t) : '') + (t.sketched != null ? build.sketched(t) : '')
+                    : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? (o.saved ? build.reading(o.saved) : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
         },
@@ -648,7 +769,7 @@
         return change(root, line.getAttribute('data-path'), input.value != null ? input.value : input.textContent);
     }
     // one change kept as a version - made to the version on screen, which it goes on from: a line's text (apply), a
-    // proposal ticked (tick), a saved analysis built on no longer (unbuild)
+    // proposal ticked (tick), a saved analysis built on no longer (unbuild), a figure taken out (unfigure)
     function change(root, path, text, how) {
         const entry = entryOf(root);
         const out = entry ? (how || apply)(versionAt(entry.framing, stateOf(root).shown).brief, path, text) : null;      // of the version on screen
@@ -727,6 +848,7 @@
         else if (act === 'drop') keptFirst(root, line.getAttribute('data-path'), '');
         else if (act === 'tick') keptFirst(root, line.getAttribute('data-path'), null, tick);
         else if (act === 'unbuild') keptFirst(root, hit.getAttribute('data-id'), null, unbuild);
+        else if (act === 'unfigure') keptFirst(root, hit.getAttribute('data-path'), null, unfigure);
         else if (act === 'keep') keep(root);
         else if (act === 'cancel') redraw(root);
         else if (act === 'start') start(root);
@@ -750,5 +872,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, unbuild, use, build, readStream };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, unbuild, unfigure, use, build, readStream };
 })();

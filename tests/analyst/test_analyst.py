@@ -1983,7 +1983,7 @@ def _unreadable(text):
     except arch.Unreadable as exc:
         return str(exc)
     return None
-_none = {"wording": "", "lookups": [], "marks": [], "propose": [], "recall": False, "build": None, "open": None}
+_none = {"wording": "", "lookups": [], "marks": [], "propose": [], "recall": False, "build": None, "figures": None, "open": None}
 _asks = arch.parse(json.dumps({"say": "Checking.", "lookups": [{"op": "count"}, "count", 3, {"op": "x"}, {}, {}, {}, {}], "marks": [{"line": "l", "mark": "holds"}, "no"]}))
 check("architect.parse: the reply's JSON object, bare or fenced, with words around it: the parts it writes, its message with its lines - each on one line of text, one empty line at most between two "
       "paragraphs, bounded - its choices cleaned - none twice, none empty, four at most; a reply without a brief writes nothing. The lookups it asks for and the marks it gives come through as given - the "
@@ -2346,6 +2346,181 @@ check("brief.said: the conversation a brief came from, as text - the question as
       and briefs.said({"turns": [{"who": "person", "text": "yes"}]}, " the question ") == "Person: the question\nPerson: yes" and briefs.said({"turns": [{"who": "person", "text": "yes"}]}) == "Person: yes"
       and briefs.said({"versions": [{"n": 1, "brief": {"question": "q"}}], "turns": [{"who": "check", "found": []}]}, "q") == "" and briefs.said({}, "q") == "" and briefs.said(None) == "", briefs.said(_sf, "x"))
 del _asked_of[:]
+# ---- 0309 (docs/ARCHITECT_DESIGN.md §2.19): the figures the person asks to see are a part of the brief. The Architect describes each one, the page sketches it, the analyst computes for it and
+# ---- the step that draws is given it in words; a sketch's rough points are for the person's eyes alone
+_PTS = [[0, 50], [7.123456, 66], [14, 38.5]]
+_FIG = {"title": "  Two paths  on the curve ", "kind": "line3d", "x": "x", "y": "y", "z": "z", "note": "They run together, then part.",
+        "series": [{"name": "start A", "points": _PTS + ["no pair", [1, float("nan")], [True, 2], [1, 2, 3]]}, "start B", {"name": "start A"}, {"name": ""}]}
+_fb = briefs.normalise({"question": "q", "figures": [_FIG, {"title": "two paths on the CURVE"}, {"kind": "line"}, "no figure", {"title": "Spread", "kind": "violin", "series": ["a", "b", "c", "d", "e"]},
+                                                       {"title": "T3", "kind": ["line"]}, {"title": "T4"}]})
+_long = briefs.normalise({"figures": [{"title": "t" * 300, "x": "x" * 300, "note": "n" * 300, "series": ["s" * 300, {"name": "many", "points": [[k, k] for k in range(40)]}, {"name": "one", "points": [[1, 2]]}]}]})["figures"][0]
+_deep = briefs.normalise({"figures": [{"title": "T", "kind": "line3d", "series": [{"name": "a", "points": [[0, 0, 0], [1, 2, 3.5]]}, {"name": "b", "points": [[0, 0], [1, 2, 3], [2, 2]]},
+                                                                                {"name": "c", "points": [[1, 2, 3], [9, 9], [4, 5, 6]]}, {"name": "d", "points": [[1, 2, 3, 4], [5, 6, 7, 8]]}]},
+                                      {"title": "U", "series": [{"name": "e", "points": [[1, 2, float("inf")], [1, 2, 3]]}, {"name": "f", "points": [[1, 2, True], [1, 2, 3], [4, 5, 6]]}]}]})["figures"]
+check("brief.normalise, the figures (0309): a figure is its title - without one it is none, and a title names one figure whatever its case - with its kind where a sketch can show it, what is on each axis, "
+      "the lines it holds by name, four at most and none named twice, each with its rough points - pairs of numbers, to four figures, in the order given; fewer than two are no line - and what it is to "
+      "make clear; three figures at most, every text bounded. A brief that holds only figures is a brief; agreed() and working() keep them. The points of a line in three dimensions are triples: "
+      "each point of a line has as many numbers as its first, two or three, and all of them numbers - four are no point",
+      _fb["figures"] == [{"title": "Two paths on the curve", "kind": "line3d", "x": "x", "y": "y", "z": "z", "series": [{"name": "start A", "points": [[0, 50], [7.123, 66], [14, 38.5]]}, {"name": "start B"}],
+                          "note": "They run together, then part."}, {"title": "Spread", "series": [{"name": "a"}, {"name": "b"}, {"name": "c"}, {"name": "d"}]}, {"title": "T3"}]
+      and briefs.MAX["figures"] == 3 and (briefs.SERIES, briefs.POINTS) == (4, 24) and list(briefs.KINDS) == ["line", "scatter", "bar", "histogram", "box", "heatmap", "line3d"]
+      and [len(x) for x in (_long["title"], _long["x"], _long["series"][0]["name"], _long["note"])] == [120, 80, 60, 240] and len(_long["series"][1]["points"]) == 24 and _long["series"][1]["points"][-1] == [23, 23]
+      and _long["series"][2] == {"name": "one"} and briefs.normalise({"figures": [{"title": "T"}]}) == {"figures": [{"title": "T"}], "version": 1}
+      and briefs.agreed(_fb)["figures"] == _fb["figures"] and briefs.working(_fb)["figures"] == _fb["figures"]
+      and briefs.normalise({"figures": "none"}) == {} and briefs.normalise({"figures": [{"title": " "}, 7, None]}) == {}
+      and json.dumps(_fb["figures"][0]["series"][0]["points"]) == "[[0, 50], [7.123, 66], [14, 38.5]]"
+      and [s.get("points") for s in _deep[0]["series"]] == [[[0, 0, 0], [1, 2, 3.5]], [[0, 0], [2, 2]], [[1, 2, 3], [4, 5, 6]], None]
+      and [s.get("points") for s in _deep[1]["series"]] == [None, [[1, 2, 3], [4, 5, 6]]], (_fb, _long, _deep))
+_s0 = {"question": "q", "decision": "d"}
+_s1, _c1s = briefs.sketch(_s0, [_FIG, {"title": "Spread", "kind": "box", "series": ["a", "b"]}])
+_s2, _c2s = briefs.sketch(_s1, [2, 1])
+_s3, _c3s = briefs.sketch(_s1, [1, 2])
+_s4, _c4s = briefs.sketch(_s1, [1])
+_s5, _c5s = briefs.sketch(_s1, [])
+_s6, _c6s = briefs.sketch(_s1, [1, {"title": "spread", "kind": "bar"}, 7, 0, True, "x", {"title": "New"}, {"title": "One too many"}])
+_s7, _c7s = briefs.sketch(_s1, [{"title": "two paths on the curve", "kind": "line", "series": ["start A", {"name": "start B", "points": [[9, 9], [8, 8]]}, "start C"]}, 2])
+_s8, _c8s = briefs.sketch(_s1, [{"title": "Two paths on the curve", "series": [{"name": "start A", "points": []}]}])
+_s9, _c9s = briefs.sketch(_s1, [{"title": "Another title", "series": ["start A"]}])
+_s10 = briefs.sketch(_s1, [{"title": "TWO PATHS on the curve", "series": [{"name": "start A", "points": [[1, 1], [2, 2]]}, "start B"]}, 2])[0]
+_s11 = briefs.sketch(_s1, [{"title": "TWO PATHS on the curve", "series": ["start A"]}])[0]
+check("brief.sketch (0309): the brief with its figures as a reply gives them - every figure as it is to stand, in order: one that stays by its number among the brief's, a new or changed one in full. "
+      "The same set changes nothing; another order, a figure changed, one more or one fewer is said by its place - `figures` where fewer stand; [] takes them all out and the part falls away. A number "
+      "the brief does not have, a yes, a word and a figure without a title are passed over, and three are kept. A line named again under its figure's title keeps its rough points unless the reply "
+      "gives it others, or none; under another title it has none. The rest of the brief stays, and the brief passed in is not altered",
+      _c1s == ["figures.0", "figures.1"] and [f["title"] for f in _s1["figures"]] == ["Two paths on the curve", "Spread"] and _s1["decision"] == "d" and "figures" not in _s0
+      and _c2s == ["figures.0", "figures.1"] and [f["title"] for f in _s2["figures"]] == ["Spread", "Two paths on the curve"] and (_s3, _c3s) == (_s1, [])
+      and _c4s == ["figures"] and len(_s4["figures"]) == 1 and _c5s == ["figures"] and _s5 == _s0
+      and _c6s == ["figures.1", "figures.2"] and [(f["title"], f.get("kind")) for f in _s6["figures"]] == [("Two paths on the curve", "line3d"), ("spread", "bar"), ("New", None)]
+      and _c7s == ["figures.0"] and [(s["name"], s.get("points")) for s in _s7["figures"][0]["series"]] == [("start A", [[0, 50], [7.123, 66], [14, 38.5]]), ("start B", [[9, 9], [8, 8]]), ("start C", None)]
+      and _s7["figures"][0]["kind"] == "line" and _s7["figures"][1] == _s1["figures"][1]
+      and "points" not in _s8["figures"][0]["series"][0] and _c8s == ["figures.0", "figures"] and "points" not in _s9["figures"][0]["series"][0]
+      and briefs.sketch(None, [{"title": "T"}]) == ({"figures": [{"title": "T"}]}, ["figures.0"]) and briefs.sketch(_s1, "all") == (_s0, ["figures"])
+      and briefs.sketch(_s1, [0]) == (_s0, ["figures"]) and briefs.sketch(_s1, [True]) == (_s0, ["figures"]) and briefs.sketch(_s1, [3]) == (_s0, ["figures"])
+      and _s10["figures"][0]["series"] == [{"name": "start A", "points": [[1, 1], [2, 2]]}, {"name": "start B"}] and _s10["figures"][0]["title"] == "TWO PATHS on the curve"
+      and _s11["figures"][0]["series"] == [{"name": "start A", "points": [[0, 50], [7.123, 66], [14, 38.5]]}]
+      and len(_s1["figures"]) == 2 and _s1["figures"][0]["series"][0]["points"] == [[0, 50], [7.123, 66], [14, 38.5]], (_c1s, _c2s, _c4s, _c6s, _c7s, _c8s))
+_fblock = briefs.render({**_s1, "fixed": {"measure": "m"}, "saved": [dict(_KEPT[0], accepted=True)]})
+check("brief.figure_lines and brief.render (0309): a figure in words, a line each - the title, the kind as the analyst reads it, what is on each axis, what it holds by name, what it is to make clear; "
+      "a part it does not have is not there, and the rough points are in no line. The analyst's BRIEF block lists the figures, numbered, after what is fixed and before the saved analyses; the "
+      "record of a brief keeps them too",
+      briefs.figure_lines(_s1) == ['"Two paths on the curve" - a line in three dimensions; x: x; y: y; z: z; holds: start A, start B; to make clear: They run together, then part.', '"Spread" - box plots; holds: a, b']
+      and briefs.figure_lines({"figures": [{"title": "T"}]}) == ['"T"'] and briefs.figure_lines({}) == [] and briefs.figure_lines(None) == []
+      and '\nFixed before the run:\n- measure: m\nFigures agreed with the person:\n1. "Two paths on the curve" - a line in three dimensions; x: x; ' in _fblock
+      and '\n2. "Spread" - box plots; holds: a, b\nSaved analyses the person chose' in _fblock and "38.5" not in _fblock and "7.123" not in _fblock
+      and briefs.render(_s1, record=True) == 'What the answer is for: d\nFigures agreed with the person:\n1. ' + briefs.figure_lines(_s1)[0] + '\n2. "Spread" - box plots; holds: a, b'
+      and "Figures agreed" not in briefs.render(_s0), _fblock)
+check("architect.parse and architect.block (0309): a reply's `figures` is a list as given - None where the reply does not say, or says it in another shape; the BRIEF block lists the figures the brief "
+      "holds, each under the number a reply keeps it by, in words, and says where a sketch has lines drawn - the points themselves are not in it; a brief without figures has no such lines",
+      arch.parse('{"say": "x", "figures": [1, {"title": "t"}]}')["figures"] == [1, {"title": "t"}] and arch.parse('{"say": "x"}')["figures"] is None
+      and arch.parse('{"say": "x", "figures": "all"}')["figures"] is None and arch.parse('{"say": "x", "figures": []}')["figures"] == []
+      and arch.block({**_s1, "version": 3}).endswith('fixed.period: (empty)\nfigures:\n- [1] "Two paths on the curve" - a line in three dimensions; x: x; y: y; z: z; holds: start A, start B; '
+                                                       'to make clear: They run together, then part. [sketched with points]\n- [2] "Spread" - box plots; holds: a, b')
+      and "figures" not in arch.block({"question": "q", "version": 1}) and "38.5" not in arch.block({**_s1, "version": 3}), arch.block({**_s1, "version": 3}))
+_gn = Notebook("g"); _gr = _gn.new_run("Plot it"); _gr.status = "framing"; _gr.framing = briefs.version({}, {"question": _gr.question})
+_gllm, _gseen = _arch_llm([json.dumps({"say": "Sketched.", "figures": [_FIG, {"title": "Spread", "kind": "box", "series": ["a", "b"]}], "brief": {"decision": "to see it"}}),
+                           json.dumps({"say": "As they are.", "figures": [1, 2]}), json.dumps({"say": "A word.", "brief": {"expects": "e"}}),
+                           json.dumps({"say": "The second first.", "figures": [2, 1]}), json.dumps({"say": "From the first sketch.", "figures": [1, {"title": "New", "kind": "bar"}]}),
+                           json.dumps({"say": "None.", "figures": []})])
+_gr.framing = _g1 = arch.exchange(_gllm, _gn, _gr, "Show me what it will look like")
+_gr.framing = _g2 = arch.exchange(_gllm, _gn, _gr, "Yes")
+_gr.framing = _g3 = arch.exchange(_gllm, _gn, _gr, "I expect e")
+_gr.framing = _g4 = arch.exchange(_gllm, _gn, _gr, "Swap them")
+_gr.framing = _g5 = arch.exchange(_gllm, _gn, _gr, "From the first sketch, with another second", version=2)
+_gr.framing = _g6 = arch.exchange(_gllm, _gn, _gr, "No figures after all")
+check("architect.exchange, the figures (0309): a reply's `figures` are the brief's from that reply on - one more version of the Architect's, with the reply's other parts, each figure's place named as "
+      "changed. Naming the same figures by their numbers changes nothing and makes no version; a reply that says nothing of them leaves them; another order is a version; the numbers are those of the "
+      "brief the reply read - the version on the person's screen; [] takes them out. The Architect reads the figures under their numbers in BRIEF, from the reply after. The message of a reply "
+      "that changed the figures says how many then stand, for the page's row; another message says nothing of them",
+      [f["title"] for f in briefs.latest(_g1)["figures"]] == ["Two paths on the curve", "Spread"] and briefs.latest(_g1)["decision"] == "to see it"
+      and (_g1["versions"][-1]["by"], _g1["versions"][-1]["why"], _g1["versions"][-1]["changed"]) == ("architect", "answer", ["decision", "figures.0", "figures.1"])
+      and len(_g2["versions"]) == 2 and len(_g3["versions"]) == 3 and briefs.latest(_g3)["figures"] == briefs.latest(_g1)["figures"] and _g3["versions"][-1]["changed"] == ["expects"]
+      and [f["title"] for f in briefs.latest(_g4)["figures"]] == ["Spread", "Two paths on the curve"] and _g4["versions"][-1]["changed"] == ["figures.0", "figures.1"]
+      and [f["title"] for f in briefs.latest(_g5)["figures"]] == ["Two paths on the curve", "New"] and "expects" not in briefs.latest(_g5) and _g5["versions"][-1]["changed"] == ["figures.1"] and len(_g5["versions"]) == 5
+      and "figures" not in briefs.latest(_g6) and _g6["versions"][-1]["changed"] == ["figures"]
+      and [t.get("sketched") for t in _g6["turns"] if t["who"] == "architect"] == [2, None, None, 2, 2, 0]
+      and "figures:" not in _gseen[0][1] and '\nfigures:\n- [1] "Two paths on the curve" - ' in _gseen[1][1] and '- [2] "Spread" - box plots; holds: a, b\n\nCONVERSATION:' in _gseen[1][1]
+      and "BRIEF (version 2):" in _gseen[4][1] and '- [1] "Two paths on the curve" - ' in _gseen[4][1] and '- [2] "Spread" - box plots' in _gseen[4][1] and '- [2] "New" - bars' in _gseen[5][1],
+      ([v["changed"] for v in _g6["versions"]], [f["title"] for f in briefs.latest(_g5).get("figures", [])]))
+# the step that draws is given the agreed figures; a reply that leaves one out is asked again once, before anything runs; the report says where one was not drawn
+from analyst.session import FIGURES_SYSTEM as _FSYS, FIGURES_AGREED as _FAGREED, carries as _carries
+_under = lambda *pairs: ("```python\nimport plotly.graph_objects as go\n" + "\n".join(f"t{k} = {agreed!r}\nf{k} = go.Figure(go.Bar(x=[1], y=[float(pct)])); f{k}.update_layout(title={title!r}); f{k}.show()"      # noqa: E731
+                                                                                    for k, (agreed, title) in enumerate(pairs)) + "\n```\n" + "\n".join(f"CAPTION: {title}" for _, title in pairs))
+_fgb = {"decision": "d", "figures": [{"title": "After against before", "kind": "bar", "x": "part", "y": "y", "series": ["before", "after"], "note": "How far apart the two stand."},
+                                     {"title": "The rise in percent", "kind": "line", "series": [{"name": "rise", "points": [[0, 1], [5, 9]]}]}]}
+def _draws(*titles):
+    return ("```python\nimport plotly.graph_objects as go\n" + "\n".join(f"f{k} = go.Figure(go.Bar(x=[1], y=[float(pct)])); f{k}.update_layout(title={t!r}); f{k}.show()" for k, t in enumerate(titles))
+            + "\n```\n" + "\n".join(f"CAPTION: {t}" for t in titles))
+def _fig_run(steps, brief):
+    seen = {"figures": [], "analyst": []}
+    script = [_CELL, _bact(_BREPORT)]
+    def llm(system, user, **h):
+        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
+        if system.startswith("You are drawing the figures"):
+            seen["figures"].append(user); return steps[min(len(seen["figures"]) - 1, len(steps) - 1)], {"cost": 0.002}
+        seen["analyst"].append((system, user)); return script[min(len(seen["analyst"]) - 1, len(script) - 1)], {"cost": 0.001}
+    k = PersistentKernel(df=_bdf)
+    try:
+        run = Session(k, Notebook("tfg"), llm, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=6, dollars=1.0), brief=brief)
+    finally:
+        k.cleanup()
+    return run, seen
+_pp9 = os.environ.get("PYTHONPATH")
+if "plotly" in _stubs.FAKE:                  # the kernel's worker imports plotly: the stack's stand-in where the real one is absent
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp9 if _pp9 else "")
+try:
+    _fa, _fa_seen = _fig_run([_draws("After against before"), _draws("After against before", "The rise in percent")], _fgb)
+    _fb2, _fb_seen = _fig_run([_draws("After against before")], _fgb)
+    _fc, _fc_seen = _fig_run(["NONE"], _fgb)
+    _fd, _fd_seen = _fig_run([_draws("AFTER  against before, 60 rows", "the rise in percent (now)")], _fgb)
+    _fe, _fe_seen = _fig_run([_draws("Any title")], {"decision": "d"})
+    _plt = lambda *titles: ("```python\nimport matplotlib.pyplot as plt\n" + "\n".join(f"plt.figure(); plt.bar([1], [float(pct)]); plt.title({t!r}); plt.show()" for t in titles)      # noqa: E731
+                            + "\n```\n" + "\n".join(f"CAPTION: {t}" for t in titles))
+    _fm, _fm_seen = _fig_run([_plt("After against before", "The rise in percent")], _fgb)
+    _fn, _fn_seen = _fig_run([_plt("After against before")], _fgb)
+    _fq, _fq_seen = _fig_run([_under(("After against before", "After against before"), ("The rise in percent", "Another title"))], _fgb)
+    _fp, _fp_seen = _fig_run([_draws("One of its own"), _draws("One of its own", "And another")], _fgb)
+finally:
+    if _pp9 is None: os.environ.pop("PYTHONPATH", None)
+    else: os.environ["PYTHONPATH"] = _pp9
+_fsteps = lambda run: [(x.kind, x.cell_no, x.stdout.strip()[:90], [f.get("title") for f in x.figures]) for x in run.turns if x.step == "figures"]      # noqa: E731
+_agreed_block = (_FAGREED + '\n1. "After against before" - bars; x: part; y: y; holds: before, after; to make clear: How far apart the two stand.\n2. "The rise in percent" - a line chart; holds: rise')
+check("the figures agreed in the brief (0309), in a run: the analyst reads them in its BRIEF block and its contract says they are drawn after the report from what the kernel holds; the step that "
+      "draws is given them under its question, numbered, in words - a sketch's rough points are in neither prompt - and its instructions put them first and take NONE for no reply. A run without "
+      "agreed figures reads none of it",
+      all("\nFigures agreed with the person:\n1. \"After against before\" - bars; x: part; " in u for _, u in _fa_seen["analyst"]) and all("[0, 1]" not in u and "[5, 9]" not in u for _, u in _fa_seen["analyst"])
+      and "- The figures agreed with the person are drawn after your report, by a step that sees only what the kernel holds:\n  compute what each one needs, and keep it in a variable.\n" in _fa_seen["analyst"][0][0]
+      and _fa_seen["figures"][0].startswith("QUESTION:\nDid it work?\n\n" + _agreed_block + "\n\nTHE REPORT, AS WRITTEN:\n") and "[0, 1]" not in _fa_seen["figures"][0]
+      and ("\n\nWhere the prompt lists THE FIGURES AGREED WITH THE PERSON, NONE is no reply: draw each of them first, in the order given, as it is described - its kind, what is on each axis, "
+           "what it holds - and under its title, word for word; add a figure of your own only where the report needs one the list does not have, three figures in all.\n") in _FSYS
+      and _FAGREED == "THE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):"
+      and _fe_seen["figures"][0].startswith("QUESTION:\nDid it work?\n\nTHE REPORT, AS WRITTEN:\n") and "Figures agreed" not in _fe_seen["analyst"][0][1] and len(_fe_seen["figures"]) == 1
+      and "A figure agreed" not in _fe.report and _fsteps(_fe)[0][3] == ["Any title"], (_fa_seen["figures"][0][:500], _fsteps(_fe)))
+check("the figures step, a reply that leaves an agreed figure out (0309): a cell whose code does not name the title is not run - an attempt on the record, said as such - and the step is asked again, "
+      "once, with the titles left out; the cell that then names them all runs, and the report's Figures section holds both with no line about a missing one. Asked once only: a second cell that "
+      "still leaves one out runs as it is, and the report says which agreed figure was not drawn",
+      len(_fa_seen["figures"]) == 2 and _fa_seen["figures"][1] == _fa_seen["figures"][0] + '\n\nYOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt 1 of 4): "The rise in percent". Nothing was run. '
+                                                                                         'Write the cell again with every agreed figure in it, each under its title, word for word.'
+      and _fsteps(_fa) == [("error", None, 'the reply left out a figure agreed with the person: "The rise in percent"', []), ("cell", 2, "", ["After against before", "The rise in percent"])]
+      and "## Figures\n\n- [fig 2] After against before\n- [fig 2] The rise in percent" in _fa.report and "not drawn" not in _fa.report
+      and len(_fb_seen["figures"]) == 2 and _fsteps(_fb2)[1][3] == ["After against before"] and '\n\n> A figure agreed in the brief was not drawn: "The rise in percent".' in _fb2.report
+      and "## Figures\n\n- [fig 2] After against before" in _fb2.report, (_fsteps(_fa), _fsteps(_fb2), _fb2.report[-200:]))
+check("the figures step, NONE where figures were agreed (0309): it is asked again, once, with every agreed title; a second NONE stands, and the report says the figures were not drawn and why. A "
+      "title is carried whatever its case and spacing, and with words around it: such a cell is run at once and nothing is said to be missing. A plot the kernel saved itself has no title to "
+      "read - the cell's code stands for it: one that names every agreed title draws them and nothing is missing; one that leaves a title out is asked again, and the report names it. A "
+      "cell that names an agreed title and draws the figure under another runs at once - the code carries the title - and the report then says that figure was not drawn: what counts is "
+      "the title a figure was drawn under. Where two were not drawn, the line names both",
+      len(_fc_seen["figures"]) == 2 and '(attempt 1 of 4): "After against before"; "The rise in percent". Nothing was run.' in _fc_seen["figures"][1] and [s[:2] for s in _fsteps(_fc)] == [("error", None)]
+      and "## Figures" not in _fc.report
+      and '\n\n> The figures were not drawn: the reply left out a figure agreed with the person: "After against before"; "The rise in percent".' in _fc.report
+      and len(_fd_seen["figures"]) == 1 and "not drawn" not in _fd.report and _fsteps(_fd) == [("cell", 2, "", ["AFTER  against before, 60 rows", "the rise in percent (now)"])]
+      and len(_fm_seen["figures"]) == 1 and "not drawn" not in _fm.report and "- [fig 2] After against before\n- [fig 2] The rise in percent" in _fm.report and [len(x.figures) for x in _fm.turns if x.step == "figures"] == [2]
+      and len(_fn_seen["figures"]) == 2 and '\n\n> A figure agreed in the brief was not drawn: "The rise in percent".' in _fn.report and "- [fig 2] After against before" in _fn.report
+      and len(_fq_seen["figures"]) == 1 and _fsteps(_fq) == [("cell", 2, "", ["After against before", "Another title"])]
+      and '\n\n> A figure agreed in the brief was not drawn: "The rise in percent".' in _fq.report and "- [fig 2] Another title" in _fq.report
+      and len(_fp_seen["figures"]) == 2 and _fsteps(_fp)[1][3] == ["One of its own", "And another"]
+      and '\n\n> Figures agreed in the brief were not drawn: "After against before"; "The rise in percent".' in _fp.report
+      and _carries("fig.update_layout(title='After  AGAINST before')", "after against  before") and not _carries("title='After against'", "After against before") and not _carries("anything", " ")
+      and not _carries(None, "t"), (_fsteps(_fc), _fc.report[-200:], _fsteps(_fd)))
 # ---- 0307: a part of an analysis the question follows is opened on request - its report, a cell, the conversation it was framed in - and read whole by the replies that follow, until the person speaks
 _on = Notebook("o")
 _o1 = _on.new_run("Does B beat A?"); _o1.status = "answered"; _o1.report = "# B beats A\n\nB beats A by 3 units.\n\n## How\nSee [cell 2]."
@@ -2454,7 +2629,7 @@ check("the Architect's instructions: who it is - a patient tutor, who gives befo
                                                                                                   "lookups", "marks", "count", "list", "total", "where", "by", "data", "holds", "does not hold", "cannot be checked", "propose"))
       and '{"text": "<the explanation, one line>", "shows": "<what the analysis would find if it were so>", "column": "<the column of DATA that tells>"}' in arch.SYSTEM and "two lines at most" in arch.SYSTEM
       and all(f'"{op}"' in arch.SYSTEM for op in lookup.OPS + lookup.EVERY + briefs.MARKS) and "six at most" in arch.SYSTEM and lookup.MAX_LOOKUPS == 6 and "forty groups at most" in arch.SYSTEM and lookup.MAX_GROUPS == 40
-      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 15000 and all(f"`{k}`" in arch.SYSTEM for k in ("builds_on", '"recall": true', '"build": [2]', '"build": []'))
+      and "One JSON object and nothing else" in arch.SYSTEM and len(arch.SYSTEM) < 17000 and all(f"`{k}`" in arch.SYSTEM for k in ("builds_on", '"recall": true', '"build": [2]', '"build": []'))
       and not any(f"`{k}`" in arch.SYSTEM for k in ("accept", "tick", "saved"))
       and "When EARLIER is given, do not" not in _asys and "an earlier result is a claim for the analysis to test" in _asys
       and all(x in _asys for x in ("You talk with them as a patient tutor would", "Give before you ask.", '"I do not know" and "I am not sure" are answers: never ask that again', "Keep no order.",
@@ -2476,7 +2651,7 @@ _said08 = {"a short message": "One step a message, and a short one: a few plain 
            "worded again where it is not what they mean": "When the person says the question is not what they mean, word it again from what they say.",
            "another version": "CONVERSATION says where the person went to another version of the brief. QUESTION and BRIEF then show that version: go on from it, and bring back what a later version held only where the person asks.",
            "the reply's form shows no key that belongs to one reply only": '{"say": "...", "choices": ["...", "..."], "brief": {"decision": "...", "rests_on": ["..."], "fixed": {"measure": "..."}, "drop": ["..."]}} - `say`: your message.',
-           "the other keys, each in its reply": "`wording`, `lookups`, `marks`, `propose`, `recall`, `build`, `open`: each only in the reply it belongs to, as set out above. Leave them out of every other reply.",
+           "the other keys, each in its reply": "`wording`, `lookups`, `marks`, `propose`, `recall`, `build`, `figures`, `open`: each only in the reply it belongs to, as set out above. Leave them out of every other reply.",
            "no claim the question does not bear out": "Say that the question holds something only where QUESTION shows it.",
            "lines as sentences": "Each line is a full sentence in the first person that reads on its own", "the task is not a part": "What is to be done is no part of the brief: it belongs in the wording.",
            "fixed, for data": "| `fixed` | only where the analysis compares data - ",
@@ -2498,6 +2673,27 @@ check("the Architect's instructions, 0308: a short message; starting is the pers
       "until the person speaks; no picture is shown. Nothing of the wording that waited (0307) is left: no agreement to report, nothing to take, nothing to tick",
       not [k for k, s in _said08.items() if s not in _asys] and not any(x in _asys for x in ("`accept`", '"accept"', "the wording that waits", "not taken yet", "for the person to tick", "under `saved`")),
       [k for k, s in _said08.items() if s not in _asys])
+_said09 = {"when it sketches": "When the person asks for a figure, or asks to see what the result will look like, sketch it: give `figures`, three at most, and the person sees each one as a sketch in the brief.",
+           "not otherwise": "Sketch nothing where no figure is asked for.",
+           "the title": "| `title` | the title the figure will carry, in a few words |",
+           "the kinds": "| `kind` | `line`, `scatter`, `bar`, `histogram`, `box`, `heatmap` or `line3d` |",
+           "the axes": "| `x`, `y` | what is on each axis; `z` too for `line3d`, and for `heatmap` what the colour shows |",
+           "what it holds": '| `series` | the lines, the groups of points, the bars or the boxes it holds, four at most: `[{"name": "..."}]` |',
+           "the note is no result": "| `note` | what the figure is to make clear - never what will be found |",
+           "a sketch shows no result": "A sketch shows no result. Where the data decides a shape, give no `points`: the person sees where things go, in grey.",
+           "points where the shape is known": "Where the shape is known before anything is computed - a curve that is given, a system that only follows its rule - add rough `points` to a series: "
+                                              "up to 24 pairs `[x, y]` in the order the line runs, on any scale; for `line3d`, triples `[x, y, z]`.",
+           "every figure, one that stays by its number": '`figures` is every figure as it is to stand, in order. One that stays as it is: its number in BRIEF alone - `"figures": [1, {"title": "...", "kind": "line"}]`.',
+           "a line keeps its points": 'A line given again under its figure\'s title keeps its points unless you give others; `"points": []` takes them out.',
+           "all out": '`"figures": []` takes every figure out.',
+           "the message": "In your message say that you sketched it, and ask whether it is what they want to see. Do not describe the sketch again.",
+           "drawn under its title": "The analysis draws each figure after its report, under its title. What is to be computed for it belongs in the wording.",
+           "what it receives": "`figures` lists the figures sketched, each under its number."}
+check("the Architect's instructions, 0309: it sketches when the person asks for a figure or asks to see the result, and not otherwise; a figure's keys - the kinds the engine knows, the bounds the engine "
+      "keeps; a sketch shows no result, so rough points only where the shape is known before anything is computed; `figures` is every figure as it is to stand, one that stays by its number, a line "
+      "keeping its points; the message does not describe the sketch again; what is to be computed belongs in the wording",
+      not [k for k, s in _said09.items() if s not in _asys] and all(f"`{k}`" in _said09["the kinds"] for k in briefs.KINDS) and briefs.MAX["figures"] == 3 and briefs.SERIES == 4
+      and f"up to {briefs.POINTS} pairs" in _asys and len(arch.SYSTEM) < 17000, ([k for k, s in _said09.items() if s not in _asys], len(arch.SYSTEM)))
 
 # ---- lookups (0298, docs/ARCHITECT_DESIGN.md §2.4, §2.13): what the brief rests on is checked against the data - a count, a list or a
 # total, and nothing else - and the lines are marked by what was found

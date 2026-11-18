@@ -167,12 +167,19 @@ Reply with one of two things and nothing else:
 - the single word NONE, when a number, a table or a definition answers the question and a figure would add nothing;
 - one Python cell, as a ```python block, that draws the one to three figures the report's reader needs - the figure the question asks for, or the estimate and its uncertainty, first; each further figure shows something the others do not; nothing the report does not say - from what the kernel holds, with Plotly and one fig.show() per figure; then, after the block, one line per figure in the order drawn: CAPTION: what the figure shows, in the reader's words.
 
+Where the prompt lists THE FIGURES AGREED WITH THE PERSON, NONE is no reply: draw each of them first, in the order given, as it is described - its kind, what is on each axis, what it holds - and under its title, word for word; add a figure of your own only where the report needs one the list does not have, three figures in all.
+
 The drawing's own arithmetic - bins, positions, a smoothed line - is the cell's to compute; the numbers the report states are not recomputed but read from the objects that hold them. Every number drawn or written - a point, a bar, an interval, a title (an f-string) - comes from a variable, never typed: a figure of typed numbers is a picture of this run alone, wrong the day the method runs on other data. The kernel has no display: you see nothing; the cell's figures are captured and shown to the reader with the report. A cell that fails comes back to you with its error for a corrected cell, three times at most; then the report stands without figures."""
 FIGURES_CUT = ("YOUR LAST REPLY WAS CUT OFF at the length limit before a cell arrived (attempt {k} of {n}). Write the cell now, "
                "shorter: one figure, the one the reader needs most, and its CAPTION line.")
 FIGURES_NO_BLOCK = ("YOUR LAST REPLY carried no python block and was not NONE (attempt {k} of {n}). Reply with one ```python block "
                     "and its CAPTION lines, or the word NONE.")
 FIGURES_FAILED = ("YOUR LAST CELL FAILED - it was rolled back (attempt {k} of {n}); write a corrected cell:\n```python\n{code}\n```\nERROR:\n{error}")
+# the figures the person agreed in the brief (docs/ARCHITECT_DESIGN.md §2.19): the step is given them, a reply that leaves
+# one out is asked again once - before anything runs - and the report says where one was not drawn
+FIGURES_AGREED = "THE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):"
+FIGURES_LEFT_OUT = ("YOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt {k} of {n}): {titles}. Nothing was run. Write the "
+                    "cell again with every agreed figure in it, each under its title, word for word.")
 DIGEST_VIEW_CHARS = 12_000   # a search or read digest rides into the next prompt whole, like the newest cell's output; a longer one
                              # is cut from the middle at line ends so its top and its SUMMARY both survive. The record keeps all.
 
@@ -613,6 +620,13 @@ def figures_outcome(reasons: list) -> str:
     if len(kinds) == 1:
         return f"{reasons[0].split(' (')[0]} {len(reasons)} times" + (f" (last: {reasons[-1].split(' (', 1)[1].rstrip(')')})" if " (" in reasons[-1] else "")
     return f"after {len(reasons)} attempts (last: {reasons[-1]})"
+
+
+def carries(text: str, title: str) -> bool:
+    """Whether a text - a cell's code, the title a figure was drawn under - carries a title: its words in their
+    order, whatever the case and the spacing."""
+    fold = lambda s: re.sub(r"\s+", " ", str(s or "")).strip().casefold()      # noqa: E731
+    return bool(fold(title)) and fold(title) in fold(text)
 
 
 def answers_none(text: str) -> bool:
@@ -1258,11 +1272,18 @@ class Session:
         number answered). Each attempt is a card in the pane and a turn of the record (step "figures"; the committed
         cell gets a number like any cell). Returns (the report's Figures section - "## Figures" with one "[fig n]
         caption" line per figure, or "" - and a line for the report when the figures were not drawn, or ""). Outside
-        the turn budget, like the rewrite."""
+        the turn budget, like the rewrite.
+
+        Where the brief holds figures the person agreed (2026-11-18), the step is given them. A reply that leaves one
+        out - NONE, or a cell whose code does not name its title - is an attempt too, asked again once before
+        anything runs; after that the cell runs as it is, and the line for the report names each agreed figure that
+        no figure drawn carries the title of (a plot the kernel saved itself has no title to read: the cell's code
+        stands for it)."""
         if not run.cells() or not (report_text or "").strip():      # nothing computed, or no report to draw for
             return "", ""
         user = self._figures_prompt(run, report_text)
-        error_note, section, reasons = "", "", []
+        agreed = [f["title"] for f in run.brief.get("figures", [])]
+        error_note, section, reasons, drawn, again = "", "", [], [], bool(agreed)
         for attempt in range(1, FIGURES_ATTEMPTS + 1):
             self.emit({"type": "turn_start", "run": run.id, "turn": "figures", "figures": True, "quiet": True, "attempt": attempt})
             t0 = time.time()
@@ -1270,7 +1291,11 @@ class Session:
             usage = usage or {}
             code, captions = parse_figures_reply(text)
             declined = code is None and answers_none(text)
-            if code is None and not declined:
+            left_out = [t for t in agreed if declined or (code is not None and not carries(code, t))] if again and attempt < FIGURES_ATTEMPTS else []
+            if left_out:
+                again = False
+                why = peek = "the reply left out a figure agreed with the person: " + "; ".join(f'"{t}"' for t in left_out)
+            elif code is None and not declined:
                 # nothing usable: cut at the length limit (a reasoning model can spend the whole allowance thinking), empty,
                 # or prose without a block - an attempt, said as such, and asked again
                 why = ("the reply was cut off at the length limit before a cell arrived" if usage.get("truncated") else
@@ -1281,14 +1306,15 @@ class Session:
                         ("figure cell: " + "; ".join(captions)) if captions else "a figure cell")
             self.emit({"type": "turn_end", "run": run.id, "turn": "figures", "kind": "figures", "thinking": "", "note": "", "code": code or "",
                        "elapsed": round(time.time() - t0, 1), "cost": float(usage.get("cost", 0.0) or 0.0), "peek": peek[:200]})
-            if declined:
+            if declined and not left_out:
                 break                                           # the report stands as written
-            if code is None:
+            if code is None or left_out:
                 turn = Turn(kind="error", note=run.note, stdout=why, usage=dict(usage), step="figures")
                 run.turns.append(turn)
                 self._emit_turn(run, turn)
                 reasons.append(why)
-                error_note = "\n\n" + (FIGURES_CUT if usage.get("truncated") else FIGURES_NO_BLOCK).format(k=attempt, n=FIGURES_ATTEMPTS)
+                error_note = "\n\n" + (FIGURES_LEFT_OUT.format(k=attempt, n=FIGURES_ATTEMPTS, titles="; ".join(f'"{t}"' for t in left_out)) if left_out else
+                                       (FIGURES_CUT if usage.get("truncated") else FIGURES_NO_BLOCK).format(k=attempt, n=FIGURES_ATTEMPTS))
                 continue
             turn = Turn(kind="cell", note=run.note, code=code, usage=dict(usage), step="figures")
             t_cell = time.time()
@@ -1333,6 +1359,7 @@ class Session:
             turn.cell_no = self.nb.next_cell_no(run.id)
             run.turns.append(turn)
             self._emit_turn(run, turn)
+            drawn = titles + ([code] if figs else [])            # a plot the kernel saved itself comes without its title: the cell's code stands for it
             n = len(turn.figures)
             if n:
                 caps = [c for c in captions if c][:n]
@@ -1345,14 +1372,19 @@ class Session:
             break
         self._save()
         note = "" if section or not reasons else "The figures were not drawn: " + figures_outcome(reasons) + "."
+        missing = [f'"{t}"' for t in agreed if section and not any(carries(d, t) for d in drawn)]
+        if missing:
+            note = ("A figure agreed in the brief was not drawn: " if len(missing) == 1 else "Figures agreed in the brief were not drawn: ") + "; ".join(missing) + "."
         return section, note
 
     def _figures_prompt(self, run: Run, report_text: str) -> str:
         cells = self.nb.computed_cells(run.id)        # the cells whose variables are in the kernel (2026-10-12)
         code = "\n\n".join(f"--- cell {t.cell_no} ---\n```python\n{t.code.rstrip()}\n```" for t in cells)
         results = result_lines(run)
-        parts = [f"QUESTION:\n{run.question.strip()}", "THE REPORT, AS WRITTEN:\n" + (report_text or "").strip(),
-                 "THE CELLS (their code; the variables they define are in the kernel):\n" + code]
+        agreed = [f"{k}. {line}" for k, line in enumerate(briefs.figure_lines(run.brief), 1)]      # in words: a sketch's rough points are not for this step
+        parts = [f"QUESTION:\n{run.question.strip()}"] + ([FIGURES_AGREED + "\n" + "\n".join(agreed)] if agreed else [])
+        parts += ["THE REPORT, AS WRITTEN:\n" + (report_text or "").strip(),
+                  "THE CELLS (their code; the variables they define are in the kernel):\n" + code]
         if results:
             parts.append("RESULTS (the lines the cells printed; the report quotes these):\n" + "\n".join(results))
         if run.note:

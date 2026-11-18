@@ -16,7 +16,9 @@ what they found joins the conversation as a turn of its own; the reply to the ne
 And it may propose another explanation, which enters the brief as the Architect's own, for the person to accept.
 A reply may ask to have the person's saved analyses read as well (analyst/reader.py; §3): the host reads them, and
 what was found is a turn of the conversation, the analyses numbered; the brief builds on those the person chooses,
-which the reply after names by number (`build`). And it may open a part of an analysis the question follows - its
+which the reply after names by number (`build`). Where the person asks to see what a figure will look like, a reply
+describes it (`figures`): the page sketches it, and the analysis draws it under its title (analyst/brief.py
+sketch(), figure_lines()). And it may open a part of an analysis the question follows - its
 report, a cell, the conversation it was framed in: the record gives it, for the reply after (opened()). What a
 reply asks for and cannot be done is said to it at once, and the reply is asked for again. Nothing here computes:
 a lookup and a reading are the host's, and the analysis is the analyst's.
@@ -117,8 +119,9 @@ def parse(text: str) -> dict:
     """What a reply of the Architect's says: {"brief": the parts it writes, "say": its message, "choices": [...],
     "wording": the question as it puts it to the analyst, "lookups": what it asks of the data, "marks": the marks it
     gives, "propose": the explanations it proposes, "recall": whether it asks for the saved analyses to be read,
-    "build": the saved analyses the brief is to build on, by number - None where the reply does not say -, "open":
-    the part of an earlier analysis it asks to read}. Raises Unreadable."""
+    "build": the saved analyses the brief is to build on, by number - None where the reply does not say -, "figures":
+    the figures as they are to stand - None where the reply does not say -, "open": the part of an earlier analysis
+    it asks to read}. Raises Unreadable."""
     obj = reply_object(text)
     say = _say(obj.get("say"))
     if not say:
@@ -134,6 +137,7 @@ def parse(text: str) -> dict:
             "wording": briefs.wording(obj.get("wording")), "lookups": asked[:lookup.MAX_LOOKUPS], "marks": marks, "propose": proposed,
             "recall": obj.get("recall") is True,
             "build": [n for n in build if isinstance(n, int) and not isinstance(n, bool)] if isinstance(build, list) else None,
+            "figures": obj.get("figures") if isinstance(obj.get("figures"), list) else None,
             "open": obj.get("open") if isinstance(obj.get("open"), dict) else None}
 
 
@@ -145,8 +149,9 @@ def _numbers(found) -> dict:
 def block(brief: dict, found=None) -> str:
     """The BRIEF block of the Architect's prompt: every part under the name the reply uses for it. A line the brief
     rests on shows its mark, with what was found, once it was checked; an explanation the Architect proposed says so,
-    and whether the person accepted it. `found`: the passages the readings found - the saved analyses the brief
-    builds on stand under the numbers they have there."""
+    and whether the person accepted it. A figure stands under the number a reply keeps it by, and says whether its
+    sketch has lines drawn. `found`: the passages the readings found - the saved analyses the brief builds on stand
+    under the numbers they have there."""
     lines = [f"BRIEF (version {brief.get('version', 1)}):"]
     for key in ("decision", "thinks"):
         lines.append(f"{key}: {brief.get(key) or EMPTY}")
@@ -159,6 +164,9 @@ def block(brief: dict, found=None) -> str:
     lines += [f"- {r['text']}" + (f" [proposed by you, {'accepted' if r.get('accepted') else 'not accepted'}]" if r.get("source") == "architect" else "")
               for r in brief.get("also_check", [])]
     lines += [f"fixed.{key}: {brief.get('fixed', {}).get(key) or EMPTY}" for key in briefs.FIXED]
+    if brief.get("figures"):
+        drawn = [" [sketched with points]" if any(s.get("points") for s in f.get("series", [])) else "" for f in brief["figures"]]
+        lines += ["figures:"] + [f"- [{k}] {line}{drawn[k - 1]}" for k, line in enumerate(briefs.figure_lines(brief), 1)]
     built = briefs.analyses([s for s in brief.get("saved", []) if s.get("accepted")])
     if built or found:
         numbers = _numbers(found)
@@ -409,11 +417,11 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
     after a round of lookups, a reading or a part opened - and its reply. A reply that cannot be read is asked for
     once more. Returns the framing as it then stands: the brief as one more version when the reply changed a part,
-    marked a line or built on a saved analysis (the Architect's, made from the question, from an answer, or from a
-    check against the data), the conversation with both messages, the calls counted. Where the reply asks for
-    lookups, `look` answers them - clean lookups in, an answer to each out - and the round is the conversation's
-    last turn: the next exchange, with no message, reads it. What the reply proposes enters the brief only where it
-    names a column of the data, and a brief takes two proposals in all.
+    marked a line, built on a saved analysis or sketched a figure (the Architect's, made from the question, from an
+    answer, or from a check against the data), the conversation with both messages, the calls counted. Where the
+    reply asks for lookups, `look` answers them - clean lookups in, an answer to each out - and the round is the
+    conversation's last turn: the next exchange, with no message, reads it. What the reply proposes enters the
+    brief only where it names a column of the data, and a brief takes two proposals in all.
 
     `version`: the version of the brief on the person's screen. Where it is not the one in use, it is from now
     (analyst/brief.py use()), the conversation says so, and the reply's changes are made to it: the versions after
@@ -428,6 +436,10 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     how many there are: the Architect is told, so that it asks only where there are some. What the readings found
     stays with the framing (`found`), the analyses numbered in the order they were found; `build` in a reply - the
     person chose - names by number every analysis the brief builds on from then.
+
+    `figures` in a reply is every figure of the brief as it is to stand - one that stays by its number in the
+    brief the reply read, another in full: the page sketches them, one more change of the version, and the message
+    that changed them says how many then stand (`sketched`).
 
     A part of an analysis the question follows that the reply asks to open is a turn too, OPENS after one message
     of the person's; the next exchange reads the part itself. Where a reply asks for a reading, a part or lookups
@@ -474,12 +486,14 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
         framing["proposed"] = made_before + proposed
     written, marked = briefs.mark(written, got["marks"], facts)
     written, built = briefs.build_on(written, found, got["build"]) if got["build"] is not None else (written, [])
-    if changed or marked or built:
-        framing = briefs.version(framing, written, by="architect", changed=changed + [c for c in marked + built if c not in changed],
+    written, drawn = briefs.sketch(written, got["figures"]) if got["figures"] is not None else (written, [])
+    if changed or marked or built or drawn:
+        framing = briefs.version(framing, written, by="architect", changed=changed + [c for c in marked + built + drawn if c not in changed],
                                  why="check" if marked else "question" if first else "answer")
     made = int(framing.get("calls") or 0) + calls
     turns.append({"who": "architect", "text": got["say"], **({"choices": got["choices"]} if got["choices"] else {}),
                   **({"wording": written["question"]} if "question" in changed else {}),
+                  **({"sketched": len(written.get("figures", []))} if drawn else {}),
                   "v": briefs.latest(framing).get("version") or len(framing.get("versions") or []), "cost": round(cost, 4), "call": made})
     if look and got["lookups"] and not spent["lookups"]:
         turns.append(_check(got["lookups"], written, len(facts), look))

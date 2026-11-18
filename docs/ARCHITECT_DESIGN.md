@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.21 (2026-11-17; released as 2.8.0, 0305, then 0306, 0307 and 0308; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308)
+# The Architect and memory from saved analyses — design v0.22 (2026-11-18; released as 2.8.0, 0305, then 0306, 0307, 0308 and 0309; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -59,6 +59,9 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 38 | The version on screen is the one in use. The arrows step through the versions; an answer, a change and Start analysis all go on from the one shown (§2.18). |
 | 39 | The brief shows the parts that hold something, and no other. One control adds a part (§2.18). |
 | 40 | A saved analysis is chosen by answering the Architect, a whole analysis at a time. What a reading found is shown to read, in both panes; nothing is ticked (§2.18). |
+| 41 | A figure the coach asks to see is a part of the brief. The Architect describes it and the Brief tab sketches it; nothing has to be accepted. Three at most; changed by saying so, taken out with a cross (2026-11-18, the product owner's idea after testing 0308; §2.19). |
+| 42 | A sketch shows no result. What the data decides is drawn as a grey stand-in; only a shape known before the run, given as rough points, is drawn (§2.19). |
+| 43 | The Analyst and the step that draws read the agreed figures in words, and the step draws them first, under their titles. Code holds the titles: a reply that leaves one out is asked again once, and the report says where one was not drawn (§2.19). |
 
 ## 2. The Architect
 
@@ -834,6 +837,83 @@ Not run against a live model: whether the model words the question when it shoul
 whether it gives `build` from the coach's answer, is judged on the dev box, from the run logs. Every change it
 makes is a version the coach can see and step back from.
 
+### 2.19 The figures, sketched before the run — built (0309, 2026-11-18)
+
+**Why.** The product owner asked the Architect for figures and could not picture, from its words, what the result
+would look like. A sketch on the Brief tab shows it before anything runs.
+
+**A figure is a part of the brief** (decision 41). `figures`: three at most, each `{title, kind, x, y, z, series,
+note}` (`brief.normalise()`). A figure is its title, which names one figure whatever its case. `kind` is one of
+`line`, `scatter`, `bar`, `histogram`, `box`, `heatmap`, `line3d`; any other is dropped and the title kept. `series`
+is what the figure holds: up to four names. Every text is bounded. There is no step to accept a sketch: what the
+Brief tab shows is what the Analyst gets (decision 37).
+
+**The Architect describes, the page draws.** The description comes in the reply that carries the message: no
+model call is added, and no code is run. The reply's key is `figures` - every figure as it is to stand, in order.
+One that stays as it is comes as its number in BRIEF alone, a new or changed one in full; `[]` takes them all out;
+a reply without the key leaves them (`brief.sketch()`). The change is one more version of the Architect's, with
+each place named (`figures.1`), and the message that made it keeps how many then stand (`turn["sketched"]`): the
+page's row *FIGURES 2 sketched · version 4*. The Architect reads the figures in its BRIEF block, each under its
+number, in words. Its instructions: sketch when the person asks for a figure, or asks to see what the result will
+look like, and not otherwise; say that it sketched, and ask whether that is what they want to see.
+
+**A sketch shows no result** (decision 42). Where the data decides a shape the Architect gives no points, and the
+page draws a stand-in, grey and dashed: a wave where a line goes, rings for points, bars and boxes of equal size
+with their names, one mound for a histogram, a grid for a heat map. Where the shape is known before anything is
+computed - a curve that is given, a system that only follows its rule - a series comes with rough `points`: up to
+24 pairs, on any scale; triples for a line in three dimensions. The page fits them to the frame, all the points
+of a figure on one scale, and draws the line or the dots in the series' colour; the triples of a `line3d` stand
+inside the frame of its box - across, into the depth, up. Only `line`, `scatter` and `line3d` draw from points. A
+line named again under its figure's title keeps its points unless the reply gives others; `"points": []` takes
+them out. The points are for the person's eyes: they are on the record and on the page, and in no prompt. The
+Architect's own block says only *[sketched with points]*.
+
+**On the page.** **What it will look like** stands after what is fixed and before **Builds on**: a panel to a
+figure, numbered, marked *sketch*, side by side while there is room. A sketch with nothing drawn from points says
+under it: *The data decides the shapes.* While the brief can be changed each panel has a cross, which takes the
+figure out - a version of the coach's (`unfigure()`, `/architect/brief`). A figure is changed by saying so to the
+Architect; none is added by hand. The brief of a run keeps its sketches, to hold against what was drawn.
+
+**The Analyst and the step that draws** (decision 43). The Analyst's BRIEF block lists the figures after what is
+fixed, numbered, in words (`brief.figure_lines()`: the title, the kind, what is on each axis, what it holds, what
+it is to make clear). The contract of a run under a brief says that they are drawn after its report from what the
+kernel holds: compute what each one needs, and keep it in a variable. The step that draws had never seen the
+brief. It now reads the same lines under its question - *THE FIGURES AGREED WITH THE PERSON* - to draw first, in
+that order, each as described and under its title, word for word; a figure of its own only where the report needs
+one the list does not have, three in all.
+
+Code holds the titles:
+
+- *Before anything runs.* A reply that leaves an agreed figure out - NONE, or a cell whose code does not carry
+  the title (`session.carries()`: its words in their order, whatever the case and the spacing) - is not run. It
+  is an attempt on the record, and the step is asked again with the titles it left out. Once: the next cell runs
+  as it is.
+- *After the run.* The titles the figures were drawn under are held against the agreed ones, and the report's
+  foot names each one missing: *A figure agreed in the brief was not drawn: "..."*. A plot the kernel saved
+  itself (not Plotly) has no title to read; the cell's code stands for it.
+
+Each agreed figure is a figure of its own in the report, in the agreed order. Two plots joined in one figure are
+not in this patch.
+
+**The record.** A brief's `figures`, and a turn's `sketched`. A brief without figures reads, and runs, as before.
+
+**The cost.** The Architect's instructions grew by about 1,700 characters: some 400 tokens more on each of its
+calls.
+
+**The stack.** Asked to show the figures (`ARCHITECT_SKETCH`), the scripted Architect sketches three: the yield of
+two regimes by season - with the target, a line known before the run, as rough points - the plot yields of each
+as boxes, and bars by soil type. Asked for the second first (`ARCHITECT_SWAP`), it gives them by number. The
+scripted step that draws draws the agreed figures under their titles, and leaves the last one out on its first
+reply. `walk_sketch`, on data: the three sketches - grey where the data decides, the target solid in its colour,
+the panels side by side; the other order, the line keeping its points; the cross, and the arrows through the
+versions; then the analysis - what the Analyst and the step that draws read, the reply that left a figure out
+asked again, both figures in the report. The gallery gains `architect_sketch`.
+
+Not run against a live model: whether it sketches when asked and not otherwise, gives points only where the
+shape is known, and describes a figure the Analyst can compute. Code checks the title of each figure drawn;
+whether the figure follows the rest of its description - the kind, the axes - is the model's work, to be judged
+on the dev box.
+
 ## 3. Memory from saved analyses
 
 ### 3.1 What counts (agreed)
@@ -1206,7 +1286,7 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
 ## 6. Parts touched by the release
 
 - The Analyst's contract and session: the brief comes in, `RECALL` and the ideas path go out, the report gains two
-  parts.
+  parts. The step that draws the figures reads the ones agreed in the brief (0309).
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
@@ -1241,6 +1321,8 @@ on the last one.
 | 0306 | After the first live run: the Architect as a tutor, the question said back, the conversation of a saved analysis in memory (§2.16, §3.9). | built |
 | 0307 | After the second live run: the question is the coach's to take; the Analyst gets what was agreed; a reading on a follow-up, and no request passed over in silence; a follow-up starts clean; a part of the analysis before is opened on request; the Brief tab in plain words (§2.17). | built |
 | 0308 | From the product owner's test of 0307: the question changes as the conversation goes, with no step to take it; the version on screen is the one in use, for an answer, a change and Start analysis; the brief shows only the parts that hold something, with one + Add; what a reading found is shown to read in both panes, and an analysis is chosen by answering (§2.18). | built |
+
+| 0309 | The product owner's idea after testing 0308: the figures sketched before the run. The Architect describes each figure and the Brief tab draws it - grey where the data decides, a line known in advance from rough points. The Analyst and the step that draws read the agreed figures; code holds their titles (§2.19). | built |
 
 ## 8. Not in this release
 

@@ -2136,6 +2136,55 @@ try:
           and "And the hours?" not in _wprompt and "month by month" not in _wprompt and "What the person thinks" not in _wprompt
           and _wrun.question == _wording and _wrun.status == "answered" and _wrun.framing["at"] == 4 and len(_wrun.framing["versions"]) == 5
           and (_wrun.brief.get("decision"), _wrun.brief.get("thinks"), _wrun.brief.get("version")) == ("to see which arm works more", None, 4), (_wprompt[:500], _wrun.question, _wrun.framing.get("at")))
+    # the figures sketched (0309, §2.19): the figures a reply gives are a part of the brief - a version; the person takes one out by hand; the Analyst and the step that draws read the ones that stand
+    _opf = _wac.post("/architect/open", json={"question": "Chart the hours of each arm."}).get_json()
+    _cf = _opf["chain_id"]
+    _figs = [{"title": "Hours of each arm", "kind": "bar", "x": "arm", "y": "hours", "series": ["A", "B"], "note": "Which arm works more."},
+             {"title": "The rule given", "kind": "line", "x": "x", "y": "y", "series": [{"name": "the rule", "points": [[0, 0], [1, 1], [2, 4]]}]},
+             {"title": "Hours by month", "kind": "line", "series": ["A", "B"]}]
+    state["architect"] = [json.dumps({"say": "I sketched them. Is that what you want to see?", "figures": _figs})]
+    _stf, _lnf = _say({"thread_id": _opf["thread_id"], "chain_id": _cf, "text": "Show me what it will look like."})
+    _ff = _lnf[-1]["architect"]["framing"]
+    _bf = _ff["versions"][-1]["brief"]
+    _filef = json.load(open(os.path.join(work, "storage", "u1", "threads", f'{_opf["thread_id"]}.json'), encoding="utf-8"))["runs"][str(_cf)]
+    _ff2 = _wac.post("/architect/brief", json={"thread_id": _opf["thread_id"], "chain_id": _cf, "changed": ["figures"],
+                                               "brief": {**_bf, "figures": _bf["figures"][:2]}}).get_json()["framing"]      # the cross on the third sketch: the page sends the brief without it
+    state["architect"] = [json.dumps({"say": "Two figures, as they stand."})]
+    _ff3 = _say({"thread_id": _opf["thread_id"], "chain_id": _cf, "text": "Good."})[1][-1]["architect"]["framing"]
+    _seenf = state["architect_seen"][-1][3]
+    check("/architect/say and /architect/brief, the figures (0309): the figures a reply gives are the brief's from that reply on - a version of the Architect's that names each one's place, kept on the "
+          "record with the rough points a sketch draws its lines from. A figure the person takes out is a version of theirs - the page sends the brief without it - and the Architect then reads the "
+          "ones that stand, each under its number, in words",
+          _stf == 200 and (_ff["versions"][-1]["by"], _ff["versions"][-1]["changed"]) == ("architect", ["figures.0", "figures.1", "figures.2"])
+          and [f["title"] for f in _bf["figures"]] == ["Hours of each arm", "The rule given", "Hours by month"] and _bf["figures"][0]["series"] == [{"name": "A"}, {"name": "B"}]
+          and _bf["figures"][1]["series"] == [{"name": "the rule", "points": [[0, 0], [1, 1], [2, 4]]}] and _filef["framing"]["versions"][-1]["brief"]["figures"] == _bf["figures"]
+          and (_ff2["versions"][-1]["by"], _ff2["versions"][-1]["changed"], len(_ff2["versions"][-1]["brief"]["figures"])) == ("person", ["figures"], 2) and len(_ff3["versions"]) == 3
+          and '\nfigures:\n- [1] "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n- [2] "The rule given" - a line chart; x: x; y: y; holds: the rule '
+              '[sketched with points]\n\nCONVERSATION:' in _seenf and "Hours by month" not in _seenf.split("BRIEF (version 3):")[1].split("CONVERSATION:")[0] and "[2, 4]" not in _seenf,
+          (_ff["versions"][-1], _ff2["versions"][-1], _seenf[-900:]))
+    _keep_s5, _nf = (state["script"], state["i"]), len(state["calls"])
+    state.update(i=0, script=["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nh = df.groupby('arm')['x'].sum().round(2)\nprint('hours', h.to_dict())\n```",
+                              "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# Hours\n\n## Answer\nThe hours of each arm [cell 1].\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."],
+                 figures=["```python\nimport matplotlib.pyplot as plt\nplt.figure(); plt.bar(list(h.index), list(h.values)); plt.title('Hours of each arm'); plt.show()\n"
+                          "plt.figure(); plt.plot([0, 1, 2], [0, 1, 4]); plt.title('The rule given'); plt.show()\n```\nCAPTION: the hours of each arm\nCAPTION: the rule"])
+    BAMBOO.output_manager.add_user_input("Chart the hours of each arm.")
+    while not q.empty(): q.get()
+    BAMBOO.pd_agent_converse(thread_id=_opf["thread_id"], chain_id=None, mode="deep", run_id=_cf)
+    state["script"], state["i"] = _keep_s5
+    state["figures"] = None
+    _aprompt = next((u for a, u in state["calls"][_nf:] if "TASK: turn 1" in u), "")
+    _dprompts = [u for a, u in state["calls"][_nf:] if "THE REPORT, AS WRITTEN:" in u and u.startswith("QUESTION:")]
+    _frun = BAMBOO.notebook.runs[str(_cf)]
+    _lines2 = ('1. "Hours of each arm" - bars; x: arm; y: hours; holds: A, B; to make clear: Which arm works more.\n2. "The rule given" - a line chart; x: x; y: y; holds: the rule\n')
+    check("Start analysis under a brief with figures (0309): the Analyst reads the figures that stand in its BRIEF block, and the step that draws reads the same lines under its question, to draw first "
+          "and under their titles - the figure taken out is in neither, and no rough point; the run keeps the brief with them, and the report holds both figures and no line about a missing one",
+          ("\nFigures agreed with the person:\n" + _lines2) in _aprompt and len(_dprompts) == 1
+          and _dprompts[0].startswith("QUESTION:\nChart the hours of each arm.\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n"
+                                      + _lines2 + "\nTHE REPORT, AS WRITTEN:\n")
+          and all("Hours by month" not in u and "[2, 4]" not in u for u in (_aprompt, _dprompts[0]))
+          and _frun.status == "answered" and [f["title"] for f in _frun.brief["figures"]] == ["Hours of each arm", "The rule given"]
+          and _frun.brief["figures"][1]["series"][0]["points"] == [[0, 0], [1, 1], [2, 4]]
+          and "## Figures\n\n- [fig 2] the hours of each arm\n- [fig 2] the rule" in _frun.report and "not drawn" not in _frun.report, (_aprompt[:700], [u[:400] for u in _dprompts], _frun.report[-300:]))
     # the brief opened earlier with nothing loaded, on its own thread: an exchange made now, with data loaded, says so (the section's last step: it takes the instance to that thread)
     state["architect"] = ['{"say": "What is it for?"}']
     _o7s = json.loads(_wac.post("/architect/say", json={"thread_id": "1907", "chain_id": _o7nj["chain_id"]}).get_data(as_text=True).strip().splitlines()[-1])["architect"]["framing"]

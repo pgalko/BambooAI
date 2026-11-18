@@ -32,6 +32,7 @@ STATES = {
     'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
     'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
     'architect_version': ARCHITECT + "galleryArchitect.version();",    # an earlier version on screen: Start analysis names it (§2.18)
+    'architect_sketch': ARCHITECT + "galleryArchitect.sketch();",      # the figures sketched on the Brief tab: grey where the data decides, a known line in colour (§2.19)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the report's part against the brief, as the card in the answer
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)

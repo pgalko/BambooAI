@@ -229,6 +229,118 @@ check('what the readings of the saved analyses found stands under the brief, to 
   && !el(b.brief(FMEM, { chain: 71, state: 'run' })).querySelector('.ar-memory')
   && el(b.brief(FMEM, { chain: 71, state: 'framing', shown: 2 })).querySelectorAll('.ar-memory .tag').length === 0, mem.outerHTML);
 
+// ------------------------------------------------------------ the figures sketched (0309, §2.19)
+const CS = { edit: true, changed: ['figures.0'] }, CR = { edit: false, changed: [] };
+const sk = (fig, i, c) => el(b.sketch(c || CR, fig, i || 0)).querySelector('.ar-fig');
+const KNOWN = { title: 'Two <paths>', kind: 'line', x: 'x', y: 'how far', series: [{ name: 'start <A>', points: [[0, 0], [5, 50], [10, 100]] }, { name: 'start B' }], note: 'They <part>.' };
+const known = sk(KNOWN, 0, CS), kSvg = known.querySelector('svg[role="img"]');
+check('a figure sketched (0309): a panel with its number, its title as text, the word "sketch" and - while the brief can be changed - a cross that names its place; under them the series it holds, each '
+  + 'beside the stroke it is drawn in; the drawing, named for a reader that cannot see it; what the figure is to make clear. A line that came with rough points is drawn through them, in its colour, '
+  + 'fitted to the frame whatever scale they were written on; a line that came with none is grey and dashed. A panel changed in the version shown carries the bar; one that is read has no cross',
+  known.className === 'ar-fig changed' && known.elements.map(e => e.className || e.tag).join() === 'hd,key,svg,cap'
+  && known.querySelector('.hd').elements.map(e => e.className + '=' + e.textContent).join('|') === 'n=1|t=Two <paths>|tag=sketch|drop='
+  && known.querySelector('.drop').getAttribute('data-ar') === 'unfigure' && known.querySelector('.drop').getAttribute('data-path') === 'figures.0' && known.querySelector('.drop').getAttribute('title') === 'Leave it out'
+  && known.querySelectorAll('.key span').map(s => s.querySelector('i').className + '=' + s.textContent).join('|') === 's0=start <A>|ph=start B'
+  && kSvg.getAttribute('viewBox') === '0 0 320 190' && kSvg.getAttribute('role') === 'img' && kSvg.getAttribute('aria-label') === 'sketch: Two <paths>'
+  && sk({ title: 'A "quoted" title', kind: 'line' }).querySelector('svg[role="img"]').getAttribute('aria-label') === 'sketch: A "quoted" title'
+  && kSvg.querySelectorAll('path').map(x => x.className).join() === 'ax,ln s0,ph'
+  && kSvg.querySelector('.ln').getAttribute('d') === 'M52,150C72.7,139.3,134.7,107.3,176,86C217.3,64.7,279.3,32.7,300,22'
+  && known.querySelector('.cap').textContent === 'They <part>.' && !known.querySelector('.cap .ph') && !known.querySelector('paths') && !known.querySelector('part')
+  && sk(KNOWN, 2).className === 'ar-fig' && !sk(KNOWN, 2).querySelector('.drop') && sk(KNOWN, 2).querySelector('.n').textContent === '3'
+  && sk(KNOWN, 1, CS).className === 'ar-fig' && sk(KNOWN, 1, CS).querySelector('.drop').getAttribute('data-path') === 'figures.1', known.outerHTML);
+const ON_DATA = { title: 'Yield by season', kind: 'line', x: 'season', y: 'yield', series: [{ name: 'A' }, { name: 'C' }], note: 'Whether the gap holds.' };
+const grey = sk(ON_DATA);
+const kindOf = (kind, more) => sk(Object.assign({ title: 'T', kind, series: [{ name: 'A' }, { name: 'C' }] }, more));
+const centred = (fig, tag) => { const at = fig.querySelectorAll('svg text.tk'), marks = fig.querySelectorAll('svg[role="img"] ' + tag);      // each name stands over the middle of its mark
+  return at.length === marks.length && marks.every((m, k) => Math.abs(Number(m.getAttribute('x')) + Number(m.getAttribute('width')) / 2 - Number(at[k].getAttribute('x'))) < 0.11); };
+const even = xs => xs.length > 0 && Math.abs(xs[0] + xs[xs.length - 1] - 348) < 0.3;      // the marks stand evenly about the middle of the frame (40 to 308)
+const namesAt = fig => fig.querySelectorAll('svg text.tk').map(t => Number(t.getAttribute('x')));
+const heights = sk({ title: 'T', kind: 'histogram' }).querySelectorAll('rect').map(r => Number(r.getAttribute('height'))), heat = sk({ title: 'T', kind: 'heatmap', z: 'how <much>' });
+const tally = fig => { const out = {}; fig.querySelector('svg[role="img"]').elements.filter(e => e.tag !== 'text').forEach(e => { const k = e.tag + '.' + e.className.split(' ')[0]; out[k] = (out[k] || 0) + 1; }); return out; };
+check('a figure on data (0309) shows no result: nothing in colour - a dashed wave where a line goes, the names beside dashed strokes - and its caption says the data decides the shapes. Each kind the '
+  + 'Architect can name is drawn as itself: points as small rings, bars and box plots as equal shapes with their names at them and no key, a histogram as one mound, a heat map as a grid, a line in '
+  + 'three dimensions inside the frame of a box with its third axis named; a figure of no such kind is its axes alone. A kind that names no series is drawn with as many unnamed ones as show it',
+  same(tally(grey), { 'path.ax': 1, 'path.ph': 2 }) && !grey.querySelector('.ln') && !grey.querySelector('.pt') && !/class="[^"]*\bs\d\b/.test(grey.innerHTML)
+  && grey.querySelectorAll('.key i').map(i => i.className).join() === 'ph,ph' && grey.querySelector('.cap').textContent === 'Whether the gap holds. The data decides the shapes.'
+  && grey.querySelector('.cap .ph').textContent === 'The data decides the shapes.' && sk({ title: 'T', kind: 'line' }).querySelector('.cap').textContent === 'The data decides the shapes.'
+  && same(tally(kindOf('scatter')), { 'path.ax': 1, 'circle.dot': 18 })
+  && same(tally(kindOf('bar')), { 'path.ax': 1, 'rect.ph': 2 }) && !kindOf('bar').querySelector('.key') && kindOf('bar').querySelectorAll('svg text.tk').map(t => t.textContent).join() === 'A,C'
+  && new Set(kindOf('bar').querySelectorAll('rect').map(r => r.getAttribute('height') + '/' + r.getAttribute('y') + '/' + r.getAttribute('width'))).size === 1
+  && same(tally(kindOf('box')), { 'path.ax': 1, 'path.ph': 2 }) && !kindOf('box').querySelector('.key') && kindOf('box').querySelectorAll('svg text.tk').map(t => t.textContent).join() === 'A,C'
+  && new Set(kindOf('box').querySelectorAll('path.ph').map(x => x.getAttribute('d').replace(/M[\d.]+|H[\d.]+/g, ''))).size === 1
+  && same(tally(kindOf('histogram')), { 'path.ax': 1, 'rect.ph': 7 }) && same(tally(kindOf('heatmap')), { 'path.ax': 1, 'rect.cell': 24 })
+  && same(tally(kindOf('line3d', { z: 'z' })), { 'path.bk': 1, 'path.ax': 1, 'path.ph': 2 }) && kindOf('line3d', { x: 'x', y: 'y', z: 'z' }).querySelectorAll('svg text').map(t => t.textContent).join() === 'x,y,z'
+  && !kindOf('line', { z: 'z' }).querySelector('.bk') && kindOf('line', { x: 'x', y: 'y', z: 'z' }).querySelectorAll('svg text').map(t => t.textContent).join() === 'x,y'
+  && same(tally(kindOf(undefined)), { 'path.ax': 1 }) && same(tally(kindOf('violin')), { 'path.ax': 1 }) && kindOf(undefined).querySelectorAll('.key i.ph').length === 2
+  && same(tally(sk({ title: 'T', kind: 'bar' })), { 'path.ax': 1, 'rect.ph': 3 }) && same(tally(sk({ title: 'T', kind: 'box' })), { 'path.ax': 1, 'path.ph': 2 })
+  && same(tally(sk({ title: 'T', kind: 'scatter' })), { 'path.ax': 1, 'circle.dot': 9 }) && same(tally(sk({ title: 'T', kind: 'line' })), { 'path.ax': 1, 'path.ph': 1 })
+  && !sk({ title: 'T', kind: 'line' }).querySelector('.key') && !sk({ title: 'T', kind: 'bar' }).querySelector('svg text')
+  && even(namesAt(kindOf('bar'))) && even(namesAt(kindOf('box'))) && even(namesAt(sk({ title: 'T', kind: 'bar', series: ['a', 'b', 'c', 'd'].map(name => ({ name })) }))) && same(namesAt(kindOf('box', { series: [{ name: 'a' }] })), [174])
+  && centred(kindOf('bar'), 'rect') && centred(sk({ title: 'T', kind: 'bar', series: ['a', 'b', 'c', 'd'].map(name => ({ name })) }), 'rect') && same(heights, heights.slice().reverse()) && Math.max.apply(null, heights) === 110
+  && same(Array.from(new Set(kindOf('heatmap').querySelectorAll('rect').map(r => r.className))).sort(), ['cell c0', 'cell c1', 'cell c2'])
+  && same(heat.querySelectorAll('.key span').map(s => s.querySelector('i').className + '=' + s.textContent), ['sq=how <much>']) && !kindOf('heatmap').querySelector('.key i.sq')
+  && !sk({ title: 'T', kind: 'line', z: 'depth' }).querySelector('.key') && heat.querySelectorAll('svg[role="img"] text').length === 0, grey.outerHTML);
+const PTS = { title: 'T', kind: 'scatter', series: [{ name: 'a', points: [[1, 10], [3, 30]] }, { name: 'b', points: [[2, 20], [5, 50]] }, { name: 'c' }] };
+const dots = sk(PTS).querySelectorAll('circle'), still = sk({ title: 'T', kind: 'line', series: [{ name: 'a', points: [[2, 5], [2, 9]] }] });
+const ends = fig => fig.querySelectorAll('.ln').map(x => x.getAttribute('d').split('C')[0] + '>' + x.getAttribute('d').split(',').slice(-2).join());
+const deep3 = pts => sk({ title: 'T', kind: 'line3d', series: pts.map((points, k) => ({ name: 's' + k, points })) });
+const barsP = sk({ title: 'T', kind: 'bar', series: [{ name: 'a', points: [[0, 1], [1, 2]] }] }), deepP = sk({ title: 'T', kind: 'line3d', series: [{ name: 'a', points: [[0, 0], [4, 8]] }, { name: 'b', points: [[4, 0], [0, 8]] }] });
+check('rough points (0309): the points of a figure share one scale - a point of one series stands where it would among the others\' - whatever numbers they were written in; a set of points is drawn as '
+  + 'dots in its colour, and the series beside it that has none as grey rings; points that share a value stand in the middle of that direction; each series has its own colour, in the key as in '
+  + 'the drawing. Only the kinds that draw a shape from points do: bars given points stay grey, and the caption says the data decides. The points of a line in three dimensions are triples: each '
+  + 'stands inside the frame of the box - the first value across, the second into the depth, which runs to the right and up, the third up - a little off its faces, all the lines of the figure '
+  + 'on one scale; given as pairs - the line drawn flat - or pairs and triples mixed, they are fitted in the frame as on a flat plot; triples in a flat figure are read as pairs',
+  dots.slice(0, 4).map(c => c.className + '@' + c.getAttribute('cx') + ',' + c.getAttribute('cy') + ',' + c.getAttribute('r')).join('|') === 'pt s0@52,150,3|pt s0@176,86,3|pt s1@114,118,3|pt s1@300,22,3'
+  && dots.length === 13 && dots.slice(4).every(c => c.className === 'dot') && sk(PTS).querySelectorAll('.key i').map(i => i.className).join() === 's0,s1,ph' && !sk(PTS).querySelector('.cap')
+  && /^M176,150C.*176,22$/.test(still.querySelector('.ln').getAttribute('d')) && !still.querySelector('.cap')
+  && same(tally(barsP), { 'path.ax': 1, 'rect.ph': 1 }) && barsP.querySelector('.cap').textContent === 'The data decides the shapes.' && !/class="[^"]*\bs\d\b/.test(barsP.innerHTML)
+  && deepP.querySelectorAll('.ln').map(x => x.className + ':' + x.getAttribute('d').split('C')[0] + ':' + x.getAttribute('d').split(',').slice(-2).join()).join('|') === 'ln s0:M70,150:276,30|ln s1:M276,150:70,30'
+  && deepP.querySelectorAll('.key i').map(i => i.className).join() === 's0,s1'
+  && same(ends(deep3([[[0, 0, 0], [10, 10, 10]]])), ['M66.2,154>277.8,28']) && same(ends(deep3([[[0, 0, 0], [0, 10, 0]]])), ['M141.8,108.6>202.2,73.4'])
+  && same(ends(deep3([[[0, 5, 0], [10, 5, 0]]])), ['M96.4,91>247.6,91']) && same(ends(deep3([[[0, 0, 0], [0, 0, 8]]])), ['M172,136.4>172,45.6'])
+  && same(ends(deep3([[[0, 0, 0], [5, 5, 5]], [[5, 5, 5], [10, 10, 10]]])), ['M66.2,154>172,91', 'M172,91>277.8,28'])
+  && same(ends(deep3([[[0, 0, 0], [10, 10, 10]], [[0, 0], [10, 10]]])), ['M70,150>276,30', 'M70,150>276,30'])
+  && same(ends(sk({ title: 'T', kind: 'line', series: [{ name: 'a', points: [[0, 0, 9], [10, 10, 1]] }] })), ['M52,150>300,22'])
+  && sk({ title: 'T', kind: 'line', series: [{ name: 'a' }, { name: 'b', points: [[0, 0], [1, 1]] }] }).querySelectorAll('svg[role="img"] path').map(x => x.className).join() === 'ax,ph,ln s1', [sk(PTS).outerHTML, deepP.outerHTML]);
+const LONG = sk({ title: 'T', kind: 'line', x: 'x'.repeat(50), y: 'a name beside the upright axis that runs on' }), namesL = LONG.querySelectorAll('svg text');
+const turned = y => sk({ title: 'T', kind: 'line', y }).querySelector('svg text').hasAttribute('transform');
+const fourBars = sk({ title: 'T', kind: 'bar', series: ['a rather long name', 'b', 'c', 'd'].map(name => ({ name })) }).querySelectorAll('svg text.tk');
+check('the names in a drawing (0309): an axis\' name stands under it, or beside the upright one, turned along it - a letter or two stay upright; a name too long for its place is cut, and whole under the '
+  + 'mouse; a name is text, never markup; an axis without a name has none. The names at bars and boxes are cut by how many stand side by side',
+  namesL[0].innerHTML === 'x'.repeat(43) + '…<title>' + 'x'.repeat(50) + '</title>' && namesL[0].getAttribute('x') + ',' + namesL[0].getAttribute('y') + ',' + namesL[0].getAttribute('text-anchor') === '174,179,middle'
+  && !namesL[0].hasAttribute('transform') && namesL[1].innerHTML === 'a name beside the upright…<title>a name beside the upright axis that runs on</title>' && namesL[1].getAttribute('transform') === 'rotate(-90 18 86)'
+  && !turned('y') && !turned('yld') && turned('rate') && sk({ title: 'T', kind: 'line', y: 'rate' }).querySelector('svg text').innerHTML === 'rate'
+  && sk({ title: 'T', kind: 'line', x: '<b>x</b>' }).querySelector('svg text').textContent === '<b>x</b>' && !sk({ title: 'T', kind: 'line', x: '<b>x</b>' }).querySelector('svg b')
+  && !sk({ title: 'T', kind: 'line' }).querySelector('svg text') && !sk({ title: 'T', kind: 'line3d', series: [{ name: 'a' }] }).querySelector('svg text')
+  && kindOf('line3d', { x: 'x', y: 'y', z: 'depth' }).querySelectorAll('svg text').map(t => t.textContent + ':' + (t.getAttribute('text-anchor') || 'start') + ':' + t.hasAttribute('transform')).join() === 'x:middle:false,y:start:false,depth:middle:true'
+  && fourBars.map(t => t.innerHTML).join('|') === 'a rathe…<title>a rather long name</title>|b|c|d'
+  && sk({ title: 'T', kind: 'box', series: [{ name: 'a rather long name' }] }).querySelector('svg text.tk').innerHTML === 'a rather long name', LONG.outerHTML);
+const FIGS = [KNOWN, ON_DATA, { title: 'Spread', kind: 'box', series: [{ name: 'A' }, { name: 'C' }] }];
+const FF = { versions: F3.versions.concat([{ n: 4, by: 'architect', why: 'answer', changed: ['figures.0', 'figures.2'], brief: Object.assign({}, FULL, { figures: FIGS }) },
+                                           { n: 5, by: 'person', changed: ['figures'], brief: Object.assign({}, FULL, { figures: FIGS.slice(0, 2) }) }]) };
+const tabF = el(b.brief(FF, { chain: 71, state: 'framing', shown: 4 })).querySelector('.ar-brief'), figsF = tabF.querySelector('.ar-figs');
+const only = (figs, more) => el(b.brief(Object.assign({ versions: [{ n: 1, by: 'architect', changed: [], brief: { question: 'q', figures: figs } }] }, more), { chain: 71, state: 'framing' }));
+check('the figures on the Brief tab (0309): under a plain heading of their own, after what is fixed before a run and before what the brief builds on - a panel to a figure, in the brief\'s order, each '
+  + 'under its number, the ones this version changed marked; the version on screen shows its own figures. While the brief can be changed each has its cross; the brief of a run that has started shows '
+  + 'them to be read. A brief without figures has no such part, and none can be added by hand: the coach asks the Architect. A brief that holds only figures is a brief: on data, what is always '
+  + 'tested is said',
+  h3s(tabF) === 'What it is for|What you think|Why you think so|What you expect to see|What would change your mind|Other explanations to test|Measured by|What it will look like|Builds on|Set aside'
+  && figsF.elements.map(e => e.className + ':' + e.querySelector('.n').textContent + ':' + e.querySelector('.t').textContent).join('|') === 'ar-fig changed:1:Two <paths>|ar-fig:2:Yield by season|ar-fig changed:3:Spread'
+  && figsF.querySelectorAll('[data-ar="unfigure"]').map(x => x.getAttribute('data-path')).join() === 'figures.0,figures.1,figures.2'
+  && el(b.brief(FF, { chain: 71, state: 'framing' })).querySelectorAll('.ar-fig').length === 2 && !el(b.brief(FF, { chain: 71, state: 'framing' })).querySelector('.ar-fig.changed')
+  && el(b.brief(FF, { chain: 71, state: 'run' })).querySelectorAll('.ar-fig').length === 2 && !el(b.brief(FF, { chain: 71, state: 'run' })).querySelector('[data-ar="unfigure"]')
+  && el(b.brief(FF, { chain: 71, state: 'run', shown: 4 })).querySelectorAll('.ar-fig').length === 3 && el(b.brief(FF, { chain: 71, state: 'framing', shown: 3 })).querySelectorAll('.ar-fig').length === 0
+  && !root3.querySelector('.ar-figs') && h3s(root3).indexOf('What it will look like') < 0 && !/figure/i.test(kindsOf(el(b.brief(FF, { chain: 71, state: 'framing', adds: true }))))
+  && only([ON_DATA]).querySelector('.ar-always') && !only([ON_DATA], { data: false }).querySelector('.ar-always') && !only([]).querySelector('.ar-always') && !only([]).querySelector('.ar-figs'), tabF.outerHTML);
+const BF = { question: 'q', decision: 'd', figures: FIGS }, beforeF = JSON.stringify(BF);
+check('unfigure() (0309): the brief without one of its figures, named by its place - the others keep their order, and with the last one the part goes; the part is named as changed. A place no figure '
+  + 'stands at, or a path of another part, gives null; the brief passed in is never altered',
+  same(A.unfigure(BF, 'figures.1'), { brief: { question: 'q', decision: 'd', figures: [FIGS[0], FIGS[2]] }, changed: ['figures'] })
+  && same(A.unfigure(BF, 'figures.0').brief.figures, [FIGS[1], FIGS[2]]) && same(A.unfigure({ question: 'q', figures: [ON_DATA] }, 'figures.0'), { brief: { question: 'q' }, changed: ['figures'] })
+  && [A.unfigure(BF, 'figures.3'), A.unfigure(BF, 'figures.-1'), A.unfigure(BF, 'figures.x'), A.unfigure(BF, 'figures.'), A.unfigure(BF, 'figures'), A.unfigure(BF, 'saved.0'), A.unfigure(BF, 1),
+      A.unfigure({}, 'figures.0'), A.unfigure(null, 'figures.0')].every(x => x === null)
+  && JSON.stringify(BF) === beforeF, A.unfigure(BF, 'figures.1'));
+
 // ------------------------------------------------------------ the conversation
 const ASK = { who: 'architect', text: 'What will you do differently depending on the answer?', choices: ['Keep one arm', 'Keep <both>'], v: 1, cost: 0.004, call: 1 };
 const TALK = { chain_id: 71, queryText: 'Is B above A?', framing: { versions: F1.versions, turns: [ASK, { who: 'person', text: 'Keep one arm' }, { who: 'architect', text: 'What do you expect to see?', v: 2, cost: 0.014, call: 3 }], calls: 3 } };
@@ -383,6 +495,15 @@ check('a reply that worded the question (0308): its message shows its words and 
   && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { by: 'person' })], [turnW]) === 0 && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { changed: ['decision'] })], [turnW]) === 0
   && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { brief: { question: 'My own words' } })], [turnW]) === 0 && rowsIn(FW.versions, [{ who: 'architect', text: 'No wording.', v: 2 }]) === 0
   && rowsIn(FW.versions, [turnW]) === 1 && el(b.asked({ v: '<3>' })).querySelector('.t').textContent === 'version <3>' && typeof A.pending === 'undefined' && typeof b.wording === 'undefined', talkW.innerHTML);
+const talkS = el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'person', text: 'Show me' }, Object.assign({}, turnW, { sketched: 2 }), { who: 'person', text: 'None, then' },
+                                                               { who: 'architect', text: 'None.', sketched: 0, v: 3 }, { who: 'architect', text: 'As it is.', v: 3 }] })));
+check('a reply that changed the figures (0309): under its message a row says how many stand sketched, and in which version - after the row of a question it worded; "none" where it took them all out; '
+  + 'no row under a reply that left the figures as they were. The version is shown as text',
+  talkS.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,sp-row.tool,ar-msg.you,ar-msg.arch,sp-row.tool,ar-msg.arch'
+  && talkS.querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedversion 2|✓FIGURES2 sketchedversion 2|✓FIGURESnoneversion 3'
+  && talkS.querySelectorAll('.sp-row')[1].className === 'sp-row tool read' && talkS.querySelectorAll('.sp-row')[1].elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=FIGURES|out=2 sketched|t=version 2'
+  && el(b.sketched({ sketched: 1, v: '<3>' })).querySelector('.out').textContent === '1 sketched' && el(b.sketched({ sketched: 1, v: '<3>' })).querySelector('.t').textContent === 'version <3>'
+  && el(b.sketched({ sketched: 'x', v: 1 })).querySelector('.out').textContent === 'none', talkS.innerHTML);
 const wentRow = el(b.went({ who: 'version', v: 2 })).querySelector('.sp-row');
 const talkV = el(b.talk(entryW({ versions: FW.versions, turns: FW.turns.concat([{ who: 'version', v: 1 }, { who: 'person', text: 'From the first one' }, { who: 'architect', text: 'As you say.', v: 1 }]) })));
 check('where the coach went to another version before a message (0308), a row says which version is in use from there - before the message it came with; the fold above a run names the version in '
@@ -948,6 +1069,30 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && lineOf(brief(), 'fixed.comparison').querySelector('.tx').textContent === 'B against A' && h3s(brief()).indexOf('Fixed before the run') < 0
     && kindsOf(brief()).indexOf('fixed.comparison') < 0 && !brief().querySelector('.ar-grid') && !brief().querySelector('.ar-chips'), [typing, offered, calls.slice(n)]);
   doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
+  // the Architect sketches the figures (0309): the brief shows them and a row says so; the cross takes one out - a line being typed elsewhere kept first
+  held(); n = calls.length;
+  A.tell('Show me what it will look like'); await tick();
+  reply([200, stream({ framing: answered('Show me what it will look like', 'I sketched two figures. Is that what you want to see?',
+                                         { changed: ['figures.0', 'figures.1'], brief: Object.assign({}, latest().brief, { figures: [KNOWN, ON_DATA] }) }, { sketched: 2 }) })]); await tick();
+  const figsNow = () => brief().querySelectorAll('.ar-fig').map(f => f.className + ':' + f.querySelector('.n').textContent + ':' + f.querySelector('.t').textContent).join('|');
+  const drawnNow = { said: calls[n][1].text, figs: figsNow(), heads: h3s(brief()).split('|').slice(-2).join('|'), row: $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0], by: latest().by,
+                     crosses: brief().querySelectorAll('.ar-fig [data-ar="unfigure"]').length };
+  const sketchedAt = entry.framing.versions.length;
+  serve(); n = calls.length;
+  doc.dispatch('click', lineOf(brief(), 'fixed.comparison').querySelector('.pen'));
+  lineOf(brief(), 'fixed.comparison').querySelector('.ar-input').value = 'B against A, on x';
+  doc.dispatch('click', brief().querySelector('.ar-fig [data-ar="unfigure"]')); await tick();
+  const oneLeft = figsNow();
+  doc.dispatch('click', brief().querySelector('.ar-fig [data-ar="unfigure"]')); await tick();
+  check('the figures a reply sketched (0309): the coach asks in words, like any answer; the reply\'s figures stand in the brief under their heading, each marked as changed, each with its cross, and a '
+    + 'row under the message says how many were sketched, in which version. The cross on a figure sends the brief without it - a version of the coach\'s, the line being typed elsewhere kept first as '
+    + 'its own - and the figure left moves up to its number; with the last one out the part is gone',
+    same(drawnNow, { said: 'Show me what it will look like', figs: 'ar-fig changed:1:Two <paths>|ar-fig changed:2:Yield by season', heads: 'What it will look like|Found in your saved analyses',
+                     row: '✓FIGURES2 sketchedversion ' + sketchedAt, by: 'architect', crosses: 2 })
+    && calls.length === n + 3 && calls.slice(n).every(c => c[0] === '/architect/brief') && same(calls[n][1].changed, ['fixed.comparison']) && same(calls[n][1].brief.figures, [KNOWN, ON_DATA])
+    && same(calls[n + 1][1].changed, ['figures']) && same(calls[n + 1][1].brief.figures, [ON_DATA]) && calls[n + 1][1].brief.fixed.comparison === 'B against A, on x'
+    && oneLeft === 'ar-fig:1:Yield by season' && same(calls[n + 2][1].changed, ['figures']) && !('figures' in calls[n + 2][1].brief) && latest().by === 'person'
+    && entry.framing.versions.length === sketchedAt + 3 && !brief().querySelector('.ar-figs') && h3s(brief()).indexOf('What it will look like') < 0 && !brief().querySelector('.editing'), [drawnNow, oneLeft, calls.slice(n)]);
   const parts = [];
   const whole = await A.readStream({ text: async () => '{"a": 1}\n\nnot json\n{"b": 2}' }, d => parts.push(d));
   const fed = liveBody(), parts2 = [];
@@ -1033,6 +1178,20 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("version = request.json.get('version')")
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('version=version if isinstance(version, int) and not isinstance(version, bool) else None,')
     && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)"));
+  const kindsPy = /\nKINDS = \{([^}]*)\}/.exec(engine('brief.py'))[1].match(/"(\w+)":/g).map(k => k.slice(1, -2));
+  check('the stylesheet and the words, 0309: the panels of the figures are styled in tabs.css - side by side in equal columns while there is room, the tag, the cross in view, the key, a series\' colour '
+    + 'given once and used by its line, its dots and its stroke in the key, what is not drawn from points grey and dashed. The page draws every kind the engine lets the Architect name, and a '
+    + 'series\' rough points only in the kinds the page draws them in; its words for the figures are plain ones; the engine marks the reply that changed the figures, and the page reads that mark',
+    ['.ar-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));', '.ar-fig {', '.ar-fig.changed::before {', '.ar-fig .hd .tag {', '.ar-fig .drop {', '.ar-fig .key i {', '.ar-fig .key i.ph {', '.ar-fig .key i.sq {',
+     '.ar-fig > svg .ax {', '.ar-fig > svg .bk {', '.ar-fig > svg .ln {', '.ar-fig > svg .pt {', '.ar-fig > svg .ph {', '.ar-fig > svg .dot {', '.ar-fig > svg .cell {', '.ar-fig .cap {'].every(s => tabsCss.includes('#content-brief ' + s))
+    && [0, 1, 2, 3].every(k => tabsCss.includes('#content-brief .ar-fig .s' + k + ' { --s: var(--')) && !tabsCss.includes('.ar-fig .s4 ')
+    && /\.ar-fig > svg \.ln \{[^}]*stroke: var\(--s\);/.test(tabsCss) && /\.ar-fig > svg \.pt \{ fill: var\(--s\); \}/.test(tabsCss) && /\.ar-fig \.key i \{[^}]*border-top: 2px solid var\(--s\);/.test(tabsCss)
+    && /\.ar-fig > svg \.ph \{[^}]*stroke: var\(--text-tertiary\);[^}]*stroke-dasharray: 6 5;/.test(tabsCss) && !/\.ar-fig \.drop \{[^}]*opacity: 0;/.test(tabsCss)
+    && same(kindsPy, ['line', 'scatter', 'bar', 'histogram', 'box', 'heatmap', 'line3d']) && kindsPy.every(k => Object.keys(tally(kindOf(k))).some(m => !/\.(ax|bk)$/.test(m)))
+    && engine('brief.py').includes('SERIES, POINTS = 4, 24') && own.includes("const DRAWN = ['line', 'scatter', 'line3d'];") && own.includes("const NAMED = ['bar', 'box'];")
+    && ["figures: 'What it will look like'", "figures: 'FIGURES', sketched: n => n ? n + ' sketched' : 'none', sketch: 'sketch', byData: 'The data decides the shapes.'"].every(s => own.includes(s))
+    && engine('architect.py').includes('**({"sketched": len(written.get("figures", []))} if drawn else {}),') && own.includes("(t.sketched != null ? build.sketched(t) : '')")
+    && own.includes("else if (act === 'unfigure') keptFirst(root, hit.getAttribute('data-path'), null, unfigure);") && /window\.ArchitectUI = \{[^}]*\bunfigure\b/.test(own));
   finish();
 })().catch(e => { check('the module ran without throwing', false, e && e.stack); finish(); });
 

@@ -1,9 +1,9 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §3.7): the
+// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §2.19, §3.7): the
 // Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
 // the Architect worded it, a line being changed by hand - an earlier version on screen, what the brief rests on checked
 // against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
-// and the saved analyses - being read, and what was found with the one the brief builds on. An invented field trial, as
-// the stack's scenario has it.
+// the saved analyses - being read, and what was found with the one the brief builds on - and the figures sketched. An
+// invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
@@ -16,6 +16,15 @@ window.galleryArchitect = (function () {
   const V2 = { n: 2, by: 'architect', why: 'question', changed: ['fixed.comparison'], brief: { question: Q, fixed: { comparison: 'regime C against regime A' } } };
   const ASK = said('What will you do differently depending on the answer?', { choices: ['Switch to regime C', 'Keep regime A'], v: 2, call: 1 });
   const first = { versions: [V1, V2], turns: [ASK], calls: 1 };
+  // the figures sketched (§2.19): what the data decides in grey; the target's line, known before any run, through its points
+  const FIGURES = [{ title: 'Yield by season, regime C and regime A', kind: 'line', x: 'season', y: 'yield, t/ha', note: 'Whether the gap holds from season to season.',
+                     series: [{ name: 'regime C' }, { name: 'regime A' }, { name: 'the target', points: [[1, 5], [6, 5]] }] },
+                   { title: 'Plot yields in regime C and regime A', kind: 'box', x: 'regime', y: 'yield, t/ha', note: 'How much the plots of one regime differ among themselves.',
+                     series: [{ name: 'regime C' }, { name: 'regime A' }] }];
+  const sketched = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['decision', 'figures.0', 'figures.1'],
+                                          brief: { question: Q, decision: 'Switch the clay plots to regime C next season, or keep A.', fixed: { comparison: 'regime C against regime A' }, figures: FIGURES } }],
+                     turns: [ASK, you('Switch the clay plots to regime C next season, or keep A. Show me what the figures will look like.'),
+                             said('I sketched two figures. Is that what you want to see?', { choices: ['Yes, that is it', 'Change something'], sketched: 2, v: 3, call: 2 })], calls: 2 };
   const framing = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: Object.assign({}, BRIEF, { fixed: { comparison: 'regime C against regime A' }, also_check: undefined }) },
                                { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF },
                                { n: 5, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED }) }],      // the question as the Architect worded it: written at once
@@ -98,6 +107,7 @@ window.galleryArchitect = (function () {
       show(framing);
       for (let k = 0; k < 2; k++) document.querySelector('#content-brief [data-ar="step"][data-step="-1"]').click();
     },
+    sketch() { show(sketched); },      // the figures sketched: a panel to a figure, the row that says so, a cross on each
     checked() { show(checked); },      // what the brief rests on, checked: the round's row, the marks with their facts, keep or change; an explanation proposed, to tick
     saved() { show(remembered); },     // what the saved analyses hold: the reading's row with the analyses found under it, each in full under the brief, and the one the brief builds on
     saving() {       // the saved analyses being read: the row says how far the second model is, with Skip; the composer held

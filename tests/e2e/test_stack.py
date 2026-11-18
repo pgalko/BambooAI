@@ -1018,6 +1018,148 @@ def walk_tutor(page, mod, wa, edition, user):
           and "OPENED (" not in read3 and "\nOpened: the report\n" in read3 and "## Did not fit" not in read3, (t6["said"][-2:], f2["changed"], s6, last6, read3[-500:]))
 
 
+def figures_on_screen(page):
+    """The figures sketched on the Brief tab as the coach sees them: the part's heading; each panel's number, title and tag, whether it is marked as changed and has its cross, the names in its
+    key with the stroke each is drawn in - a colour, or the grey dash - how many lines are drawn from points, how many dashed shapes stand in, the names at its marks and at its axes, its
+    caption; whether a line drawn from points and a stand-in differ on screen - the one solid in a colour, the other dashed - and whether the first two panels stand side by side; and the
+    conversation's rows about the figures."""
+    return page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), figs = [...r.querySelectorAll('.ar-fig')];
+        const n = (f, sel) => f.querySelectorAll(':scope > svg ' + sel).length, css = (f, sel) => { const x = f.querySelector(':scope > svg ' + sel); return x ? getComputedStyle(x) : null; };
+        const known = figs.map(f => [css(f, '.ln'), css(f, 'path.ph')]).find(x => x[0] && x[1]);
+        const box = f => f.getBoundingClientRect();
+        return { head: [...r.querySelectorAll('h3')].map(h => h.textContent).filter(h => /look/.test(h)),
+                 figs: figs.map(f => ({ n: f.querySelector('.n').textContent, title: f.querySelector('.t').textContent, tag: f.querySelector('.tag').textContent,
+                     changed: f.classList.contains('changed'), cross: !!f.querySelector('[data-ar="unfigure"]'),
+                     key: [...f.querySelectorAll('.key span')].map(s => [s.textContent, s.querySelector('i').className]), drawn: [n(f, '.ln'), n(f, '.ph')],
+                     at: [...f.querySelectorAll(':scope > svg text.tk')].map(t => t.textContent), axes: [...f.querySelectorAll(':scope > svg text:not(.tk)')].map(t => t.textContent),
+                     cap: (f.querySelector('.cap') || {}).textContent || '' })),
+                 apart: known ? [known[0].stroke !== known[1].stroke, known[0].strokeDasharray, known[1].strokeDasharray !== 'none'] : null,
+                 beside: figs.length > 1 ? Math.abs(box(figs[0]).top - box(figs[1]).top) < 2 && box(figs[1]).left > box(figs[0]).right : null,
+                 rows: [...document.querySelectorAll('#streamOutput .sp-stream > .sp-row.tool.read')].filter(x => x.children[1].textContent === 'FIGURES').map(x => [...x.children].slice(1).map(c => c.textContent)) }; }""")
+
+
+def walk_sketch(page, st, mod, wa, edition, user):
+    """The figures sketched (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19), on data. Asked to show the figures, the Architect describes them and the Brief tab sketches them: what the data decides
+    in grey, a line known before any run in colour. Asked for another order, it names the figures by their numbers, and the line keeps its points. The coach takes one out with its cross and
+    steps through the versions. The analysis then runs under the brief: the Analyst reads the figures that stand, the step that draws reads the same lines - its first reply leaves one out, and
+    it is asked again before anything runs - and the report holds each agreed figure under its title."""
+    page.evaluate("handleNewConversation()")
+    page.wait_for_url("**/?new=true", timeout=60000)
+    page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+    page.app_ready()
+    page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+    page.set_input_files("#primaryFile", st.dataset)
+    page.wait_for_selector(".primary-dataset-pill", timeout=60000)
+    page.wait_for_timeout(500)
+    if page.evaluate("() => document.getElementById('architectSwitch').getAttribute('aria-pressed')") != "true":
+        page.click("#architectSwitch")
+    page.fill("#queryInput", mod.SKETCH_QUESTION)
+    page.click("#submitQuery")
+    page.wait_for_selector("#content-brief .ar-brief", timeout=15000)
+    architect_said(page, 1)
+    tid, cid = page.evaluate("() => [currentData.thread_id, currentData.chain_id]")
+    read_last = lambda: (page.click("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt >> nth=-1"),
+                         page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000),
+                         page.inner_text("#userInstructions"),
+                         page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }"))[2]
+    want = mod.sketches("C", "A")
+    line, boxes, bars = (f["title"] for f in want)
+    f0 = figures_on_screen(page)
+    tell(page, mod.ARCHITECT_SKETCH)
+    f1, t1, b1 = figures_on_screen(page), talk_on_screen(page), brief_on_screen(page)
+    rec1 = thread_run(wa, user, tid, cid).get("framing", {})
+    v1 = (rec1.get("versions") or [{}])[-1]
+    n1 = len(rec1.get("versions", []))
+    check("asked to show the figures, the Architect sketches them: the Brief tab has a part for them, under a plain heading - a panel to a figure, numbered, each marked as a sketch, as changed "
+          "in this version, with a cross. What the data decides is grey and dashed - two lines whose names stand beside dashes, two boxes and three bars of equal size with their names at "
+          "them - and the caption says the data decides the shapes; the target's line, known before any run, is drawn through its points, solid, in its colour. The panels stand side by side. A "
+          "row under the Architect's message says three were sketched, and in which version. On the record the figures are one more version of the Architect's, each named as changed, the "
+          "target's points with it; before the sketch the brief had no such part",
+          f0["head"] == [] and f0["figs"] == [] and f1["head"] == ["What it will look like"] and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"]) for f in f1["figs"]]
+          == [("1", line, "sketch", True, True), ("2", boxes, "sketch", True, True), ("3", bars, "sketch", True, True)]
+          and f1["figs"][0]["key"] == [["regime C", "ph"], ["regime A", "ph"], [mod.SKETCH_TARGET, "s2"]] and f1["figs"][0]["drawn"] == [1, 2] and f1["figs"][0]["axes"] == ["season", "yield, t/ha"]
+          and f1["figs"][0]["cap"] == want[0]["note"]
+          and (f1["figs"][1]["key"], f1["figs"][1]["drawn"], f1["figs"][1]["at"]) == ([], [0, 2], ["regime C", "regime A"]) and f1["figs"][1]["cap"] == want[1]["note"] + " The data decides the shapes."
+          and (f1["figs"][2]["key"], f1["figs"][2]["drawn"], f1["figs"][2]["at"], f1["figs"][2]["cap"]) == ([], [0, 3], ["clay", "loam", "sand"], "The data decides the shapes.")
+          and f1["apart"] == [True, "none", True] and f1["beside"] is True and f1["rows"] == [["FIGURES", "3 sketched", f"version {n1}"]]
+          and t1["said"][-2:] == [["You", mod.ARCHITECT_SKETCH], ["Architect", mod.ARCHITECT_SKETCHED]] and t1["choices"] == mod.ARCHITECT_YES
+          and (v1.get("by"), v1.get("why"), v1.get("changed")) == ("architect", "answer", ["figures.0", "figures.1", "figures.2"]) and b1["v"] == f"{n1} of {n1}"
+          and [f["title"] for f in v1.get("brief", {}).get("figures", [])] == [line, boxes, bars] and v1["brief"]["figures"][0]["series"][2] == {"name": mod.SKETCH_TARGET, "points": [[1, 5], [6, 5]]}
+          and rec1.get("turns", [{}])[-1].get("sketched") == 3, (f0, f1, t1["said"][-2:], v1))
+
+    # another order, asked for in words: the Architect names the figures by their numbers
+    rows1 = len(usage_rows(wa, edition, user))
+    tell(page, mod.ARCHITECT_SWAP)
+    f2 = figures_on_screen(page)
+    read2 = read_last()
+    rec2 = thread_run(wa, user, tid, cid).get("framing", {})
+    v2 = (rec2.get("versions") or [{}])[-1]
+    check("asked for the second figure first: the Architect read the figures of the brief each under its number, in words - the kind, what is on each axis, what it holds, what it is to make "
+          "clear - and that the first is sketched with points, the points themselves nowhere in its prompt. Its reply names the figures by number, the first two the other way round: the "
+          "panels change places, the line that was known keeps its points and its colour, and the two that moved are marked as changed - one more version of the Architect's, one more row",
+          f'\nfigures:\n- [1] "{line}" - a line chart; x: season; y: yield, t/ha; holds: regime C, regime A, {mod.SKETCH_TARGET}; to make clear: {want[0]["note"]} [sketched with points]\n'
+          f'- [2] "{boxes}" - box plots; x: regime; y: yield, t/ha; holds: regime C, regime A; to make clear: {want[1]["note"]}\n- [3] "{bars}" - bars; x: soil type; y: yield, t/ha; holds: clay, loam, sand\n' in read2
+          and "[1, 5]" not in read2 and "[[" not in read2.split("\nfigures:\n")[1].split("CONVERSATION:")[0]
+          and [(f["n"], f["title"], f["changed"]) for f in f2["figs"]] == [("1", boxes, True), ("2", line, True), ("3", bars, False)]
+          and f2["figs"][1]["key"][2] == [mod.SKETCH_TARGET, "s2"] and f2["figs"][1]["drawn"] == [1, 2]
+          and f2["rows"] == [["FIGURES", "3 sketched", f"version {n1}"], ["FIGURES", "3 sketched", f"version {n1 + 1}"]]
+          and (v2.get("by"), v2.get("changed")) == ("architect", ["figures.0", "figures.1"]) and v2["brief"]["figures"][1] == v1["brief"]["figures"][0]
+          and len(usage_rows(wa, edition, user)) == rows1 + 1, (read2[-1500:], f2, v2))
+
+    # the cross on the third sketch, and the arrows through the versions
+    rows2 = len(usage_rows(wa, edition, user))
+    page.click('#content-brief .ar-fig [data-ar="unfigure"][data-path="figures.2"]')
+    page.wait_for_function("(n) => { const r = document.querySelector('#content-brief .ar-brief'); return r && JSON.parse(r.dataset.framing).versions.length === n; }", arg=n1 + 2, timeout=15000)
+    f3, b3 = figures_on_screen(page), brief_on_screen(page)
+    v3 = (thread_run(wa, user, tid, cid).get("framing", {}).get("versions") or [{}])[-1]
+    page.click('#content-brief [data-ar="step"][data-step="-1"]')
+    f4, b4 = figures_on_screen(page), brief_on_screen(page)
+    page.click('#content-brief [data-ar="step"][data-step="1"]')
+    f5 = figures_on_screen(page)
+    check("the cross on a sketch takes the figure out: one more version, the coach's, that names the part as changed - two panels stay, and no model was called. The arrow back shows the "
+          "version before with its three sketches, and Start analysis names that version; the arrow forward shows the two again",
+          [f["title"] for f in f3["figs"]] == [boxes, line] and not any(f["changed"] for f in f3["figs"]) and b3["v"] == f"{n1 + 2} of {n1 + 2}" and b3["start"] == "Start analysis"
+          and (v3.get("by"), v3.get("changed")) == ("person", ["figures"]) and [f["title"] for f in v3.get("brief", {}).get("figures", [])] == [boxes, line]
+          and len(usage_rows(wa, edition, user)) == rows2
+          and [f["title"] for f in f4["figs"]] == [boxes, line, bars] and b4["v"] == f"{n1 + 1} of {n1 + 2}" and b4["start"] == f"Start analysis with version {n1 + 1}"
+          and [f["title"] for f in f5["figs"]] == [boxes, line], (f3, v3, b4["v"], b4["start"]))
+
+    # Start analysis: the Analyst and the step that draws read the figures that stand
+    page.evaluate("setMode('deep')")
+    page.click('#content-brief [data-ar="start"]')
+    wait_run_end(page, 1)
+    page.wait_for_function("() => responses.length === 1 && !responses[0].status", timeout=60000)
+    prompt = turn_prompt(page, 1)
+    ran = thread_run(wa, user, tid, cid)
+    drew = []
+    for k in range(page.locator('.sp-turn .sp-prompt[data-agent="Figures"]').count()):
+        page.click(f'.sp-turn .sp-prompt[data-agent="Figures"] >> nth={k}')
+        page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /THE REPORT, AS WRITTEN:/.test(u.textContent); }", timeout=15000)
+        drew.append(page.inner_text("#userInstructions"))
+        page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+        page.wait_for_timeout(200)
+    steps = [(t["kind"], t.get("cell_no"), (t.get("stdout") or "").strip()[:120], [f.get("title") for f in t.get("figures", []) if isinstance(f, dict)]) for t in ran.get("turns", []) if t.get("step") == "figures"]
+    lines = (f'1. "{boxes}" - box plots; x: regime; y: yield, t/ha; holds: regime C, regime A; to make clear: {want[1]["note"]}\n'
+             f'2. "{line}" - a line chart; x: season; y: yield, t/ha; holds: regime C, regime A, {mod.SKETCH_TARGET}; to make clear: {want[0]["note"]}\n')
+    answer = page.inner_text("#content-answer")
+    page.click("#tab-brief")
+    f6, b6 = figures_on_screen(page), brief_on_screen(page)
+    check("Start analysis under a brief with figures: the Analyst reads the two that stand in its BRIEF block, numbered, in words - the one taken out and the target's points are not in its "
+          "prompt. The step that draws reads the same lines under its question, to draw first and under their titles. Its first reply left the second figure out: nothing ran, the attempt is "
+          "on the record with what was left out, and it was asked again with that title; its next cell drew both, each under its agreed title. The report's Figures part holds the two, with no "
+          "line about a figure not drawn. The Brief tab, read after the run, still shows the two sketches - with no cross",
+          ("\nFigures agreed with the person:\n" + lines) in prompt and bars not in prompt and "[1, 5]" not in prompt
+          and len(drew) == 2 and drew[0].startswith(f"QUESTION:\n{mod.SKETCH_QUESTION}\n\nTHE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):\n{lines}")
+          and "YOUR LAST REPLY LEFT OUT" not in drew[0] and "[1, 5]" not in drew[0] and bars not in drew[0]
+          and f'YOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt 1 of 4): "{line}". Nothing was run.' in drew[1]
+          and [s[0] for s in steps] == ["error", "cell"] and steps[0][2] == f'the reply left out a figure agreed with the person: "{line}"' and steps[1][1] is not None and steps[1][3] == [boxes, line]
+          and ran.get("status") == "answered" and [f["title"] for f in ran.get("brief", {}).get("figures", [])] == [boxes, line]
+          and f"## Figures\n\n- [fig {steps[1][1]}] {boxes[:1].lower() + boxes[1:]}\n- [fig {steps[1][1]}] {line[:1].lower() + line[1:]}" in ran.get("report", "") and "not drawn" not in ran.get("report", "")
+          and "Figures" in answer and line[1:] in answer
+          and b6["state"] == "run" and [(f["title"], f["cross"]) for f in f6["figs"]] == [(boxes, False), (line, False)] and f6["figs"][1]["drawn"] == [1, 2],
+          (prompt[:900], [d[:500] for d in drew], steps, ran.get("report", "")[-400:], f6))
+
+
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')
@@ -2167,6 +2309,10 @@ def main():
 
             # the Architect as a tutor (2026-11-17): the question worked out in the conversation, with nothing loaded
             walk_tutor(page, mod, wa, edition, USER)
+            errs = errs + page.evaluate("window.__stackErrors || []")
+
+            # the figures sketched (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19): on data, in a workflow of its own
+            walk_sketch(page, st, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 

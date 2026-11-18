@@ -48,3 +48,7 @@ class Scatter(_Trace):
 
 class Bar(_Trace):
     kind = "bar"
+
+
+class Box(_Trace):
+    kind = "box"
