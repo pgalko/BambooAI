@@ -76,7 +76,10 @@ const cards = pane.querySelectorAll('.sp-turn');
 check('second turn: reasoning block kept (had content), no think block (empty), peek = code line', cards.length === 2 && cards[1].querySelector('.sp-reasoning') && !cards[1].querySelector('.sp-think') && cards[1].querySelector('summary .peek').textContent === '1/0');
 check('rows: In [1]; a failed row with the exception line; a search row with a source pill; a dataset pill', pane.querySelector('.sp-row .in').textContent.replace(/\s/g,'') === 'In[1]' && pane.querySelector('.sp-row.fail .out').textContent.startsWith('ZeroDivisionError') && pane.querySelector('.sp-pill.src').getAttribute('href') === 'https://x.y/a?b=1&c=2' && pane.querySelector('.sp-pill.ds'));
 check('strip: settled on the final turn and spend, estimate shown, idle dot', pane.querySelector('.sp-strip').textContent.includes('turn 2 of 15') && pane.querySelector('.sp-strip .est').textContent.includes('ratio 1.06') && pane.querySelector('.sp-strip .live').classList.contains('idle'));
-check('closing card: counts, replay line, four links - and no dataset pill of its own (the pills ride once, under the REPLAY row; 2026-10-06)', pane.querySelector('.sp-done .grid').textContent.includes('2 of 15') && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced') && pane.querySelectorAll('.sp-done a').length === 4 && !pane.querySelector('.sp-done .sp-pill.ds') && pane.querySelectorAll('.sp-pill.ds').length === 1);
+check('closing card: the run\'s numbers beside its title, the replay line, no link to a tab (0313) - and no dataset pill of its own (the pills ride once, under the REPLAY row; 2026-10-06)',
+  pane.querySelector('.sp-done .head .nums').textContent.includes('2 of 15 turns') && pane.querySelector('.sp-done .head .title').textContent === 'Run complete' && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced')
+  && pane.querySelectorAll('.sp-done a').length === 0 && !pane.querySelector('.sp-done .grid') && !pane.querySelector('.sp-done .links') && !pane.querySelector('.sp-done .sp-pill.ds') && pane.querySelectorAll('.sp-pill.ds').length === 1,
+  pane.querySelector('.sp-done').outerHTML);
 
 // 2. save to favourites = innerHTML; restore = innerHTML into a fresh element (a reload, a navigation arrow, a map click)
 w.paneHeartbeat({turn:9, of:15, spent:0.09, dollars:1.5, estimate:'x', mode:'Deep'});
@@ -109,10 +112,11 @@ w.paneTurnStart({turn:2, of:15, seat:'Analyst', model:'m', chain_id:3});
 check('a turn that never ended closes as lost when the next starts', pane2.querySelectorAll('.sp-turn')[0].classList.contains('lost') && !pane2.querySelectorAll('.sp-turn')[0].hasAttribute('open') && pane2.querySelectorAll('.sp-turn')[1].classList.contains('live'));
 w.paneRunEnd({status:'stopped', turns:2, of:15, cells:0, failed:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[]});
 
-check('stopped run: the live card closed, the closing card says stopped, no tab links', !pane2.querySelector('.sp-turn.live') && pane2.querySelector('.sp-done .title').textContent === 'Run stopped' && pane2.querySelectorAll('.sp-done a').length === 0);
+check('stopped run: the live card closed, the closing card says stopped, and has no row of things to do next', !pane2.querySelector('.sp-turn.live') && pane2.querySelector('.sp-done .title').textContent === 'Run stopped'
+  && pane2.querySelectorAll('.sp-done a').length === 0 && !pane2.querySelector('.sp-done .acts') && !pane2.querySelector('.sp-done button'));
 w.paneRunEnd({status:'answered', turns:31, of:15, cells:7, failed:2, cost:0.4, seconds:300, replay_status:'', replay_line:'', plots:0, files:[]});
-const grids = pane2.querySelectorAll('.sp-done .grid'); const lastGrid = grids[grids.length - 1].textContent;
-check('closing card: "Turns 31 of 15", "Cells 7 (2 failed)"', lastGrid.includes('Turns 31 of 15') && lastGrid.includes('Cells 7 (2 failed)') && !lastGrid.includes('Cell turns'), lastGrid);
+const allNums = pane2.querySelectorAll('.sp-done .nums'); const lastNums = allNums[allNums.length - 1].textContent;
+check('closing card: "31 of 15 turns", "7 cells (2 failed)", the cost and the time, a dot between each - and no word of plots where the run drew none', lastNums === '31 of 15 turns · 7 cells (2 failed) · $0.40 · 5 min 0 s', lastNums);
 
 // 5. tokens with no live turn are refused (the dispatcher then appends plain text itself)
 check('no live turn: tokens and thoughts refused', w.paneToken('x') === false && w.paneThought('y') === false);
@@ -243,11 +247,11 @@ w.paneRunEnd({status:'answered', turns:3, of:15, cells:2, failed:0, refused:1, c
                        refused:[{where:'attempt after cell 16', word:'subprocess', text:'not run: restricted operation (subprocess)'}],
                        counts:{lines:2, unasked:1, asked:1, blocked:0, refused:1, net:2}, sandbox:'appuser (not root); in docker; no notable capabilities; seccomp filter; metadata address refused; 1 mount: /app/datasets', recorded:true}});
 const done = Array.from(pane2.querySelectorAll('.sp-done')).pop(), rep = done.querySelector('.reaches');
-check('the closing card\'s report: the heading with the counts, one line per reach with its cell and tag, the refused attempt, the sandbox line; the Cells count says 1 not run', rep && rep.querySelector('.h').textContent === '2 reaches outside the data (1 not asked for) · 1 cell not run'
+check('the closing card\'s report: the heading with the counts, one line per reach with its cell and tag, the refused attempt, the sandbox line; the count of cells says 1 not run, and the report stands before the row of what can be done next', rep && rep.querySelector('.h').textContent === '2 reaches outside the data (1 not asked for) · 1 cell not run'
       && rep.querySelectorAll('.r').length === 3 && rep.querySelectorAll('.r')[0].querySelector('.c').textContent === 'cell 15' && rep.querySelectorAll('.r')[0].querySelector('.tag').textContent === 'the question named it'
       && rep.querySelectorAll('.r')[1].classList.contains('unasked') && rep.querySelectorAll('.r')[1].querySelector('.tag').textContent === 'not asked for'
       && rep.querySelectorAll('.r')[2].querySelector('.what').textContent === 'not run: restricted operation (subprocess)' && rep.querySelectorAll('.r')[2].querySelector('.tag').textContent === 'refused'
-      && rep.querySelector('.sandbox').textContent.startsWith('Sandbox: appuser (not root)') && done.querySelector('.grid').textContent.includes('(1 not run)') && done.innerHTML.indexOf('class="reaches"') < done.innerHTML.indexOf('class="links"'), rep && rep.outerHTML);
+      && rep.querySelector('.sandbox').textContent.startsWith('Sandbox: appuser (not root)') && done.querySelector('.nums').textContent.includes('(1 not run)') && done.innerHTML.indexOf('class="reaches"') < done.innerHTML.indexOf('class="acts"'), rep && rep.outerHTML);
 w.paneRunStart({mode:'Quick', of:5, dollars:1});
 w.paneRunEnd({status:'answered', turns:2, of:5, cells:1, failed:0, refused:0, cost:0.01, seconds:5, replay_status:'', replay_line:'', plots:0, files:[], chain_id:'2', reaches:{lines:[], refused:[], counts:{lines:0, unasked:0, asked:0, blocked:0, refused:0, net:0}, sandbox:'appuser (not root)', recorded:true}});
 const quietRep = Array.from(pane2.querySelectorAll('.sp-done')).pop().querySelector('.reaches');
@@ -257,7 +261,7 @@ check('a run that reached nothing: one quiet line with the sandbox as its hover;
 // a run of 239.6 s reads "4 min 0 s", not "3 min 60 s" (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneRunEnd({status:'answered', turns:15, of:15, cells:11, failed:2, cost:0.1, seconds:239.6, replay_status:'', replay_line:'', plots:0, files:[]});
 const doneCards = pane2.querySelectorAll('.sp-done'); const lastDone = doneCards[doneCards.length - 1];
-check('closing card: seconds are rounded before the split into minutes and seconds', lastDone.querySelector('.grid').textContent.includes('4 min 0 s') && !lastDone.querySelector('.grid').textContent.includes('60 s'), lastDone.querySelector('.grid').textContent);
+check('closing card: seconds are rounded before the split into minutes and seconds', lastDone.querySelector('.nums').textContent.includes('4 min 0 s') && !lastDone.querySelector('.nums').textContent.includes('60 s'), lastDone.querySelector('.nums').textContent);
 // the peek is the step the analyst took, not its account of the last output (2026-10-06)
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:13, of:15, seat:'Analyst', model:'m'});
 w.paneTurnEnd({turn:13, kind:'cell', thinking:'Cell 6 printed the venue table. Now I fit the within-athlete regression, clustered by session.', note:'- Names: df', code:'print(1)', elapsed:1, cost:0.001});
@@ -267,10 +271,62 @@ check('peek: a two-sentence THINKING shows the step (its second sentence), not w
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:12, of:15, seat:'Analyst', model:'m'}); w.paneTurnEnd({turn:12, kind:'cell', thinking:'t', note:'- **Best estimate so far:** 7.4%\n- Names: df', code:'print(1)', elapsed:1, cost:0.001});
 const boldRow = Array.from(pane2.querySelectorAll('.sp-note b')).map(b => b.textContent);
 check('note grid: bold markers around a heading in a stored note are not shown', boldRow.includes('Best estimate so far') && !boldRow.some(t => t.includes('*')), boldRow);
-// a run started with a brief (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the closing card links to the Brief tab; the page's own row above the run
-const linksOf = r => { const d = doc.createElement('div'); d.innerHTML = w.__paneBuild.runEnd(Object.assign({ status: 'answered', turns: 2, of: 15, cells: 1, cost: 0.1, seconds: 9 }, r)); return d.querySelectorAll('.links a').map(a => a.textContent).join('|'); };
-check('closing card: a run started with a brief links to the Brief tab, after Answer; without one the links are as they were',
-  linksOf({ brief: true, plots: 2 }) === 'Answer →|Brief →|Simplified →|Investigation →|Plots (2) →' && linksOf({ plots: 2 }) === 'Answer →|Simplified →|Investigation →|Plots (2) →' && linksOf({ brief: false }) === 'Answer →|Simplified →|Investigation →');
+// the closing card (0313, the product owner's choice of three mockups): the title with the run's numbers beside it, what was reproduced, and one row of what can be done next. It links to no tab
+const cardOf = r => { const d = doc.createElement('div'); d.innerHTML = w.__paneBuild.runEnd(Object.assign({ status: 'answered', turns: 2, cells: 1, cost: 0.1, seconds: 9 }, r)); return d.querySelector('.sp-done'); };
+const shape = c => c.elements.map(e => e.className).join('|'), numsOf = r => cardOf(r).querySelector('.head .nums').textContent;
+const full = cardOf({ of: 15, plots: 3, cells: 8, failed: 4, refused: 1, chain_id: 77, brief: true, replay_status: 'reproduced', replay_line: 'Replay reproduced the cited results.', reaches: { recorded: true, counts: {} } });
+check('closing card (0313): the head - the title and, beside it, the turns of how many, the cells with those that failed or were not run, the plots, the cost and the time; then the replay line, the faint line '
+  + 'that nothing was reached, and the row of what can be done next, which holds the code map\'s button. No link, no arrow, no word of a tab - with a brief or without',
+  shape(full) === 'head|rep ok|reaches quiet|acts' && full.querySelector('.head').elements.map(e => e.tag + '.' + e.className).join() === 'span.title,span.nums' && full.querySelector('.title').textContent === 'Run complete'
+  && numsOf({ of: 15, plots: 3, cells: 8, failed: 4, refused: 1 }) === '2 of 15 turns · 8 cells (4 failed, 1 not run) · 3 plots · $0.10 · 9.0 s'
+  && full.querySelectorAll('a').length === 0 && !/→|Answer|Brief|Simplified|Investigation/.test(full.textContent) && cardOf({ brief: true }).outerHTML === cardOf({ brief: false }).outerHTML
+  && full.querySelectorAll('.acts button').length === 1 && full.querySelector('.acts .sp-act.sp-codemap').textContent === 'Code map' && full.querySelector('.acts .sp-codemap').getAttribute('data-chain') === '77'
+  && full.querySelector('.acts .sp-codemap svg') && full.querySelector('.acts .sp-codemap').getAttribute('type') === 'button', full.outerHTML);
+check('closing card: one of a thing is said as one - "1 turn", "1 cell", "1 plot" - and nothing of plots where there are none; a run without a turn count of how many says its turns alone',
+  numsOf({ turns: 1, cells: 1, plots: 1 }) === '1 turn · 1 cell · 1 plot · $0.10 · 9.0 s' && numsOf({ turns: 3, cells: 0 }) === '3 turns · 0 cells · $0.10 · 9.0 s' && numsOf({ of: 1, turns: 1 }) === '1 of 1 turns · 1 cell · $0.10 · 9.0 s');
+check('closing card: the row of what can be done next stands on every answered run - next-questions.js puts its button there - with the code map\'s button only where the run ran code and names its chain; '
+  + 'a run that was stopped, and one that asked, have no row',
+  shape(cardOf({ cells: 0, chain_id: 77 })) === 'head|acts' && cardOf({ cells: 0, chain_id: 77 }).querySelectorAll('.acts button').length === 0 && cardOf({ cells: 2 }).querySelectorAll('.acts button').length === 0
+  && cardOf({ cells: 2, chain_id: 77 }).querySelectorAll('.acts button').length === 1
+  && shape(cardOf({ status: 'stopped', cells: 2, chain_id: 77 })) === 'head' && cardOf({ status: 'stopped' }).querySelector('.title').textContent === 'Run stopped'
+  && shape(cardOf({ status: 'asked', cells: 2, chain_id: 77 })) === 'head' && cardOf({ status: 'asked' }).querySelector('.title').textContent === 'The analyst has a question for you');
+// a routine's run
+const routineOf = r => { const d = doc.createElement('div'); d.innerHTML = w.__paneBuild.routineEnd(Object.assign({ number: 3, status: 'reproduced', results: 4, elapsed: 5 }, r)); return d.querySelector('.sp-done'); };
+const routine = routineOf({ name: 'Weekly', compared: 4, moved: 1, figures: 2, line: 'Reproduced.', comparison_line: 'one moved', against: 2 });
+check('the closing card of a routine\'s run (0313): the same shape - its title with what came out beside it, the verdict, the comparison - and no link to a tab; what was not compared, and figures where '
+  + 'there are none, are not said; a run that failed is marked',
+  shape(routine) === 'head|rep ok|rep' && routine.querySelector('.title').textContent === 'Run 3 complete · Weekly' && routine.querySelector('.nums').textContent === '4 results · 1 of 4 moved · 2 figures · 5.0 s'
+  && routine.querySelectorAll('a').length === 0 && !routine.querySelector('.acts') && routineOf({ results: 1 }).querySelector('.nums').textContent === '1 result · 5.0 s'
+  && routineOf({ status: 'failed' }).className === 'sp-done warn' && routineOf({ status: 'failed' }).querySelector('.title').textContent === 'Run 3 failed', routine.outerHTML);
+// a card kept from before 0313, as a chain's kept markup holds it: shown again, it comes to today's shape
+const KEPT_CARD = '<div class="sp-done"><div class="title">Run complete</div><div class="grid"><span>Turns <b>13</b></span><span>Cells <b>8</b> (4 failed)</span><span>Cost <b>$0.14</b></span><span>Time <b>5 min 9 s</b></span></div>' +
+  '<div class="rep ok">✓ Replay reproduced.</div><div class="reaches quiet"><span class="h">No reaches outside the data</span></div>' +
+  '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><a href="#">Plots (3) →</a><button class="sp-codemap" data-chain="88">Code map →</button></div>' +
+  '<div class="nq-open"><button type="button" class="sp-next" data-nq="open" title="t">Next questions</button></div><details class="sp-telemetry"><summary>call telemetry</summary><pre>x</pre></details></div>';
+const KEPT_ROUTINE = '<div class="sp-done"><div class="title">Run 3 complete</div><div class="grid"><span>Results <b>4</b></span><span>Time <b>5 s</b></span></div><div class="rep ok">✓ Reproduced.</div>' +
+  '<div class="links"><a href="#">Trend →</a><a href="#">Results →</a><a href="#">Data →</a></div></div>';
+const keptPane = doc.createElement('div'); keptPane.innerHTML = '<div class="sp-stream">' + KEPT_CARD + KEPT_ROUTINE + '<div class="sp-done"><div class="title">Run stopped</div><div class="grid"><span>Turns <b>2</b></span></div></div>' + w.__paneBuild.runEnd({ status: 'answered', turns: 2, cells: 1, cost: 0.1, seconds: 9, chain_id: 5 }) + '</div>';
+const today = keptPane.querySelectorAll('.sp-done')[3].outerHTML;
+w.paneRenew(keptPane);
+const renewed = keptPane.querySelectorAll('.sp-done');
+check('a closing card kept from before (0313), shown again: its title and its numbers on one line, as they were written; its links gone, every one - the tabs are the way to the answer; the code map\'s '
+  + 'button as today\'s, with its chain, in the row of what can be done next - the Next questions button it had under the links first in that row, the same button; the telemetry last, untouched. The '
+  + 'card of a routine\'s run keeps no row; a run that was stopped had none. Today\'s card is left as it is, and a pane renewed twice is renewed once; no pane at all is no error',
+  shape(renewed[0]) === 'head|rep ok|reaches quiet|acts|sp-telemetry' && renewed[0].querySelector('.head').elements.map(e => e.className).join() === 'title,nums'
+  && renewed[0].querySelector('.nums').textContent === 'Turns 13Cells 8 (4 failed)Cost $0.14Time 5 min 9 s' && renewed[0].querySelectorAll('a').length === 0 && !/→/.test(renewed[0].textContent)
+  && renewed[0].querySelectorAll('.acts button').map(x => x.className + '=' + x.textContent).join('|') === 'sp-next sp-act=Next questions|sp-act sp-codemap=Code map'
+  && renewed[0].querySelector('.acts .sp-codemap').getAttribute('data-chain') === '88' && renewed[0].querySelector('.acts [data-nq="open"]').getAttribute('title') === 't' && !renewed[0].querySelector('.nq-open')
+  && shape(renewed[1]) === 'head|rep ok' && renewed[1].querySelector('.nums').textContent === 'Results 4Time 5 s' && shape(renewed[2]) === 'head' && renewed[3].outerHTML === today
+  && (() => { const once = keptPane.innerHTML; w.paneRenew(keptPane); w.paneRenew(null); return keptPane.innerHTML === once; })(), renewed[0].outerHTML);
+const showSrc = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-management.js'), 'utf8');
+check('the closing card\'s look and its hook, from the sources (0313): the title and the numbers share a line, and wrap where the pane is narrow; the buttons stand side by side over one rule, and a row '
+  + 'that holds no button shows nothing; a button has its border; where nothing was reached the reach report is one faint line, with no rule of its own; nothing is left of the grid or the links. '
+  + 'A chain shown again has its kept card renewed as soon as its pane is put back',
+  paneCss.includes('#streamOutput .sp-done .head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap;')
+  && paneCss.includes('#streamOutput .sp-done .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }')
+  && paneCss.includes('#streamOutput .sp-done .acts:empty { display: none; }') && /#streamOutput \.sp-act \{[^}]*border: 1px solid var\(--chip-model-border\);/.test(paneCss)
+  && paneCss.includes('#streamOutput .sp-done .reaches.quiet { margin-top: 3px; padding-top: 0; border-top: 0;') && !/\.sp-done \.(grid|links)\b/.test(paneCss)
+  && showSrc.includes("document.getElementById('streamOutput').innerHTML = response.streamOutput;\n    if (typeof paneRenew === 'function') paneRenew(document.getElementById('streamOutput'));"));
 pane2.innerHTML = '';
 w.paneAppend('<details class="sp-turn ar-fold"><summary>Architect</summary></details>');
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m'});

@@ -17,6 +17,11 @@ class Element extends Node {
   get id() { return this.attrs['id'] || ''; } set id(v) { this.attrs['id'] = String(v); }
   getAttribute(a) { return this.attrs[a] == null ? null : this.attrs[a]; } setAttribute(a, v) { this.attrs[a] = String(v); } removeAttribute(a) { delete this.attrs[a]; } hasAttribute(a) { return a in this.attrs; }
   appendChild(n) { if (n.parent) n.parent.children = n.parent.children.filter(c => c !== n); n.parent = this; this.children.push(n); return n; }
+  insertBefore(n, ref) {      // before `ref`; at the end where there is none, as the browser does
+    if (!ref) return this.appendChild(n);
+    if (n.parent) n.parent.children = n.parent.children.filter(c => c !== n);
+    n.parent = this; this.children.splice(this.children.indexOf(ref), 0, n); return n;
+  }
   remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
   get parentNode() { return this.parent || null; }        // the browser's name for it
   get innerHTML() { return this.children.map(c => c.outerHTML).join(''); }

@@ -6,7 +6,9 @@ brief is kept as a version. The analysis then continues that run through /query,
 An exchange may have the person's saved analyses read (§3.7): the stream then carries how far the reading is, the
 person can skip it (/architect/skip), and a saved analysis the brief names can be read whole (/architect/saved).
 Where the brief holds figures, a draft of them is drawn after the reply (§2.20): the stream carries the framing as
-the reply left it, and the page then asks for each figure's plot (/architect/draft).
+the reply left it, and the page then asks for each figure's plot (/architect/draft). Before the analysis starts, the
+question is read as the analyst will read it (/architect/ready, §2.22): where something in it cannot be placed, the
+Architect goes on and the analysis waits for the person to start it again.
 
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
 month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say).
@@ -83,6 +85,34 @@ def architect_say():
         if framing is None:
             return {'architect': {'error': 'This brief can no longer be changed: its analysis has started.'}}
         return {'architect': {'framing': framing}}
+    return _stream(instance, work)
+
+
+@architect_bp.route('/architect/ready', methods=['POST'])
+@requires_auth
+def architect_ready():
+    """Before a framed question's analysis starts (§2.22): {thread_id, chain_id, version} - the version of the brief
+    on the person's screen. Its question is read as the analyst will read it; the stream ends on {"architect":
+    {"framing": ..., "clean": whether the analysis can start}}. Where it cannot, the Architect has gone on: the
+    framing holds what the reader could not place and the Architect's reply - or "error" says why there is none -
+    and the stream carried {"type": "architect_draft", "framing"} before a draft of the figures was drawn, as
+    after any reply. {"architect": {"error": ...}} alone where no read was made: the analysis can start."""
+    data = request.json or {}
+    if data.get('thread_id') is None or data.get('chain_id') is None:
+        return jsonify({'error': 'The thread and the chain are needed.'}), 400
+    refused = _app().query_refusal(count=False)
+    if refused is not None:
+        return refused
+    instance = _instance()
+    version = data.get('version') if isinstance(data.get('version'), int) and not isinstance(data.get('version'), bool) else None
+
+    def work():
+        try:
+            got = instance.architect_ready(data['thread_id'], data['chain_id'], version=version)
+        except Exception as exc:                             # noqa: BLE001
+            logger.exception("architect: the question could not be read before its analysis")
+            return {'architect': {'error': f'The question could not be checked: {str(exc)[:300]}'}}
+        return {'architect': got or {'error': 'This brief can no longer be changed: its analysis has started.'}}
     return _stream(instance, work)
 
 

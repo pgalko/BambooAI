@@ -586,6 +586,44 @@
   Tests: `test_architect.js` 133 (+4), `test_pdf_export.js` 15; the battery 2,365; the walk 209 (+2), and 202 of
   206 in the local edition; the gallery 29 (`architect_outcome`); the story has one more shot, the brief's foot
   after the run. Not run against a live model, where it was built.
+  **0313 (2026-11-19): the question as the Analyst will read it, and the closing card** (decisions 51-53,
+  §2.22, §2.23). The product owner, from a live run: the question pointed to an analysis of another day,
+  which the Analyst is not given; and the closing card's links, arrows and two buttons were confusing - of
+  three mockups he chose the second.
+  *The question.* `analyst/architect.md`, *The question*: what is to be done and on what,
+  in two or three sentences addressed to the analyst; what the analyst is given - QUESTION, BRIEF, the data,
+  the analyses under EARLIER, of the saved analyses those the brief builds on - and to point to nothing else;
+  how a figure is to look goes under its `note`; a changed question is worded afresh, as what is wanted.
+  *The read* (`analyst/cold.py`, `cold.md` - in pyproject's package data): `given()` is what the Analyst is
+  given, block for block (the suite checks that `Session._user_prompt()` starts with it); `read()` is one call
+  at low effort that replies `{"cannot_place": [...]}`; `named()` keeps a phrase only where the question holds
+  it, three at most; `ready(llm, reader, nb, run, version, data, ...)` gives `(framing, clean)` - a turn
+  `who: "reader"` (`missing`, `v`, `cost`, `secs`, `call`: its number among the reads - the Architect's
+  `calls` stay its own, the run log finds a call as the n-th of its name), `framing["read"]` the versions read,
+  the version read in use from then (`use()`); where something is missing, `architect.exchange()` with no
+  message - `conversation()` renders the reader's line - and the version it leaves is listed as read too: a
+  read holds a start up once. A failed reply raises `architect.Failed` with the read standing. *The host:*
+  `architect_ready()` gives `{"framing", "clean"[, "error"]}`, the read logged as *Question check* on the
+  Architect's seat; anything else that fails is logged and the analysis can start. *The route:*
+  `POST /architect/ready`, a stream like `/architect/say`. *The page* (`architect.js`): `start()` keeps the
+  line being typed, then `ready(entry, version)` - no call where `framing.read` lists the version - then the
+  page's send, only where the brief is still on screen and nothing else runs (`handleQuerySubmit` would stop a
+  running analysis); `build.pending()` (was `drawingRow()`), `build.checkedQ()` - a held read's row wraps
+  (`.ar-unplaced`), so the words are read whole -, `take()`, `along()` (the stream's events, shared with
+  `exchange()`); the words
+  *CHECKING THE QUESTION*, *CHECK question*, *stands on its own*, *the Analyst cannot place*. *The stack:*
+  `field_trial.py` has `COLD_POINTER`, a scripted reader (`cold()`) and the Architect's rewording after it.
+  *The card* (`stream-pane.js`): `build.head(title, nums)`, `build.codemap(chain)`, the row `.acts` with
+  `.sp-act` buttons, no links - `paneOpenTab` is no longer called from the card; `routineEnd()` the same way;
+  `paneRenew(pane)` brings a card kept from before to the new shape when its chain is shown again
+  (`workflow-management.js`). `next-questions.js`: its button is the bare `.sp-act.sp-next`, put first in
+  `.acts`. `pane.css`: `.head`, `.nums`, `.acts`, `.sp-act`; `.grid`, `.links`, `.nq-open` are gone.
+  `bambooai.py`: `pane_run_end` carries no `brief`. `tests/analyst/minidom.js` gained `insertBefore`. Tests:
+  `test_analyst.py` 371 (+9), `test_app_path.py` 276 (+4), `test_architect.js` 142 (+9), `test_pane.js` 67,
+  `test_next_questions.js` 27; the battery 2,392; the walk 213 (+4), and 206 of 210 in the local edition;
+  the gallery 31 (`architect_checking`, `architect_unplaced`); the story has one more shot, the question's
+  check. Not run against a live model, where it was built: whether the reader names the right words is the
+  live test's to show.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

@@ -285,8 +285,10 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   w.CodeMapUI.close();
   // the closing card's button (stream-pane.js): for an answered chain with cells only
   const pane = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
-  check('the closing card carries a Code map button with the chain id in its markup, for an answered chain that ran code, guarded for a page without the module',
-    pane.includes("r.status === 'answered' && r.cells > 0 && r.chain_id") && pane.includes("'<div class=\"links\">' + links + codemap + '</div>'") && pane.includes('<button class="sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)"));
+  check('the closing card carries a Code map button with the chain id in its markup, for an answered chain that ran code, guarded for a page without the module; it stands in the card\'s row of what can '
+    + 'be done next (0313: it was the last thing on a row of links)',
+    pane.includes("(r.status === 'answered' ? '<div class=\"acts\">' + (r.cells > 0 && r.chain_id ? build.codemap(r.chain_id) : '') + '</div>' : '')")
+    && pane.includes('<button type="button" class="sp-act sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)") && !pane.includes('Code map →'));
   // the modal is a dialog for readers: the role, Escape closes it, the focus lands on the close
   w.CodeMapUI.open('1'); await tick(); await tick();
   check('the dialog carries its role and label; Escape closes it', m.querySelector('.cm-dlg').getAttribute('role') === 'dialog' && m.querySelector('.cm-dlg').getAttribute('aria-label') === 'Code map'

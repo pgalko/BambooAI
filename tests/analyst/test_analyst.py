@@ -2766,6 +2766,139 @@ check("the draft's instructions (0310): one cell that draws every figure under i
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _dtexts.items() if _DOMAIN.search(t)}
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", drafts.SYSTEM),
       ([k for k, s in _dsaid.items() if s not in _dsys], {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _dtexts.items() if _DOMAIN.search(t)}, len(drafts.SYSTEM)))
+# ---- 0313: the question read cold before its analysis starts (analyst/cold.py; docs/ARCHITECT_DESIGN.md §2.22) - and what the Architect is told of wording it
+from analyst import cold
+_cq = "Draw the series as bars, following on from the bar version of 14 May. One colour, as  before."
+_cb = {"question": _cq, "version": 3, "decision": "I want to see it.", "expects": "It rises.",
+       "also_check": [{"text": "It may be the season", "source": "architect", "accepted": False}, {"text": "It may be the soil", "source": "architect", "accepted": True}]}
+_cgiven = cold.given(_cq, _cb)
+check("cold.given: what the analyst is given of a framed question, in the order its prompt has it - the analyses the question follows, the data as described, the question, and the BRIEF block of "
+      "the brief as agreed: a line the Architect proposed and the person did not accept is not there. The checks a run on data makes are there where the run has data, and not where it has none. "
+      "A part that is not given is not there, and a brief that holds nothing is the question alone",
+      _cgiven == f"QUESTION:\n{_cq}\n\n{briefs.render(briefs.agreed(_cb))}" and "It may be the soil" in _cgiven and "It may be the season" not in _cgiven
+      and "[always]" in _cgiven and "[always]" not in cold.given(_cq, _cb, data=False) and "What they expect to see: It rises." in _cgiven
+      and cold.given(_cq, _cb, True, "`df`: 3 rows", "EARLIER IN THIS THREAD") == f"EARLIER IN THIS THREAD\n\nDATA:\n`df`: 3 rows\n\n{_cgiven}"
+      and cold.given(" Q? ", {}) == "QUESTION:\nQ?" and cold.given(None, None) == "QUESTION:\n")
+_cn = lambda reply: cold.named(reply, _cq)      # noqa: E731
+check("cold.named: the phrases a reply names, each as the question has it - found whatever the case and the spaces between its words, in the question's own spelling - once each, three at most; a "
+      "phrase the question does not hold is dropped, and so is what is no text; a reply that is no such object, fenced or bare, names none",
+      _cn('{"cannot_place": ["the bar version of 14 may", "As before", "the usual one", "as before", 5, "", "  "]}') == ["the bar version of 14 May", "as before"]
+      and _cn('```json\n{"cannot_place": ["14 May"]}\n```') == ["14 May"] and _cn('{"cannot_place": ["Draw", "the series", "as bars", "One colour"]}') == ["Draw", "the series", "as bars"]
+      and _cn("nothing to say") == [] and _cn('{"cannot_place": "14 May"}') == [] and _cn('{"other": ["14 May"]}') == [] and _cn("") == [] and cold.named('{"cannot_place": ["x"]}', None) == []
+      and cold.PHRASES == 3)
+_crl, _crs = _arch_llm(['{"cannot_place": ["as before"]}', "I cannot say."], usage={"cost": 0.002})
+_cr1, _cr2 = cold.read(_crl, _cq, _cgiven), cold.read(_crl, _cq, "QUESTION:\nx")
+check("cold.read: one call - the reader's instructions, what the analyst is given and the request for the object, at low effort - and what came of it: the phrases of the question, and what the "
+      "call cost; a reply that cannot be read names nothing and costs what it cost; a call that says nothing of its cost cost nothing",
+      _cr1 == (["as before"], 0.002) and _cr2 == ([], 0.002) and len(_crs) == 2 and _crs[0][0] == cold.SYSTEM and _crs[0][1] == _cgiven + "\n\nReply with the JSON object."
+      and _crs[0][2] == {"effort": ("low",)} == {"effort": cold.EFFORT} and _crs[1][1] == "QUESTION:\nx\n\nReply with the JSON object."
+      and cold.read(lambda s, u, **kw: ('{"cannot_place": []}', None), _cq, _cgiven) == ([], 0.0))
+_yn = Notebook("y"); _y0 = _yn.new_run("Does B beat A?"); _y0.status = "answered"; _y0.report = "B beats A by 3."
+_yr = _yn.new_run(_cq, _y0.id); _yr.status = "framing"
+_yr.framing = {**briefs.version({}, {"question": _cq, "expects": "It rises.", "also_check": [{"text": "It may be the season", "source": "architect", "accepted": False}]}), "calls": 4}
+_yread, _yseen = _arch_llm(['{"cannot_place": []}'], usage={"cost": 0.002}); _yarch, _yaseen = _arch_llm([])
+_y1, _yok1 = cold.ready(_yarch, _yread, _yn, _yr, data="`df`: 3 rows")
+_y1b, _yok1b = cold.ready(_yarch, _yread, _yn, _yr)        # the same version again: the reader has no reply left, and is not asked
+_ygot = _yseen[0][1][:-len("\n\nReply with the JSON object.")] if _yseen else ""
+_yasks = briefs.latest(_yr.framing)["question"]
+_yr.question, _yr.brief, _yr.data = _yasks, briefs.agreed(briefs.latest(_yr.framing)), {"rows": 3}      # as the analysis takes them when it starts (the host, Session.run)
+_ysees = Session(None, _yn, None, data_description="`df`: 3 rows")._user_prompt(_yr, Budget(), 1, 0.0)
+check("cold.ready, a question that stands on its own: one call, the reader's. The reader is given what the analyst will be given, to the letter: the analyst's own first prompt starts with it - the "
+      "thread's ledger of the analyses the question follows, the data as described, the question, the brief as agreed, without the line the person did not accept. The read is a turn of the "
+      "conversation - nothing missing, the version read, the cost, the seconds, and its number among the reads: the Architect's calls are counted apart, and stay as they were. The framing "
+      "lists the version as read, and the analysis can start; the Architect is not called, and is told nothing of it. The same version is not read again: no call at all",
+      _yok1 is True and len(_yseen) == 1 and not _yaseen and _y1["read"] == [1] and _y1["calls"] == 4 and _yseen[0][0] == cold.SYSTEM
+      and _ygot == cold.given(_yasks, briefs.latest(_y1), True, "`df`: 3 rows", _yn.render_ancestry(_yr.id)) and _ysees.startswith(_ygot + "\n\nYOUR NOTE")
+      and _ygot.startswith("EARLIER IN THIS THREAD") and "[run 1] Q: Does B beat A?" in _ygot and "\n\nDATA:\n`df`: 3 rows\n\nQUESTION:\n" in _ygot and "[always]" in _ygot and "the season" not in _ygot
+      and {k: v for k, v in _y1["turns"][-1].items() if k != "secs"} == {"who": "reader", "missing": [], "v": 1, "cost": 0.002, "call": 1} and isinstance(_y1["turns"][-1]["secs"], float)
+      and _yok1b is True and _y1b is _y1 and len(_yseen) == 1 and arch.conversation(_y1["turns"]) == "CONVERSATION:\n(nothing yet)", (_y1, _yok1, _yok1b, _ygot, _ysees[:len(_ygot) + 40]))
+_zn = Notebook("z"); _zr = _zn.new_run(_cq); _zr.status = "framing"; _zr.framing = {**briefs.version({}, {"question": _cq, "expects": "It rises."}), "data": False, "calls": 2}
+_zread, _zseen = _arch_llm(['{"cannot_place": ["the bar version of 14 May", "as before"]}', '{"cannot_place": ["bars"]}'], usage={"cost": 0.002})
+_zarch, _zaseen = _arch_llm([json.dumps({"say": "I took out what pointed to earlier work.", "wording": "Draw the series as bars in one colour."})])
+_z1, _zok1 = cold.ready(_zarch, _zread, _zn, _zr, data="`df`: 3 rows")
+_z2, _zok2 = cold.ready(_zarch, _zread, _zn, _zr)
+_zback, _zokb = cold.ready(_zarch, _zread, _zn, _zr, version=1)
+_zsaw = _zaseen[0][1] if _zaseen else ""
+check("cold.ready, a question that points outside what the analyst gets: the read is a turn with the phrases, and the Architect goes on at once - one exchange with no message of the person's, whose "
+      "CONVERSATION ends on what the reader could not place, and which is given what an exchange is given beside it, the data's description. Its wording is one more version; the analysis does "
+      "not start; the reply is numbered among the Architect's calls, the read among the reads. Both versions are listed as read: started again - the Architect's version, or the one before it, "
+      "which the person went back to - it starts, with no call. The reader was told the run has no data where it has none",
+      _zok1 is False and len(_zseen) == 1 and len(_zaseen) == 1 and "\nWhat they expect to see: It rises." in _zseen[0][1] and "[always]" not in _zseen[0][1] and _zaseen[0][0] == arch.SYSTEM
+      and _zsaw.startswith("DATA:\n`df`: 3 rows\n\n")
+      and _zsaw.endswith('CONVERSATION:\nA reader given what the analyst will be given could not place: "the bar version of 14 May"; "as before"\n\nReply with the JSON object.')
+      and [(v["n"], v["by"], v["changed"]) for v in _z1["versions"]] == [(1, "person", []), (2, "architect", ["question"])] and briefs.latest(_z1)["question"] == "Draw the series as bars in one colour."
+      and _z1["read"] == [1, 2] and _z1["calls"] == 3 and [(t["who"], t["call"]) for t in _z1["turns"]] == [("reader", 1), ("architect", 3)]
+      and _z1["turns"][0]["missing"] == ["the bar version of 14 May", "as before"] and _z1["turns"][0]["v"] == 1 and _z1["turns"][1]["wording"] == "Draw the series as bars in one colour."
+      and _zr.framing is _z1 and _zok2 is True and _z2 is _z1 and _zokb is True and _zback is _z1 and len(_zseen) == 1 and len(_zaseen) == 1, (_z1, _zok1, _zok2, _zokb, _zsaw[-300:]))
+_zr.framing = briefs.version(_zr.framing, {**briefs.latest(_zr.framing), "question": "Draw the series as bars, as on 14 May."}, by="person", changed=["question"])
+_zbad, _zbseen = _arch_llm(["no object", "none either"])
+try:
+    cold.ready(_zbad, _zread, _zn, _zr); _zfail = None
+except arch.Failed as exc:
+    _zfail = exc
+_z3 = _zr.framing
+_z4, _zok4 = cold.ready(_zbad, _zread, _zn, _zr)
+check("cold.ready, a version made since - the person changed the question by hand - is read again. Where the Architect's reply then fails, the failure is raised with its reason, which is for the "
+      "person: the read stands as the conversation's last turn - the second of the reads -, the calls of the failed reply are counted among the Architect's, no version is added. Started again, "
+      "it starts - a read holds a start up once",
+      isinstance(_zfail, arch.Failed) and str(_zfail).startswith("The Architect's reply could not be read") and len(_zseen) == 2 and len(_zbseen) == 2 and _z3["read"] == [1, 2, 3]
+      and _z3["turns"][-1]["who"] == "reader" and _z3["turns"][-1]["missing"] == ["bars"] and _z3["turns"][-1]["v"] == 3 and _z3["turns"][-1]["call"] == 2 and _z3["calls"] == 5
+      and len(_z3["versions"]) == 3 and _zok4 is True and _z4 is _z3 and len(_zseen) == 2 and len(_zbseen) == 2, (_z3, _zfail, _zok4))
+_vn = Notebook("v"); _vr = _vn.new_run("One, as before."); _vr.status = "framing"
+_vr.framing = briefs.version(briefs.version({}, {"question": "One, as before."}), {"question": "Two."}, by="architect", changed=["question"])
+_vread, _vseen = _arch_llm(['{"cannot_place": []}', '{"cannot_place": []}'])
+_v1, _vok = cold.ready(None, _vread, _vn, _vr, version=1)
+_v2, _vok2 = cold.ready(None, _vread, _vn, _vr, version=2)
+check("cold.ready reads the version on the person's screen - the one the analysis will run under - which need not be the last: version 1 is read, listed as read, and the one in use from then, as "
+      "the framing says; the conversation gains the read and nothing else. The last version, started later, is read in its turn, as the second of the reads, and is the one in use again",
+      _vok is True and _vseen[0][1].startswith("QUESTION:\nOne, as before.") and "Two." not in _vseen[0][1] and _v1["read"] == [1] and _v1.get("at") == 1 and [t["who"] for t in _v1["turns"]] == ["reader"]
+      and _v1["turns"][-1]["v"] == 1 and briefs.latest(_v1)["question"] == "One, as before."
+      and _vok2 is True and len(_vseen) == 2 and _vseen[1][1].startswith("QUESTION:\nTwo.") and _v2["read"] == [1, 2] and "at" not in _v2 and [(t["v"], t["call"]) for t in _v2["turns"]] == [(1, 1), (2, 2)], (_v1, _v2))
+_wn = Notebook("w"); _wr = _wn.new_run("One, as before."); _wr.status = "framing"
+_wr.framing = briefs.version(briefs.version({}, {"question": "One, as before."}), {"question": "Two."}, by="architect", changed=["question"])
+_wread, _wseen = _arch_llm(['{"cannot_place": ["as before"]}'])
+_warch, _waseen = _arch_llm([json.dumps({"say": "I said what was before.", "wording": "One, from the start."})])
+_w1, _wok = cold.ready(_warch, _wread, _wn, _wr, version=1)
+_wsaw = _waseen[0][1] if _waseen else ""
+check("cold.ready, an earlier version that points outside what the analyst gets: the Architect goes on from that version - it reads its question and its brief, and its CONVERSATION says that "
+      "the person went to it, then what the reader could not place. Its wording is a version counted on from the last; the later version stays; the earlier one and the Architect's are listed "
+      "as read, and the Architect's is the one in use",
+      _wok is False and [t["who"] for t in _w1["turns"]] == ["version", "reader", "architect"] and _w1["turns"][0] == {"who": "version", "v": 1} and _w1["turns"][1]["v"] == 1
+      and _wsaw.startswith("QUESTION:\nOne, as before.\n") and "BRIEF (version 1):" in _wsaw
+      and _wsaw.endswith('CONVERSATION:\n(the person went to version 1 of the brief: QUESTION and BRIEF show it)\nA reader given what the analyst will be given could not place: "as before"\n\nReply with the JSON object.')
+      and [(v["n"], v["by"], v["brief"]["question"]) for v in _w1["versions"]] == [(1, "person", "One, as before."), (2, "architect", "Two."), (3, "architect", "One, from the start.")]
+      and _w1["read"] == [1, 3] and "at" not in _w1 and _w1["turns"][2]["v"] == 3, (_w1, _wok, _wsaw[-400:]))
+_csaid = {"what it is given": "QUESTION, the BRIEF it comes with, DATA where data is loaded,\nand above them the earlier analyses it follows, where it follows any.",
+          "it has nothing else": "You have nothing else: not the conversation\nthe question came out of, and no other earlier work.",
+          "what to find": "Find what in QUESTION points to something you were not given: an earlier analysis, figure or version that is not\namong those above, whether it is named by "
+                          "its day or as \"the last one\"; \"as before\" or \"the usual one\" where\nnothing you were given says which; something said or agreed somewhere else.",
+          "not what the data settles": "A day, a name or a value that the\ndata can settle is no such pointer.",
+          "not the task": "Do not carry out the task, and do not judge it.",
+          "the object": '{"cannot_place": ["<words of QUESTION, copied exactly>"]}',
+          "few and short": "Three at most, each the fewest words that hold the pointer.",
+          "nothing to name": "An empty list where QUESTION can be worked from what\nyou were given."}
+_ctexts = {"the cold reader's instructions": cold.SYSTEM, **{f"analyst/cold.py string {k}": t for k, t in enumerate(_authored_strings("analyst/cold.py"))}}
+_said13 = {"what and on what, to the analyst": "give the whole question under `wording`: what is to be done\n  and on what, in two or three sentences addressed to the analyst.",
+           "what the analyst is given": "The analyst is given QUESTION, BRIEF, the data and the analyses under EARLIER, and nothing else: not this\n  conversation, and of the saved analyses only "
+                                        "those the brief builds on.",
+           "nothing outside it": "Point to nothing it is not given: what\n  the question needs from there, say in the wording itself.",
+           "the look is the figure's": "How a figure is to look belongs in its description under `figures`, not in the wording.",
+           "afresh": "word the whole question afresh from what now stands. Say what is\n  wanted, not what was dropped on the way.",
+           "the cold read": "Before the analysis starts, a reader is given what the analyst will be given, and nothing else. What that reader\n  could not place comes back in CONVERSATION: "
+                            "word the question again so that it stands without it, and say in a\n  sentence what you changed."}
+check("the instructions, 0313 (the product owner's live run: a question that pointed to an analysis of another day, carried how the figure looks, kept a correction as a 'no' and spoke of the "
+      "analyst): the Architect words what is to be done and on what, in two or three sentences addressed to the analyst; is told what the analyst is given - the question, the brief, the data, the "
+      "analyses the question follows, and of the saved analyses those the brief builds on - points to nothing else, and says in the wording what the question needs from there; leaves how a "
+      "figure looks to the figure's description; words the question afresh, as what is wanted; and words it again where a reader could not place something. Nothing is left of 'shown how', nor "
+      "of the wording given 'again, as changed'. The cold reader has its own short instructions: what it is given, what to find - and that what the data can settle is no pointer -, the object to "
+      "reply with - the key the engine reads. The "
+      "standing rules hold for both: none of the tested tasks' vocabulary, no section named for thinking or reasoning",
+      not [k for k, s in _said13.items() if s not in arch.SYSTEM] and "shown how" not in arch.SYSTEM and "again, as changed" not in arch.SYSTEM and "does not reach the analyst" not in arch.SYSTEM
+      and not [k for k, s in _csaid.items() if s not in cold.SYSTEM] and '"cannot_place"' in cold.SYSTEM and len(cold.SYSTEM) < 1000 and len(arch.SYSTEM) < 17000
+      and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ctexts.items() if _DOMAIN.search(t)}
+      and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", cold.SYSTEM),
+      ([k for k, s in _said13.items() if s not in arch.SYSTEM], [k for k, s in _csaid.items() if s not in cold.SYSTEM],
+       {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ctexts.items() if _DOMAIN.search(t)}, len(cold.SYSTEM), len(arch.SYSTEM)))
 # ---- 0307: a part of an analysis the question follows is opened on request - its report, a cell, the conversation it was framed in - and read whole by the replies that follow, until the person speaks
 _on = Notebook("o")
 _o1 = _on.new_run("Does B beat A?"); _o1.status = "answered"; _o1.report = "# B beats A\n\nB beats A by 3 units.\n\n## How\nSee [cell 2]."
@@ -2890,9 +3023,9 @@ _said08 = {"a short message": "One step a message, and a short one: a few plain 
            "the person sees it change": "The person sees it change, can change it by hand, and can go back to an earlier version of the brief.",
            "the message says what the question now holds": "In your message say in a sentence what the question now holds, and ask whether it is what they mean.",
            "what a reading found, as it reads it": "the analyses found, each under a number, with its day, what was asked then and its passages",
-           "where the person went, in what it receives": "what you opened, what came of each draft of the figures, and where the person went to another version of the brief.",
+           "where the person went, in what it receives": "what you opened, what came of each draft of the figures, what a reader could not place, and where the person went to another version of the brief.",
            "the whole question, not in the message": "give the whole question under `wording`", "not said twice": "Do not repeat the wording in the message: the person reads it beside the conversation.",
-           "kept current": "Whenever what is to be done changes after that - something is added, dropped or settled - give the whole wording again, as changed.",
+           "kept current": "Whenever what is to be done changes after that, word the whole question afresh from what now stands.",
            "worded again where it is not what they mean": "When the person says the question is not what they mean, word it again from what they say.",
            "another version": "CONVERSATION says where the person went to another version of the brief. QUESTION and BRIEF then show that version: go on from it, and bring back what a later version held only where the person asks.",
            "the reply's form shows no key that belongs to one reply only": '{"say": "...", "choices": ["...", "..."], "brief": {"decision": "...", "rests_on": ["..."], "fixed": {"measure": "..."}, "drop": ["..."]}} - `say`: your message.',
@@ -2924,7 +3057,7 @@ _said10 = {"when it describes": "When the person asks for a figure, or asks to s
            "the kinds": "| `kind` | `line`, `scatter`, `bar`, `histogram`, `box`, `heatmap` or `line3d` |",
            "the axes": "| `x`, `y` | what is on each axis; `z` too for `line3d`, and for `heatmap` what the colour shows |",
            "what it holds": '| `series` | the lines, the groups of points, the bars or the boxes it holds, four at most: `[{"name": "..."}]` |',
-           "the note: short, the layout, and no result": "| `note` | in a sentence or two: how it is laid out where it holds more than one panel, and what it is to make clear - never what will be found |",
+           "the note: short, the layout and the look, and no result": "| `note` | in a sentence or two: how it is laid out and is to look, where the person said, and what it is to make clear - never what will be found |",
            "a draft follows": "Right after your reply a draft of each figure is drawn from QUESTION and your description, and the person sees it in the brief.",
            "what a draft's numbers are": "A shape that follows from a rule alone is computed. One that only the data can give is drawn on made-up numbers, and marked so.",
            "it does not see the draft": "You do not see the draft: CONVERSATION says what came of it.",

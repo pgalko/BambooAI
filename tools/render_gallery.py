@@ -36,6 +36,8 @@ STATES = {
     'architect_drawing': ARCHITECT + "galleryArchitect.drawing();",    # a grey window to each figure while its draft is drawn: the reply above the row that says so (§2.20; 0311)
     'architect_draft': PLOTLY + ARCHITECT + "galleryArchitect.draft();",      # the drafts drawn on the Brief tab: one on made-up numbers, marked, one computed (§2.20)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
+    'architect_checking': ARCHITECT + "galleryArchitect.checking();",  # Start analysis pressed: the question is being read as the Analyst will read it (§2.22)
+    'architect_unplaced': ARCHITECT + "galleryArchitect.unplaced();",  # the words the Analyst cannot place, and the Architect's wording after it (§2.22)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the answer of a run under a brief: nothing in it of what the report says against the brief (0312)
     'architect_outcome': ARCHITECT + "galleryArchitect.outcome();",    # which stands at the foot of that run's Brief tab: how it turned out (§2.21)
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)

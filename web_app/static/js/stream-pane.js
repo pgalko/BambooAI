@@ -21,7 +21,7 @@
 //   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
-//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, brief, reaches:{lines, refused, counts, sandbox, recorded}}
+//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded}}
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -69,6 +69,7 @@
         return Math.floor(whole / 60) + ' min ' + (whole % 60) + ' s';
     }
     function fmtCost(c) { return '$' + Number(c || 0).toFixed(2); }
+    function count(n, word) { return esc(n) + ' ' + word + (Number(n) === 1 ? '' : 's'); }        // "1 cell", "3 cells"
     function kindLabel(kind) {
         return ({ cell: 'cell', show: 'look-up', names: 'look-up', search: 'search', review: 'review',
                   ask: 'question', report: 'report', rewrite: 'plain-language version', figures: 'figures', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
@@ -85,6 +86,7 @@
         return rows.length ? '<div class="sp-note">' + rows.join('') + '</div>' : '';
     }
     const ICON_SEARCH = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+    const ICON_MAP = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.2"/><rect x="14" y="15" width="7" height="6" rx="1.2"/><path d="M10 6h5a3 3 0 0 1 3 3v6"/></svg>';
     const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 
     // ------------------------------------------------------------ builders (pure: return HTML)
@@ -186,23 +188,29 @@
             });
             return files.length ? '<div class="sp-pills">' + files.join('') + '</div>' : '';
         },
+        // A closing card (0313): its title with the run's numbers beside it, then what was reproduced and what the cells
+        // reached, then what can be done next. The tabs are the way to the answer: the card links to none (it had a
+        // row of links, each with an arrow - they read as a chain, and one of them led nowhere)
+        head(title, nums) {
+            return '<div class="head"><span class="title">' + title + '</span><span class="nums">' + nums.filter(Boolean).join(' · ') + '</span></div>';
+        },
+        // the code map's way in, for a chain that ran code: the chain id rides in the markup, so a card shown again still opens its map
+        codemap(chain) {
+            return '<button type="button" class="sp-act sp-codemap" data-chain="' + esc(chain) + '" title="How this chain got from its data to its numbers" onclick="if(typeof CodeMapUI!==\'undefined\')CodeMapUI.open(this.dataset.chain)">' +
+                ICON_MAP + 'Code map</button>';
+        },
         runEnd(r) {
             const rep = r.replay_status === 'reproduced' ? 'ok' : (r.replay_status ? 'warn' : '');
-            const links = ['Answer'].concat(r.brief ? ['Brief'] : [], ['Simplified', 'Investigation'], r.plots ? ['Plots (' + r.plots + ')'] : []).map(l =>      // Brief: the run was started with one
-                '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
-            // the code map's way in (2026-10-20): on the links line, a button (the four links are counted) with a slight
-            // border so it stands out, for an answered chain that ran code; the chain id rides in the markup, so a
-            // restored card still opens its map
-            const codemap = r.status === 'answered' && r.cells > 0 && r.chain_id
-                ? '<button class="sp-codemap" data-chain="' + esc(r.chain_id) + '" title="How this chain got from its data to its numbers" onclick="if(typeof CodeMapUI!==\'undefined\')CodeMapUI.open(this.dataset.chain)">Code map →</button>' : '';
             const cellsNote = [r.failed ? esc(r.failed) + ' failed' : '', r.refused ? esc(r.refused) + ' not run' : ''].filter(Boolean).join(', ');
-            return '<div class="sp-done"><div class="title">' + (r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete')) + '</div>' +
-                '<div class="grid"><span>Turns <b>' + esc(r.turns) + (r.of ? ' of ' + esc(r.of) : '') + '</b></span>' +
-                '<span>Cells <b>' + esc(r.cells || 0) + '</b>' + (cellsNote ? ' (' + cellsNote + ')' : '') + '</span>' +
-                '<span>Cost <b>' + fmtCost(r.cost) + '</b></span><span>Time <b>' + esc(fmtSecs(r.seconds)) + '</b></span></div>' +
+            // an answered run ends on the row of what can be done next: next-questions.js puts its button first in it,
+            // the code map's follows where the run ran code. The dataset pills ride once, under the REPLAY row (2026-10-06)
+            return '<div class="sp-done">' +
+                build.head(r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete'),
+                           [r.of ? esc(r.turns) + ' of ' + esc(r.of) + ' turns' : count(r.turns, 'turn'), count(r.cells || 0, 'cell') + (cellsNote ? ' (' + cellsNote + ')' : ''),
+                            r.plots ? count(r.plots, 'plot') : '', fmtCost(r.cost), esc(fmtSecs(r.seconds))]) +
                 (r.replay_line ? '<div class="rep ' + rep + '">' + (rep === 'ok' ? '✓ ' : '') + esc(r.replay_line) + '</div>' : '') +
                 build.reaches(r.reaches) +
-                (r.status === 'answered' ? '<div class="links">' + links + codemap + '</div>' : '') + '</div>';   // the dataset pills ride once, under the REPLAY row (2026-10-06)
+                (r.status === 'answered' ? '<div class="acts">' + (r.cells > 0 && r.chain_id ? build.codemap(r.chain_id) : '') + '</div>' : '') + '</div>';
         },
         reaches(x) {
             // the reach report on the closing card (2026-10-28): what the cells touched outside the data, one line each with
@@ -220,18 +228,14 @@
             return '<div class="reaches"><div class="h">' + head + '</div>' + lines + refused + (x.sandbox ? '<div class="sandbox">Sandbox: ' + esc(x.sandbox) + '</div>' : '') + '</div>';
         },
         routineEnd(r) {
-            // the closing card of a routine's run (S4): what came out, the verdict, the tabs
+            // the closing card of a routine's run (S4): what came out beside its title, the verdict, the comparison
             const bad = r.status === 'failed' || r.status === 'timed_out';
             const title = 'Run ' + esc(r.number) + (r.status === 'failed' ? ' failed' : (r.status === 'timed_out' ? ' timed out' : (r.status === 'empty' ? ' had no data' : ' complete'))) + (r.name ? ' · ' + esc(r.name) : '');
-            const compared = r.compared ? ((r.moved || r.changed || 0) + ' of ' + r.compared) : '—';
-            const links = ['Trend'].concat(r.figures ? ['Plots (' + r.figures + ')'] : []).concat(['Results', 'Data']).map(l =>
-                '<a href="#" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'' + l.split(' ')[0] + '\');return false;">' + l + ' →</a>').join('');
-            return '<div class="sp-done' + (bad ? ' warn' : '') + '"><div class="title">' + title + '</div>' +
-                '<div class="grid"><span>Results <b>' + esc(r.results || 0) + '</b></span><span>Moved <b>' + compared + '</b></span>' +
-                '<span>Figures <b>' + esc(r.figures || 0) + '</b></span><span>Time <b>' + esc(fmtSecs(r.elapsed)) + '</b></span></div>' +
+            return '<div class="sp-done' + (bad ? ' warn' : '') + '">' +
+                build.head(title, [count(r.results || 0, 'result'), r.compared ? esc(r.moved || r.changed || 0) + ' of ' + esc(r.compared) + ' moved' : '',
+                                   r.figures ? count(r.figures, 'figure') : '', esc(fmtSecs(r.elapsed))]) +
                 (r.line ? '<div class="rep ' + (r.status === 'reproduced' ? 'ok' : (bad ? 'warn' : '')) + '">' + (r.status === 'reproduced' ? '✓ ' : '') + esc(r.line) + '</div>' : '') +
-                (r.comparison_line && r.against != null ? '<div class="rep">against run ' + esc(r.against) + ': ' + esc(r.comparison_line) + '</div>' : '') +
-                (!bad ? '<div class="links">' + links + '</div>' : '') + '</div>';
+                (r.comparison_line && r.against != null ? '<div class="rep">against run ' + esc(r.against) + ': ' + esc(r.comparison_line) + '</div>' : '') + '</div>';
         },
         system(text, level) {
             return '<div class="sp-sys' + (level === 'error' ? ' error' : '') + '">' + esc(text) + '</div>';
@@ -428,6 +432,28 @@
         append(build.lookup(l));
     };
     window.paneDatasets = function (d) { append(build.datasets(d)); };
+    // A closing card kept from before 0313 comes to the shape of today's when its chain is shown again: its title and
+    // numbers on one line; no links - the tabs are the way to the answer, and one of the links led nowhere; the code
+    // map's button in the row of what can be done next, with the button next-questions.js had put under the links.
+    // The card of a routine's run had links and nothing else to do next: its row goes
+    window.paneRenew = function (pane) {
+        if (!pane) return;
+        pane.querySelectorAll('.sp-done').forEach(card => {
+            const title = card.querySelector('.title'), grid = card.querySelector('.grid'), links = card.querySelector('.links'), under = card.querySelector('.nq-open');
+            if (title && grid && title.parentNode === card) {
+                const head = document.createElement('div');
+                head.className = 'head'; grid.className = 'nums';
+                card.insertBefore(head, title); head.appendChild(title); head.appendChild(grid);
+            }
+            if (!links) return;
+            const map = links.querySelector('.sp-codemap'), next = under && under.querySelector('[data-nq="open"]');
+            const answered = /^Answer\b/.test((links.querySelector('a') || {}).textContent || '');
+            links.innerHTML = map ? build.codemap(map.getAttribute('data-chain')) : '';
+            if (next) { next.classList.add('sp-act'); links.insertBefore(next, links.firstElementChild); }
+            if (under) under.remove();
+            if (answered) links.className = 'acts'; else links.remove();
+        });
+    };
     window.paneRunEnd = function (r) {
         window.paneTurnEnd({ turn: -1 });
         const p = ensure(); if (!p) return;

@@ -235,7 +235,8 @@ def conversation(turns: list, numbers: Optional[dict] = None) -> str:
     """The CONVERSATION block: who said what - under a message of the Architect's the question as it was written
     then, where the reply worded it, and the choices it offered, which the person may answer by - what each round of
     lookups found, a numbered line to a lookup, what a reading of the saved analyses found, what was opened, what a
-    draft of the figures came to, and where the person went to another version of the brief."""
+    draft of the figures came to, what a reader given what the analyst will be given could not place
+    (analyst/cold.py), and where the person went to another version of the brief."""
     said = []
     for t in turns:
         if t.get("who") == "check":
@@ -246,6 +247,8 @@ def conversation(turns: list, numbers: Optional[dict] = None) -> str:
             said.append(f"Not opened: {t['missing']}" if t.get("missing") else f"Opened: {t.get('label', '')}")
         elif t.get("who") == "draft":
             said.append(draft.line(t))
+        elif t.get("who") == "reader":                         # a read that named nothing says nothing here
+            said += ["A reader given what the analyst will be given could not place: " + "; ".join(f'"{m}"' for m in t["missing"])] if t.get("missing") else []
         elif t.get("who") == "version":
             said.append(f"(the person went to version {t.get('v')} of the brief: QUESTION and BRIEF show it)")
         else:

@@ -282,7 +282,12 @@ tab, and the conversation with the Architect takes the left pane.
   The analysis draws the figures that stand as their drafts drew them, each under its title, and its report says
   so if one is missing.
 - **Your changes.** Any line can be changed in place, with its pencil.
-- **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
+- **Start analysis** first has the question read as the Analyst will read it: by a model that is given what
+  the Analyst will be given - the question, the brief, the data, the earlier analyses of the thread - and
+  nothing of the conversation. Where it cannot place something, such as an analysis of another day, nothing
+  runs: the conversation says which words, the Architect words the question again, and you start once more.
+  That read holds a start up once.
+- **The analysis** runs under the brief. Where the data cannot give what the brief fixes, the
   Analyst stops and asks. The report gains *Did not fit*. Where the brief says what you expect or names a check,
   the Brief tab then shows *How it turned out*: what you expected, as met, not met or cannot tell, and each other
   explanation with its result. That is for you; the Answer, which you may pass on, does not show it. On data,
@@ -293,7 +298,8 @@ last brief belonged to that question. The Architect can open the analysis before
 code and output, the conversation - when you ask about it; it reads the part until you next speak. It is not
 shown the figure itself. On the thread map a framed question is one box.
 
-A finished analysis carries **Next questions** on its closing card: five levels - refine focus, shift angle, test
+The closing card of a finished analysis says its numbers - turns, cells, plots, cost, time - and offers two
+buttons, **Next questions** and **Code map**. **Next questions** has five levels - refine focus, shift angle, test
 boundaries, blend elements, follow emergence - and at each up to five questions, every one from a line the
 analysis left: a result that did not fit, a line that could not be checked, an explanation not tested. A question
 can be changed, and running it starts a new analysis.
@@ -737,8 +743,9 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
   store.
 - `analyst/context.py`, `analyst/coder.py` and `containers/executor/intervals_store.py` implement
   training context, coding and incremental data storage.
-- `analyst/architect.py`, `analyst/brief.py`, `analyst/lookup.py` and `analyst/next_questions.py` implement
-  the Architect; `analyst/memory.py` and `analyst/reader.py` the memory made of saved analyses.
+- `analyst/architect.py`, `analyst/brief.py`, `analyst/lookup.py`, `analyst/draft.py`, `analyst/cold.py` and
+  `analyst/next_questions.py` implement the Architect; `analyst/memory.py` and `analyst/reader.py` the memory
+  made of saved analyses.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.
 

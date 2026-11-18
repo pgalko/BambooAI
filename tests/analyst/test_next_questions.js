@@ -42,8 +42,10 @@ const SET = { level: 'emergence', cost: 0.0213, chain: 1700000077, questions: [
   { title: '', text: 'Does the gap hold with the two rows left out?', from: [{ kind: 'found', text: 'B is above A.' }, { kind: 'earlier', text: 'Twelve rows.' }] },
   { title: 'Unknown', text: 'From a line of a kind the page has no word for?', from: [{ kind: 'other', text: 'x' }], ran: '1700000099' }] };
 const button = el(b.button()), levels = el(b.menu());
-check('the button of a closing card: its own row, the plant and its two words, a plain title; the list of levels: the five in the design\'s order, each its key, its name and one plain line',
-  button.querySelector('.nq-open > .sp-next') === null && button.querySelector('.nq-open .sp-next[data-nq="open"]').textContent === 'Next questions' && button.querySelector('.sp-next svg')
+check('the button of a closing card: a button like the others in the card\'s row of what can be done next (0313: it had a row of its own under the links), the plant and its two words, a plain title; '
+  + 'the list of levels: the five in the design\'s order, each its key, its name and one plain line',
+  button.elements.length === 1 && button.elements[0].tag === 'button' && button.elements[0].className === 'sp-act sp-next' && !button.querySelector('.nq-open')
+  && button.querySelector('.sp-next[data-nq="open"]').textContent === 'Next questions' && button.querySelector('.sp-next svg') && button.querySelector('.sp-next').getAttribute('type') === 'button'
   && button.querySelector('.sp-next').getAttribute('title') === 'Questions that could follow this analysis'
   && same(levels.querySelectorAll('.it[data-nq="level"]').map(i => [i.getAttribute('data-level'), i.querySelector('b').textContent, i.querySelector('span').textContent]),
           [['refine', 'Refine focus', 'the same question, narrower'], ['shift', 'Shift angle', 'another explanation of the result'], ['test', 'Test boundaries', 'what the result rests on'],
@@ -76,15 +78,19 @@ check('a set on its way names its level and says it is being read; the row a run
   && el(b.row({ level: 'refine' })).querySelector('.nq-from').textContent === 'Next question·Refine focus', row.innerHTML);
 
 // ------------------------------------------------------------ the button on closing cards
-const DONE = '<div class="sp-done"><div class="title">Run complete</div><div class="links"><a href="#">Answer →</a><a href="#">Investigation →</a></div></div>';
-const ROUTINE = '<div class="sp-done"><div class="title">Run 3 complete</div><div class="links"><a href="#">Trend →</a><a href="#">Results →</a></div></div>';
-const ASKED = '<div class="sp-done"><div class="title">The analyst has a question for you</div></div>';
+// closing cards as stream-pane.js builds them (0313): an answered run ends on the row of what can be done next, with the code map's button where it ran code
+const DONE = '<div class="sp-done"><div class="head"><span class="title">Run complete</span><span class="nums">2 turns</span></div><div class="acts"><button type="button" class="sp-act sp-codemap">Code map</button></div></div>';
+const NO_CODE = '<div class="sp-done"><div class="head"><span class="title">Run complete</span><span class="nums">1 turn</span></div><div class="acts"></div></div>';
+const ROUTINE = '<div class="sp-done"><div class="head"><span class="title">Run 3 complete</span><span class="nums">4 results</span></div><div class="rep ok">Reproduced.</div></div>';
+const ASKED = '<div class="sp-done"><div class="head"><span class="title">The analyst has a question for you</span><span class="nums">2 turns</span></div></div>';
 const PANE = body => '<div class="sp-strip"></div><div class="sp-ids-slot"></div><div class="sp-stream"><details class="sp-turn"></details>' + body + '</div>';
-const several = el(PANE(DONE + ROUTINE + ASKED));
+const several = el(PANE(DONE + ROUTINE + ASKED + NO_CODE));
 N.dress(several); N.dress(several); N.dress(null);
-check('dress: the closing card of a finished analysis - the one whose links open on the answer - gets the button, once however often it is dressed; a routine\'s run and an analysis that ended on a question get none',
-  several.querySelectorAll('[data-nq="open"]').length === 1 && several.querySelectorAll('.sp-done')[0].querySelector('.sp-next') && !several.querySelectorAll('.sp-done')[1].querySelector('.sp-next')
-  && !several.querySelectorAll('.sp-done')[2].querySelector('.sp-next'), several.innerHTML);
+const inRow = k => several.querySelectorAll('.sp-done')[k].querySelectorAll('.acts button').map(x => x.textContent).join('|');
+check('dress: the closing card of a finished analysis - the one with a row of what can be done next - gets the button, first in that row, before the code map\'s, once however often it is dressed; a run '
+  + 'that ran no code has it alone; a routine\'s run and an analysis that ended on a question have no row and get none',
+  several.querySelectorAll('[data-nq="open"]').length === 2 && inRow(0) === 'Next questions|Code map' && inRow(3) === 'Next questions' && !several.querySelectorAll('.sp-done')[1].querySelector('.sp-next')
+  && !several.querySelectorAll('.sp-done')[2].querySelector('.sp-next') && !several.querySelector('.nq-open'), several.innerHTML);
 
 (async () => {
   N.initialize();
@@ -300,8 +306,9 @@ check('dress: the closing card of a finished analysis - the one whose links open
     && js('architect.js').includes("return window.NextQuestionsUI && window.NextQuestionsUI.made(r) ? 'next question' : '';") && js('workflowGraph.js').includes('window.ArchitectUI.mark(resp)'));
   const paneCss = css('pane.css'), shell = css('shell.css');
   check('the stylesheets: the button, a set\'s head, the cards with their pencil, arrow and mark, the editor and the run\'s row in pane.css; the list of levels on the Save menu\'s look in shell.css; the '
-    + 'plant\'s and its popover\'s rules are gone',
-    ['.sp-done .nq-open {', '.sp-next {', '.nq-head, #streamOutput .nq-from {', '.nq-card {', '.nq-card .go {', '.nq-card .was {', '.nq-card.editing .tx, #streamOutput .nq-card.editing .pen { display: none; }',
+    + 'plant\'s and its popover\'s rules are gone, and so are the rules of the button\'s own row and its own look (0313: it is one of the card\'s buttons)',
+    !paneCss.includes('.nq-open') && !paneCss.includes('.sp-next') && paneCss.includes('#streamOutput .sp-done .acts {') && paneCss.includes('#streamOutput .sp-act {') && paneCss.includes('#streamOutput .sp-act svg {')
+    && ['.nq-head, #streamOutput .nq-from {', '.nq-card {', '.nq-card .go {', '.nq-card .was {', '.nq-card.editing .tx, #streamOutput .nq-card.editing .pen { display: none; }',
      '.nq-input {', '.nq-reading {'].every(r => paneCss.includes('#streamOutput ' + r))
     && shell.includes('.save-menu.nq-menu .it { flex-direction: row;') && !shell.includes('branchingSliderPopup') && !shell.includes('suggest-questions')
     && !css('styles.css').includes('suggest-questions') && !css('styles.css').includes('.branching-icon') && !js('ui-controls.js').includes('SuggestQuestions'));

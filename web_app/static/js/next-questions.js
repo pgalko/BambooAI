@@ -46,9 +46,9 @@
 
     // ------------------------------------------------------------ builders (pure: return HTML)
     const build = {
-        // the button's row on a closing card
+        // the button on a closing card, in its row of what can be done next
         button() {
-            return '<div class="nq-open"><button type="button" class="sp-next" data-nq="open" title="' + WORDS.buttonTitle + '">' + ICON.plant + WORDS.button + '</button></div>';
+            return '<button type="button" class="sp-act sp-next" data-nq="open" title="' + WORDS.buttonTitle + '">' + ICON.plant + WORDS.button + '</button>';
         },
         // the five levels, a name and one plain line each
         menu() {
@@ -128,12 +128,12 @@
     function streamOf(pane) { return pane.querySelector('.sp-stream') || pane; }
 
     // the button on the closing card of every finished analysis in a pane that lacks it: a run that has just ended, or a
-    // chain kept from before the button existed. A routine's run has a closing card of another kind, with no Answer link
+    // chain kept from before the button existed. It stands first in the card's row of what can be done next
+    // (stream-pane.js): a run that was stopped or that asked, and a routine's run, have no such row
     function dress(pane) {
         if (!pane) return;
-        pane.querySelectorAll('.sp-done').forEach(card => {
-            const first = card.querySelector('.links a');
-            if (first && /^Answer\b/.test(first.textContent || '') && !card.querySelector('[data-nq="open"]')) card.querySelector('.links').insertAdjacentHTML('afterend', build.button());
+        pane.querySelectorAll('.sp-done .acts').forEach(row => {
+            if (!row.querySelector('[data-nq="open"]')) row.insertBefore(holder(build.button()).firstElementChild, row.firstElementChild);
         });
     }
     // a chain shown again (loadResponseContent): its button where it is missing, and the set on its way, if one is.

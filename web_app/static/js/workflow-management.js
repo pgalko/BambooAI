@@ -297,6 +297,7 @@ function loadResponseContent(response) {
     document.getElementById('tabContainer').innerHTML = response.tabContent;
     document.getElementById('contentOutput').innerHTML = response.contentOutput;
     document.getElementById('streamOutput').innerHTML = response.streamOutput;
+    if (typeof paneRenew === 'function') paneRenew(document.getElementById('streamOutput'));      // a closing card kept from before 0313, in today's shape
     taskContents = response.taskContents || {};
 
     // Restore state

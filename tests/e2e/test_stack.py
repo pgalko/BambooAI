@@ -338,6 +338,7 @@ def walk_architect(page, st, mod, wa, edition, user):
         fold: document.querySelector('#streamOutput .ar-fold summary').textContent, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent),
         answer: (document.getElementById('content-answer') || {}).textContent || '', rows: [...document.querySelectorAll('#streamOutput .sp-row')].length,
         checked: document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read').length,
+        read: [...document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read')].slice(-1).map(r => [r.className].concat([...r.children].map(c => c.textContent)))[0],
         cards: [...document.querySelectorAll('#streamOutput .sp-turn[data-turn]')].map(t => t.querySelector('summary .kind').textContent) })""")
     folded = talk_on_screen(page, "#streamOutput .ar-fold .sp-detail")
     counted.append(month_queries(page))         # its analysis started and ended
@@ -346,21 +347,22 @@ def walk_architect(page, st, mod, wa, edition, user):
     kept = brief_on_screen(page)
     asked = thread_run(wa, user, tid, cid)
     prompt1 = turn_prompt(page, 1)
-    check("Start analysis runs the brief's own chain - still one chain, under the same id - with the framing folded to one row above the run, the conversation inside it, to be read; the analyst, held to a "
-          "measure the data does not have, puts nothing in its place: it looks, then asks",
+    check("Start analysis runs the brief's own chain - still one chain, under the same id - with the framing folded to one row above the run, the conversation inside it, to be read - its last row "
+          "the question's check (0313): read before the analysis started, it stands on its own; the analyst, held to a measure the data does not have, puts nothing in its place: it looks, then asks",
           a1["n"] == 1 and str(a1["chain"]) == str(cid) and a1["first"] == "sp-turn ar-fold" and a1["fold"].startswith("Architectbrief v13") and a1["cards"] == ["cell", "question"]
           and len(folded["said"]) == 13 and folded["said"][0] == ["You", mod.BRIEF_QUESTION] and folded["said"][-1] == ["Architect", mod.ARCHITECT_READY] and folded["choices"] == [] and folded["prompts"] == 7
-          and a1["checked"] == 2
+          and a1["checked"] == 3 and a1["read"][:4] == ["sp-row tool read", "✓", "CHECK question", "stands on its own"] and a1["read"][5:] == ["⌘"]
           and "the data records none" in a1["answer"] and "Shall I use yield?" in a1["answer"] and a1["tabs"][0] == "Brief" and "Answer" in a1["tabs"], (a1, folded))
     check("the analyst read the brief under the question - what was agreed, what each line it rests on is worth after the check, the explanation the coach ticked with what it would show beside their own, the "
           "parts that were fixed and no line for one that was not - through its own first turn's button, the Architect's calls counted apart; the run keeps the version it was started with, the question asked, every version of "
-          "the framing",
+          "the framing, and the read of its question as the conversation's last turn (0313)",
           "QUESTION:\n" + mod.BRIEF_QUESTION + "\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: Switch to regime C\n" in prompt1
           and "Fixed before the run:\n- comparison: regime C against regime A, within soil type\n- measure: protein content of the grain\n\n" in prompt1 and "left to you" not in prompt1 and "not said" not in prompt1
           and f"What it rests on:\n- {rain} [checked against the data: does not hold - {rain_fact}]\n- {same} [checked against the data: holds - {same_fact}]\n- {green} [cannot be checked - {mod.ARCHITECT_UNRECORDED}]\n" in prompt1
           and f"Also check:\n- {its[0]}: it would show {its[1]}\n- Rainfall differed between the C and A plots.\n- chance [always]" in prompt1
           and asked.get("status") == "asked" and asked.get("brief", {}).get("version") == 13 and asked["brief"].get("fixed", {}).get("measure") == "protein content of the grain"
-          and len(asked.get("framing", {}).get("versions", [])) == 13 and len(asked["framing"].get("turns", [])) == 14
+          and len(asked.get("framing", {}).get("versions", [])) == 13 and len(asked["framing"].get("turns", [])) == 15
+          and {k: v for k, v in asked["framing"]["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": [], "v": 13, "call": 1} and asked["framing"].get("read") == [13]
           and [t["kind"] for t in asked.get("turns", [])] == ["cell", "ask"], (asked.get("status"), asked.get("brief"), prompt1[:400]))
     check("after the run the Brief tab stays, to be read: its last version, no pencil, no Start analysis; the composer is the coach's own again, for the answer",
           kept["state"] == "run" and kept["v"] == "13 of 13" and kept["pens"] == 0 and not kept["start"] and kept["add"] == "" and kept["measure"] == "protein content of the grain" and kept["anchors"] == b4["anchors"]
@@ -418,7 +420,11 @@ def walk_architect(page, st, mod, wa, edition, user):
                  cards: [a.querySelectorAll('.ar-against').length, tab.querySelectorAll('.ar-against').length], last: tab.lastElementChild === card,
                  kept: (() => { const d = document.createElement('div'), told = x => JSON.stringify([...x.querySelectorAll('.r')].map(r => r.textContent)); d.innerHTML = tab.dataset.against || ''; return !!card && told(d) === told(card); })(),
                  raw: currentData.technicalAnswer || '',
-                 done: [...document.querySelectorAll('.sp-done')].pop().textContent, links: [...[...document.querySelectorAll('.sp-done')].pop().querySelectorAll('.links a')].map(x => x.textContent),
+                 done: [...document.querySelectorAll('.sp-done')].pop().textContent,
+                 card: (() => { const c = [...document.querySelectorAll('.sp-done')].pop(), box = x => x.getBoundingClientRect(), t = c.querySelector('.head .title'), n = c.querySelector('.head .nums');
+                     return { parts: [...c.children].map(x => x.className || x.tagName.toLowerCase()), title: t.textContent, nums: n.textContent, line: Math.abs(box(t).bottom - box(n).bottom) < 4, beside: box(n).left > box(t).right,
+                              right: Math.abs(box(n).right - box(c.querySelector('.rep')).right) < 2, links: c.querySelectorAll('a').length,
+                              buttons: [...c.querySelectorAll('.acts > button')].map(b => [b.textContent, b.className, getComputedStyle(b).borderTopStyle, Math.round(box(b).top)]) }; })(),
                  peek: [...document.querySelectorAll('#streamOutput .sp-row[data-cell] .out')].map(e => e.textContent).join(' | ') }; }""")
     nums = re.search(r"BRIEF_DIFF=(-?[\d.]+) BRIEF_LO=(-?[\d.]+) BRIEF_HI=(-?[\d.]+)", rep["peek"])
     d, lo, hi = (float(x) for x in nums.groups()) if nums else (None, None, None)
@@ -436,10 +442,18 @@ def walk_architect(page, st, mod, wa, edition, user):
           and [r[2] for r in rows[2:]] == ["", "", "", "cannot tell", ""] and rep["cites"] >= 4, (rows, want, seen, rep["peek"]))
     said = [r[1].split(":")[0] for r in rows[2:]]        # how each check's line opens: the words that would give the part away
     check("the answer is the analyst's own without the part (0312: the answer is what goes to other people): the opening says what the result means for the decision, Did not fit keeps its heading, "
-          "and nothing of the part is left - no heading, no card, none of its lines - on the tab and in the copy the page keeps for the toggle; the closing card links to the brief",
+          "and nothing of the part is left - no heading, no card, none of its lines - on the tab and in the copy the page keeps for the toggle",
           "For the decision - Switch to regime C - " in rep["text"] and "Did not fit" in rep["heads"] and "Against the brief" not in rep["heads"] and len(said) == 5
           and not any(x in rep["text"] or x in rep["raw"] for x in ["Against the brief", "How it turned out", "Would change their mind", "ar-against"] + [s + ":" for s in said])
-          and rep["links"][:2] == ["Answer →", "Brief →"] and "Replay reproduced" in rep["done"], (rep["heads"], rep["links"], rep["done"][:200], said, rep["text"][:600]))
+          and "Replay reproduced" in rep["done"], (rep["heads"], rep["done"][:200], said, rep["text"][:600]))
+    card = rep["card"]
+    check("the closing card (0313, the product owner's choice of three mockups): its title, and on the same line, beside it and out to the card's right, the run's numbers - turns, cells, cost, time, a "
+          "dot between each; then what was reproduced, the line that nothing was reached, and one row of what can be done next: Next questions and Code map, two buttons alike, side by side, in that "
+          "order. No link to a tab and no arrow: the tabs are the way to the answer and to the brief",
+          card["parts"][:4] == ["head", "rep ok", "reaches quiet", "acts"] and card["title"] == "Run complete" and bool(re.fullmatch(r"\d+(?: of \d+)? turns? · \d+ cells?(?: \([^)]*\))?(?: · \d+ plots?)? · \$\d+\.\d\d · (?:\d+ min )?[\d.]+ s", card["nums"]))
+          and card["line"] and card["beside"] and card["right"] and card["links"] == 0 and "→" not in rep["done"] and "Simplified" not in rep["done"] and "Brief" not in rep["done"]
+          and [b[0] for b in card["buttons"]] == ["Next questions", "Code map"] and [b[1] for b in card["buttons"]] == ["sp-act sp-next", "sp-act sp-codemap"]
+          and [b[2] for b in card["buttons"]] == ["solid", "solid"] and card["buttons"][0][3] == card["buttons"][1][3], card)
     page.click("#tab-answer")
     page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
     page.evaluate("() => { window.__printed = []; window.print = () => { window.__printed.push(document.getElementById('pdf-print-container').textContent); }; }")
@@ -463,7 +477,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           and again["cards"] == 0 and gone(again["text"]) and "For the decision - Switch to regime C - " in again["text"] and again["tab"] == 7
           and "For the decision - Switch to regime C - " in paper and gone(paper) and "Did not fit" in paper and gone(paper_plain) and "Did not fit" in paper_plain and paper != paper_plain,
           (plain["text"][:400], plain["wrote"][:300], again["text"][:200], paper[:400], paper_plain[:400]))
-    page.click('.sp-done .links a:nth-child(2)')
+    page.click("#tab-brief")
     page.wait_for_function("() => document.getElementById('content-brief').classList.contains('active')", timeout=5000)
     ran2 = brief_on_screen(page)
     turned = lambda: page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), c = r.querySelector('.ar-against');      // noqa: E731
@@ -489,7 +503,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           (under2, under1, turned(), chip, mapped))
     done2 = thread_run(wa, user, tid, cid2)
     prompt2 = turn_prompt(page, 1)
-    check("the closing card's Brief link opens the brief the run was started with, to be read: v2, the measure as the Architect changed it; the record keeps that version on the run, with what the report said against "
+    check("the Brief tab holds the brief the run was started with, to be read: v2, the measure as the Architect changed it; the record keeps that version on the run, with what the report said against "
           "it and the one result it said did not fit",
           ran2["state"] == "run" and ran2["v"] == "2 of 2" and ran2["measure"] == "yield" and ran2["changed"] == ["fixed.measure"] and ran2["pens"] == 0 and not ran2["start"]
           and done2.get("status") == "answered" and done2.get("brief", {}).get("version") == 2 and done2["brief"]["fixed"]["measure"] == "yield"
@@ -522,6 +536,32 @@ def walk_architect(page, st, mod, wa, edition, user):
           and (kept_old["shown"]["answer"], kept_old["shown"]["tab"], kept_old["shown"]["label"], kept_old["shown"]["last"], kept_old["shown"]["rides"], kept_old["shown"]["same"]) == (0, 1, "How it turned out", True, True, True)
           and kept_old["shown"]["chips"] >= 4 and "Did not fit" in kept_old["shown"]["heads"] and "ar-against" not in kept_old["shown"]["raw"]
           and not any(x in kept_old["shown"]["text"] for x in ["Against the brief", "You expected", "Would change your mind"]) and kept_old["back"] == [0, 7, True], kept_old)
+    # a closing card kept before 0313 - its numbers in a grid, a row of links with the code map's button last, the Next questions button under them - shown again, and put back
+    kept_card = page.evaluate("""async () => { const e = responses[currentResponseIndex], was = e.streamOutput;
+        const d = document.createElement('div'); d.innerHTML = e.streamOutput;
+        const c = [...d.querySelectorAll('.sp-done')].pop(), chain = c.querySelector('.sp-codemap').dataset.chain, tele = c.querySelector('.sp-telemetry'), old = document.createElement('div');
+        old.className = 'sp-done';
+        old.innerHTML = '<div class="title">Run complete</div><div class="grid"><span>Turns <b>2</b></span><span>Cells <b>1</b></span><span>Cost <b>$0.05</b></span><span>Time <b>2.6 s</b></span></div>' +
+            '<div class="rep ok">✓ Replay reproduced.</div><div class="reaches quiet"><span class="h">No reaches outside the data</span></div>' +
+            '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><button class="sp-codemap" data-chain="' + chain + '">Code map →</button></div>' +
+            '<div class="nq-open"><button type="button" class="sp-next" data-nq="open" title="Questions that could follow this analysis">Next questions</button></div>';
+        if (tele) old.appendChild(tele.cloneNode(true));
+        c.replaceWith(old); e.streamOutput = d.innerHTML;
+        loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 400));
+        const now = [...document.querySelectorAll('#streamOutput .sp-done')].pop(), box = x => x.getBoundingClientRect(), t = now.querySelector('.head .title'), n = now.querySelector('.head .nums');
+        const shown = { parts: [...now.children].map(x => x.className || x.tagName.toLowerCase()), links: now.querySelectorAll('a').length, arrows: /→/.test(now.textContent), nums: n ? n.textContent : '',
+                        line: !!t && !!n && Math.abs(box(t).bottom - box(n).bottom) < 4 && box(n).left > box(t).right, chain: (now.querySelector('.acts .sp-codemap') || { dataset: {} }).dataset.chain === chain,
+                        buttons: [...now.querySelectorAll('.acts > button')].map(b => [b.textContent, getComputedStyle(b).borderTopStyle, Math.round(box(b).top)]) };
+        e.streamOutput = was; loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 400));
+        return { shown, back: [...[...document.querySelectorAll('#streamOutput .sp-done')].pop().querySelectorAll('.acts > button')].map(b => b.textContent) }; }""")
+    kc = kept_card["shown"]
+    check("a closing card kept from before 0313, shown again, comes to today's shape: its title and its numbers on one line; no link and no arrow; one row of what can be done next - Next questions "
+          "and Code map, two buttons alike, side by side, the code map's with its chain; the telemetry last",
+          kc["parts"] == ["head", "rep ok", "reaches quiet", "acts"] + (["sp-telemetry"] if "sp-telemetry" in kc["parts"] else []) and kc["links"] == 0 and not kc["arrows"] and kc["line"] and kc["chain"]
+          and kc["nums"].startswith("Turns 2") and [b[0] for b in kc["buttons"]] == ["Next questions", "Code map"] and [b[1] for b in kc["buttons"]] == ["solid", "solid"]
+          and kc["buttons"][0][2] == kc["buttons"][1][2] and kept_card["back"] == ["Next questions", "Code map"], kept_card)
 
     # the thread map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
     page.evaluate("showWorkflowMap()")
@@ -534,7 +574,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     wait_text(page, "#chainPosition", "chain 3 of 3", 60000)
     wait_run_end(page, 3)
     plain = page.evaluate("""() => ({ tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent), fold: !!document.querySelector('#streamOutput .ar-fold'), card: !!document.querySelector('#contentOutput .ar-against'),
-        on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), links: [...[...document.querySelectorAll('.sp-done')].pop().querySelectorAll('.links a')].map(x => x.textContent) })""")
+        on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), done: [...document.querySelectorAll('.sp-done')].pop().textContent })""")
     third = thread_run(wa, user, tid, page.evaluate("() => currentData.chain_id"))
     counted.append(month_queries(page))         # a plain question ran
     steps = [b - a for a, b in zip(counted, counted[1:])]
@@ -542,11 +582,13 @@ def walk_architect(page, st, mod, wa, edition, user):
     for r in usage_rows(wa, edition, user)[rows0:]:
         by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
     check("the thread map: two questions, two boxes - an Architect run and its analysis share one - each marked Architect, each with its code map; the switch off again, a typed question runs at once, "
-          "as before: no brief on the page or on the run. On the usage record each framed chain holds the Architect's calls and its analysis' own, under the one chain; the plain one holds no call of the Architect's",
+          "as before: no brief on the page or on the run. On the usage record each framed chain holds the Architect's calls, the one call that read its question before the analysis (0313) and its analysis' "
+          "own, under the one chain; the plain one holds no call of the Architect's",
           boxes == [["Architect", False, True], ["Architect", False, True]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
-          and "Brief →" not in plain["links"] and third.get("status") == "answered" and third.get("brief") == {} and third.get("framing") == {}
-          and by_chain.get(str(cid), [])[:9] == ["Architect"] * 4 + ["Memory Reader"] * 2 + ["Architect"] * 3 and "Architect" not in by_chain.get(str(cid), [])[9:] and len(by_chain.get(str(cid), [])) > 9
-          and by_chain.get(str(cid2), [])[:1] == ["Architect"] and "Architect" not in by_chain.get(str(cid2), [])[1:] and len(by_chain.get(str(cid2), [])) > 1
+          and "Brief" not in plain["done"] and third.get("status") == "answered" and third.get("brief") == {} and third.get("framing") == {}
+          and by_chain.get(str(cid), [])[:10] == ["Architect"] * 4 + ["Memory Reader"] * 2 + ["Architect"] * 3 + ["Question check"] and "Architect" not in by_chain.get(str(cid), [])[9:]
+          and "Question check" not in by_chain.get(str(cid), [])[10:] and len(by_chain.get(str(cid), [])) > 10
+          and by_chain.get(str(cid2), [])[:2] == ["Architect", "Question check"] and "Architect" not in by_chain.get(str(cid2), [])[1:] and len(by_chain.get(str(cid2), [])) > 2
           and all("Architect" not in v for k, v in by_chain.items() if k not in (str(cid), str(cid2))), (boxes, plain, third.get("brief"), by_chain))
     check("a framed question is one query of the month's: counted when its brief opens - not at each exchange with the Architect, and not again when its analysis starts; a plain question counts when it runs "
           "(the self-hosted edition counts none)",
@@ -573,12 +615,13 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     page.click("#prevResponse")
     wait_text(page, "#chainPosition", "chain 2 of 3", 10000)
     page.wait_for_selector('#streamOutput .sp-done [data-nq="open"]', timeout=10000)
-    card = page.evaluate("""() => ({ buttons: [...document.querySelectorAll('#streamOutput [data-nq="open"]')].map(b => b.textContent), inCard: !!document.querySelector('#streamOutput .sp-done .links + .nq-open .sp-next'),
+    card = page.evaluate("""() => ({ buttons: [...document.querySelectorAll('#streamOutput [data-nq="open"]')].map(b => b.textContent), inCard: !!document.querySelector('#streamOutput .sp-done .acts > .sp-next:first-child'),
         plant: !!document.getElementById('suggestQuestions'), list: !!document.getElementById('nextLevels'), tab: document.querySelector('#tabContainer .tab.active').textContent })""")
     page.click('#streamOutput [data-nq="open"]')
     page.wait_for_selector("#nextLevels .it", state="visible", timeout=5000)
     levels = page.evaluate("() => [...document.querySelectorAll('#nextLevels .it')].map(i => [i.dataset.level, i.querySelector('b').textContent, i.querySelector('span').textContent])")
-    check("the plant has left the composer: a finished analysis carries one Next questions button, on its closing card under the links; it opens the five levels, each a name and one plain line",
+    check("the plant has left the composer: a finished analysis carries one Next questions button, first in its closing card's row of what can be done next; it opens the five levels, each a name and "
+          "one plain line",
           card["buttons"] == ["Next questions"] and card["inCard"] and not card["plant"] and not card["list"]
           and levels == [["refine", "Refine focus", "the same question, narrower"], ["shift", "Shift angle", "another explanation of the result"], ["test", "Test boundaries", "what the result rests on"],
                          ["blend", "Blend elements", "two findings together"], ["emergence", "Follow emergence", "what did not fit"]], (card, levels))
@@ -902,7 +945,7 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           f'\nSaved analyses the person chose (earlier results: claims to test, not evidence):\n1. {day} "{mod.BRIEF_ANSWER}" ({data}): in its report "{quote}"' in prompt and other not in prompt
           and ran.get("status") == "answered" and ran.get("brief", {}).get("version") == 4 and [(x["run"], x["passage"], x["accepted"]) for x in ran.get("brief", {}).get("saved", [])] == [(str(cid2), quote, True)]
           and ran.get("framing", {}).get("at") == 4 and len(ran["framing"].get("versions", [])) == 5
-          and fold["head"].startswith("Architectbrief v4") and fold["rows"] == ["sp-row tool read", "sp-row tool read skipped"]
+          and fold["head"].startswith("Architectbrief v4") and fold["rows"] == ["sp-row tool read", "sp-row tool read skipped", "sp-row tool read"]
           and after["state"] == "run" and after["v"] == "4 of 5" and after["pens"] == 0 and not after["start"] and "Builds on" in after["heads"] and "Found in your saved analyses" not in after["heads"],
           (prompt[:900], ran.get("brief", {}).get("saved"), ran.get("framing", {}).get("at"), fold, after))
     opened = next((t for t in ran.get("turns", []) if t["kind"] == "show"), {})
@@ -1027,7 +1070,58 @@ def walk_tutor(page, mod, wa, edition, user):
     b_one, f_one = brief_on_screen(page), thread_run(wa, user, tid, cid).get("framing", {})
     brief_type(page, "fixed.period", period)
     b6 = brief_on_screen(page)
+
+    # the question's check (0313): the coach words the question so that it points to an analysis the Analyst is not given. Start analysis has it read first - nothing runs, the Architect
+    # words it again - and the next Start runs that version at once
+    pointed = wording + ", " + mod.COLD_POINTER
+    brief_type(page, "question", pointed)
+    rows_c, said_c = len(usage_rows(wa, edition, user)), page.evaluate("() => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length")
+    page.evaluate("""() => { window.__checking = null;
+        const watch = new MutationObserver(() => {
+            const row = document.querySelector('#streamOutput .sp-stream > .sp-row.pending');
+            if (!row) return;
+            watch.disconnect();
+            const input = document.getElementById('queryInput');
+            window.__checking = { row: [...row.children].map(c => c.textContent).filter(Boolean), hold: [input.disabled, input.placeholder], running: queryRunning };
+        });
+        watch.observe(document.body, { childList: true, subtree: true }); }""")
     page.evaluate("setMode('deep')")
+    page.click('#content-brief [data-ar="start"]')
+    architect_said(page, said_c + 1)
+    checking = page.evaluate("() => window.__checking")
+    b7, t7, rec7 = brief_on_screen(page), talk_on_screen(page), thread_run(wa, user, tid, cid)
+    f7 = rec7.get("framing", {})
+    row7 = page.evaluate("""() => { const rows = [...document.querySelectorAll('#streamOutput .sp-stream > .sp-row.tool.read')].filter(r => r.children[1].textContent === 'CHECK question'), r = rows[rows.length - 1];
+        const out = r && r.children[2];
+        return r ? { n: rows.length, cls: r.className, text: [...r.children].map(c => c.textContent), under: r.nextElementSibling ? r.nextElementSibling.className : '',
+                     whole: out.scrollWidth <= out.clientWidth + 1 && getComputedStyle(out).whiteSpace === 'normal' } : null; }""") or {}
+    page.click("#streamOutput .sp-stream > .sp-row.tool.read .sp-prompt[data-agent='Question check'] >> nth=-1")
+    page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /QUESTION:/.test(u.textContent); }", timeout=15000)
+    given7 = page.inner_text("#userInstructions")
+    page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
+    page.wait_for_timeout(200)
+    used7 = [r["agent"] for r in usage_rows(wa, edition, user)[rows_c:]]
+    held7 = page.evaluate("() => ({ running: queryRunning, n: responses.length, status: responses[0].status, input: [document.getElementById('queryInput').disabled, document.getElementById('queryInput').placeholder] })")
+    check("the question's check (0313): the coach words the question so that it points to an analysis the Analyst is not given, and presses Start analysis. The question is read first - a row says "
+          "so, the composer is held and says why - by a reader given what the Analyst will be given: the data's word that nothing is loaded, the question, the brief as agreed. Nothing runs: the "
+          "conversation holds the read - the words the Analyst cannot place, greyed and whole: the row wraps -, with its seconds and the button to what the reader was given - and under it the Architect's reply, which "
+          "took them out: its wording is one more version, the question in the box and the run's. The record keeps the read as a turn, lists both versions as read, and the usage record holds "
+          "the two calls, each under its name",
+          checking == {"row": ["CHECKING THE QUESTION"], "hold": [True, "The question is being read as the Analyst will read it"], "running": False}
+          and held7 == {"running": False, "n": 1, "status": "framing", "input": [False, "Answer, or say what to change"]} and rec7.get("status") == "framing"
+          and row7.get("n") == 1 and row7.get("cls") == "sp-row tool read skipped ar-unplaced" and row7["text"][:3] == ["–", "CHECK question", f"the Analyst cannot place “{mod.COLD_POINTER}”"]
+          and row7["whole"]
+          and re.fullmatch(r"\d+ s", row7["text"][3]) and row7["text"][4:] == ["⌘"] and row7["under"] == "ar-msg arch"
+          and t7["said"][-1] == ["Architect", mod.ARCHITECT_PLACED] and t7["notes"][-1][:2] == ["QUESTION", "updated"]
+          and (b7["v"], b7["title"], b7["start"]) == ("7 of 7", wording, "Start analysis") and rec7.get("question") == wording
+          and [(v["by"], v["changed"], v["brief"]["question"]) for v in f7.get("versions", [])][5:] == [("person", ["question"], pointed), ("architect", ["question"], wording)]
+          and [t["who"] for t in f7.get("turns", [])][-2:] == ["reader", "architect"]
+          and {k: v for k, v in f7["turns"][-2].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": [mod.COLD_POINTER], "v": 6, "call": 1} and f7.get("read") == [6, 7]
+          and used7 == ["Question check", "Architect"]
+          and given7.startswith("DATA:\n(no dataset attached") and given7.rstrip().endswith("Reply with the JSON object.")
+          and f"\n\nQUESTION:\n{pointed}\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: {what_for}\nFixed before the run:\n- period: {period}\n\nReply with" in given7,
+          (checking, held7, row7, t7["said"][-1], t7["notes"][-1:], b7["v"], b7["title"], f7.get("read"), f7.get("turns", [])[-2:], used7, given7[-500:]))
+    rows_s = len(usage_rows(wa, edition, user))
     page.click('#content-brief [data-ar="start"]')
     wait_run_end(page, 1)
     page.wait_for_function("() => responses.length === 1 && !responses[0].status", timeout=60000)
@@ -1048,11 +1142,19 @@ def walk_tutor(page, mod, wa, edition, user):
           and (b6["v"], b6["decision"], b6["period"], b6["measure"], b6["always"]) == ("5 of 5", what_for, period, None, "") and b6["heads"] == ["What it is for", "Period"]
           and f"\n\nQUESTION:\n{wording}\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: {what_for}\nFixed before the run:\n- period: {period}\n\nYOUR NOTE" in prompt
           and not any(w in prompt for w in ("[always]", "not said", "left to you")) and prompt.startswith("DATA:\n(no dataset attached")
-          and ran.get("status") == "answered" and ran.get("question") == wording and ran.get("brief") == {"decision": what_for, "fixed": {"period": period}, "question": wording, "version": 5}
+          and ran.get("status") == "answered" and ran.get("question") == wording and ran.get("brief") == {"decision": what_for, "fixed": {"period": period}, "question": wording, "version": 7}
           and ran.get("brief_outcome", {}).get("stated") is False and "does not say how the result stands against the brief" not in ran.get("report", "")
           and not rep["card"] and "Against the brief" not in rep["heads"] and "Did not fit" in rep["heads"] and mod.BARE_DONE in rep["text"]
           and kept["state"] == "run" and kept["heads"] == ["What it is for", "Period"] and (kept["decision"], kept["period"], kept["measure"], kept["thinks"]) == (what_for, period, None, None)
           and (kept["gets"], kept["always"], kept["add"]) == ("", "", ""), (b_one, b6, prompt[:700], ran.get("brief"), ran.get("brief_outcome"), rep["heads"], kept))
+
+    fold7 = page.evaluate("""() => [...document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read')].filter(r => r.children[1].textContent === 'CHECK question').map(r => r.children[2].textContent)""")
+    check("Start analysis again (0313): the version the Architect left runs at once - a read holds a start up once: no call of the question check's is made, and the analysis' own calls follow. "
+          "What the reader was given is how the Analyst's own first prompt begins, the question apart; the conversation folded above the run keeps the read",
+          "Question check" not in [r["agent"] for r in usage_rows(wa, edition, user)[rows_s:]] and len(usage_rows(wa, edition, user)) > rows_s
+          and prompt.startswith(given7.rstrip()[:-len("Reply with the JSON object.")].rstrip().replace(pointed, wording) + "\n\nYOUR NOTE")
+          and fold7 == [f"the Analyst cannot place “{mod.COLD_POINTER}”"] and ran.get("framing", {}).get("read") == [6, 7] and len(ran.get("framing", {}).get("versions", [])) == 7,
+          ([r["agent"] for r in usage_rows(wa, edition, user)[rows_s:]][:4], prompt[:400], given7[:400], fold7, ran.get("framing", {}).get("read")))
 
     # a question that follows it, the switch still on: the brief starts from what the answer was for; a reading, a part opened, an analysis built on
     report = (thread_run(wa, user, tid, cid).get("report") or "").strip()
@@ -1369,7 +1471,7 @@ def main():
             elapsed = time.time() - t0
             done = page.inner_text(".sp-done")
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
-            check("the closing card counts 3 cells with 1 failed", "Cells 3 (1 failed)" in done.replace("\n", " ") or ("3" in done and "1 failed" in done), done)
+            check("the closing card counts 3 cells with 1 failed", "3 cells (1 failed)" in done.replace("\n", " "), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
             check("one card per model call (6 analyst turns, the figures step, the rewrite; no review outside Adaptive)", turns == 8, turns)
             # the figures step (2026-10-11): the figure cell of turn 5 was not run - a skipped row; after the report one quiet
@@ -1434,8 +1536,8 @@ def main():
             page.wait_for_timeout(300)
             imgs = page.evaluate("() => document.querySelectorAll('#content-plot img').length")
             check("the Plots tab holds the figure the replay captured", imgs >= 1, imgs)
-            plots_link = page.evaluate("() => { const l = [...document.querySelectorAll('.sp-done a, .sp-done .link')].map(e => e.textContent).find(t => /Plots \\(\\d+\\)/.test(t)); return l || (document.querySelector('.sp-done') || {}).textContent || ''; }")
-            check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card says Plots (2))", "Plots (2)" in plots_link, plots_link[:120])
+            nums = page.evaluate("() => (document.querySelector('.sp-done .head .nums') || {}).textContent || ''")
+            check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card counts 2 plots among the run's numbers)", " · 2 plots · " in nums, nums)
 
             # the third way in (2026-10-24): a [cell n] chip in the report opens the code map on that cell's number - the diagram
             # with its recipe in the panel - and Escape closes it; the zoom controls sit at the diagram head's end
@@ -2156,11 +2258,11 @@ def main():
                   len(rows8["restricted"]) == 1 and rows8["restricted"][0]["out"] == "not run: restricted operation (subprocess)" and rows8["restricted"][0]["t"] == "not run" and not rows8["restricted"][0]["fail"] and rows8["restricted"][0]["glyph"] == "⊘"
                   and len(rows8["reach"]) == 1 and rows8["reach"][0]["unasked"] and rows8["reach"][0]["text"].startswith("↓") and "127.0.0.1:" in rows8["reach"][0]["text"] and rows8["reach"][0]["title"].endswith("not asked for")
                   and rows8["failed"] == 0, rows8)
-            card8 = page.evaluate("""() => { const d = [...document.querySelectorAll('#streamOutput .sp-done')].pop(); const r = d.querySelector('.reaches'); return r ? { h: r.querySelector('.h').textContent, grid: d.querySelector('.grid').textContent,
+            card8 = page.evaluate("""() => { const d = [...document.querySelectorAll('#streamOutput .sp-done')].pop(); const r = d.querySelector('.reaches'); return r ? { h: r.querySelector('.h').textContent, nums: d.querySelector('.head .nums').textContent,
                 lines: [...r.querySelectorAll('.r')].map(x => ({ c: x.querySelector('.c').textContent, what: x.querySelector('.what').textContent, tag: x.querySelector('.tag').textContent, unasked: x.classList.contains('unasked') })),
                 sandbox: (r.querySelector('.sandbox') || {}).textContent || '' } : null; }""")
-            check("the closing card: '1 reach outside the data (1 not asked for) · 1 cell not run', the fetch line with its cell and 'not asked for', the refused attempt, the Cells count saying 1 not run, and the sandbox line naming the box (no container: the stack's executor is a local process)",
-                  card8 and card8["h"] == "1 reach outside the data (1 not asked for) · 1 cell not run" and "(1 not run)" in card8["grid"] and len(card8["lines"]) == 2
+            check("the closing card: '1 reach outside the data (1 not asked for) · 1 cell not run', the fetch line with its cell and 'not asked for', the refused attempt, the count of cells saying 1 not run, and the sandbox line naming the box (no container: the stack's executor is a local process)",
+                  card8 and card8["h"] == "1 reach outside the data (1 not asked for) · 1 cell not run" and "(1 not run)" in card8["nums"] and len(card8["lines"]) == 2
                   and card8["lines"][0]["c"].startswith("cell ") and card8["lines"][0]["what"].startswith("fetched ") and "127.0.0.1:" in card8["lines"][0]["what"] and card8["lines"][0]["tag"] == "not asked for" and card8["lines"][0]["unasked"]
                   and card8["lines"][1]["c"].startswith("attempt after cell ") and card8["lines"][1]["what"] == "not run: restricted operation (subprocess)" and card8["lines"][1]["tag"] == "refused"
                   and card8["sandbox"].startswith("Sandbox: ") and "no container seen" in card8["sandbox"] and "metadata address" in card8["sandbox"], card8)

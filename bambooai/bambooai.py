@@ -1303,6 +1303,49 @@ class BambooAI:
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
 
+    def architect_ready(self, thread_id, run_id, version=None):
+        """Before the analysis of a framed question starts (analyst/cold.py; docs/ARCHITECT_DESIGN.md §2.22): the
+        question of the version on the person's screen is read as the analyst will read it - by a model given what
+        the analyst is given, and nothing else - once for a version. Where it could not place something the
+        Architect goes on at once, as after a message, and the figures due a draft are drawn one. The calls are the
+        run's own: logged under its chain - the read as the question check's - and charged with its analysis.
+        Returns {"framing", "clean": whether the analysis can start} - with "error", the reason in words for the
+        person, where the Architect's reply after the read failed - or None when the run is not one being framed.
+        A read that could not be made holds nothing up: the analysis can start."""
+        from analyst import architect, brief as briefs, cold, draft, memory
+        from analyst.notebook import has_data
+        self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
+        self._stop_event.clear()
+        self._skip_saved.clear()
+        self._on_thread(thread_id)
+        run = self.notebook.runs.get(str(run_id))
+        if run is None or run.status != "framing":
+            return None
+        seat, out = self._architect_seat(), {"clean": True}
+        keep, self.chain_id = self.chain_id, (int(run_id) if str(run_id).isdigit() else run_id)      # the cost is counted by chain
+        self._framed.add(self.chain_id)
+        try:
+            framing, out["clean"] = cold.ready(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
+                                               lambda system, user, **kw: self._llm(system, user, seat=seat, label="Question check", **kw),
+                                               self.notebook, run, version=version, data=self._data_description(), look=self._architect_look,
+                                               recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]))
+            run.framing = draft.keyed({**framing, "data": has_data(self._data_record(light=True))})
+            run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
+            if not out["clean"]:
+                self._draft(run)
+        except architect.Failed as exc:                        # the read stands, and the Architect made nothing of it: why
+            out = {"clean": False, "error": str(exc)}
+        except Exception:                                      # noqa: BLE001
+            logger.exception("The question could not be read before its analysis")
+        finally:
+            self.chain_id = keep
+            self.store.save(self.notebook)
+            try:
+                self.store.record(self.notebook, run)           # the usage ledger's line
+            except Exception:                                  # noqa: BLE001
+                logger.warning("The framing run's ledger line was not kept", exc_info=True)
+        return {"framing": run.framing, **out}
+
     def _draft(self, run):
         """The draft of a framing run's figures (analyst/draft.py; docs/ARCHITECT_DESIGN.md §2.20), after a reply of
         the Architect's. Where figures of the brief in use are due one, the page is first given the framing as it
@@ -1646,7 +1689,6 @@ class BambooAI:
                    cost=round(self._chain_cost(), 3),
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),
                    replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
-                   brief=bool(run.brief),                          # the closing card links to the Brief tab
                    reaches=reach_mod.summary(run))                 # the reach report: what the cells touched outside the data (2026-10-28)
         if run.status == "asked":
             asked = next((t.text for t in reversed(run.turns) if t.kind == "ask"), "")

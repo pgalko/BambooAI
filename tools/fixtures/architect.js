@@ -2,9 +2,10 @@
 // Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
 // the Architect worded it, a line being changed by hand - an earlier version on screen, what the brief rests on checked
 // against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
-// the saved analyses - being read, and what was found with the one the brief builds on - and the figures: as grey
-// windows while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json). An
-// invented field trial, as the stack's scenario has it.
+// the saved analyses - being read, and what was found with the one the brief builds on - the figures: as grey
+// windows while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json) - and
+// the question's check before an analysis starts: the question being read, and the words the Analyst could not
+// place with the Architect's wording after it (§2.22). An invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
@@ -35,6 +36,14 @@ window.galleryArchitect = (function () {
                             you('C does better than A because the C plots looked greener last season.'), said('What do you expect to see?', { v: 2, call: 3 }),
                             you('C yields at least 0.3 t/ha more than A.'),
                             said('I have worded it as the gap between the two regimes within each soil type. Is that what you mean?', { wording: WORDED, v: 5, call: 4 })], calls: 4 };
+  // the question's check (§2.22): the coach worded the question by hand so that it points to an analysis of another day; the reader could not place that, and the Architect worded it again
+  const SOIL = ' Take the soil types from the soil column.';
+  const pointed = { versions: framing.versions.concat([{ n: 6, by: 'person', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED + ' Take the soil types as in the analysis of 2 March.' }) }]),
+                    turns: framing.turns, calls: 4 };
+  const unplaced = { versions: pointed.versions.concat([{ n: 7, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED + SOIL }) }]),
+                     turns: framing.turns.concat([{ who: 'reader', missing: ['the analysis of 2 March'], v: 6, cost: 0.002, call: 1, secs: 2.6 },
+                                                  said('The question pointed to an analysis the Analyst is not given. It now says where the soil types come from: the soil column.', { wording: WORDED + SOIL, v: 7, call: 5 })]),
+                     calls: 5, read: [6, 7] };
   // the check against the data: a line that does not hold, one that holds, one that cannot be checked
   const RAIN = 'The C plots got the most rain.', SAME = 'Each regime has the same number of plots.', GREEN = 'The C plots looked greener last season.';
   const RAIN_FACT = 'total of rainfall_mm by regime: A 100,448 · B 102,189 · C 100,570', SAME_FACT = 'rows by regime: A 240 · B 240 · C 240';
@@ -117,6 +126,12 @@ window.galleryArchitect = (function () {
       composerLock('A draft of the figures is being drawn');
     },
     draft() { show(drafted); },        // the drafts drawn: the first on made-up numbers, with those words across it; the second computed; the row that says how many
+    checking() {     // Start analysis pressed: the question is being read as the Analyst will read it - the row that says so, the composer held
+      const entry = show(pointed);
+      document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { waiting: true, checking: true });
+      composerLock('The question is being read as the Analyst will read it');
+    },
+    unplaced() { show(unplaced); },    // the Analyst could not place something: the row that says which words, the Architect's reply under it, the question worded again - one more version
     checked() { show(checked); },      // what the brief rests on, checked: the round's row, the marks with their facts, keep or change; an explanation proposed, to tick
     saved() { show(remembered); },     // what the saved analyses hold: the reading's row with the analyses found under it, each in full under the brief, and the one the brief builds on
     saving() {       // the saved analyses being read: the row says how far the second model is, with Skip; the composer held

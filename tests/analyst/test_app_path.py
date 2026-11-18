@@ -32,6 +32,8 @@ class FakeModels:
     def llm_stream(self, prompts, lacm, om, messages, agent=None, chain_id=None, reasoning_models=None, **kw):
         raw = messages[-1]["content"]
         user = raw if isinstance(raw, str) else "\n".join(str(p.get("text") or "") for p in raw if isinstance(p, dict) and p.get("type") == "text")
+        if messages[0]["content"].startswith("You are given a task as an analyst will be given it") and state.get("cold") and isinstance(state["cold"][0], Exception):
+            raise state["cold"].pop(0)                  # the provider fails: the model layer logs a call that came back, so nothing is logged or counted
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
@@ -51,6 +53,11 @@ class FakeModels:
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             return state["memory"].pop(0)
+        if messages[0]["content"].startswith("You are given a task as an analyst will be given it"):
+            state.setdefault("cold_seen", []).append((agent, kw, chain_id, user))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["cold"].pop(0) if state.get("cold") else '{"cannot_place": []}'
         if messages[0]["content"].startswith("You draw a draft of the figures"):
             state.setdefault("draft_seen", []).append((agent, kw, chain_id, user))
             from bambooai.models import prompt_cache
@@ -1654,12 +1661,12 @@ try:
     _fid = next((e for e in _fev if e.get("type") == "id"), {})
     _fprompt = next((u for a, u in state["calls"][_n2:] if "TASK: turn 1" in u), "")
     _fend = next((e for e in _fev if e.get("type") == "pane_run_end"), {})
-    check("the analysis of a framed run: the same run, under its id - the page is told that id and where it attaches, which is where the framing run did whatever the request says - with the brief as last kept, numbered with its version; the versions stay on the run; the closing card is told there is a brief",
+    check("the analysis of a framed run: the same run, under its id - the page is told that id and where it attaches, which is where the framing run did whatever the request says - with the brief as last kept, numbered with its version; the versions stay on the run; the closing card is told nothing of the brief (0313: it links to no tab)",
           BAMBOO.notebook.runs[str(_opj["chain_id"])] is _frun and str(BAMBOO.chain_id) == str(_opj["chain_id"]) and _frun.status == "answered" and _frun.parent == _prun.id
           and str(_fid.get("chain_id")) == str(_opj["chain_id"]) and str(_fid.get("parent_chain_id")) == str(_prun.id)
           and _frun.brief == {"decision": "which arm to keep", "expects": "B above A", "fixed": {"measure": "x"}, "question": "Is B above A, on x?", "version": 3}
           and "QUESTION:\nIs B above A, on x?\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: which arm to keep\n" in _fprompt and len(_frun.framing["versions"]) == 3
-          and _frun.brief_outcome.get("expected") == "met" and _fend.get("brief") is True, (_frun.status, _frun.brief, _fid, _fprompt[:200]))
+          and _frun.brief_outcome.get("expected") == "met" and "brief" not in _fend, (_frun.status, _frun.brief, _fid, _fprompt[:200]))
     _n3, _runs3 = len(state["calls"]), len(BAMBOO.notebook.runs)
     BAMBOO.output_manager.add_user_input(_frun.question)
     BAMBOO.pd_agent_converse(thread_id="1077", chain_id=_prun.id, mode="deep", run_id=_opj["chain_id"])
@@ -2208,7 +2215,7 @@ try:
           "cell and the keys of the figures it drew, and no plot. /architect/draft gives a figure's plot by its key, as Plotly takes it; a key that has none is not found. Every route of the "
           "Architect's asks for the sign-in, the draft's among them",
           [(a, k.get("label"), k.get("reasoning_effort"), str(c)) for a, k, c, _ in state["draft_seen"]] == [(BAMBOO._figures_seat(), "Draft", ("low",), str(_cf))]
-          and len(_routes) == 7 and all(asks for _, asks in _routes) and "/architect/draft/<thread_id>/<run_id>/<key>" in [r for r, _ in _routes]
+          and len(_routes) == 8 and all(asks for _, asks in _routes) and {"/architect/draft/<thread_id>/<run_id>/<key>", "/architect/ready"} <= {r for r, _ in _routes}
           and state["draft_seen"][0][3] == _draft.prompt("Chart the hours of each arm.", _bf["figures"]) and _logged(_cf)[_nlog:] == ["Architect", "Draft"]
           and all(os.path.isfile(_plotf(k)) for k in _kf) and json.load(open(_plotf(_kf[0])))["data"][0]["y"] == [-1, -1] and len(BAMBOO.df) == 200
           and sorted(os.listdir(os.path.dirname(_plotf(_kf[0])))) == sorted(f"{k}.json" for k in _kf)
@@ -2285,6 +2292,109 @@ try:
           and (state["draft_seen"][-1][0], state["architect_seen"][-1][0]) == ("Figures", "Architect") and "\n\nA SAVED ANALYSIS THE QUESTION BUILDS ON:\n--- cell 9 ---\n\n" in state["draft_seen"][-1][3]
           and _on_disk == [len(_fh2["turns"]) - 1] and _fh2["turns"][-2]["who"] == "architect",
           (_fh1["turns"][-1], _fh2["turns"][-1], _kh, state["draft_seen"][-1][0], _on_disk))
+    # ---- the question read as the analyst will read it, before its analysis starts (0313, §2.22)
+    from analyst import cold as _cold
+    def _ready(payload):
+        r = _wac.post("/architect/ready", json=payload)
+        return r.status_code, [json.loads(ln) for ln in r.get_data(as_text=True).splitlines() if ln.strip()]
+    def _asks(text):
+        """The coach words the question by hand: a version nobody has read. Returns its number."""
+        now = BAMBOO.notebook.runs[str(_cc)].framing["versions"][-1]["brief"]
+        return len(_wac.post("/architect/brief", json={"thread_id": _tc, "chain_id": _cc, "changed": ["question"], "brief": {**now, "question": text}}).get_json()["framing"]["versions"])
+    _opc = _wac.post("/architect/open", json={"question": "Chart the hours of each arm, by half."}).get_json()      # a brief of its own, with a figure and its draft
+    _cc, _tc = _opc["chain_id"], _opc["thread_id"]
+    state["architect"], state["draft"] = [json.dumps({"say": "A draft is being drawn.", "figures": _figs[:1]})], ["```python\n" + _cell_f + "\n```"]
+    _say({"thread_id": _tc, "chain_id": _cc, "text": "Show me what it will look like."})
+    _on_file = lambda: json.load(open(os.path.join(work, "storage", "u1", "threads", f"{_tc}.json"), encoding="utf-8"))["runs"][str(_cc)]["framing"]      # noqa: E731
+    _crun = BAMBOO.notebook.runs[str(_cc)]
+    _vc, _calls_c = len(_crun.framing["versions"]), _crun.framing["calls"]
+    state["cold"], state["cold_seen"] = ['{"cannot_place": []}'], []
+    BAMBOO.kill_signal = True; BAMBOO._stop_event.set()                       # a run stopped earlier left the signal set
+    _nc, _chain_c, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, []
+    _stc, _lnc = _ready({"thread_id": _tc, "chain_id": _cc, "version": _vc})
+    _seat_c, _kw_c, _under_c, _user_c = state["cold_seen"][-1]
+    _fc = _crun.framing
+    _stc2, _lnc2 = _ready({"thread_id": _tc, "chain_id": _cc, "version": _vc})
+    check("/architect/ready, a question that stands on its own (0313): a stream that ends on the framing and on the word that the analysis can start. One model call - the reader's instructions, on "
+          "the Architect's seat at a low effort, logged as the question check's under the brief's own chain - whose prompt is what the analyst will be given: the data as described, the question, "
+          "the brief as agreed with its figure. The read is a turn of the conversation, the first of the question checks; the framing lists the version as read and is on the thread's record; the "
+          "Architect's calls are counted as they were. The query was authorised without being counted, the instance is where it was, and no stop signal is left. Asked again for the same "
+          "version, no call is made",
+          _stc == 200 and _lnc[-1] == {"architect": {"framing": _fc, "clean": True}} and len(state["calls"]) == _nc + 1 and _seat_c == "Investigator" and _kw_c.get("label") == "Question check"
+          and _kw_c.get("reasoning_effort") == ("low",) and str(_under_c) == str(_cc) and state["calls"][-1][1] == _user_c
+          and _user_c == _cold.given("Chart the hours of each arm, by half.", _fc["versions"][-1]["brief"], True, BAMBOO._data_description()) + "\n\nReply with the JSON object."
+          and _user_c.startswith("DATA:\n") and "\n\nQUESTION:\nChart the hours of each arm, by half.\n\nBRIEF (agreed with the person before this run):\n" in _user_c
+          and '\nFigures agreed with the person:\n1. "Hours of each arm" - ' in _user_c
+          and {k: v for k, v in _fc["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": [], "v": _vc, "call": 1} and _fc["turns"][-1]["cost"] > 0
+          and _fc["read"] == [_vc] and _fc["calls"] == _calls_c and len(_fc["versions"]) == _vc and _on_file() == _fc and _logged(_cc)[-1] == "Question check" and _crun.status == "framing"
+          and BAMBOO.chain_id == _chain_c and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set() and int(_cc) in BAMBOO._framed
+          and _stc2 == 200 and _lnc2[-1] == {"architect": {"framing": _fc, "clean": True}} and len(state["calls"]) == _nc + 1 and _auth["counted"] == [False, False],
+          (_lnc[-1], _seat_c, _kw_c, _user_c[-700:], _fc["turns"][-1], _auth["counted"]))
+    _vq = _asks("Chart the hours of each arm, as on 14 May.")
+    state["cold"], state["architect_seen"] = ['{"cannot_place": ["AS ON  14 MAY", "not in it"]}'], []
+    state["architect"], state["draft"] = [json.dumps({"say": "I took out what pointed to another day.", "wording": "Chart the hours of each arm, by month."})], ["```python\n" + _cell_f + "\n```"]
+    _nq, _drafts_q = len(state["calls"]), len(state["draft_seen"])
+    _stq, _lnq = _ready({"thread_id": _tc, "chain_id": _cc, "version": _vq})
+    _fq, _midq, _nq2 = _crun.framing, [e for e in _lnq if e.get("type") == "architect_draft"], len(state["calls"])
+    _lnq3, _lnq4 = _ready({"thread_id": _tc, "chain_id": _cc, "version": _vq + 1})[1], _ready({"thread_id": _tc, "chain_id": _cc, "version": _vq})[1]
+    check("/architect/ready, a question that points outside what the analyst is given (0313): the reader names the words - kept as the question has them, the ones it does not hold dropped - and the "
+          "Architect goes on at once, on its own seat and under its own name in the log: its CONVERSATION ends on what the reader could not place. Its wording is one more version, the run's "
+          "question from then; the figure, under another wording, is drawn a draft - the stream carries the framing with the reply before it. The stream ends on the framing and on the word "
+          "that the analysis cannot start. The read is the second of the question checks, the reply the next of the Architect's calls, the draft the draft's. Both versions are listed as read: "
+          "asked again for either, the analysis can start, and no call is made",
+          _stq == 200 and _lnq[-1] == {"architect": {"framing": _fq, "clean": False}} and _nq2 == _nq + 3 and _logged(_cc)[-3:] == ["Question check", "Architect", "Draft"]
+          and [t["who"] for t in _fq["turns"][-3:]] == ["reader", "architect", "draft"] and {k: v for k, v in _fq["turns"][-3].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": ["as on 14 May"], "v": _vq, "call": 2}
+          and (_fq["turns"][-2]["wording"], _fq["turns"][-2]["v"], _fq["turns"][-2]["call"]) == ("Chart the hours of each arm, by month.", _vq + 1, _calls_c + 1) and _fq["calls"] == _calls_c + 1
+          and (_fq["versions"][-1]["by"], _fq["versions"][-1]["changed"], len(_fq["versions"])) == ("architect", ["question"], _vq + 1) and _crun.question == "Chart the hours of each arm, by month."
+          and state["architect_seen"][-1][3].endswith('\nA reader given what the analyst will be given could not place: "as on 14 May"\n\nReply with the JSON object.')
+          and state["architect_seen"][-1][1].get("label") == "Architect" and len(state["draft_seen"]) == _drafts_q + 1
+          and len(_midq) == 1 and _midq[0]["framing"]["turns"][-1]["who"] == "architect" and _lnq.index(_midq[0]) < len(_lnq) - 1
+          and _fq["read"] == [_vc, _vq, _vq + 1] and _on_file() == _fq and _crun.status == "framing"
+          and _lnq3[-1] == {"architect": {"framing": _fq, "clean": True}} == _lnq4[-1] and len(state["calls"]) == _nq2,
+          (_lnq[-1]["architect"].get("clean"), _fq["turns"][-3:], _fq["read"], _logged(_cc)[-3:], state["architect_seen"][-1][3][-300:]))
+    _v5 = _asks("Chart the hours of each arm, as usual.")
+    state["cold"], state["architect"] = ['{"cannot_place": ["as usual"]}'], ["no", "still no"]
+    _calls5, _n5r = _crun.framing["calls"], len(state["calls"])
+    _st5r, _ln5r = _ready({"thread_id": _tc, "chain_id": _cc, "version": _v5})
+    _f5r, _n5r2 = _crun.framing, len(state["calls"])
+    _ln5r2 = _ready({"thread_id": _tc, "chain_id": _cc, "version": _v5})[1]
+    _v6 = _asks("Chart the hours of each arm, once more.")
+    state["cold"] = [RuntimeError("the provider is away"), "I cannot say."]
+    _turns6, _n6r = len(_crun.framing["turns"]), len(state["calls"])
+    _ln6r = _ready({"thread_id": _tc, "chain_id": _cc, "version": _v6})[1]
+    _f6r = json.loads(json.dumps(_crun.framing))
+    _ln6r2 = _ready({"thread_id": _tc, "chain_id": _cc, "version": _v6})[1]
+    _f6r2, _checks6 = _crun.framing, _logged(_cc).count("Question check")
+    _n7r = len(state["calls"])
+    _ln7r = _ready({"thread_id": "1077", "chain_id": _opj["chain_id"], "version": 1})[1]
+    _st8r = _wac.post("/architect/ready", json={"thread_id": _tc}).status_code
+    _auth["refuse"] = ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
+    _r9r = _wac.post("/architect/ready", json={"thread_id": _tc, "chain_id": _cc, "version": _v6})
+    _auth["refuse"] = None
+    _n9r = len(state["calls"])
+    state["cold"] = ['{"cannot_place": []}']
+    _lne = _ready({"thread_id": _tc, "chain_id": _cc, "version": 1})[1]         # the first version on the person's screen: the question as it was asked
+    _fe, _qe = _lne[-1]["architect"].get("framing") or {}, BAMBOO.notebook.runs[str(_cc)].question      # the thread was read again from its record: the run is another object
+    BAMBOO._on_thread(_tf)                                                     # where the instance was: the draft's own run goes on below
+    check("/architect/ready, what can go wrong (0313). The Architect's reply after the read cannot be read: the stream ends on the framing, on the word that the analysis cannot start and on the "
+          "reason, in words for the person; the read stands as the conversation's last turn, no version is made, the failed reply's calls are counted, and asked again the analysis can start. "
+          "The read itself cannot be made - the provider fails: the analysis can start, nothing is kept of the read, and the version is not listed as read, so the next start asks again; a reply "
+          "that is no object names nothing: the read is kept, and the analysis can start. A brief whose analysis has started is refused in words, without a call; a request without its chain is "
+          "refused; and a refusal for the balance is the app's own answer, with no call",
+          _st5r == 200 and _ln5r[-1] == {"architect": {"framing": _f5r, "clean": False, "error": "The Architect's reply could not be read (it holds no JSON object)."}}
+          and _f5r["turns"][-1]["who"] == "reader" and _f5r["turns"][-1]["missing"] == ["as usual"] and _f5r["turns"][-1]["call"] == 3 and len(_f5r["versions"]) == _v5 and _f5r["calls"] == _calls5 + 2
+          and _n5r2 == _n5r + 3 and _f5r["read"][-1] == _v5 and _ln5r2[-1] == {"architect": {"framing": _f5r, "clean": True}} and len(state["calls"]) >= _n5r2
+          and _ln6r[-1] == {"architect": {"framing": _f6r, "clean": True}} and len(_f6r["turns"]) == _turns6 and _v6 not in _f6r["read"]
+          and _ln6r2[-1] == {"architect": {"framing": _f6r2, "clean": True}} and _f6r2["turns"][-1]["who"] == "reader" and _f6r2["turns"][-1]["missing"] == [] and _f6r2["turns"][-1]["call"] == 4 == _checks6
+          and _f6r2["read"][-1] == _v6 and _n7r == _n6r + 1
+          and _ln7r[-1] == {"architect": {"error": "This brief can no longer be changed: its analysis has started."}} and _st8r == 400
+          and _r9r.status_code == 403 and _r9r.get_json()["error"] == "authorization_failed" and _n9r == _n7r,
+          (_ln5r[-1]["architect"].get("error"), _f5r["turns"][-1], _f6r["read"], _f6r2["turns"][-1], _ln7r[-1], _st8r, _r9r.status_code))
+    check("/architect/ready, an earlier version on the person's screen (0313): that version is the one read - its question, in the reader's prompt - and the one in use from then: the framing says "
+          "so, the run's question is that version's, and the later versions stay",
+          _lne[-1]["architect"].get("clean") is True and _fe == _on_file() and _fe.get("at") == 1 and _fe["turns"][-1]["who"] == "reader" and _fe["turns"][-1]["v"] == 1 and _fe["read"][-1] == 1
+          and _qe == _fe["versions"][0]["brief"]["question"] == "Chart the hours of each arm, by half." and "\n\nQUESTION:\nChart the hours of each arm, by half.\n" in state["cold_seen"][-1][3]
+          and len(_fe["versions"]) == _v6 and len(state["calls"]) == _n9r + 1, (_lne[-1]["architect"].get("clean"), _fe.get("at"), _qe, _fe["turns"][-1]))
     # the cell's run: with no data, for a few seconds at most - on this machine the kernel is stopped; an executor is asked for that long and the cell carries a guard of its own
     _secs_was, _exec_was2, _mode_was = _draft.SECONDS, BAMBOO.executor.execute, BAMBOO.executor.mode
     _sent = []

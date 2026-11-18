@@ -72,16 +72,18 @@
 #streamOutput .sp-pill.ds .sz { color: var(--text-quaternary); }
 #streamOutput .sp-pill svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
 #streamOutput .sp-done { border: 1px solid var(--border-color); border-left: 2px solid var(--accent-color); border-radius: 6px; background: var(--bg-secondary); padding: 10px 12px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); }
-#streamOutput .sp-done .title { color: var(--text-primary); font-weight: 600; margin-bottom: 6px; }
+#streamOutput .sp-done .head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 16px; margin-bottom: 6px; }   /* the title with the run's numbers beside it (0313) */
+#streamOutput .sp-done .title { color: var(--text-primary); font-weight: 600; }
 #streamOutput .sp-done.warn .title { color: var(--c-fail); }   /* a routine's run that failed, timed out or differed (2026-10-10) */
-#streamOutput .sp-done .grid { display: grid; grid-template-columns: repeat(4, auto); gap: 4px 18px; margin-bottom: 8px; justify-content: start; }
-#streamOutput .sp-done .grid b { color: var(--text-primary); font-weight: 600; }
+#streamOutput .sp-done .nums { color: var(--text-tertiary); }
+#streamOutput .sp-done .nums span + span { margin-left: 14px; }   /* a card kept from before 0313: its numbers, each in a span of its own */
+#streamOutput .sp-done .nums b { color: var(--text-secondary); font-weight: 600; }
 #streamOutput .sp-done .rep { color: var(--text-secondary); }
 #streamOutput .sp-done .rep.ok { color: var(--accent-color); }
 #streamOutput .sp-done .rep.warn { color: var(--yaml-key); }
 /* the reach report on the closing card (2026-10-28): one line per reach with its cell and tag, the refused cells, the box in one line */
 #streamOutput .sp-done .reaches { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); font-size: 12px; }
-#streamOutput .sp-done .reaches.quiet { color: var(--text-quaternary); font-size: 11px; }
+#streamOutput .sp-done .reaches.quiet { margin-top: 3px; padding-top: 0; border-top: 0; color: var(--text-quaternary); font-size: 11px; }   /* nothing reached: one faint line under what was reproduced */
 #streamOutput .sp-done .reaches .h { color: var(--text-secondary); margin-bottom: 3px; }
 #streamOutput .sp-done .reaches.quiet .h { color: inherit; margin: 0; }
 #streamOutput .sp-done .reaches .r { display: flex; gap: 8px; align-items: baseline; color: var(--text-tertiary); padding: 1px 0; }
@@ -91,10 +93,11 @@
 #streamOutput .sp-done .reaches .r.unasked .tag { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 #streamOutput .sp-done .reaches .r.unasked .what { color: var(--text-secondary); }
 #streamOutput .sp-done .reaches .sandbox { margin-top: 4px; color: var(--text-quaternary); font-size: 11px; }
-#streamOutput .sp-done .links { margin-top: 8px; }
-#streamOutput .sp-done .links a { color: var(--accent-color); text-decoration: none; margin-right: 14px; }
-#streamOutput .sp-done .links .sp-codemap { display: inline-block; padding: 1px 7px; border: 1px solid var(--chip-model-border); border-radius: 4px; background: none; font: inherit; color: var(--accent-color); cursor: pointer; vertical-align: baseline; }   /* the code map's way in (2026-10-20): on the links line, a slight border */
-#streamOutput .sp-done .links .sp-codemap:hover { background: var(--accent-bg-hover); }
+#streamOutput .sp-done .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }   /* what can be done next (0313): the questions that could follow, the code map */
+#streamOutput .sp-done .acts:empty { display: none; }
+#streamOutput .sp-act { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; font: inherit; font-size: 12.5px; color: var(--accent-color); cursor: pointer; }
+#streamOutput .sp-act:hover { background: var(--accent-bg-hover); }
+#streamOutput .sp-act svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #streamOutput .sp-done .sp-pills { padding: 6px 0 0; }
 #streamOutput .sp-sys { padding: 4px 10px; margin-left: 10px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-quaternary); border-left: 2px solid var(--text-quaternary); }
 #streamOutput .sp-sys.error { color: var(--error-color); border-left-color: var(--error-color); }
@@ -128,11 +131,8 @@
 #streamOutput .sp-row .ar-skip { flex-shrink: 0; padding: 0 9px; border: 1px solid var(--border-color); border-radius: 5px; background: none; font: inherit; font-size: 11px; line-height: 18px; color: var(--text-secondary); cursor: pointer; }   /* the saved analyses being read (0303) */
 #streamOutput .sp-row .ar-skip:not(:disabled):hover { border-color: var(--text-tertiary); color: var(--text-primary); }
 #streamOutput .sp-row .ar-skip:disabled { color: var(--text-quaternary); cursor: default; }
+#streamOutput .sp-row.ar-unplaced .out { white-space: normal; overflow: visible; overflow-wrap: anywhere; }   /* the words the Analyst cannot place are read whole (0313): the row wraps */
 /* ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, 2026-11-16): the button on a finished analysis' closing card; under the card the sets of questions, a card each - where it comes from, the question, a pencil and an arrow; and the row a run opens on when a question started it ---- */
-#streamOutput .sp-done .nq-open { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }
-#streamOutput .sp-next { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; font: inherit; font-size: 12.5px; color: var(--accent-color); cursor: pointer; }
-#streamOutput .sp-next:hover { background: var(--accent-bg-hover); }
-#streamOutput .sp-next svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #streamOutput .nq-set { margin-left: 10px; }
 #streamOutput .nq-head, #streamOutput .nq-from { display: flex; align-items: center; gap: 6px; padding: 2px 2px 8px; font-family: Arial, sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
 #streamOutput .nq-from { margin-left: 10px; padding-bottom: 2px; }

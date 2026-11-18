@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.25 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311 and 0312; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.26 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312 and 0313; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -69,6 +69,9 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 48 | A row of the conversation that is in flight says what is being done: *SEARCHING MEMORY*, *DRAWING A DRAFT*. Done, it is named for what it is about: *MEMORY*, *FIGURES* (0311: *SAVED analyses* read as something saved, and *FIGURES* said nothing of what was happening; §2.20, §3.7). |
 | 49 | How the Architect described a figure - its kind, its axes, its note - is for the model that draws and for the Analyst. The page shows the figure's title and its draft (0311; §2.20). |
 | 50 | The Answer is what goes to other people, so it says nothing that only a reader of the brief can place. What the report says against the brief is shown at the foot of the run's Brief tab, under *How it turned out*, and not in the Answer or its export (0312, from the product owner's live test: the Answer "could be shared via PDF with third parties not familiar with the mechanic"; §2.21). *Did not fit* stays in the Answer: it reads as a finding. |
+| 51 | The question is written for the Analyst, who was not in the conversation. It says what is to be done and on what, in two or three sentences, and points to nothing the Analyst is not given: the question, the brief, the data, the analyses the question follows, and of the saved analyses those the brief builds on. How a figure is to look is the figure's to say (0313, from the product owner's live run: a question that pointed to an analysis of another day; §2.22). |
+| 52 | Before an analysis starts, its question is read by a model that is given what the Analyst will be given, and nothing else. The words it cannot place go back to the Architect, which words the question again; the coach sees it, and starts again. A read holds a start up once, and a read that cannot be made holds nothing up (0313; §2.22). |
+| 53 | The closing card of a run says the run's numbers beside its title, and offers what can be done next as two buttons alike: *Next questions* and *Code map*. It links to no tab: the tabs are there to click (0313, the second of three mockups, the product owner's choice; §2.23). |
 
 ## 2. The Architect
 
@@ -303,8 +306,9 @@ line of the brief is one line of at most 600.
 **Start analysis.** At the foot of the last version. The analysis continues the framing run (`/query` with
 `run_id`): the same run on the record, the same chain on the page, one box on the map. It runs under the brief as
 last kept, numbered with its version, and attaches where the framing run did. A brief is started once. On the page
-the framing folds to one row above the run, the Brief tab stays to be read, and the closing card links to it. The
-tab's markup carries the versions, so a saved or restored chain still steps through them.
+the framing folds to one row above the run, and the Brief tab stays to be read (until 0313 the closing card linked
+to it; §2.23). The tab's markup carries the versions, so a saved or restored chain still steps through them.
+From 0313 the question is read first, as the Analyst will read it (§2.22).
 
 **The report on the page.** The part *Against the brief* is not shown in the answer (0312, §2.21; from 0296 it was
 a card there). It is a card at the foot of the run's Brief tab: a row for what was expected and a row for what
@@ -770,7 +774,8 @@ message: *QUESTION updated · version 4*. There is no card, no button and no `ac
 waiting (`architect.pending()` is gone). The Architect reads under its own message *(the question was written
 as: ...)*. Its instructions: word the question whenever what is to be done changes, and word it again from what
 the coach says when it is not what they mean. `question` under a reply's `brief` is still dropped: a wording
-comes under its own key or not at all. The coach changes the question with its pencil, as any line.
+comes under its own key or not at all. The coach changes the question with its pencil, as any line. *0313
+(§2.22) says what a wording is to hold, and has it read before the analysis starts.*
 
 **The version on screen is the one in use** (decision 38). On top of the tab: **Version**, the two arrows, *3 of
 8*. A version is the whole brief, question and parts. Stepping sends nothing. What the coach does next goes on
@@ -1092,6 +1097,115 @@ the Brief tab with the card.
 - The dialog of a saved analysis (**View**) shows its report as it was written, with the part.
 - The plain-language version is still written with the part; the page leaves it out.
 - The library has no page: its report holds the part as before.
+
+### 2.22 The question as the Analyst will read it — built (0313, 2026-11-19)
+
+**Why.** The product owner, from a live run, after several rounds with the Architect: the question pointed to an
+analysis of another day, which the Analyst "does not have access to or knows what it means". The same question
+carried how the figure was to look, kept a correction as a clause that said what not to do, and spoke of the
+Analyst in the third person. The Architect words the question inside a conversation, and to it nothing was
+missing.
+
+**What the Analyst is given.** Its prompt holds, in this order: the analyses the question follows in the thread,
+each with what it asked and found; the data as described; the question; and the brief as agreed - without what
+the Architect proposed, or the readings found, and the coach did not accept. It holds nothing of the
+conversation, no saved analysis the brief does not build on, and no day on which anything was done.
+
+**What the Architect is told** (decision 51; `analyst/architect.md`, *The question*).
+
+- The wording says what is to be done and on what, in two or three sentences addressed to the Analyst.
+- It is told what the Analyst is given, and to point to nothing else: what the question needs from the
+  conversation or from a saved analysis the brief does not build on, the wording says itself.
+- How a figure is to look belongs in the figure's description. Its `note` now holds how the figure is laid out
+  and is to look, where the coach said, and what it is to make clear.
+- When what is to be done changes, the whole question is worded afresh from what now stands: what is wanted,
+  not what was dropped on the way.
+
+**The read before the start** (decision 52; `analyst/cold.py`, its instructions `analyst/cold.md`). Instructions
+are not enough: the Architect reads its own wording with the conversation in mind. So before an analysis starts,
+what the Analyst will be given is given to a model that has nothing else (`given()`: the same blocks, in the
+prompt's order). It is asked for the words of the question that point to something it was not given, as one
+object: `{"cannot_place": [...]}`.
+
+- A phrase counts only where it stands in the question, word for word (`named()`), three at most. A reply that
+  cannot be read names nothing.
+- A pointer is to earlier work or to something said elsewhere. A day, a name or a value that the data can
+  settle is none, and the reader is told so: questions about data name days all the time.
+- *Nothing named.* The read is a turn of the conversation (`who: "reader"`), and the analysis starts.
+- *Something named.* The read is a turn, the analysis does not start, and the Architect goes on at once
+  (`ready()`): one exchange with no message, whose CONVERSATION ends on *A reader given what the analyst will be
+  given could not place: "..."*. It words the question again, and says what it changed. Where the figures are
+  due a draft, one is drawn. The coach sees the new version and presses **Start analysis** again.
+- *A read holds a start up once.* The framing lists the versions read (`read`). The version the Architect leaves
+  after a read is listed without being read, so the second start always starts; so does the version before it,
+  if the coach goes back to it. A version the coach makes by hand is read when it is started.
+- *A read that cannot be made holds nothing up.* Where the provider fails or the route is refused, the analysis
+  starts. Where the Architect's reply after a read fails, the read stands and the page says why.
+- The version read is the one in use from then, as with an answer (`use()`). Where the Architect goes on from a
+  version the coach went back to, its CONVERSATION says so before the read.
+
+**The call.** One call on the Architect's seat at low effort, logged as *Question check* under the brief's chain
+and charged with its analysis. Its turn numbers it among the question checks; the Architect's calls are counted
+apart, because the run log finds a call as the n-th of its name.
+
+**The host and the route.** `architect_ready(thread, run, version)` gives `{"framing", "clean"}`, with `"error"`
+where the Architect's reply failed. `POST /architect/ready` is a stream that ends on that, under `"architect"`;
+it carries `architect_draft` before a draft is drawn, as `/architect/say` does.
+
+**On the page** (`architect.js`). **Start analysis** keeps a line being typed, then has the version on screen
+read (`ready()`), unless the framing lists it as read. While it is read a row says *CHECKING THE QUESTION*, and
+the composer is held and says why. Then the row reads *CHECK question · stands on its own*, or, greyed, *CHECK
+question · the Analyst cannot place "..."*, with the seconds and the button to what the reader was given. The
+words are read whole: that row wraps, where any other row is cut at one line (`.ar-unplaced`). The analysis
+starts only where the brief is still on screen and nothing else runs: the read takes a moment, and the page's
+send would stop an analysis begun meanwhile. What the stream carries on its way - a reading of the saved
+analyses, a draft that follows the reply - is shown as in any exchange (`along()`).
+
+**Tests.** `test_analyst.py`: what the reader is given - the Analyst's first prompt starts with it, to the
+letter -, the phrases kept, a clean read, a read that names something, the Architect's reply failing, an
+earlier version, the instructions. `test_app_path.py`: the route - the seat, the effort, the name in the log,
+the draft, what can go wrong. `test_architect.js`: Start driven - the row in flight, a clean read, a held
+start, no reply, a read that cannot be had, the brief left meanwhile, a draft, a lookup. The walk: a clean read
+in the fold above the run and on the usage record (`walk_architect`); a question the coach words so that it
+points to an analysis the Analyst is not given - held, worded again, started (`walk_tutor`).
+
+**Known limits.**
+
+- Not run against a live model. Whether the reader names the right words, and leaves alone what the data or the
+  thread's earlier analyses settle, is the live test's to show.
+- A read is one small call, and a few seconds, at the first start of each version.
+- The reader reads the question. A line of the brief that points outside is not found.
+- The Architect's wording after a read is not read: where it still points outside, the Analyst gets it so.
+
+### 2.23 The closing card — built (0313, 2026-11-19)
+
+**Why.** The product owner: "the Code Map and Next questions are sort of confusing", and so was the arrow after
+the last link. The card held a grid of numbers, then a line of links to the tabs, each with an arrow - one of
+them, *Simplified →*, did nothing (§2.21) - with the code map's button among them, then **Next questions**
+under a rule of its own. Of three mockups he chose the second.
+
+**What it is now** (decision 53; `stream-pane.js`).
+
+- One line: the title, and beside it the run's numbers - turns, cells with how many failed or were not run,
+  plots where there are any, cost, time (`build.head()`).
+- Under it, as before: what the replay reproduced, and the reach report - one faint line where nothing was
+  reached.
+- Then one rule, and what can be done next: **Next questions** and **Code map**, two buttons alike (`.acts`,
+  `.sp-act`). `next-questions.js` puts its button first. A run that ran no code has no code map; a run that
+  ended on a question, was stopped or failed has no buttons.
+- No link to a tab. The tabs are there to click.
+- A routine's card has its numbers the same way, and no links.
+
+**A card kept from before.** A chain's pane is kept as it was drawn. When such a chain is shown again its
+closing card is brought to the new shape (`paneRenew()`): the title and the numbers on one line, the links gone,
+the two buttons in their row. Its numbers keep the words they were written with.
+
+**The host.** `pane_run_end` no longer says whether the run had a brief: the card links to no tab.
+
+**Tests.** `test_pane.js`: the card for each way a run ends, a routine's card, a kept card renewed.
+`test_next_questions.js`: the button, and where it is put. `test_code_map.js` and `test_routines.js`: the
+button and the sources. The walk: the card's shape in the browser - one line of title and numbers, no link, no
+arrow, the two buttons alike and side by side - and a card kept from before, shown again.
 
 ## 3. Memory from saved analyses
 
@@ -1470,6 +1584,8 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
   draft (0310).
 - New in 0310: the draft of the figures (`analyst/draft.py`), its plots beside the thread's record, a time limit
   for a script on the coach's own machine.
+- New in 0313: the question read before its analysis (`analyst/cold.py`, `analyst/cold.md` - in the package
+  data), and the closing card's shape.
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
@@ -1509,6 +1625,7 @@ on the last one.
 | 0310 | From the product owner's test of 0309: the sketches looked like nothing. A draft of each figure, drawn by a cell a model writes and the sandbox runs with no data - computed where a rule gives the shape, on made-up numbers, marked, where the data will; what a saved analysis drew; the draft's cell handed to the step that draws; the model's own points gone (§2.20). | built |
 | 0311 | From the product owner's live test of 0310, "a little too busy": no picture of a saved analysis in the brief; a grey window with one line where a figure has no draft, in place of the sketch; the rows in flight say what is being done; a figure's note is no longer cut at 240 characters (§2.19, §2.20, §3.7). | built |
 | 0312 | From the product owner's live test: the Answer is what goes to other people - what the report says against the brief leaves it, in both versions and in the export, for the foot of the run's Brief tab (§2.21). | built |
+| 0313 | From the product owner's live test: the question is written for the Analyst and points to nothing it is not given; before an analysis starts its question is read as the Analyst will read it, and what cannot be placed goes back to the Architect (§2.22). The closing card: the numbers beside the title, two buttons, no links (§2.23). | built |
 
 ## 8. Not in this release
 

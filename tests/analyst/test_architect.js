@@ -500,11 +500,31 @@ check('the draft of the figures in the conversation (0310): a row under the repl
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD.concat([{ who: 'person', text: 'Yes' }]) }), { live: true })).querySelectorAll('.ar-choice').length === 0
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD.concat([DRAFT_PART]) }), { live: true })).querySelectorAll('.ar-choice').length === 2
   && el(b.talk(entryW({ versions: FW.versions, turns: turnsD }))).querySelectorAll('.ar-choice').length === 0
-  && el(b.drawingRow()).querySelector('.sp-row').className === 'sp-row tool read pending' && el(b.drawingRow()).querySelector('.sp-row').elements.map(e => e.className + '=' + e.textContent).join('|') === 'live=|in=DRAWING A DRAFT'
+  && el(b.pending('DOING IT')).querySelector('.sp-row').className === 'sp-row tool read pending' && el(b.pending('DOING IT')).querySelector('.sp-row').elements.map(e => e.className + '=' + e.textContent).join('|') === 'live=|in=DOING IT'
+  && typeof b.drawingRow === 'undefined'
   && waits({ drawing: true }).className === 'sp-row tool read pending' && waits({ drawing: true }).textContent === 'DRAWING A DRAFT' && waits({}).className === 'ar-msg arch wait'
   && waits({ drawing: true, saved: { read: 1, of: 3 } }).textContent === 'SEARCHING MEMORY1 of 3 readSkip' && waits({ drawing: true }).parent.querySelectorAll('.ar-choice').length === 0
   && typeof b.sketched === 'undefined' && typeof b.sketch === 'undefined'
   && el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'architect', text: 'As it was.', sketched: 2, v: 2 }] }))).querySelectorAll('.sp-row').length === 0, [talkD.innerHTML, rowsD.map(r => r.outerHTML)]);
+const qRow = (turn, chain) => el(b.checkedQ(turn, chain == null ? 71 : chain)).querySelector('.sp-row');
+const qClean = qRow({ who: 'reader', missing: [], v: 2, cost: 0.002, call: 2, secs: 2.4 }), qNot = qRow({ who: 'reader', missing: ['as on 14 May', 'a <b> & "c"'], v: 2, call: 1, secs: 0.3 }, 'c"7');
+const talkQ = el(b.talk(entryW({ versions: FW.versions, turns: FW.turns.concat([{ who: 'reader', missing: ['as before'], v: 2, call: 1, secs: 3 }, { who: 'architect', text: 'I said what was before.', v: 2, choices: ['Yes'] }]) }), { live: true }));
+check('the question\'s check in the conversation (0313): a row where the question was read as the Analyst will read it - that it stands on its own, the seconds, and the button to what the reader was '
+  + 'given, which names the question check\'s call in the run log; where the Analyst cannot place something the row is greyed and says which words, each in quotes, as text - whole: the '
+  + 'stylesheet lets that row wrap, where any other row is cut at one line. A read without a '
+  + 'call has no button; less than a second reads as one. The Architect\'s reply stands under the row, its choices to be clicked. While the question is read a row says so - CHECKING THE '
+  + 'QUESTION - in the place of the Architect\'s "reading"; a draft on its way is said first',
+  qClean.className === 'sp-row tool read' && qClean.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=CHECK question|out=stands on its own|t=2 s|agent-instructions-btn sp-prompt=⌘'
+  && ['data-agent', 'data-chain', 'data-call', 'title'].map(a => qClean.querySelector('.sp-prompt').getAttribute(a)).join('|') === 'Question check|71|2|what the question check was given (run log)'
+  && qNot.className === 'sp-row tool read skipped ar-unplaced' && qNot.elements.map(e => e.className + '=' + e.textContent).join('|') === '=–|in=CHECK question|out=the Analyst cannot place “as on 14 May” · “a <b> & "c"”|t=1 s|agent-instructions-btn sp-prompt=⌘'
+  && qNot.querySelector('.out').elements.length === 0 && qNot.querySelector('.sp-prompt').getAttribute('data-chain') === 'c"7'
+  && !qRow({ who: 'reader', missing: [], secs: 1 }).querySelector('.sp-prompt') && qRow({ who: 'reader' }).textContent === '✓CHECK questionstands on its own1 s'
+  && talkQ.elements.slice(-2).map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'sp-row.tool,ar-msg.arch' && talkQ.querySelectorAll('.sp-row').slice(-1)[0].textContent === '–CHECK questionthe Analyst cannot place “as before”3 s⌘'
+  && talkQ.querySelectorAll('.ar-choice').length === 1
+  && waits({ checking: true }).className === 'sp-row tool read pending' && waits({ checking: true }).textContent === 'CHECKING THE QUESTION' && waits({ checking: true, drawing: true }).textContent === 'DRAWING A DRAFT'
+  && fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'pane.css'), 'utf8').includes('#streamOutput .sp-row.ar-unplaced .out { white-space: normal; overflow: visible; overflow-wrap: anywhere; }')
+  && !qClean.className.includes('ar-unplaced'),
+  [qClean.outerHTML, qNot.outerHTML, talkQ.innerHTML]);
 const wentRow = el(b.went({ who: 'version', v: 2 })).querySelector('.sp-row');
 const talkV = el(b.talk(entryW({ versions: FW.versions, turns: FW.turns.concat([{ who: 'version', v: 1 }, { who: 'person', text: 'From the first one' }, { who: 'architect', text: 'As you say.', v: 1 }]) })));
 check('where the coach went to another version before a message (0308), a row says which version is in use from there - before the message it came with; the fold above a run names the version in '
@@ -804,8 +824,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   queryRunning = false;
   addPart('expects').querySelector('.ar-input').value = 'B above A by 2';
   doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
-  check('Start analysis with a line still being typed: the line is kept first, then the page\'s own send starts this chain - under the version on screen, which the send is told',
-    calls[calls.length - 1][1].brief.expects === 'B above A by 2' && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed,version'
+  check('Start analysis with a line still being typed: the line is kept first; then the question of the version on screen is sent to be read as the Analyst will read it (0313) - the thread, the chain, '
+    + 'the version; then the page\'s own send starts this chain, under that version, which the send is told',
+    calls[calls.length - 2][0] === '/architect/brief' && calls[calls.length - 2][1].brief.expects === 'B above A by 2'
+    && same(calls[calls.length - 1], ['/architect/ready', { thread_id: 7, chain_id: 71, version: entry.framing.versions.length }])
+    && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed,version'
     && submitted[0].version === entry.framing.versions.length && !('at' in entry.framing)
     && entry.framing.versions[entry.framing.versions.length - 1].brief.expects === 'B above A by 2', submitted);
   // what the send does next: the chain runs, the framing folds, the Brief tab stays
@@ -1260,6 +1283,190 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     same(parts, [{ a: 1 }, { b: 2 }]) && whole === '{"a": 1}\n\nnot json\n{"b": 2}' && same(parts2, [{ a: 1 }, { b: 2 }, { c: 3 }]) && whole2 === '{"a": 1}\n{"b": 2}\n\n{"c": 3}', [parts, parts2, whole2]);
   }
 
+  // the question read as the Analyst will read it, before its analysis starts (0313)
+  {
+    const rowsNow = () => $('streamOutput').querySelectorAll('.sp-row').map(r => r.className + ':' + r.textContent), lastRow = () => rowsNow().slice(-1)[0];
+    const startBtn = () => brief().querySelector('[data-ar="start"]'), sentNow = () => submitted.length, asksNow = () => brief().querySelector('h1 .tx').textContent;
+    const posted = from => calls.slice(from).map(c => [c[0], c[0] === '/architect/ready' ? c[1] : c[0] === '/architect/brief' ? c[1].changed : c[1].text]);
+    // the framing as the server leaves it after a read of the version in use: the reader's turn, the version listed as read
+    const readAs = (missing, more) => { const f = JSON.parse(JSON.stringify(entry.framing)), at = f.at || f.versions.length;
+      f.turns = f.turns.concat([{ who: 'reader', missing, v: at, cost: 0.002, call: f.turns.filter(t => t.who === 'reader').length + 1, secs: 2.4 }]);
+      f.read = (f.read || []).concat([at]); return Object.assign(f, more || {}); };
+    // ... and after the Architect's reply to it: its message, its wording as one more version, that version listed too
+    const reworded = (f, text, wording, more) => { const k = f.versions.length + 1;
+      f.versions.push({ n: k, by: 'architect', why: 'answer', changed: ['question'].concat((more || {}).changed || []), brief: Object.assign({}, f.versions[k - 2].brief, { question: wording }, (more || {}).brief), keys: (more || {}).keys || [] });
+      f.turns.push({ who: 'architect', text, wording, v: k, cost: 0.02, call: (f.calls || 0) + 1 }); f.calls = (f.calls || 0) + 1; f.read.push(k); return f; };
+    // the coach words the question by hand: a version nobody has read
+    const ask = async text => { doc.dispatch('click', lineOf(brief(), 'question').querySelector('.pen')); lineOf(brief(), 'question').querySelector('.ar-input').value = text;
+                                doc.dispatch('click', lineOf(brief(), 'question').querySelector('[data-ar="keep"]')); await tick(); return entry.framing.versions.length; };
+    const v0 = await ask('Draw the series as bars.');
+    const live = liveBody(), sent0 = sentNow(); answers['/architect/ready'] = live; n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const inFlight = { posted: posted(n), row: lastRow(), hold: $('queryInput').placeholder, lock: locks[locks.length - 1], sent: sentNow() - sent0, start: !!startBtn() };
+    doc.dispatch('click', startBtn()); doc.dispatch('click', lineOf(brief(), 'question').querySelector('.pen')); await tick();      // Start again, and a pencil: nothing while it is read
+    const meanwhile = { posted: calls.length - n, editing: !!brief().querySelector('.editing'), sent: sentNow() - sent0 };
+    live.send('{"text": "{\\"cannot_place\\": ", "chain_id": 71}\n'); await tick();
+    const still = lastRow();
+    live.send(JSON.stringify({ architect: { framing: readAs([]), clean: true } }) + '\n'); live.end(); await tick();
+    const button = $('streamOutput').querySelectorAll('.sp-row').slice(-1)[0].querySelector('.sp-prompt');
+    const clean = { sent: sentNow() - sent0, how: Object.keys(submitted[submitted.length - 1]).join(), framed: submitted[submitted.length - 1].framed === entry, version: submitted[submitted.length - 1].version, row: lastRow(),
+                    read: entry.framing.read, prompt: ['data-agent', 'data-chain', 'data-call', 'title'].map(a => button.getAttribute(a)), hold: $('queryInput').placeholder, lock: locks[locks.length - 1], told: toasts.length };
+    n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const again = { posted: calls.length - n, sent: sentNow() - sent0 };
+    check('Start analysis reads the question first (0313): the version on screen is sent to be read as the Analyst will read it - the thread, the chain, the version. While it is read a row says so, the '
+      + 'composer is held with those words, nothing starts, and neither Start nor a pencil does anything. The read came back clean: the page\'s own send starts the chain under that version; the '
+      + 'conversation holds the read as a row - the question stands on its own, the seconds, the button to what the reader was given, the first call of the question check in the run log - and the '
+      + 'framing lists the version as read. Started again - the server had not started it - the same version starts at once: nothing is sent to be read',
+      same(inFlight, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: v0 }]], row: 'sp-row tool read pending:CHECKING THE QUESTION', hold: 'The question is being read as the Analyst will read it',
+                       lock: ['lock', 'The question is being read as the Analyst will read it'], sent: 0, start: true })
+      && same(meanwhile, { posted: 1, editing: false, sent: 0 }) && still === inFlight.row
+      && same(clean, { sent: 1, how: 'framed,version', framed: true, version: v0, row: 'sp-row tool read:✓CHECK questionstands on its own2 s⌘', read: [v0],
+                       prompt: ['Question check', '71', '1', 'what the question check was given (run log)'], hold: 'Answer, or say what to change', lock: ['unlock'], told: clean.told })
+      && same(again, { posted: 0, sent: 2 }), [inFlight, meanwhile, still, clean, again]);
+
+    // the reader cannot place something: the Architect has gone on, and the analysis does not start
+    const live2 = liveBody(), sent1 = sentNow(), told1 = toasts.length; answers['/architect/ready'] = live2; n = calls.length;
+    doc.dispatch('click', lineOf(brief(), 'question').querySelector('.pen'));
+    lineOf(brief(), 'question').querySelector('.ar-input').value = 'Draw the series as bars, as on 14 May & <before>.';
+    doc.dispatch('click', startBtn()); await tick();                    // the line being typed is kept first: a version of the coach's, then that one is read
+    const v1 = entry.framing.versions.length, sentFor = posted(n);
+    const flagged = reworded(readAs(['as on 14 May', '<before>']), 'I took out what pointed to another day.', 'Draw the series as bars, in one colour.');
+    live2.send(JSON.stringify({ architect: { framing: flagged, clean: false } }) + '\n'); live2.end(); await tick();
+    const heldUp = { sent: sentNow() - sent1, rows: rowsNow().slice(-2), said: pane().slice(-1)[0], ver: brief().querySelector('.ar-ver b').textContent, asks: asksNow(), text: entry.queryText,
+                     start: startBtn().textContent, hold: $('queryInput').placeholder, lock: locks[locks.length - 1], told: toasts.length - told1, read: entry.framing.read,
+                     safe: !$('streamOutput').innerHTML.includes('<before>') };
+    n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const startsNow = { posted: calls.length - n, sent: sentNow() - sent1, version: submitted[submitted.length - 1].version };
+    doc.dispatch('click', brief().querySelector('[data-step="-1"]')); n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const wentBack = { posted: calls.length - n, sent: sentNow() - sent1, version: submitted[submitted.length - 1].version };
+    entry.framing = A.use(entry.framing, v1 + 1); loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again, for what follows
+    check('a question the Analyst could not place something in (0313): a line being typed is kept first, as a version of the coach\'s, and that version is read. The analysis does not start. The '
+      + 'conversation holds the read - which words the Analyst cannot place, as text - then the Architect\'s reply and the row of its wording; the Brief tab is on the version the Architect left, '
+      + 'with its question, which is the chain\'s; the composer is the conversation\'s again, and nothing more is said. Start analysis then starts that version at once - a read holds a start up '
+      + 'once - and so does the version before it, which the coach went back to: both are listed as read',
+      same(sentFor, [['/architect/brief', ['question']], ['/architect/ready', { thread_id: 7, chain_id: 71, version: v1 }]]) && v1 === v0 + 1
+      && same(heldUp, { sent: 0, rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “as on 14 May” · “<before>”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedversion ' + (v1 + 1)],
+                        said: 'arch|Architect⌘I took out what pointed to another day.', ver: (v1 + 1) + ' of ' + (v1 + 1), asks: 'Draw the series as bars, in one colour.', text: 'Draw the series as bars, in one colour.',
+                        start: 'Start analysis', hold: 'Answer, or say what to change', lock: ['unlock'], told: 0, read: [v0, v1, v1 + 1], safe: true })
+      && same(startsNow, { posted: 0, sent: 1, version: v1 + 1 }) && same(wentBack, { posted: 0, sent: 2, version: v1 }), [sentFor, heldUp, startsNow, wentBack]);
+
+    // an earlier version on screen that nobody has read: the server reads that one, and it is the one in use from then
+    const lastK = entry.framing.versions.length, earlyK = v0 - 1, sentK = sentNow();
+    for (let k = lastK; k > earlyK; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
+    answers['/architect/ready'] = () => [200, stream({ framing: readAs([]), clean: true })]; n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const early = { posted: posted(n), sent: sentNow() - sentK, version: submitted[submitted.length - 1].version, at: entry.framing.at, text: entry.queryText === entry.framing.versions[earlyK - 1].brief.question,
+                    other: entry.framing.versions[earlyK - 1].brief.question !== entry.framing.versions[lastK - 1].brief.question, fold: el(b.fold(entry)).querySelector('.kind').textContent,
+                    read: entry.framing.read.slice(-1), row: lastRow() };
+    entry.framing = A.use(entry.framing, lastK); entry.queryText = entry.framing.versions[lastK - 1].brief.question; loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again
+    check('Start analysis with an earlier version on screen that was not read (0313): that version is sent to be read; the framing the server leaves names it as the one in use, the chain\'s question '
+      + 'is that version\'s, the send is told the version, and the fold above the run would name it',
+      same(early, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: earlyK }]], sent: 1, version: earlyK, at: earlyK, text: true, other: true, fold: 'brief v' + earlyK, read: [earlyK],
+                    row: 'sp-row tool read:✓CHECK questionstands on its own2 s⌘' }), early);
+
+    // ... and the Architect made no reply to it: the page says why, the read stands
+    const v2 = await ask('Draw the series as bars, as usual.'), sent2 = sentNow(), told2 = toasts.length;
+    answers['/architect/ready'] = () => [200, stream({ framing: readAs(['as usual']), clean: false, error: 'The Architect\'s reply could not be read (it holds no JSON object).' })]; n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const noReply = { sent: sentNow() - sent2, row: lastRow(), said: toasts.slice(told2), ver: brief().querySelector('.ar-ver b').textContent, hold: $('queryInput').placeholder, read: entry.framing.read.slice(-1) };
+    n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const goesOn = { posted: calls.length - n, sent: sentNow() - sent2 };
+    check('the Analyst could not place something, and the Architect made no reply (0313): the analysis does not start, the read stands as the conversation\'s last row, the brief is as it was, and the '
+      + 'page says why there is no reply, in the server\'s words. Start analysis then starts it: the version is listed as read',
+      same(noReply, { sent: 0, row: 'sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “as usual”2 s⌘', said: ['The Architect\'s reply could not be read (it holds no JSON object).'],
+                      ver: v2 + ' of ' + v2, hold: 'Answer, or say what to change', read: [v2] }) && same(goesOn, { posted: 0, sent: 1 }), [noReply, goesOn]);
+
+    // a read that cannot be had holds nothing up
+    const v3 = await ask('Draw the series as bars, once more.'), outs = [];
+    for (const answer of ['down', [502, 'Bad gateway'], [200, stream({ error: 'This brief can no longer be changed: its analysis has started.' })], [402, { message: 'Your balance is used up.' }], [200, 'not a stream at all']]) {
+      const before = { sent: sentNow(), told: toasts.length, turns: entry.framing.turns.length }; answers['/architect/ready'] = answer; n = calls.length;
+      doc.dispatch('click', startBtn()); await tick();
+      outs.push({ posted: posted(n).map(c => c[0]).join(), sent: sentNow() - before.sent, version: submitted[submitted.length - 1].version, told: toasts.length - before.told, turns: entry.framing.turns.length - before.turns,
+                  read: (entry.framing.read || []).indexOf(v3) >= 0, hold: $('queryInput').placeholder, pending: $('streamOutput').querySelectorAll('.sp-row.pending').length });
+    }
+    check('a read that cannot be had holds nothing up (0313): the server unreachable, an error page, a brief the server says has started, a refusal for the balance, a body that is no stream - each '
+      + 'time the page\'s own send starts the chain under the version on screen, which says what it meets; the page says nothing of the read, the conversation gains no row, the version is not '
+      + 'listed as read - the next start asks again - and no row is left saying a read is under way',
+      outs.length === 5 && outs.every(o => same(o, { posted: '/architect/ready', sent: 1, version: v3, told: 0, turns: 0, read: false, hold: 'Answer, or say what to change', pending: 0 })), outs);
+
+    // the read takes a moment: the coach may have left the brief, or another analysis may have begun
+    const live5 = liveBody(), sent5 = sentNow(), told5 = toasts.length; answers['/architect/ready'] = live5;
+    doc.dispatch('click', startBtn()); await tick();
+    currentResponseIndex = 0; loadResponseContent(responses[0]); updateNavigationButtons();      // the coach goes to another chain
+    const away = { pane: $('streamOutput').querySelectorAll('.sp-row.pending').length, lock: locks[locks.length - 1] };
+    live5.send(JSON.stringify({ architect: { framing: readAs([]), clean: true } }) + '\n'); live5.end(); await tick();
+    const left = { sent: sentNow() - sent5, told: toasts.length - told5, read: entry.framing.read.indexOf(v3) >= 0 };
+    currentResponseIndex = 1; loadResponseContent(entry); updateNavigationButtons(); n = calls.length;
+    const backRow = lastRow();
+    doc.dispatch('click', startBtn()); await tick();
+    const back5 = { posted: calls.length - n, sent: sentNow() - sent5 };
+    const v4 = await ask('Draw the series as bars, a last time.'), live6 = liveBody(), sent6 = sentNow(), told6 = toasts.length; answers['/architect/ready'] = live6;
+    doc.dispatch('click', startBtn()); await tick();
+    queryRunning = true;                                                  // another analysis began meanwhile
+    live6.send(JSON.stringify({ architect: { framing: readAs([]), clean: true } }) + '\n'); live6.end(); await tick();
+    const other = { sent: sentNow() - sent6, said: toasts.slice(told6), read: entry.framing.read.indexOf(v4) >= 0 };
+    queryRunning = false; updateNavigationButtons();
+    check('the read takes a moment (0313). The coach went to another chain meanwhile: that chain\'s pane shows no row of the read and its composer is free; the read is kept - the brief shows it when '
+      + 'the coach comes back - but nothing starts behind their back: Start analysis then starts it at once. Another analysis began meanwhile: nothing starts - the page\'s send would stop that '
+      + 'one - and the page says that another analysis is running',
+      same(away, { pane: 0, lock: ['unlock'] }) && same(left, { sent: 0, told: 0, read: true }) && backRow === 'sp-row tool read:✓CHECK questionstands on its own2 s⌘' && same(back5, { posted: 0, sent: 1 })
+      && same(other, { sent: 0, said: ['Another analysis is running. Wait for it to end, or stop it.'], read: true }), [away, left, backRow, back5, other]);
+
+    // the Architect's reply after a read: a draft of its figures follows, or it went to look something up
+    const v5 = await ask('Draw the series as bars, like the one of spring.'), live7 = liveBody(), sent7 = sentNow(); answers['/architect/ready'] = live7; plotted.length = 0; n = calls.length;
+    answers['/architect/draft/7/71/cold1'] = [200, { plot: { data: [{ type: 'bar', y: [1, 2] }], layout: {} } }];
+    doc.dispatch('click', startBtn()); await tick();
+    const withFigure = reworded(readAs(['the one of spring']), 'I put the figure into the brief.', 'Draw the series as bars.', { changed: ['figures.0'], brief: { figures: [ON_DATA] }, keys: ['cold1'] });
+    live7.send(JSON.stringify({ type: 'architect_draft', chain_id: 71, framing: withFigure }) + '\n'); await tick();
+    const drawing = { rows: rowsNow().slice(-3), hold: $('queryInput').placeholder, fig: brief().querySelectorAll('.ar-fig .ar-wait.live').length, asks: asksNow(), sent: sentNow() - sent7, posted: posted(n).map(c => c[0]) };
+    const drawnF = JSON.parse(JSON.stringify(withFigure));
+    Object.assign(drawnF, { drafts: Object.assign({}, drawnF.drafts, { cold1: { basis: 'made up' } }) });
+    drawnF.turns.push({ who: 'draft', drawn: [{ title: ON_DATA.title, basis: 'made up' }], v: drawnF.versions.length, secs: 5.1, cost: 0.002, call: 9 });
+    live7.send(JSON.stringify({ architect: { framing: drawnF, clean: false } }) + '\n'); live7.end(); await tick();
+    const drawn = { row: lastRow(), hold: $('queryInput').placeholder, figs: brief().querySelectorAll('.ar-fig.drawn').length, sent: sentNow() - sent7, drew: plotted.map(p => p.key).filter(k => k !== 'k2').join(),      // 'k2': the figure the brief had before, drawn again from the plot the page holds
+                    pending: $('streamOutput').querySelectorAll('.sp-row.pending').length };
+    const v6 = await ask('Draw the series as bars, as the table has it.'), sent8 = sentNow();
+    const looking = readAs(['as the table has it']);
+    looking.turns.push({ who: 'architect', text: 'Let me look at the table.', v: v6, cost: 0.02, call: (looking.calls || 0) + 1 }, { who: 'check', found: [{ k: 1, about: 'the table', fact: '3 rows', ran: true }], secs: 1.2 });
+    looking.calls = (looking.calls || 0) + 1;
+    answers['/architect/ready'] = [200, stream({ framing: looking, clean: false })];
+    const wentOn = JSON.parse(JSON.stringify(looking));
+    wentOn.turns.push({ who: 'architect', text: 'The table has three rows. Is that the one you mean?', v: v6, cost: 0.02, call: looking.calls + 1 }); wentOn.calls = looking.calls + 1;
+    answers['/architect/say'] = [200, stream({ framing: wentOn })]; n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    const looked = { posted: posted(n), sent: sentNow() - sent8, said: pane().slice(-1)[0], hold: $('queryInput').placeholder };
+    // ... or had the saved analyses read: the pane follows the count, as in any exchange, and the Architect goes on after the reading
+    const v7 = await ask('Draw the series as bars, as two springs ago.'), live9 = liveBody(), sent9 = sentNow(); answers['/architect/ready'] = live9; n = calls.length;
+    doc.dispatch('click', startBtn()); await tick();
+    live9.send(JSON.stringify({ type: 'architect_saved', read: 1, of: 3 }) + '\n'); await tick();
+    const reading = { row: lastRow(), hold: $('queryInput').placeholder };
+    const recalled = readAs(['as two springs ago']);
+    recalled.turns.push({ who: 'architect', text: 'I am looking in your saved analyses.', v: v7, cost: 0.02, call: (recalled.calls || 0) + 1 }, { who: 'memory', found: [], of: 3, read: 3, secs: 4.2, cost: 0.01 });
+    recalled.calls = (recalled.calls || 0) + 1;
+    const afterIt = JSON.parse(JSON.stringify(recalled));
+    afterIt.turns.push({ who: 'architect', text: 'Nothing saved is from two springs ago. What should the bars show?', v: v7, cost: 0.02, call: recalled.calls + 1 }); afterIt.calls = recalled.calls + 1;
+    answers['/architect/say'] = [200, stream({ framing: afterIt })];
+    live9.send(JSON.stringify({ architect: { framing: recalled, clean: false } }) + '\n'); live9.end(); await tick();
+    const readThem = { posted: posted(n).map(c => c[0]), sent: sentNow() - sent9, said: pane().slice(-1)[0], hold: $('queryInput').placeholder };
+    check('the Architect\'s reply after a read (0313). Where a draft of its figures follows, the stream first carries the framing with the reply: the conversation shows the read and the reply, the row '
+      + 'says a draft is being drawn - not that the question is read -, the composer is held with those words, the figure is a grey window, and the question is the reply\'s; the stream ends on the '
+      + 'framing with the draft, which is drawn in its place. Where the reply went to look something up, the Architect goes on as after any lookup: one more exchange, with nothing said. Where '
+      + 'it had the saved analyses read, the row follows the count and the composer says so, and the Architect goes on after the reading. None of the three starts the analysis',
+      same(drawing, { rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “the one of spring”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedversion ' + (v5 + 1), 'sp-row tool read pending:DRAWING A DRAFT'],
+                      hold: 'A draft of the figures is being drawn', fig: 1, asks: 'Draw the series as bars.', sent: 0, posted: ['/architect/ready'] })
+      && same(drawn, { row: 'sp-row tool read:✓FIGURES1 drawn5 s⌘', hold: 'Answer, or say what to change', figs: 1, sent: 0, drew: 'cold1', pending: 0 })
+      && same(looked, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: v6 }], ['/architect/say', null]], sent: 0, said: 'arch|Architect⌘The table has three rows. Is that the one you mean?',
+                        hold: 'Answer, or say what to change' })
+      && same(reading, { row: 'sp-row tool read pending:SEARCHING MEMORY1 of 3 readSkip', hold: 'Your saved analyses are being read' })
+      && same(readThem, { posted: ['/architect/ready', '/architect/say'], sent: 0, said: 'arch|Architect⌘Nothing saved is from two springs ago. What should the bars show?', hold: 'Answer, or say what to change' }),
+      [drawing, drawn, looked, reading, readThem]);
+    answers['/architect/ready'] = undefined;
+  }
+
   // a chain kept with its brief: the tab alone steps through the versions
   const done = { chain_id: 80, thread_id: 7, queryText: 'A framed question', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
                  contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(F3, { chain: 80, state: 'run' }) + '</div>', streamOutput: '' };
@@ -1373,6 +1580,17 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("version = request.json.get('version')")
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('version=version if isinstance(version, int) and not isinstance(version, bool) else None,')
     && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)"));
+  check('the question\'s check, 0313, from the sources: the words are plain ones - what is being done while it is read, what the row says, what the composer says; Start analysis has the question read '
+    + 'first and starts only where the brief is still on screen and nothing else runs; the page posts to the route the server has, reads the list of versions read that the engine keeps, and '
+    + 'names the call as the host logs it',
+    ["checkingRow: 'CHECKING THE QUESTION', checkingHold: 'The question is being read as the Analyst will read it', checkQ: 'CHECK question', standsAlone: 'stands on its own',",
+     "unplaced: 'the Analyst cannot place', checkPrompt: 'what the question check was given (run log)'"].every(t => own.includes(t))
+    && own.includes("ready(entry, shown).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, version: shown }); });")
+    && own.includes("window.authService.fetch('/architect/ready', { method: 'POST'") && own.includes("if (((entry.framing || {}).read || []).indexOf(version) >= 0) return Promise.resolve(true);")
+    && own.includes("t.who === 'reader' ? build.checkedQ(t, entry.chain_id)") && own.includes('data-agent="Question check"')
+    && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("@architect_bp.route('/architect/ready', methods=['POST'])")
+    && fs.readFileSync(path.join(root, '..', 'bambooai', 'bambooai.py'), 'utf8').includes('label="Question check"')
+    && engine('cold.py').includes('run.framing = {**framing, "turns": turns + went + [turn], "read": done + [at]}') && engine('cold.py').includes('turn = {"who": "reader", "missing": missing, "v": at,'));
   check('the stylesheet and the words, 0311: the panels of the figures are styled in tabs.css - one under another, the tag - in the kernel\'s sand where the numbers are made up -, the cross in view, '
     + 'the plot\'s place with its height, the grey window - as tall for every state, hidden under a drawn draft, its line breathing only while a draft is on its way and still for a reader who '
     + 'asked for less motion - and the made-up line in the kernel\'s sand. Nothing is left of the sketch of 0309 - its drawing, its key, the word - nor of the points a model wrote, nor of the '

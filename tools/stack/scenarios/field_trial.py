@@ -87,6 +87,8 @@ ARCHITECT_OWN = "The question is: "                                  # the perso
 ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question under the brief: the engine keeps none of it
 ARCHITECT_UNREAD_WORDING = "A wording written in the wrong place"
 # the figures and their draft (§2.19, §2.20): asked to show them, the Architect describes the figures - a draft of each is then drawn; asked for another order, it names each by its number
+COLD_POINTER = "as in the analysis of 2 March"                       # words a question may carry that point outside what the Analyst is given: the question's check names them
+ARCHITECT_PLACED = "The question pointed to something the Analyst is not given. I took that out."
 FIGURES_QUESTION = "Plot the yield of regime C against regime A"
 ARCHITECT_SHOW = "Show me what the figures will look like."
 ARCHITECT_DRAFTING = "A draft of the figures is being drawn. Is that what you want to see?"
@@ -414,6 +416,8 @@ class Scenario:
             return "", self.figures(user)
         if system.startswith("You draw a draft of the figures"):
             return "", self.draft(user)
+        if system.startswith("You are given a task as an analyst will be given it"):
+            return "", self.cold(user)
         if system.startswith("You are the Reader"):
             return "", self.reader(user)
         if system.startswith("You look things up in a person's saved analyses"):
@@ -423,6 +427,14 @@ class Scenario:
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user, system)
         return "", "OK"
+
+    # ------------------------------------------------------------ the question's check (docs/ARCHITECT_DESIGN.md §2.22)
+    def cold(self, user):
+        """The question read as the Analyst will read it, before its analysis starts (analyst/cold.py): the words of
+        QUESTION that point outside what was given - COLD_POINTER, where the question carries it - and none in any
+        other question."""
+        question = (re.search(r"^QUESTION:\n(.*?)(?:\n\nBRIEF \(|\n\nReply with)", user, re.S | re.M) or [None, ""])[1]
+        return json.dumps({"cannot_place": [COLD_POINTER] if COLD_POINTER in question else []})
 
     # ------------------------------------------------------------ the Architect (docs/ARCHITECT_DESIGN.md §2.12)
     def architect(self, user):
@@ -455,12 +467,21 @@ class Scenario:
 
         The figures (2026-11-18): asked to show them (ARCHITECT_SHOW) it describes three, for the two regimes the
         question names, and says a draft is being drawn; asked for the second first (ARCHITECT_SWAP) it gives the
-        figures of BRIEF by their numbers, the first two the other way round."""
+        figures of BRIEF by their numbers, the first two the other way round.
+
+        The question's check (2026-11-19): where CONVERSATION ends on what a reader could not place, it gives the
+        question without those words as its wording, and says so (ARCHITECT_PLACED)."""
         find = lambda pattern: (re.search(pattern, user, re.S | re.M) or [None, ""])[1].strip()
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
         said_so_far = find(r"^CONVERSATION:\n(.*?)\n\n(?:OPENED \(|Reply with)")
         talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
+        unplaced = re.match(r"A reader given what the analyst will be given could not place: (.*)$", said_so_far.splitlines()[-1] if said_so_far else "")
+        if unplaced:
+            wording = question
+            for phrase in re.findall(r'"(.*?)"', unplaced.group(1)):
+                wording = wording.replace(phrase, "")
+            return json.dumps({"say": ARCHITECT_PLACED, "wording": re.sub(r"[ ,]+([?.])", r"\1", re.sub(r" {2,}", " ", wording)).strip(" ,")})
         if question == FOLLOW_QUESTION:
             if talk and talk[-1] == ("Person", ARCHITECT_BUILD[0]):
                 return json.dumps({"say": ARCHITECT_BUILT, "build": [1]})

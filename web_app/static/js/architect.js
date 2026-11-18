@@ -25,6 +25,10 @@
 // plot with Plotly (GET /architect/draft/<thread>/<chain>/<key>) - marked where its numbers are made up. A figure
 // without a draft is a grey window with one line: a draft is on its way, none could be drawn, or none was yet.
 //
+// Start analysis first has the question read as the Analyst will read it (POST /architect/ready, a stream; §2.22):
+// a row says so while it is read, and what came of it. Where the reader could not place something, the Architect
+// has gone on - the question worded again - and the coach starts again when they have seen it.
+//
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
 // with nothing else kept.
@@ -61,6 +65,8 @@
         figures: 'FIGURES', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',
         drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', noDraftYet: 'No draft yet.', notDrafted: 'No draft was drawn.', notShown: 'The draft could not be shown.',
         drawingRow: 'DRAWING A DRAFT', drawingHold: 'A draft of the figures is being drawn',
+        checkingRow: 'CHECKING THE QUESTION', checkingHold: 'The question is being read as the Analyst will read it', checkQ: 'CHECK question', standsAlone: 'stands on its own',
+        unplaced: 'the Analyst cannot place', checkPrompt: 'what the question check was given (run log)',
         drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)',
         notStarted: 'The analysis did not start',
         against: { head: 'How it turned out', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked', missing: 'The report does not say.' }
@@ -413,9 +419,20 @@
                 '<span class="out">' + (n ? WORDS.drawn(n) + (m ? ' · ' + WORDS.notDrawn(m) : '') : WORDS.noneDrawn) + '</span><span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span>' +
                 prompt + '</div>';
         },
-        // a draft on its way: the reply stands above the row, which says what is being done
-        drawingRow() {
-            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.drawingRow + '</span></div>';
+        // something on its way - a draft, the question's check: a row that says what is being done
+        pending(doing) {
+            return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + doing + '</span></div>';
+        },
+        // the question read as the Analyst will read it, before its analysis (0313): it stands on its own, or the
+        // Analyst cannot place some of its words - which, read whole: the row wraps; the seconds, and the button to
+        // what the reader was given (the run log's call)
+        checkedQ(turn, chain) {
+            const missing = turn.missing || [];
+            const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="' + WORDS.checkPrompt + '" data-agent="Question check" data-chain="' + esc(chain) +
+                '" data-call="' + esc(turn.call) + '">⌘</button>' : '';
+            return '<div class="sp-row tool read' + (missing.length ? ' skipped ar-unplaced' : '') + '"><span>' + (missing.length ? '–' : '✓') + '</span><span class="in">' + WORDS.checkQ + '</span>' +
+                '<span class="out">' + (missing.length ? WORDS.unplaced + ' ' + missing.map(m => '“' + esc(m) + '”').join(' · ') : WORDS.standsAlone) + '</span>' +
+                '<span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span>' + prompt + '</div>';
         },
         // the coach went to another version of the brief before the message under it: the conversation goes on from that one
         went(turn) {
@@ -457,7 +474,8 @@
         // was opened, where the question changed, what a draft of the figures came to and where the coach went to
         // another version. o: {live: the last message's choices can be clicked - a draft's row may stand under it -,
         // sent: a message on its way, waiting: the Architect is replying, saved: the saved analyses are being read -
-        // how far -, drawing: its reply stands and the draft is on its way}
+        // how far -, drawing: its reply stands and the draft is on its way, checking: the question is being read
+        // before its analysis}
         talk(entry, o) {
             o = o || {};
             const turns = turnsOf(entry.framing), versions = versionsOf(entry.framing), can = o.live && !o.waiting;
@@ -465,11 +483,12 @@
             const worded = t => { const v = versions[(t.v || 0) - 1]; return !!(t.wording && v && v.by === 'architect' && (v.changed || []).indexOf('question') >= 0 && (v.brief || {}).question === t.wording); };
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
                 turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t) : t.who === 'version' ? build.went(t)
-                    : t.who === 'draft' ? build.drafted(t, entry.chain_id)
+                    : t.who === 'draft' ? build.drafted(t, entry.chain_id) : t.who === 'reader' ? build.checkedQ(t, entry.chain_id)
                     : t.who === 'architect' ? build.said(t, entry.chain_id, can && turns.slice(i + 1).every(x => x.who === 'draft')) + (worded(t) ? build.asked(t) : '')
                     : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
-                (o.waiting ? (o.saved ? build.reading(o.saved) : o.drawing ? build.drawingRow() : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
+                (o.waiting ? (o.saved ? build.reading(o.saved) : o.drawing ? build.pending(WORDS.drawingRow) : o.checking ? build.pending(WORDS.checkingRow)
+                    : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
         },
         // the left pane of a brief not yet run: what the Architect's calls cost, and the conversation. Which version is
         // on screen is the Brief tab's to say, in one place
@@ -564,7 +583,7 @@
     // the left pane of a brief not yet run, its newest message in view
     function drawPane(entry) {
         const pane = byId('streamOutput'), mid = talking && talking.entry === entry;
-        pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true, saved: talking.saved, drawing: talking.drawing } : {});
+        pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true, saved: talking.saved, drawing: talking.drawing, checking: talking.checking } : {});
         pane.scrollTop = pane.scrollHeight;
     }
     // the Brief tab of a brief not yet run, as it stands now - its figures saying so while their draft is on its way
@@ -600,7 +619,7 @@
         const input = byId('queryInput'), send = byId('submitQuery');
         const running = typeof queryRunning !== 'undefined' && queryRunning;
         if (talking && talking.entry === entry || running) {
-            if (typeof composerLock === 'function') composerLock(running ? WORDS.busyRun : talking.saved ? WORDS.readingSaved : talking.drawing ? WORDS.drawingHold : WORDS.replying);
+            if (typeof composerLock === 'function') composerLock(running ? WORDS.busyRun : talking.saved ? WORDS.readingSaved : talking.drawing ? WORDS.drawingHold : talking.checking ? WORDS.checkingHold : WORDS.replying);
             if (send && running) send.disabled = false;
             return;
         }
@@ -663,6 +682,28 @@
         });
         return pump();
     }
+    // a framing taken as the chain's - as the server sent it, or with a version put in use: the question of the
+    // version in use is the chain's own
+    function take(entry, framing) {
+        entry.framing = framing;
+        entry.queryText = (versionAt(framing, inUse(framing)).brief || {}).question || entry.queryText;
+    }
+    // What the stream of an exchange carries before it ends, taken as it arrives: how far a reading of the saved
+    // analyses is - the pane follows the count - and, where a draft of the figures follows the reply, the framing with
+    // the reply - shown while they are drawn. `mine`: the exchange's own state, as long as it is the one going on
+    function along(entry, mine, draw) {
+        return d => {
+            if (talking !== mine) return;
+            if (d.type === 'architect_saved') {
+                mine.saved = { read: Number(d.read) || 0, of: d.of == null ? null : Number(d.of) };
+                if (responses[currentResponseIndex] === entry) { drawPane(entry); onChain(entry); }
+            } else if (d.type === 'architect_draft' && d.framing) {      // the reply is kept: it is shown while its figures are drawn
+                take(entry, d.framing);
+                Object.assign(mine, { sent: '', saved: null, drawing: true });      // a draft on its way is said before a read
+                draw();
+            }
+        };
+    }
     // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. `version`: the
     // version of the brief on screen when the coach spoke - the exchange goes on from it. Where the reply had the data
     // looked up, the saved analyses read or a part of an earlier analysis opened, the Architect goes on at once: one
@@ -682,24 +723,9 @@
         draw();
         return window.authService.fetch('/architect/say', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                              body: JSON.stringify(Object.assign({ thread_id: entry.thread_id, chain_id: entry.chain_id, text: text || null }, version != null ? { version } : {})) })
-            .then(r => readStream(r, d => {
-                if (talking !== mine) return;
-                if (d.type === 'architect_saved') {
-                    mine.saved = { read: Number(d.read) || 0, of: d.of == null ? null : Number(d.of) };
-                    if (inView()) { drawPane(entry); onChain(entry); }
-                } else if (d.type === 'architect_draft' && d.framing) {      // the reply is kept: it is shown while its figures are drawn
-                    entry.framing = d.framing;
-                    entry.queryText = (versionAt(entry.framing, inUse(entry.framing)).brief || {}).question || entry.queryText;
-                    Object.assign(mine, { sent: '', saved: null, drawing: true });
-                    draw();
-                }
-            })).then(body => {
+            .then(r => readStream(r, along(entry, mine, draw))).then(body => {
                 const out = closing(body);
-                if (out.framing) {
-                    entry.framing = out.framing;
-                    entry.queryText = (versionAt(entry.framing, inUse(entry.framing)).brief || {}).question || entry.queryText;      // the question of the version in use is the chain's
-                    return true;
-                }
+                if (out.framing) { take(entry, out.framing); return true; }
                 return lost(out.error || WORDS.noReply + '.');
             }).catch(() => lost(WORDS.noReply + ': ' + WORDS.unreachable + '.')).then(kept => {
                 busy = false; talking = null;
@@ -806,8 +832,7 @@
         busy = true;
         return post('/architect/brief', { thread_id: entry.thread_id, chain_id: entry.chain_id, brief: out.brief, changed: out.changed }).then(res => {
             if (!res.ok || !res.json.framing) { say(res.json.error || WORDS.notKept + '.'); return false; }      // the line stays open, with what was typed
-            entry.framing = res.json.framing;
-            entry.queryText = (versionAt(entry.framing, inUse(entry.framing)).brief || {}).question || entry.queryText;
+            take(entry, res.json.framing);
             if (responses[currentResponseIndex] === entry) refresh(entry);
             return { part: path.split('.')[0], removed: out.removed };
         }).catch(() => { say(WORDS.notKept + ': ' + WORDS.unreachable + '.'); return false; }).then(result => { busy = false; return result; });
@@ -817,16 +842,46 @@
         if (root.querySelector('.ar-line.editing')) keepThen(root, path, (again, at) => change(again, at, text, how));
         else change(root, path, text, how);
     }
+    // Before a brief's analysis starts (0313, §2.22): the question of the version it will run under is read as the
+    // Analyst will read it - once: a version the framing lists as read starts at once. While it is read the pane
+    // says so and the composer is held. Resolves to whether the analysis can start. Where the reader could not place
+    // something, the Architect has gone on: the conversation and the brief are the record's - the read, its reply,
+    // the question as it worded it, the figures as grey windows while a draft follows - or the page says why it
+    // made no reply; the coach starts again when they have seen it. A read that could not be had holds nothing up:
+    // the start goes on, and says what it meets
+    function ready(entry, version) {
+        if (busy) return Promise.resolve(false);
+        if (((entry.framing || {}).read || []).indexOf(version) >= 0) return Promise.resolve(true);
+        busy = true;
+        const mine = talking = { entry, checking: true };
+        const draw = () => { if (responses[currentResponseIndex] === entry) { refresh(entry); onChain(entry); } };
+        draw();
+        return window.authService.fetch('/architect/ready', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                               body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, version }) })
+            .then(r => readStream(r, along(entry, mine, draw))).then(body => {      // the Architect's reply after the read, as after a message
+                const out = closing(body);
+                if (!out.framing) return true;
+                take(entry, out.framing);
+                if (out.error) say(out.error);
+                return out.clean !== false;
+            }).catch(() => true).then(clean => {
+                busy = false; talking = null;
+                const turns = turnsOf(entry.framing);
+                if (!clean && turns.length && ['check', 'memory', 'opened'].indexOf(turns[turns.length - 1].who) >= 0) exchange(entry, '');      // the Architect went on to look something up: it goes on
+                else draw();
+                return clean;
+            });
+    }
     function start(root) {
         const entry = entryOf(root);
-        if (!entry) return;
-        if (typeof queryRunning !== 'undefined' && queryRunning) { say(WORDS.busyRun); return; }
+        const free = () => { const running = typeof queryRunning !== 'undefined' && queryRunning; if (running) say(WORDS.busyRun); return !running; };
+        if (!entry || !free()) return;
         keep(root).then(out => {
             if (!out) return;
             const shown = stateOf(briefRoot() || root).shown;      // the version on screen is the one the analysis runs under
-            entry.framing = use(entry.framing, shown);
-            entry.queryText = (versionAt(entry.framing, shown).brief || {}).question || entry.queryText;
-            handleQuerySubmit({ framed: entry, version: shown });
+            take(entry, use(entry.framing, shown));
+            // the read takes a moment: the analysis starts where the brief is still on screen, and nothing else began meanwhile
+            ready(entry, shown).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, version: shown }); });
         });
     }
     // the analysis of a brief begins (handleQuerySubmit, after the panes are cleared): the framing folds to one row above

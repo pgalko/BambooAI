@@ -236,10 +236,11 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   say what they mark; no text below 11 px.
 - **Backdrop**: the modal sits past the rail and the top bar, so the dataset pills and the rail stay as they are; the
   working window under it is dimmed by a heavy scrim (`--scrim-heavy`, both themes) and blurred.
-- **Ways in**: the closing card's **Code map →** button on its links line (the links' style and size with a slight
-  border; for an answered chain that ran code; the chain id rides in the saved markup, so a restored card still
-  opens its map); the eye on a chain's box in the thread map drawer, shown on the hovered box and the open chain's
-  (it moves the app to the chain, closes the drawer, opens the map); and a `[cell n]` citation in the report or its
+- **Ways in**: the closing card's **Code map** button, beside **Next questions** (2026-11-19: until then a button
+  on the card's line of links, which is gone; for an answered chain that ran code; the chain id rides in the saved
+  markup, so a restored card still opens its map); the eye on a chain's box in the thread map drawer, shown on the
+  hovered box and the open chain's (it moves the app to the chain, closes the drawer, opens the map); and a
+  `[cell n]` citation in the report or its
   plain-language version (2026-10-24): the chip opens the map on the Recipe diagram at that cell's recorded number -
   the cell's one number, or of several the one the sentence names (a number in the sentence equal to the estimate or
   an end of its interval, the report's rounding allowed for) - and otherwise on the Steps view at the cell's row.

@@ -437,6 +437,14 @@ def story(w, mod, dataset, questions):
             p.wait_for_timeout(300)
             w.shot("tutor_brief")
             w.js("setMode('deep')")
+            pointer = getattr(mod, "COLD_POINTER", None)
+            if pointer:                                      # the question's check (§2.22): the coach's wording points to an analysis the Analyst is not given
+                write("question", p.inner_text("#content-brief h1 .tx") + ", " + pointer)
+                replies = p.evaluate("() => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length")
+                p.click('#content-brief [data-ar="start"]')  # read first: nothing runs, the row says which words, the Architect words the question again
+                said(replies + 1)
+                p.wait_for_timeout(300)
+                w.shot("tutor_question_check")
             p.click('#content-brief [data-ar="start"]')
             w.wait_text(".sp-done", "Run complete", timeout=240000)
             p.wait_for_timeout(600)
