@@ -43,7 +43,10 @@ check('answer tab: the Simplified/Technical toggle and the PDF button are styled
 // ---- v43 ----
 check('shell.css: a collapsed left pane really collapses (the right pane takes the width)', shell.includes('.container .left-panel.collapsed { flex: 0 0 0; width: 0;'));
 check('shell.css: a chip\'s remove icon strokes in the chip\'s colour at the old rules\' theme-level specificity', shell.includes('[data-theme="dark"] .topbar .dataset-status-pill.auxiliary-dataset-pill.success .dataset-pill-remove-icon svg') && shell.includes('.dataset-pill-remove-icon svg { stroke: currentColor; fill: none; }'));
-check('answer page: the toolbar is pinned to the top-right corner with the content\'s margins; the key figure and citation chips are styled', shell.includes('#content-answer .tab-header-container { position: absolute; top: 18px; right: 24px;') && shell.includes('#content-answer .answer-key {') && shell.includes('#content-answer .cite {'));
+check('answer page: the toolbar is pinned to the top-right corner with the content\'s margins; the key figure and citation chips are styled - a chip looks the same in the card of what the report says against the brief, on the Brief tab (0312)',
+  shell.includes('#content-answer .tab-header-container { position: absolute; top: 18px; right: 24px;') && shell.includes('#content-answer .answer-key {')
+  && ['', ':hover', '.cell', '.fig'].every(k => shell.includes('#content-answer .cite' + k + ', #content-brief .ar-against .cite' + k + ' {'))
+  && shell.includes('#content-answer .cite.doc, #content-answer .cite.ctx, #content-brief .ar-against .cite.doc, #content-brief .ar-against .cite.ctx {') && !/^#content-answer \.cite[^,{]* \{/m.test(shell));
 const sp = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
 check('stream-pane.js: the closing card writes the best estimate as the answer\'s key figure and turns [cell n]/[fig n] into chips', sp.includes("key.className = 'answer-key'") && sp.includes("class=\"cite ' + kind + '\""));
 // ---- v44: the fold ----

@@ -63,8 +63,10 @@ check('the print styles carry the citation chips - a quiet pill, not interactive
   && pe.includes('layout: printLayout(plot.element.layout || {})') && pe.includes("imgData = await Plotly.toImage(plot.element, { format: 'png', width: 1000, height: 560, scale: 2 });") && pe.includes('dropBodyTitle(contentClone, headModel.title);'));
 check('the export: the head model builds the top section, the page title becomes the report\'s title for the print dialog and is restored after; the old 200-character cut is gone',
   pe.includes("headerDiv.innerHTML = renderPdfHead(headModel);") && pe.includes("document.title = pdfFileTitle(headModel.title) || pageTitle;") && pe.includes("document.title = pageTitle;") && !pe.includes("substring(0, 200)") && !pe.includes("Generated: ${new Date().toLocaleString()}"));
-check('the print styles carry the report\'s part Against the brief (2026-11-15): on the page a card of verdicts, on paper one line to a row with the verdict as a quiet pill',
-  pe.includes('#pdf-print-container .ar-against {') && pe.includes('page-break-inside: avoid;') && pe.includes("#pdf-print-container .ar-against .k:not(:empty)::after { content: ':'; }")
-  && pe.includes('#pdf-print-container .ar-against .v:not(:empty) {') && pe.indexOf('#pdf-print-container .ar-against {') > pe.indexOf('#pdf-print-container .cite.fig {'));
+const crSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'content-rendering.js'), 'utf8');
+check('the export prints the answer as its tab holds it, and since 0312 that holds nothing of what the report says against its brief - the part is cut where the answer is rendered, in both versions '
+  + '(architect.js cutAnswer): what goes to other people says nothing of a brief they have not seen. The print styles carry no rule for its card any more',
+  pe.includes('const contentClone = answerContent.cloneNode(true);') && !pe.includes('ar-against') && !/against the brief/i.test(pe)
+  && (crSrc.match(/window\.ArchitectUI\.cutAnswer\(finalContent\)/g) || []).length === 2);
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

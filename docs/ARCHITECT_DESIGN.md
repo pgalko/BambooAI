@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.24 (2026-11-18; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310 and 0311; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.25 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311 and 0312; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -68,6 +68,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 47 | Where the brief builds on a saved analysis, its code is given to the model that writes the draft. What it drew is not shown: 0310 put the picture its favourite keeps under its line, and the product owner took it out after his live test (0311; §2.20). |
 | 48 | A row of the conversation that is in flight says what is being done: *SEARCHING MEMORY*, *DRAWING A DRAFT*. Done, it is named for what it is about: *MEMORY*, *FIGURES* (0311: *SAVED analyses* read as something saved, and *FIGURES* said nothing of what was happening; §2.20, §3.7). |
 | 49 | How the Architect described a figure - its kind, its axes, its note - is for the model that draws and for the Analyst. The page shows the figure's title and its draft (0311; §2.20). |
+| 50 | The Answer is what goes to other people, so it says nothing that only a reader of the brief can place. What the report says against the brief is shown at the foot of the run's Brief tab, under *How it turned out*, and not in the Answer or its export (0312, from the product owner's live test: the Answer "could be shared via PDF with third parties not familiar with the mechanic"; §2.21). *Did not fit* stays in the Answer: it reads as a finding. |
 
 ## 2. The Architect
 
@@ -206,7 +207,8 @@ What goes: the Analyst's ideas path and the Explore tab.
 - **The switch.** A button named Architect beside the mode control. It stays as set.
 - **Next questions.** A button on the closing card of a finished analysis. The plant button leaves the question box.
 - **During the analysis** the conversation folds into one row. The Brief tab stays.
-- **After the analysis** the Answer tab shows *Against the brief* and *Did not fit*.
+- **After the analysis** the Answer tab shows *Did not fit*, and the Brief tab how the result stands against the
+  brief (0312, §2.21; until then the Answer showed both).
 - **One way to change and one way to go, on each path.** In an Architect run: the pencils in the brief, and Start
   analysis. On a candidate question: the pencil and the arrow on its card. The two are never on screen for the same
   question.
@@ -304,11 +306,11 @@ last kept, numbered with its version, and attaches where the framing run did. A 
 the framing folds to one row above the run, the Brief tab stays to be read, and the closing card links to it. The
 tab's markup carries the versions, so a saved or restored chain still steps through them.
 
-**The report on the page.** The part *Against the brief* is shown as a card in the answer (`dressAnswer`): a row for
-what was expected and a row for what would change the coach's mind, each with its verdict, then a row for each
-check. A check line that says "cannot tell" is marked. A part the card cannot hold whole, such as a table, is left
-as the report wrote it. *Did not fit* stays the report's own section. The plain-language version and the export
-show the same card.
+**The report on the page.** The part *Against the brief* is not shown in the answer (0312, §2.21; from 0296 it was
+a card there). It is a card at the foot of the run's Brief tab: a row for what was expected and a row for what
+would change the coach's mind, each with its verdict, then a row for each check. A check line that says "cannot
+tell" is marked. A part the rows cannot hold whole, such as a table, goes as the report wrote it. *Did not fit*
+stays the report's own section, in the answer.
 
 **The thread map.** A tag on the box's top edge says how its question was made: *Architect*, or *not run* for a
 brief whose analysis was never started. A box that was not run is dashed and has no code map.
@@ -1049,6 +1051,48 @@ the draft looks - is for the dev box.
   made up.
 - On an executor, a cell stuck inside compiled code past its limit runs on until it returns.
 
+### 2.21 What the report says against the brief: out of the Answer — built (0312, 2026-11-19)
+
+**Why.** The product owner, from a live run: the Answer "could be shared via PDF with third parties not familiar
+with the mechanic". A reader who was not in the conversation with the Architect has not seen the brief. A card
+headed *Against the brief*, with what was expected and a list of checks, tells them nothing they can place. The
+Answer is the report as it goes to other people (decision 50).
+
+**What changed, and what did not.** The engine is untouched. The Analyst writes `## Against the brief` as before,
+`outcome()` reads it onto the run, the Architect, memory and the next questions use it, and the plain-language
+version keeps it. The change is on the page, where the answer is shown (`architect.js`):
+
+- `cutAnswer(html)` takes the part out of the answer: under its heading, as the report wrote it; as the card an
+  answer kept before 0312 holds; and with it the engine's line that the report does not say how the result stands
+  against the brief. It gives back the answer without them, and the rows of a card.
+- `turnedOut(root, rows)` puts the card at the foot of that run's Brief tab, under *How it turned out*. The rows
+  are kept in the brief's own markup (`data-against`), as its versions are, so the arrows and a chain shown again
+  have them with nothing else kept. The card stands under the version the run was under and under no other: under
+  an earlier version it would be read against lines the run did not have. `root` is the run's own tabs - the
+  page's, or the holder of a run that goes on while another chain is on screen.
+- Both versions of the answer are cut: the technical one where it is rendered (`content-rendering.js`), the plain
+  one at the toggle. The export prints the answer as its tab holds it, so it holds nothing of the part; its print
+  rules for the card are gone.
+- A citation in a row is the chip it was in the answer, and opens the code map as it did: the chips' rules
+  (`shell.css`) held under the Answer tab alone, and now cover the card.
+
+**Did not fit** stays in the answer: it reads as a finding. Whether it should move too is the product owner's to
+say.
+
+**Tests.** `test_architect.js`: the cut in each form - a list, plain lines, a heading at any level, a table, a
+card kept from before, the engine's line - the rows, the Brief tab's markup under the version in use and under
+another, and `turnedOut()` driven with the arrows. `test_pdf_export.js`: no rule for the card. The walk
+(`walk_architect`): the card on the Brief tab and nothing of the part in the answer, in the plain version, or in
+what the PDF button hands the printer; the arrows; a chip's look and its way into the code map; a chain kept
+from before, shown again. The gallery: `architect_answer` is the answer without the part, `architect_outcome`
+the Brief tab with the card.
+
+**Known limits.**
+
+- The dialog of a saved analysis (**View**) shows its report as it was written, with the part.
+- The plain-language version is still written with the part; the page leaves it out.
+- The library has no page: its report holds the part as before.
+
 ## 3. Memory from saved analyses
 
 ### 3.1 What counts (agreed)
@@ -1464,6 +1508,7 @@ on the last one.
 | 0309 | The product owner's idea after testing 0308: the figures sketched before the run. The Architect describes each figure and the Brief tab draws it - grey where the data decides, a line known in advance from rough points. The Analyst and the step that draws read the agreed figures; code holds their titles (§2.19). | built |
 | 0310 | From the product owner's test of 0309: the sketches looked like nothing. A draft of each figure, drawn by a cell a model writes and the sandbox runs with no data - computed where a rule gives the shape, on made-up numbers, marked, where the data will; what a saved analysis drew; the draft's cell handed to the step that draws; the model's own points gone (§2.20). | built |
 | 0311 | From the product owner's live test of 0310, "a little too busy": no picture of a saved analysis in the brief; a grey window with one line where a figure has no draft, in place of the sketch; the rows in flight say what is being done; a figure's note is no longer cut at 240 characters (§2.19, §2.20, §3.7). | built |
+| 0312 | From the product owner's live test: the Answer is what goes to other people - what the report says against the brief leaves it, in both versions and in the export, for the foot of the run's Brief tab (§2.21). | built |
 
 ## 8. Not in this release
 

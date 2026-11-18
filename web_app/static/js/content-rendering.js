@@ -366,7 +366,12 @@ async function updateTabContent(type, data, id = null, format = null) {
             // the stored technical answer carries them through toggles and re-renders (stream-pane.js, 2026-10-03)
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
             if (type === 'answer' && typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
-            if (window.ArchitectUI) finalContent = window.ArchitectUI.dressAnswer(finalContent);      // the part "Against the brief", as a card
+            // what the report says against its brief is not the answer's: it goes to the run's Brief tab (architect.js, 0312)
+            if (window.ArchitectUI) {
+                const cut = window.ArchitectUI.cutAnswer(finalContent);
+                finalContent = cut.html;
+                window.ArchitectUI.turnedOut(_root, cut.against);
+            }
             
             // Add the content to the DOM
             content += '<div class="markdown-content content-body">' + finalContent + '</div>';
@@ -954,7 +959,7 @@ function handleSimplifiedSummaryToggle() {
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
             // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
             if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
-            if (window.ArchitectUI) finalContent = window.ArchitectUI.dressAnswer(finalContent);
+            if (window.ArchitectUI) finalContent = window.ArchitectUI.cutAnswer(finalContent).html;      // the rewrite keeps the part "Against the brief": not in the answer
             
             answerContent.innerHTML = finalContent;
             currentData.summaryViewMode = 'simplified';

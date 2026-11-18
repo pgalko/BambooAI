@@ -410,11 +410,14 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.wait_for_function("() => responses.length === 2 && !responses[1].status", timeout=60000)
     counted.append(month_queries(page))         # its analysis ran
 
-    # the report against the brief
-    rep = page.evaluate("""() => { const a = document.getElementById('content-answer'), card = a.querySelector('.ar-against');
+    # the report against the brief: on the run's Brief tab, and not in the Answer (0312)
+    rep = page.evaluate("""() => { const a = document.getElementById('content-answer'), tab = document.querySelector('#content-brief .ar-brief'), card = tab.querySelector('.ar-against');
         return { rows: card ? [...card.querySelectorAll('.r')].map(r => [r.querySelector('.k').textContent, r.querySelector('.t').textContent, r.querySelector('.v').textContent]) : null,
                  label: card ? card.querySelector('.label').textContent : null, heads: [...a.querySelectorAll('.markdown-content h2')].map(h => h.textContent),
                  cites: card ? card.querySelectorAll('.cite.cell').length : 0, text: a.querySelector('.markdown-content').textContent,
+                 cards: [a.querySelectorAll('.ar-against').length, tab.querySelectorAll('.ar-against').length], last: tab.lastElementChild === card,
+                 kept: (() => { const d = document.createElement('div'), told = x => JSON.stringify([...x.querySelectorAll('.r')].map(r => r.textContent)); d.innerHTML = tab.dataset.against || ''; return !!card && told(d) === told(card); })(),
+                 raw: currentData.technicalAnswer || '',
                  done: [...document.querySelectorAll('.sp-done')].pop().textContent, links: [...[...document.querySelectorAll('.sp-done')].pop().querySelectorAll('.links a')].map(x => x.textContent),
                  peek: [...document.querySelectorAll('#streamOutput .sp-row[data-cell] .out')].map(e => e.textContent).join(' | ') }; }""")
     nums = re.search(r"BRIEF_DIFF=(-?[\d.]+) BRIEF_LO=(-?[\d.]+) BRIEF_HI=(-?[\d.]+)", rep["peek"])
@@ -422,30 +425,68 @@ def walk_architect(page, st, mod, wa, edition, user):
     want = None if d is None else ("met" if lo >= 0.3 else ("not met" if hi < 0.3 else "cannot tell"))
     seen = None if d is None else ("seen" if hi < 0.1 else ("not seen" if lo >= 0.1 else "cannot tell"))
     rows = rep["rows"] or []
-    check("the report says how the result stands against the brief, as a card in the answer: what was expected with its verdict - the one the kernel's interval gives against the 0.3 the coach expected - "
-          "and what would change their mind; then a row for each Also check - the explanation the Architect proposed and the coach ticked, the coach's own, and the three standing ones - 'cannot tell' "
-          "marked where the report says so; the cell citations stay chips",
-          rep["label"] == "Against the brief" and len(rows) == 7 and rows[0][0] == "You expected" and rows[0][2] == want and f"{d:.3f}" in rows[0][1]
+    check("the report says how the result stands against the brief, and the page shows it as a card at the foot of the run's Brief tab, under How it turned out (0312; it stood in the answer): what "
+          "was expected with its verdict - the one the kernel's interval gives against the 0.3 the coach expected - and what would change their mind; then a row for each Also check - the "
+          "explanation the Architect proposed and the coach ticked, the coach's own, and the three standing ones - 'cannot tell' marked where the report says so; the cell citations stay chips. "
+          "The rows ride in the brief's own markup",
+          rep["label"] == "How it turned out" and rep["cards"] == [0, 1] and rep["last"] and rep["kept"] and len(rows) == 7 and rows[0][0] == "You expected" and rows[0][2] == want and f"{d:.3f}" in rows[0][1]
           and rows[1][0] == "Would change your mind" and rows[1][2] == seen and rows[2][0] == "Also checked" and rows[2][1].startswith(f"{its[0]}: the gap is ") and f"{d:.3f} within soil type" in rows[2][1]
           and rows[3][1].startswith("Rainfall differed between the C and A plots: mean rainfall was")
           and [r[0] for r in rows[3:]] == ["", "", "", ""] and [r[1].split(":")[0] for r in rows[4:]] == ["chance", "measurement error", "how the cases compared came to be chosen"]
           and [r[2] for r in rows[2:]] == ["", "", "", "cannot tell", ""] and rep["cites"] >= 4, (rows, want, seen, rep["peek"]))
-    check("around the card the report is the analyst's own: the opening says what the result means for the decision, Did not fit keeps its heading; the part's own heading is the card's label, not repeated; "
-          "the closing card links to the brief",
-          "For the decision - Switch to regime C - " in rep["text"] and "Did not fit" in rep["heads"] and "Against the brief" not in rep["heads"]
-          and rep["links"][:2] == ["Answer →", "Brief →"] and "Replay reproduced" in rep["done"], (rep["heads"], rep["links"], rep["done"][:200]))
+    said = [r[1].split(":")[0] for r in rows[2:]]        # how each check's line opens: the words that would give the part away
+    check("the answer is the analyst's own without the part (0312: the answer is what goes to other people): the opening says what the result means for the decision, Did not fit keeps its heading, "
+          "and nothing of the part is left - no heading, no card, none of its lines - on the tab and in the copy the page keeps for the toggle; the closing card links to the brief",
+          "For the decision - Switch to regime C - " in rep["text"] and "Did not fit" in rep["heads"] and "Against the brief" not in rep["heads"] and len(said) == 5
+          and not any(x in rep["text"] or x in rep["raw"] for x in ["Against the brief", "How it turned out", "Would change their mind", "ar-against"] + [s + ":" for s in said])
+          and rep["links"][:2] == ["Answer →", "Brief →"] and "Replay reproduced" in rep["done"], (rep["heads"], rep["links"], rep["done"][:200], said, rep["text"][:600]))
     page.click("#tab-answer")
     page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
+    page.evaluate("() => { window.__printed = []; window.print = () => { window.__printed.push(document.getElementById('pdf-print-container').textContent); }; }")
+    printed = lambda n: (page.click("#content-answer .pdf-export-btn"), page.wait_for_function("(n) => window.__printed.length === n", arg=n, timeout=20000),      # noqa: E731
+                         page.wait_for_function("() => !document.getElementById('pdf-print-container')", timeout=10000), page.evaluate("() => window.__printed[window.__printed.length - 1]"))[3]
+    paper = printed(1)
     page.click("#content-answer .simplified-summary-btn")
     page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=5000)
-    plain_rows = page.evaluate("() => [...document.querySelectorAll('#content-answer .ar-against .r')].map(r => [r.querySelector('.k').textContent, r.querySelector('.v').textContent])")
+    plain = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, cards: document.querySelectorAll('#content-answer .ar-against').length, "
+                          "wrote: currentData.simplifiedAnswer || '', tab: document.querySelectorAll('#content-brief .ar-against .r').length })")
+    paper_plain = printed(2)
     page.click("#content-answer .simplified-summary-btn")
     page.wait_for_function("() => currentData.summaryViewMode === 'technical'", timeout=5000)
-    check("the plain-language version keeps the part, and the page shows it as the same card; toggled back, the technical report has its card still",
-          plain_rows == [[r[0], r[2]] for r in rows] and page.evaluate("() => document.querySelectorAll('#content-answer .ar-against .r').length") == 7, plain_rows)
+    again = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, cards: document.querySelectorAll('#content-answer .ar-against').length, "
+                          "tab: document.querySelectorAll('#content-brief .ar-against .r').length })")
+    gone = lambda text: not any(x in text for x in ["Against the brief", "How it turned out", "Would change their mind", "You expected"] + [s + ":" for s in said])      # noqa: E731
+    check("the plain-language version is the answer without the part too (0312): the rewrite keeps the part under its heading, and the page cuts it where it shows the answer - no card, no heading, "
+          "none of its lines; toggled back, the technical answer has none either, and the card on the Brief tab stood through both. What the PDF button hands the printer is the answer as its tab "
+          "holds it, in either version: the report's opening, and not a word of the part",
+          "## Against the brief" in plain["wrote"] and plain["cards"] == 0 and gone(plain["text"]) and "Did not fit" in plain["text"] and plain["tab"] == 7
+          and again["cards"] == 0 and gone(again["text"]) and "For the decision - Switch to regime C - " in again["text"] and again["tab"] == 7
+          and "For the decision - Switch to regime C - " in paper and gone(paper) and "Did not fit" in paper and gone(paper_plain) and "Did not fit" in paper_plain and paper != paper_plain,
+          (plain["text"][:400], plain["wrote"][:300], again["text"][:200], paper[:400], paper_plain[:400]))
     page.click('.sp-done .links a:nth-child(2)')
     page.wait_for_function("() => document.getElementById('content-brief').classList.contains('active')", timeout=5000)
     ran2 = brief_on_screen(page)
+    turned = lambda: page.evaluate("""() => { const r = document.querySelector('#content-brief .ar-brief'), c = r.querySelector('.ar-against');      // noqa: E731
+        return [r.querySelector('.ar-ver b').textContent, c ? getComputedStyle(c).display : '', c ? c.querySelectorAll('.r').length : 0, !!r.dataset.against, c ? Math.round(c.getBoundingClientRect().width) > 300 : false]; }""")
+    under2 = turned()
+    chip = page.evaluate("""() => { const c = document.querySelector('#content-brief .ar-against .cite.cell'), s = c ? getComputedStyle(c) : null;
+        return c ? [c.textContent, s.display, s.borderTopLeftRadius, s.borderTopStyle, s.cursor] : null; }""")
+    page.click('#content-brief .ar-against .cite.cell')
+    page.wait_for_selector("#codeMapModal .cm-diag .cm-node.result, #codeMapModal .cm-pane.step", timeout=15000)
+    mapped = page.evaluate("() => ({ open: document.getElementById('codeMapModal').style.display === 'flex', kicker: (document.querySelector('#codeMapModal .cm-panel .cm-kicker span') || {}).textContent || '' })")
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+    page.click('#content-brief [data-ar="step"][data-step="-1"]')
+    page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '1 of 2'", timeout=5000)
+    under1 = turned()
+    page.click('#content-brief [data-ar="step"][data-step="1"]')
+    page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '2 of 2'", timeout=5000)
+    check("the Brief tab after the run, read by the coach (0312): under the version the analysis ran under, the card of how it turned out shows at the tab's foot, a grid across it. A citation "
+          "in it is the chip it was in the answer - it looks like one, and a click opens the code map on its cell. The arrow back shows the version before without the card - the run was not "
+          "under those lines - and the arrow forward brings it back, from the tab's own markup",
+          under2 == ["2 of 2", "grid", 7, True, True] and under1 == ["1 of 2", "", 0, True, False] and turned() == under2
+          and bool(chip) and re.fullmatch(r"cell \d+", chip[0]) and chip[1:] == ["inline-block", "8px", "solid", "pointer"] and mapped["open"] and chip[0] in mapped["kicker"].lower(),
+          (under2, under1, turned(), chip, mapped))
     done2 = thread_run(wa, user, tid, cid2)
     prompt2 = turn_prompt(page, 1)
     check("the closing card's Brief link opens the brief the run was started with, to be read: v2, the measure as the Architect changed it; the record keeps that version on the run, with what the report said against "
@@ -455,6 +496,32 @@ def walk_architect(page, st, mod, wa, edition, user):
           and done2.get("brief_outcome", {}).get("stated") is True and done2["brief_outcome"].get("expected") == want and done2["brief_outcome"].get("would_change") == seen
           and len(done2["brief_outcome"].get("checks", [])) == 5 and len(done2["brief_outcome"].get("did_not_fit", [])) == 1 and done2["brief_outcome"]["did_not_fit"][0].startswith(mod.NEXT_MISFIT + ": ")
           and "BRIEF (agreed with the person before this run):" in prompt2 and "- measure: yield\n" in prompt2, (ran2, done2.get("brief_outcome"), prompt2[:300]))
+
+    # a chain kept before 0312: its answer holds the card, its Brief tab none - made here from the chain as the page keeps it, shown again, and put back as it was
+    kept_old = page.evaluate("""async () => { const e = responses[currentResponseIndex], was = { contentOutput: e.contentOutput, technicalAnswer: e.technicalAnswer };
+        const d = document.createElement('div'); d.innerHTML = e.contentOutput;
+        const tab = d.querySelector('#content-brief .ar-brief'), card = tab.querySelector('.ar-against'), body = d.querySelector('#content-answer .markdown-content');
+        const rows = () => [...document.querySelectorAll('#content-brief .ar-against .r')].map(r => r.querySelector('.t').textContent);
+        const before = rows();
+        card.querySelector('.label').textContent = 'Against the brief'; tab.removeAttribute('data-against');
+        body.insertBefore(card, [...body.querySelectorAll('h2')].find(h => h.textContent === 'Did not fit'));
+        e.contentOutput = d.innerHTML; e.technicalAnswer = body.outerHTML;
+        const old = { answer: d.querySelectorAll('#content-answer .ar-against').length, tab: d.querySelectorAll('#content-brief .ar-against').length, rides: tab.hasAttribute('data-against') };
+        loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 600));
+        const a = document.getElementById('content-answer'), t = document.querySelector('#content-brief .ar-brief'), c = t.querySelector('.ar-against');
+        const shown = { answer: a.querySelectorAll('.ar-against').length, text: a.querySelector('.markdown-content').textContent, raw: currentData.technicalAnswer || '', tab: t.querySelectorAll('.ar-against').length,
+                        label: c ? c.querySelector('.label').textContent : '', last: t.lastElementChild === c, rides: t.hasAttribute('data-against'), same: JSON.stringify(rows()) === JSON.stringify(before),
+                        chips: c ? c.querySelectorAll('.cite.cell').length : 0, heads: [...a.querySelectorAll('.markdown-content h2')].map(h => h.textContent) };
+        Object.assign(e, was); loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 600));
+        return { old, shown, back: [document.querySelectorAll('#content-answer .ar-against').length, rows().length, JSON.stringify(rows()) === JSON.stringify(before)] }; }""")
+    check("a chain kept from before 0312, shown again: its answer held the card and its Brief tab none. The card leaves the answer - on the tab and in the copy kept for the toggle - and stands at the "
+          "foot of the chain's Brief tab under How it turned out, its rows and their chips as they were, and rides in the brief's markup from then on; Did not fit keeps its place in the answer",
+          kept_old["old"] == {"answer": 1, "tab": 0, "rides": False}
+          and (kept_old["shown"]["answer"], kept_old["shown"]["tab"], kept_old["shown"]["label"], kept_old["shown"]["last"], kept_old["shown"]["rides"], kept_old["shown"]["same"]) == (0, 1, "How it turned out", True, True, True)
+          and kept_old["shown"]["chips"] >= 4 and "Did not fit" in kept_old["shown"]["heads"] and "ar-against" not in kept_old["shown"]["raw"]
+          and not any(x in kept_old["shown"]["text"] for x in ["Against the brief", "You expected", "Would change your mind"]) and kept_old["back"] == [0, 7, True], kept_old)
 
     # the thread map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
     page.evaluate("showWorkflowMap()")
@@ -466,7 +533,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.click("#submitQuery")
     wait_text(page, "#chainPosition", "chain 3 of 3", 60000)
     wait_run_end(page, 3)
-    plain = page.evaluate("""() => ({ tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent), fold: !!document.querySelector('#streamOutput .ar-fold'), card: !!document.querySelector('#content-answer .ar-against'),
+    plain = page.evaluate("""() => ({ tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent), fold: !!document.querySelector('#streamOutput .ar-fold'), card: !!document.querySelector('#contentOutput .ar-against'),
         on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), links: [...[...document.querySelectorAll('.sp-done')].pop().querySelectorAll('.links a')].map(x => x.textContent) })""")
     third = thread_run(wa, user, tid, page.evaluate("() => currentData.chain_id"))
     counted.append(month_queries(page))         # a plain question ran
@@ -967,7 +1034,8 @@ def walk_tutor(page, mod, wa, edition, user):
     prompt = turn_prompt(page, 1)
     ran = thread_run(wa, user, tid, cid)
     rep = page.evaluate("""() => { const a = document.getElementById('content-answer');
-        return { card: !!a.querySelector('.ar-against'), heads: [...a.querySelectorAll('.markdown-content h2')].map(h => h.textContent), text: a.querySelector('.markdown-content').textContent }; }""")
+        return { card: !!document.querySelector('#contentOutput .ar-against') || !!document.querySelector('#content-brief .ar-brief[data-against]'),
+                 heads: [...a.querySelectorAll('.markdown-content h2')].map(h => h.textContent), text: a.querySelector('.markdown-content').textContent }; }""")
     page.click("#tab-brief")
     kept = brief_on_screen(page)
     check("a line the coach adds by hand goes on from the version on screen too: added to version 2 through + Add, it is one more version - the fourth - with that version's question, and the last "

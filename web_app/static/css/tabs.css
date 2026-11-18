@@ -284,13 +284,14 @@
 #content-brief .ar-memory .why { margin-top: 2px; font-size: 12px; color: var(--text-tertiary); }
 #content-brief .ar-memory .tag { flex-shrink: 0; padding: 0 7px; border: 1px solid var(--chip-model-border); border-radius: 8px; font-size: 10.5px; line-height: 16px; color: var(--c-model); white-space: nowrap; }
 #content-brief .ar-foot { position: sticky; bottom: 0; display: flex; align-items: center; margin: 14px 0 -18px; padding: 11px 0 13px; border-top: 1px solid var(--border-color); background: var(--bg-primary); box-shadow: -14px 0 0 var(--bg-primary); }   /* the shadow covers the mark of a changed line that scrolls under it */
-/* the report's part "Against the brief" as a card of verdicts (architect.js dressAnswer, 2026-11-15): what was expected, what would change the coach's mind, the checks */
-#content-answer .ar-against { display: grid; grid-template-columns: max-content 1fr max-content; align-items: baseline; gap: 4px 12px; margin: 14px 0; padding: 9px 14px 11px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13.5px; line-height: 1.5; }
-#content-answer .ar-against .label { grid-column: 1 / -1; margin-bottom: 1px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); }
-#content-answer .ar-against .r { display: contents; }
-#content-answer .ar-against .k { color: var(--text-tertiary); }
-#content-answer .ar-against .t { min-width: 0; overflow-wrap: anywhere; }
-#content-answer .ar-against .v:not(:empty) { padding: 0 8px; border: 1px solid var(--border-color); border-radius: 9px; font-size: 10.5px; line-height: 17px; white-space: nowrap; }
-#content-answer .ar-against .v.ok { border-color: var(--chip-model-border); color: var(--c-model); }
-#content-answer .ar-against .v.no { border-color: var(--chip-fail-border); color: var(--c-fail); }
-#content-answer .ar-against .v.q { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
+/* what the run's report says against the brief, as a card of verdicts at the brief's foot (architect.js turnedOut(), 0312; in the answer until then): what was expected, what would change the coach's mind, the checks */
+#content-brief .ar-against { display: grid; grid-template-columns: max-content 1fr max-content; align-items: baseline; gap: 4px 12px; margin: 18px 0 4px; padding: 9px 14px 11px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13.5px; line-height: 1.5; }
+#content-brief .ar-against .label { grid-column: 1 / -1; margin-bottom: 1px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-tertiary); }
+#content-brief .ar-against .r { display: contents; }
+#content-brief .ar-against .k { color: var(--text-tertiary); }
+#content-brief .ar-against .t { min-width: 0; overflow-wrap: anywhere; }
+#content-brief .ar-against .v:not(:empty) { padding: 0 8px; border: 1px solid var(--border-color); border-radius: 9px; font-size: 10.5px; line-height: 17px; white-space: nowrap; }
+#content-brief .ar-against .v.ok { border-color: var(--chip-model-border); color: var(--c-model); }
+#content-brief .ar-against .v.no { border-color: var(--chip-fail-border); color: var(--c-fail); }
+#content-brief .ar-against .v.q { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
+#content-brief .ar-against .as-is { grid-column: 1 / -1; min-width: 0; }

@@ -29,11 +29,12 @@
 // Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
 // with nothing else kept.
 //
-// The report of a run with a brief has a part "Against the brief" (analyst/session.py): dressAnswer() makes it a card
-// of verdicts. The page's words sit in WORDS; nothing here reaches a prompt.
+// The report of a run with a brief has a part "Against the brief" (analyst/session.py). It is not the Answer's - the
+// Answer is what goes to other people: cutAnswer() takes it out, and turnedOut() shows it at the foot of that run's
+// Brief tab, as a card of verdicts (§2.21). The page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
-//                        dressAnswer, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout }
+//                        cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout }
 
 (function () {
     'use strict';
@@ -62,7 +63,7 @@
         drawingRow: 'DRAWING A DRAFT', drawingHold: 'A draft of the figures is being drawn',
         drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)',
         notStarted: 'The analysis did not start',
-        against: { head: 'Against the brief', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked' }
+        against: { head: 'How it turned out', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked', missing: 'The report does not say.' }
     };
     const TEXT_CHARS = 600, QUESTION_CHARS = 4000;   // one line of a brief, and the question, as analyst/brief.py bounds them
     const CAP = { rests_on: 4, also_check: 2 };   // the design's counts (§2.2): three or four anchors, at most two rivals
@@ -210,7 +211,7 @@
     // its way (live) - and, where there is one, the reason under the mouse (docs/ARCHITECT_DESIGN.md §2.20).
     const windowOf = (line, live, why) => '<div class="ar-wait' + (live ? ' live' : '') + '"' + (why ? ' title="' + esc(why) + '"' : '') + '><span>' + line + '</span></div>';
 
-    // ------------------------------------------------------------ the report's part "Against the brief", as a card (pure)
+    // ------------------------------------------------------------ the report's part "Against the brief": out of the answer (pure)
     const INLINE = '(?:\\s*</?(?:strong|em|b|i|code)\\b[^>]*>\\s*)*';
     function plain(html) { return String(html).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim(); }
     // the lines of the part: its list items, or its paragraphs line by line; [] when it holds anything else (a table, a
@@ -234,28 +235,43 @@
         const said = plain(rest).toLowerCase();
         return { verdict: words.find(w => new RegExp('\\b' + w + '\\b').test(said)) || '', html: rest };
     }
-    function against(lines) {
-        // three cells to a row, the verdict's empty when the line gives none: the card is one grid (tabs.css)
-        const row = (k, html, v) => '<div class="r"><span class="k">' + k + '</span> <span class="t">' + html + '</span> <span class="v' + (v ? ' ' + VERDICT[v] : '') + '">' + (v || '') + '</span></div>';
+    // a row of the card - three cells, the verdict's empty when the line gives none: the card is one grid (tabs.css)
+    const row = (k, html, v) => '<div class="r"><span class="k">' + k + '</span> <span class="t">' + html + '</span> <span class="v' + (v ? ' ' + VERDICT[v] : '') + '">' + (v || '') + '</span></div>';
+    // the part's lines as the card's rows: what was expected and what would change the coach's mind, each with its
+    // verdict; the checks after, the first labelled
+    function rowsOf(lines) {
         let checks = 0;
-        const rows = lines.map(html => {
+        return lines.map(html => {
             const e = verdictLine(html, 'expected|expectation', ['not met', 'cannot tell', 'met']);        // "not met" before "met", as the engine reads it
             if (e) return row(WORDS.against.expected, e.html, e.verdict);
             const w = verdictLine(html, '(?:what )?would change (?:their|your) mind', ['not seen', 'cannot tell', 'seen']);
             if (w) return row(WORDS.against.would, w.html, w.verdict);
             return row(checks++ ? '' : WORDS.against.checks, html, /\bcannot tell\b/i.test(plain(html)) ? 'cannot tell' : '');
-        });
-        return '<div class="ar-against"><div class="label">' + WORDS.against.head + '</div>' + rows.join('') + '</div>';
+        }).join('');
     }
-    // Idempotent: the card holds no heading, so a second pass (a restored chain is rendered again) finds nothing to do.
-    function dressAnswer(html) {
-        const s = String(html == null ? '' : html);
+    // the card as an answer kept before 0312 holds it, with its rows; and the engine's line at a report's foot that says
+    // the part is missing (analyst/session.py BRIEF_UNANSWERED), as the page renders it
+    const KEPT = /<div class="ar-against"><div class="label">[^<]*<\/div>((?:<div class="r">[\s\S]*?<span class="v[^"]*">[^<]*<\/span><\/div>)*)<\/div>/;
+    const MISSING = /<blockquote>\s*<p>CHECK: this report does not say how the result stands against the brief\.<\/p>\s*<\/blockquote>\s*/;
+    // The answer without what it says against its brief (0312): the part under its heading, as the report wrote it; the
+    // card an answer kept from before holds; the engine's line that the part is missing. {html: the answer without them,
+    // against: the rows of the card the run's Brief tab shows (turnedOut()) - a part the rows cannot hold whole (a
+    // table, a list inside a list) as the report wrote it; '' where the answer says nothing against a brief}
+    function cutAnswer(html) {
+        let s = String(html == null ? '' : html), rows = '';
+        const without = m => s.slice(0, m.index) + s.slice(m.index + m[0].length);
+        const kept = KEPT.exec(s);
+        if (kept) { rows = kept[1]; s = without(kept); }
         const head = /<h([1-6])\b[^>]*>\s*Against the brief\s*:?\s*<\/h\1>/i.exec(s);
-        if (!head) return s;
-        const after = s.slice(head.index + head[0].length);
-        const end = after.search(/<h[1-6]\b|<blockquote\b|<hr\b/i);              // the next part, or the engine's lines at the report's foot
-        const lines = sectionLines(end < 0 ? after : after.slice(0, end));
-        return lines.length ? s.slice(0, head.index) + against(lines) + (end < 0 ? '' : after.slice(end)) : s;
+        if (head) {
+            const after = s.slice(head.index + head[0].length), end = after.search(/<h[1-6]\b|<blockquote\b|<hr\b/i);      // the next part, or the engine's lines at the report's foot
+            const body = (end < 0 ? after : after.slice(0, end)).trim(), lines = sectionLines(body);
+            rows = lines.length ? rowsOf(lines) : body ? '<div class="as-is">' + body + '</div>' : '';
+            s = s.slice(0, head.index) + (end < 0 ? '' : after.slice(end));
+        }
+        const missing = MISSING.exec(s);
+        if (missing) { rows += row('', WORDS.against.missing, ''); s = without(missing); }
+        return { html: s, against: rows };
     }
 
     // ------------------------------------------------------------ builders (pure: return HTML)
@@ -327,8 +343,10 @@
         // Analyst gets with it - those that hold something, and the one the coach is adding (o.adding: its path) - and,
         // while the brief can be changed, the one control that adds a part (o.adds: its list is open), what the
         // readings of the saved analyses found, and Start analysis, which names the version when it is not the last.
-        // o: {chain, thread, state: 'framing' | 'run', shown, drawing: a draft of the figures is on its way}; the
-        // versions ride in the markup, with the thread the drafts' plots are kept under
+        // o: {chain, thread, state: 'framing' | 'run', shown, drawing: a draft of the figures is on its way, against:
+        // what the run's report says against the brief - the card's rows (cutAnswer())}; the versions ride in the
+        // markup, with the thread the drafts' plots are kept under and what the report says against the brief - shown
+        // at the foot of the version the run was under
         brief(framing, o) {
             const n = latestN(framing), shown = Math.min(n, Math.max(1, o.shown || inUse(framing))), v = versionAt(framing, shown), b = v.brief || {};
             const c = { edit: o.state === 'framing', changed: v.changed || [], keys: v.keys || [], drafts: (framing && framing.drafts) || {}, drawing: !!o.drawing };
@@ -339,7 +357,7 @@
             const kinds = c.edit ? KINDS.filter(k => k[0].slice(-2) === '.+' ? (b[k[0].slice(0, -2)] || []).length < CAP[k[0].slice(0, -2)] : !valueAt(b, k[0])) : [];
             const aside = (b.set_aside || []).map(x => '<div class="ar-line"><span class="tx">' + esc(x) + '</span></div>').join('');
             return '<div class="ar-brief" data-chain="' + esc(o.chain) + '" data-thread="' + esc(o.thread) + '" data-state="' + esc(o.state) + '" data-shown="' + shown + '"' +
-                    (o.adds ? ' data-adds="1"' : '') + (o.drawing ? ' data-drawing="1"' : '') +
+                    (o.adds ? ' data-adds="1"' : '') + (o.drawing ? ' data-drawing="1"' : '') + (o.against ? ' data-against="' + esc(o.against) + '"' : '') +
                     ' data-framing="' + esc(JSON.stringify(framing || {})) + '">' +
                 '<div class="ar-top"><span class="label">' + WORDS.asked + '</span>' + build.version(framing, shown) + '</div>' +
                 '<h1 class="ar-line ar-q' + (c.changed.indexOf('question') >= 0 ? ' changed' : '') + '" data-path="question"><span class="tx">' + esc(b.question || '') + '</span>' +
@@ -360,7 +378,12 @@
                     (o.adds ? '<div class="ar-kinds">' + kinds.map(k => '<button type="button" data-ar="add" data-path="' + k[0] + '">' + k[1] + '</button>').join('') + '</div>' : '') + '</div>' : '') +
                 (found.length ? '<div class="ar-memory"><h3>' + WORDS.memory + '</h3><p class="note">' + WORDS.memoryNote + '</p>' + build.found(found, { full: true, built: built.map(g => g.id) }) + '</div>' : '') +
                 (c.edit ? '<div class="ar-foot"><button type="button" class="ui-btn primary" data-ar="start">' + (shown === n ? WORDS.start : WORDS.startWith(shown)) + '</button></div>' : '') +
+                (o.against && shown === inUse(framing) ? build.turnedOut(o.against) : '') +
                 '</div>';
+        },
+        // what the run's report says against the brief, as a card of verdicts under it (rows: cutAnswer())
+        turnedOut(rows) {
+            return '<div class="ar-against"><div class="label">' + WORDS.against.head + '</div>' + rows + '</div>';
         },
         // the field a line is typed in
         editor(text, question) {
@@ -472,8 +495,7 @@
             return '<div class="ui-dlg lg ar-saved-dlg" role="dialog" aria-modal="true"><div class="ui-dlg-h"><div><div class="title">' + esc(run.question || run.title || '') + '</div>' +
                 '<div class="sub">' + esc(sub) + '</div></div><span class="sp"></span><button class="x" type="button" data-ar="shut" aria-label="Close">' + ICON.x + '</button></div>' +
                 '<div class="ui-dlg-b"><div class="markdown-content">' + report + '</div>' + fold(WORDS.talk, said(String(run.conversation || '').replace(/^Person: /gm, 'You: '))) + fold(WORDS.agreed, said(run.brief)) + fold(WORDS.code, code) + '</div></div>';
-        },
-        against
+        }
     };
 
     // ------------------------------------------------------------ the page
@@ -709,7 +731,8 @@
         let framing = {};
         try { framing = JSON.parse(root.getAttribute('data-framing') || '{}'); } catch (e) { framing = {}; }
         return { framing, chain: root.getAttribute('data-chain'), thread: root.getAttribute('data-thread'), state: root.getAttribute('data-state'),
-                 shown: Number(root.getAttribute('data-shown')) || inUse(framing), adds: root.getAttribute('data-adds') === '1', drawing: root.getAttribute('data-drawing') === '1' };
+                 shown: Number(root.getAttribute('data-shown')) || inUse(framing), adds: root.getAttribute('data-adds') === '1', drawing: root.getAttribute('data-drawing') === '1',
+                 against: root.getAttribute('data-against') || '' };
     }
     function entryOf(root) {
         const chain = root.getAttribute('data-chain');
@@ -718,8 +741,21 @@
     function briefRoot() { const host = byId('content-brief'); return host ? host.querySelector('.ar-brief') : null; }
     function redraw(root, shown, more) {
         const st = stateOf(root), host = root.parentNode;
-        host.innerHTML = build.brief(st.framing, Object.assign({ chain: st.chain, thread: st.thread, state: st.state, shown: shown || st.shown, drawing: st.drawing }, more || {}));
+        host.innerHTML = build.brief(st.framing, Object.assign({ chain: st.chain, thread: st.thread, state: st.state, shown: shown || st.shown, drawing: st.drawing, against: st.against }, more || {}));
         mount(host.querySelector('.ar-brief'));
+    }
+    // What a run's report says against its brief, on that run's Brief tab (0312). `root` holds the run's tabs: the page's,
+    // or the holder of a run that goes on while another chain is on screen. The rows are kept in the brief's own markup,
+    // as its versions are, so the arrows and a chain shown again have them with nothing else kept; the card stands at
+    // the foot of the version the run was under. The tab is changed where it stands - its drafts are not drawn again.
+    // An answer that says nothing against a brief leaves the tab as it is: a chain shown again has its card already
+    function turnedOut(root, against) {
+        const brief = against && root ? root.querySelector('#content-brief .ar-brief') : null;
+        if (!brief) return;
+        brief.setAttribute('data-against', against);
+        const st = stateOf(brief), old = brief.querySelector('.ar-against');
+        if (old) old.remove();
+        if (st.shown === inUse(st.framing)) brief.insertAdjacentHTML('beforeend', build.turnedOut(against));
     }
     // a click on another line while one is being typed: the typed line is kept first, then the click is carried out on the
     // brief as it then stands - the clicked line one place up when a line above it was left out
@@ -866,5 +902,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, dressAnswer, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout };
 })();

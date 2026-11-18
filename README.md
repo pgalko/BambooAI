@@ -283,9 +283,10 @@ tab, and the conversation with the Architect takes the left pane.
   so if one is missing.
 - **Your changes.** Any line can be changed in place, with its pencil.
 - **Start analysis** runs the Analyst under the brief. Where the data cannot give what the brief fixes, the
-  Analyst stops and asks. The report gains *Did not fit*, and - where the brief says what you expect or names a
-  check - *Against the brief*: what you expected, as met, not met or cannot tell, and each other explanation with
-  its result. On data, chance, measurement error and how the cases were chosen are always among the checks.
+  Analyst stops and asks. The report gains *Did not fit*. Where the brief says what you expect or names a check,
+  the Brief tab then shows *How it turned out*: what you expected, as met, not met or cannot tell, and each other
+  explanation with its result. That is for you; the Answer, which you may pass on, does not show it. On data,
+  chance, measurement error and how the cases were chosen are always among the checks.
 
 A follow-up typed with the switch on starts from what the last answer was for and what you think; the rest of the
 last brief belonged to that question. The Architect can open the analysis before it - its report, a cell with its

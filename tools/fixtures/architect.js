@@ -124,9 +124,14 @@ window.galleryArchitect = (function () {
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { waiting: true, saved: { read: 5, of: 12 } });
       composerLock('Your saved analyses are being read');
     },
-    answer() {       // the report's part against the brief, as the card in the answer
-      document.querySelector('#content-answer .markdown-content').innerHTML = ArchitectUI.dressAnswer(REPORT);
+    answer() {       // the answer of a run under a brief (0312): what its report says against the brief is not in it
+      document.querySelector('#content-answer .markdown-content').innerHTML = ArchitectUI.cutAnswer(REPORT).html;
       activateTab('answer');
+    },
+    outcome() {      // it stands at the foot of that run's Brief tab: how it turned out
+      createOrUpdateTab('brief', ArchitectUI.build.brief(checked, { chain: 1763203380, thread: 1763203300, state: 'run' }));
+      ArchitectUI.turnedOut(document.getElementById('contentOutput'), ArchitectUI.cutAnswer(REPORT).against);
+      activateTab('brief');
     }
   };
 })();

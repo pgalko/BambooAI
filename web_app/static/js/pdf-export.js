@@ -153,14 +153,6 @@ function injectPrintStyles() {
             }
             #pdf-print-container .cite.doc, #pdf-print-container .cite.ctx { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; }
             #pdf-print-container .cite.fig { color: #6b4e16; border-color: #d5c39a; background: #fbf6ea !important; }
-            /* the report against its brief (2026-11-15): on the page a card of verdicts (architect.js); here one line to a
-               row - the label, what the report says, the verdict as a quiet pill */
-            #pdf-print-container .ar-against { margin: 3mm 0 4mm 0; padding: 2.5mm 3.5mm; border: 0.5pt solid #c8e6c9; border-radius: 3pt; page-break-inside: avoid; }
-            #pdf-print-container .ar-against .label { margin: 0 0 1.5mm 0; font-size: 8.5pt; letter-spacing: 0.5px; text-transform: uppercase; color: #4a9d5b; }
-            #pdf-print-container .ar-against .r { margin: 0.8mm 0; }
-            #pdf-print-container .ar-against .k:not(:empty) { color: #666; }
-            #pdf-print-container .ar-against .k:not(:empty)::after { content: ':'; }
-            #pdf-print-container .ar-against .v:not(:empty) { padding: 0 1.6mm; border: 0.5pt solid #bbb; border-radius: 6pt; font-size: 8.5pt; white-space: nowrap; }
             #pdf-print-container .pdf-meta {
                 font-size: 9pt;
                 line-height: 1.5;

@@ -1,6 +1,7 @@
 // The Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11, §2.12; 2026-11-15): architect.js. Its pure
 // parts - the brief with one line changed, the Brief tab's markup in each state, the conversation's, the report's part
-// "Against the brief" made a card, the thread map's mark - and the module driven on the mini DOM with a scripted server: a
+// "Against the brief" taken out of the answer for the run's Brief tab (0312), the thread map's mark - and the module
+// driven on the mini DOM with a scripted server: a
 // typed question opens its brief and the Architect takes its first turn, the coach answers with a click or in words, a
 // line is changed where it stands and kept as a version, the versions are stepped through, the analysis is started in the
 // same chain, the composer is the conversation's while a brief not yet run is on screen; the figures of a brief as
@@ -523,20 +524,25 @@ check('a part of an earlier analysis the Architect opened is a row of the conver
   && talkO.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,ar-msg.arch', talkO.innerHTML);
 check('the field a line is typed in says nothing of its own (0308): the part\'s heading stands over it', !el(b.editor('', false)).querySelector('.ar-input').hasAttribute('placeholder') && b.editor.length === 2);
 
-// ------------------------------------------------------------ the report's part "Against the brief", as a card
+// ------------------------------------------------------------ the report's part "Against the brief": out of the answer (0312)
 const LIST = '<h1 id="t">B is above A</h1>\n<p>For the decision: keep B.</p>\n<h2 id="against-the-brief">Against the brief</h2>\n<ul>\n<li>Expected: not met - the gap is 0.4 <span class="cite cell" onclick="x()">cell 2</span></li>\n' +
   '<li>Would change their mind: seen</li>\n<li>chance: the interval includes 0</li>\n<li>measurement error: cannot tell, nothing says how x was measured</li>\n<li>the two halves differ: the same in both</li>\n</ul>\n' +
   '<h2 id="did-not-fit">Did not fit</h2>\n<ul>\n<li>Nothing.</li>\n</ul>\n';
-const card = el(A.dressAnswer(LIST));
+const cut = A.cutAnswer(LIST), answer = el(cut.html), card = el(b.turnedOut(cut.against));
+const tags = c => c.elements.map(e => e.tag + (e.className ? '.' + e.className : '')).join();
 const rowsOf = c => c.querySelectorAll('.ar-against .r').map(r => [r.querySelector('.k').textContent, r.querySelector('.t').textContent, r.querySelector('.v').className, r.querySelector('.v').textContent]);
-check('the part becomes a card in its place: the opening before it and Did not fit after it untouched; a row for what was expected and one for what would change the coach\'s mind, each with its verdict; the checks after, the first labelled',
-  card.elements.map(e => e.tag + (e.className ? '.' + e.className : '')).join() === 'h1,p,div.ar-against,h2,ul' && card.querySelector('.ar-against .label').textContent === 'Against the brief'
-  && same(rowsOf(card), [['You expected', 'the gap is 0.4 cell 2', 'v no', 'not met'], ['Would change your mind', '', 'v no', 'seen'], ['Also checked', 'chance: the interval includes 0', 'v', ''],
-                         ['', 'measurement error: cannot tell, nothing says how x was measured', 'v q', 'cannot tell'], ['', 'the two halves differ: the same in both', 'v', '']])
-  && card.querySelector('.ar-against .cite.cell').getAttribute('onclick') === 'x()' && card.querySelector('h2').textContent === 'Did not fit', card.innerHTML);
-check('the card is one line of markup with no heading in it: rendered again (a restored chain), it stays as it is', !/\n/.test(b.against(['Expected: met', 'chance: fine'])) && !/<h\d/.test(b.against(['Expected: met']))
-  && A.dressAnswer(A.dressAnswer(LIST)) === A.dressAnswer(LIST));
-const verdicts = html => rowsOf(el(A.dressAnswer('<h2>Against the brief</h2>' + html))).map(r => r[0] + '=' + r[3] + '|' + r[1]);
+const ROWS = [['You expected', 'the gap is 0.4 cell 2', 'v no', 'not met'], ['Would change your mind', '', 'v no', 'seen'], ['Also checked', 'chance: the interval includes 0', 'v', ''],
+              ['', 'measurement error: cannot tell, nothing says how x was measured', 'v q', 'cannot tell'], ['', 'the two halves differ: the same in both', 'v', '']];
+check('the part leaves the answer (0312: the answer is what goes to other people): the opening before it and Did not fit after it stand as they were, with nothing between them - no heading, no card, '
+  + 'no word of a brief. What it said comes back as the rows of a card: what was expected and what would change the coach\'s mind, each with its verdict; the checks after, the first labelled; a citation '
+  + 'stays the chip it was. The card says how it turned out',
+  tags(answer) === 'h1,p,h2,ul' && answer.querySelector('h2').textContent === 'Did not fit' && !/against|brief|Expected|chance/i.test(cut.html.replace('For the decision', ''))
+  && tags(card) === 'div.ar-against' && card.querySelector('.ar-against .label').textContent === 'How it turned out' && same(rowsOf(card), ROWS)
+  && card.querySelector('.ar-against .cite.cell').getAttribute('onclick') === 'x()', [cut.html, cut.against]);
+check('the rows are one line of markup with no heading in them, and the card\'s builder adds its label and no more; an answer cut once is cut: a second pass (a chain shown again) changes nothing and finds nothing',
+  !/\n/.test(cut.against) && !/<h\d/.test(cut.against) && b.turnedOut('<i>r</i>') === '<div class="ar-against"><div class="label">How it turned out</div><i>r</i></div>'
+  && same(A.cutAnswer(cut.html), { html: cut.html, against: '' }) && typeof A.dressAnswer === 'undefined' && typeof b.against === 'undefined');
+const verdicts = html => rowsOf(el(b.turnedOut(A.cutAnswer('<h2>Against the brief</h2>' + html).against))).map(r => r[0] + '=' + r[3] + '|' + r[1]);
 check('the verdict is read as the engine reads it: "not met" before "met", "not seen" before "seen", cannot tell; at the line\'s start or later in it; none when the line gives none',
   same(verdicts('<ul><li>Expected: met (gap 3)</li><li>Would change their mind: not seen</li></ul>'), ['You expected=met|(gap 3)', 'Would change your mind=not seen|'])
   && same(verdicts('<ul><li>Expected: cannot tell: too few</li><li>What would change their mind - cannot tell</li></ul>'), ['You expected=cannot tell|too few', 'Would change your mind=cannot tell|'])
@@ -544,17 +550,52 @@ check('the verdict is read as the engine reads it: "not met" before "met", "not 
 check('the labels are found through the markup a model puts round them: bold, code, a loose list\'s paragraphs; the line\'s own markup stays',
   same(verdicts('<ul><li><p><strong>Expected:</strong> <strong>not met</strong> — gap <em>0.4</em></p></li><li><p><code>Would change their mind:</code> seen</p></li></ul>'),
        ['You expected=not met|gap 0.4', 'Would change your mind=seen|'])
-  && el(A.dressAnswer('<h2>Against the brief</h2><ul><li><strong>Expected:</strong> met, gap <em>3</em></li></ul>')).querySelector('.t em').textContent === '3');
-check('the part written as plain lines, not a list: one row to a line; the heading at any level, with or without a colon',
+  && el(b.turnedOut(A.cutAnswer('<h2>Against the brief</h2><ul><li><strong>Expected:</strong> met, gap <em>3</em></li></ul>').against)).querySelector('.t em').textContent === '3');
+const LEVEL3 = A.cutAnswer('<p>Lead.</p><h3 id="x">Against the brief:</h3><p>Expected: met</p><h3>Did not fit</h3>');
+check('the part written as plain lines, not a list: one row to a line; the heading at any level, with or without a colon - and the answer goes on at the next heading',
   same(verdicts('\n<p>Expected: met, gap 3<br>Would change their mind: not seen\nchance: fine</p>\n'), ['You expected=met|gap 3', 'Would change your mind=not seen|', 'Also checked=|chance: fine'])
-  && el(A.dressAnswer('<h3 id="x">Against the brief:</h3><p>Expected: met</p><h3>Did not fit</h3>')).querySelector('.ar-against .v.ok').textContent === 'met');
-const TABLE = '<h2>Against the brief</h2><table><tr><td>Expected</td><td>met</td></tr></table><h2>Did not fit</h2>';
+  && LEVEL3.html === '<p>Lead.</p><h3>Did not fit</h3>' && el(b.turnedOut(LEVEL3.against)).querySelector('.ar-against .v.ok').textContent === 'met', LEVEL3);
+const TABLE = '<h2>Against the brief</h2>\n<table><tr><td>Expected</td><td>met</td></tr></table>\n<h2>Did not fit</h2>';
 const NESTED = '<h2>Against the brief</h2><ul><li>Expected: met<ul><li>a detail</li></ul></li></ul>';
-check('a part the card cannot hold whole - a table, a list inside a list - is left as the report wrote it; so is a report without the part, and nothing at all',
-  A.dressAnswer(TABLE) === TABLE && A.dressAnswer(NESTED) === NESTED && A.dressAnswer('<h2>Answer</h2><p>Expected: met</p>') === '<h2>Answer</h2><p>Expected: met</p>'
-  && A.dressAnswer('<h2>Against the brief</h2>') === '<h2>Against the brief</h2>' && A.dressAnswer(null) === '' && A.dressAnswer(undefined) === '');
-const FOOT = el(A.dressAnswer('<h2>Did not fit</h2><p>Nothing.</p><h2>Against the brief</h2><ul><li>Expected: met</li></ul><blockquote><p>Replay reproduced 3 numbers</p></blockquote>'));
-check('the part at the report\'s end stops at the engine\'s own lines beneath it', FOOT.elements.map(e => e.tag).join() === 'h2,p,div,blockquote' && FOOT.querySelector('blockquote').textContent === 'Replay reproduced 3 numbers', FOOT.innerHTML);
+check('a part the rows cannot hold whole - a table, a list inside a list - leaves the answer all the same, and goes as the report wrote it, in one block; a heading with nothing under it goes too, with no '
+  + 'rows; an answer without the part is left as it is, whatever it says of what was expected; nothing at all is nothing',
+  same(A.cutAnswer(TABLE), { html: '<h2>Did not fit</h2>', against: '<div class="as-is"><table><tr><td>Expected</td><td>met</td></tr></table></div>' })
+  && same(A.cutAnswer(NESTED), { html: '', against: '<div class="as-is"><ul><li>Expected: met<ul><li>a detail</li></ul></li></ul></div>' })
+  && same(A.cutAnswer('<h2>Answer</h2><p>Expected: met</p>'), { html: '<h2>Answer</h2><p>Expected: met</p>', against: '' })
+  && same(A.cutAnswer('<h2>Against the brief</h2>'), { html: '', against: '' }) && same(A.cutAnswer('<p>a</p><h2>Against the brief</h2>\n\n<h2>Next</h2>'), { html: '<p>a</p><h2>Next</h2>', against: '' })
+  && same(A.cutAnswer(null), { html: '', against: '' }) && same(A.cutAnswer(undefined), { html: '', against: '' }), [A.cutAnswer(TABLE), A.cutAnswer(NESTED)]);
+const FOOT = A.cutAnswer('<h2>Did not fit</h2><p>Nothing.</p><h2>Against the brief</h2><ul><li>Expected: met</li></ul><blockquote><p>Replay reproduced 3 numbers</p></blockquote>');
+check('the part at the report\'s end stops at the engine\'s own lines beneath it: they stay in the answer',
+  tags(el(FOOT.html)) === 'h2,p,blockquote' && el(FOOT.html).querySelector('blockquote').textContent === 'Replay reproduced 3 numbers' && same(rowsOf(el(b.turnedOut(FOOT.against))), [['You expected', '', 'v ok', 'met']]), FOOT);
+// the engine's line at a report's foot, as marked renders it - and as a browser gives it back from a kept answer
+const MISSING = '<blockquote>\n<p>CHECK: this report does not say how the result stands against the brief.</p>\n</blockquote>\n';
+const REPLAYED = '<blockquote>\n<p>Replay reproduced 3 numbers</p>\n</blockquote>\n';
+const silent = A.cutAnswer('<h1>T</h1>\n<p>Lead.</p>\n' + REPLAYED + MISSING), half = A.cutAnswer('<h2>Against the brief</h2><ul><li>chance: fine</li></ul>' + MISSING.replace(/\n/g, '') + REPLAYED);
+check('the engine\'s line that the report does not say how the result stands against the brief (0312) leaves the answer with the part - a word of a brief no other reader knows of - and the card says so in '
+  + 'one row, after what the part did say; the engine\'s other lines stay where they are, and so does another CHECK. The line the page looks for is the engine\'s own sentence',
+  silent.html === '<h1>T</h1>\n<p>Lead.</p>\n' + REPLAYED && same(rowsOf(el(b.turnedOut(silent.against))), [['', 'The report does not say.', 'v', '']])
+  && half.html === REPLAYED && same(rowsOf(el(b.turnedOut(half.against))), [['Also checked', 'chance: fine', 'v', ''], ['', 'The report does not say.', 'v', '']])
+  && same(A.cutAnswer('<blockquote>\n<p>CHECK: this report cites cell 2.</p>\n</blockquote>\n'), { html: '<blockquote>\n<p>CHECK: this report cites cell 2.</p>\n</blockquote>\n', against: '' })
+  && fs.readFileSync(path.join(__dirname, '..', '..', 'analyst', 'session.py'), 'utf8').includes('BRIEF_UNANSWERED = "CHECK: this report does not say how the result stands against the brief."'), [silent, half]);
+// an answer kept before 0312: the card stands in it, as the page then made it - a browser gives the markup back as it was written
+const KEPT = '<h1>T</h1><p>Lead.</p><div class="ar-against"><div class="label">Against the brief</div>' + cut.against + '</div><h2>Did not fit</h2><ul><li>Nothing.</li></ul>';
+const kept = A.cutAnswer(KEPT), bare = A.cutAnswer('<p>a</p><div class="ar-against"><div class="label">Against the brief</div></div><p>b</p>');
+check('an answer kept from before (0312) holds the card itself: it leaves the answer whole - its label with it - and its rows are the Brief tab\'s as they stand, the chip in them still a chip; a card '
+  + 'without a row leaves no rows; the answer cut is cut for good',
+  kept.html === '<h1>T</h1><p>Lead.</p><h2>Did not fit</h2><ul><li>Nothing.</li></ul>' && kept.against === cut.against && same(rowsOf(el(b.turnedOut(kept.against))), ROWS)
+  && same(bare, { html: '<p>a</p><p>b</p>', against: '' }) && same(A.cutAnswer(kept.html), { html: kept.html, against: '' }), [kept, bare]);
+
+// ---- on the Brief tab: the rows ride in the brief's own markup, the card stands at the foot of the version the run was under
+const FT = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B above A?' } },
+                        { n: 2, by: 'architect', why: 'answer', changed: ['expects'], brief: { question: 'Is B above A?', expects: 'B is 2 above A.' } }] };
+const tabT = o => el(b.brief(FT, Object.assign({ chain: 71, thread: 7, state: 'run' }, o))).querySelector('.ar-brief');
+const withT = tabT({ against: cut.against }), olderT = tabT({ against: cut.against, shown: 1 }), noneT = tabT({});
+check('the Brief tab of a run whose report said how it stands against the brief (0312): the rows ride in the brief\'s own markup, as its versions do, and the card is the last thing on the tab - under the '
+  + 'version the run was under. On an earlier version the rows ride still and no card is shown: it would be read against lines the run was not under. A run that said nothing has neither',
+  withT.getAttribute('data-against') === cut.against && withT.elements[withT.elements.length - 1].className === 'ar-against' && withT.querySelectorAll('.ar-against').length === 1
+  && same(rowsOf(withT), ROWS) && withT.querySelector('.ar-against .label').textContent === 'How it turned out'
+  && olderT.getAttribute('data-against') === cut.against && !olderT.querySelector('.ar-against') && olderT.querySelector('.ar-ver b').textContent === '1 of 2'
+  && !noneT.hasAttribute('data-against') && !noneT.querySelector('.ar-against'), withT.outerHTML);
 
 // ------------------------------------------------------------ the thread map's mark
 check('how a chain\'s question was made: a brief not yet run; framed with the Architect - by its versions while it runs, by its Brief tab once kept; nothing for a typed question',
@@ -1232,6 +1273,37 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('a restored chain: its Brief tab steps through the versions from its own markup, down to the first and no further; nothing can be changed, nothing is sent',
     first === '1 of 3|false|0' && brief().querySelector('.ar-ver b').textContent === '1 of 3' && !brief().querySelector('[data-ar="start"]') && brief().getAttribute('data-state') === 'run' && calls.length === n && A.mark(done) === 'Architect', first);
 
+  // what the run's report says against its brief comes to that run's Brief tab (0312)
+  {
+    const tabs = $('contentOutput'), shownNow = () => brief().querySelector('.ar-ver b').textContent, cardNow = () => brief().querySelectorAll('.ar-against').length;
+    const lastOf = () => { const all = brief().elements; return all[all.length - 1].className; };
+    A.turnedOut(tabs, cut.against);
+    const onFirst = [shownNow(), cardNow(), brief().getAttribute('data-against') === cut.against];        // the tab stands on its first version: the rows are kept, no card is shown
+    doc.dispatch('click', brief().querySelector('[data-step="1"]'));
+    const onSecond = [shownNow(), cardNow()];
+    doc.dispatch('click', brief().querySelector('[data-step="1"]'));
+    const onLast = [shownNow(), cardNow(), lastOf(), same(rowsOf(brief()), ROWS)];
+    A.turnedOut(tabs, cut.against);
+    const twice = [cardNow(), lastOf()];
+    A.turnedOut(tabs, '<div class="r"><span class="k">You expected</span> <span class="t">again</span> <span class="v ok">met</span></div>');
+    const other = [cardNow(), lastOf(), brief().querySelector('.ar-against .t').textContent, brief().getAttribute('data-against').includes('again')];
+    A.turnedOut(tabs, '');
+    const kept1 = [cardNow(), brief().getAttribute('data-against').includes('again')];
+    doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
+    const back = [shownNow(), cardNow(), brief().getAttribute('data-against').includes('again')];
+    doc.dispatch('click', brief().querySelector('[data-step="1"]'));
+    const forth = [shownNow(), cardNow(), brief().querySelector('.ar-against .t').textContent];
+    const nowhere = [(() => { try { A.turnedOut(null, cut.against); A.turnedOut($('streamOutput'), cut.against); return 'quiet'; } catch (e) { return String(e); } })(), $('streamOutput').querySelectorAll('.ar-against').length,
+                     brief().querySelector('.ar-against .t').textContent];        // the page's own brief is not the one meant: it keeps what it had
+    check('what a run\'s report says against its brief comes to that run\'s Brief tab (0312), in the tabs it is handed - the page\'s, or the holder of a run that goes on off screen. The rows are kept in the '
+      + 'brief\'s markup whichever version is on screen; the card stands under the version the run was under and under no other, so the arrows show it and take it away, from the markup alone. Said '
+      + 'again, there is one card still, the last thing on the tab; other rows take its place; an answer that says nothing leaves the tab as it is - a chain shown again has its card already. Tabs '
+      + 'without a brief, and none at all, take nothing - and the brief on the page, which is not among them, keeps what it had',
+      same(onFirst, ['1 of 3', 0, true]) && same(onSecond, ['2 of 3', 0]) && same(onLast, ['3 of 3', 1, 'ar-against', true]) && same(twice, [1, 'ar-against'])
+      && same(other, [1, 'ar-against', 'again', true]) && same(kept1, [1, true]) && same(back, ['2 of 3', 0, true]) && same(forth, ['3 of 3', 1, 'again']) && same(nowhere, ['quiet', 0, 'again']),
+      [onFirst, onSecond, onLast, twice, other, kept1, back, forth, nowhere]);
+  }
+
   // ---- the page's hooks, from the source ----
   const root = path.join(__dirname, '..', '..', 'web_app'), js = f => fs.readFileSync(path.join(root, 'static', 'js', f), 'utf8'), css = f => fs.readFileSync(path.join(root, 'static', 'css', f), 'utf8');
   const html = fs.readFileSync(path.join(root, 'templates', 'index.html'), 'utf8'), qp = js('query-processing.js'), wm = js('workflow-management.js'), cr = js('content-rendering.js');
@@ -1252,19 +1324,27 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('the chain on screen: a brief not yet run is drawn when its chain is loaded, and holds the composer wherever the view changes; it is not saved with its thread, and the Save pill stays away',
     wm.includes('if (window.ArchitectUI) window.ArchitectUI.restore(response);') && js('ui-controls.js').includes('if (window.ArchitectUI) window.ArchitectUI.onChain(responses[currentResponseIndex]);')
     && qp.includes("resp.thread_id === threadId && resp.status !== 'framing'") && qp.includes("currentResponse.status !== 'running' && currentResponse.status !== 'framing'"));
-  check('the tabs: a Brief tab takes the markup architect.js builds; the answer is dressed where it is rendered, technical and plain',
-    /case 'comparison':[^\n]*\n\s*case 'brief':[^\n]*\n\s*content = String\(data == null \? '' : data\);/.test(cr) && (cr.match(/window\.ArchitectUI\.dressAnswer\(finalContent\)/g) || []).length === 2);
+  check('the tabs: a Brief tab takes the markup architect.js builds. Where the answer is rendered, what it says against its brief is cut out of it (0312) - the technical version\'s goes to the Brief tab '
+    + 'among the tabs the answer is rendered in, the plain version\'s goes nowhere - and before the answer\'s own copy for the toggle is kept; nothing dresses the answer any more',
+    /case 'comparison':[^\n]*\n\s*case 'brief':[^\n]*\n\s*content = String\(data == null \? '' : data\);/.test(cr)
+    && cr.includes("const cut = window.ArchitectUI.cutAnswer(finalContent);\n                finalContent = cut.html;\n                window.ArchitectUI.turnedOut(_root, cut.against);")
+    && cr.includes("if (window.ArchitectUI) finalContent = window.ArchitectUI.cutAnswer(finalContent).html;") && (cr.match(/cutAnswer\(/g) || []).length === 2 && (cr.match(/turnedOut\(/g) || []).length === 1
+    && cr.indexOf('window.ArchitectUI.turnedOut(_root, cut.against);') < cr.indexOf("currentData.technicalAnswer = '<div class=\"markdown-content content-body\">' + finalContent + '</div>';")
+    && cr.includes("const _root = (typeof liveTargets === 'function') ? liveTargets().content : document.getElementById('contentOutput');")
+    && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);
   const graph = js('workflowGraph.js');
   check('the thread map: a box says how its question was made; a brief not yet run has no code map to open',
     graph.includes("var made = window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
     && graph.includes("if (resp && resp.chain_id && made !== 'not run') {"));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
-  check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and the answer\'s card in tabs.css',
+  check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and - on it since 0312, in the answer no more - the card of what the '
+    + 'report says against the brief in tabs.css, with a place for a part that goes as the report wrote it',
     shell.includes('.left-panel .icon-row .ar-switch.on {') && shell.includes('#workflowMapModal .wf-node-made {') && shell.includes('#workflowMapModal .wf-node--notrun {')
     && paneCss.includes('#streamOutput .ar-msg {') && paneCss.includes('#streamOutput .ar-msg.arch {') && paneCss.includes('#streamOutput .ar-msg.wait {') && paneCss.includes('#streamOutput .ar-choice {')
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
-    && tabsCss.includes('#content-answer .ar-against {') && tabsCss.includes('#content-answer .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-answer .ar-against .v.' + v + ' {')));
+    && tabsCss.includes('#content-brief .ar-against { display: grid; grid-template-columns: max-content 1fr max-content;') && tabsCss.includes('#content-brief .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-brief .ar-against .v.' + v + ' {'))
+    && tabsCss.includes('#content-brief .ar-against .as-is { grid-column: 1 / -1; min-width: 0; }') && !tabsCss.includes('#content-answer .ar-against'));
   check('the stylesheets, 0308: the version control with its name and its arrows, the one control that adds a part and the list it opens, the line of what is always tested, a saved analysis built on and '
     + 'what the readings found are styled in tabs.css; what a reading found under its row in pane.css. The pencil is in view at rest; the cross shows under the mouse, and stays in view on a saved '
     + 'analysis built on. Nothing is left of the wording\'s card, the parts on offer by chips, a passage as a line, or the button that had the saved analyses read; the page\'s words for the Brief tab '
