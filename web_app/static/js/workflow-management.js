@@ -610,6 +610,8 @@ function initializeWorkflowMap() {
 function showWorkflowMap() {
     var modal = document.getElementById('workflowMapModal');
     var container = document.getElementById('workflowMapContainer');
+    modal.classList.remove('steps');                           // the drawer may last have held the map of a brief's conversation (architect.js): its title and its foot are the thread's again
+    modal.querySelector('h2').textContent = 'Thread map';
     document.getElementById('nodeTaskContent').innerHTML = 'Hover over a chain to see its question and where it sits';
     document.getElementById('nodePlotPreview').innerHTML = '';
     modal.style.display = 'flex';

@@ -2140,17 +2140,130 @@ check("brief.build_on (0308): the brief builds on the saved analyses a reply nam
       and briefs.build_on({"question": "q", "saved": [dict(_KEPT[0], accepted=False)]}, _gf2, [1])[1] == ["saved.0", "saved.1"], (_b1.get("saved"), _c1, _c2, _c3, _c4))
 _f3 = briefs.version(briefs.version(briefs.version({"calls": 2}, {"question": "q0"}), {"question": "q1", "decision": "d1"}, by="architect", changed=["question", "decision"], why="answer"),
                      {"question": "q2", "decision": "d1", "thinks": "t2"}, by="architect", changed=["question", "thinks"], why="answer")
-_at2 = briefs.use(_f3, 2)
-check("brief.use and brief.latest (0308): the version in use is the last one, or the one the person went back to - use() names it, latest() gives its brief under its own number, and what else the "
-      "framing holds stays. Going to the last version names none; a version added is the one in use from then, numbered on from the last; a number the framing does not have - nought, one too many, "
-      "a yes, a number in words - changes nothing, and a framing that names such a version is read as naming none. The framing passed in is never altered",
-      briefs.use(_f3, 2)["at"] == 2 and briefs.latest(briefs.use(_f3, 2)) == {"question": "q1", "decision": "d1", "version": 2} and briefs.use(_f3, 2)["calls"] == 2 and "at" not in _f3
-      and briefs.latest(briefs.use(_f3, 1)) == {"question": "q0", "version": 1} and "at" not in briefs.use(briefs.use(_f3, 2), 3) and briefs.latest(_f3)["version"] == 3
-      and all(briefs.use(_f3, n) == _f3 for n in (0, 4, -1, True, "2", None, 2.0)) and briefs.use(briefs.use(_f3, 2), 9)["at"] == 2 and briefs.use({}, 1) == {} and briefs.use(None, 1) == {}
-      and "at" not in briefs.version(briefs.use(_f3, 1), {"question": "q9"}) and briefs.latest(briefs.version(briefs.use(_f3, 1), {"question": "q9"})) == {"question": "q9", "version": 4}
-      and all(briefs.latest({**_f3, "at": n}) == briefs.latest(_f3) for n in (7, 0, "2", True, None)) and briefs.latest({}) == {} and briefs.latest(None) == {}
-      and [(briefs.use(_at2, n).get("at"), _at2.get("at")) for n in (1, 3)] == [(1, 2), (None, 2)],
-      (briefs.use(_f3, 2).get("at"), briefs.latest(briefs.use(_f3, 2))))
+check("brief.latest (0308): the version in use is the last one, or the one the framing names (`at`: the step in use ends on it, analyst/steps.py) - latest() gives its brief under its own number; a "
+      "version added is the one in use from then, numbered on from the last; a framing that names a version it does not have - nought, one too many, a yes, a number in words - is read as naming "
+      "none. Nothing else puts a version in use: brief.use() is gone",
+      briefs.latest({**_f3, "at": 2}) == {"question": "q1", "decision": "d1", "version": 2} and briefs.latest({**_f3, "at": 1}) == {"question": "q0", "version": 1} and briefs.latest(_f3)["version"] == 3
+      and "at" not in briefs.version({**_f3, "at": 1}, {"question": "q9"}) and briefs.latest(briefs.version({**_f3, "at": 1}, {"question": "q9"})) == {"question": "q9", "version": 4}
+      and all(briefs.latest({**_f3, "at": n}) == briefs.latest(_f3) for n in (7, 0, "2", True, None)) and briefs.latest({}) == {} and briefs.latest(None) == {} and not hasattr(briefs, "use"),
+      briefs.latest({**_f3, "at": 2}))
+# ---- the steps of a brief's conversation (0316, docs/ARCHITECT_DESIGN.md §2.25): what was said or changed, with the reply, is a step; steps branch; a framing holds one way
+from analyst import steps
+_person = lambda text: {"who": "person", "text": text}                 # noqa: E731
+_reply = lambda text, v: {"who": "architect", "text": text, "v": v}    # noqa: E731
+
+
+def _more(framing, turns=(), brief=None, **also):
+    """A framing as the engine leaves it before its steps are counted: turns added, and one more version where a brief is given."""
+    out = {**framing, "turns": list(framing.get("turns") or []) + list(turns), **also}
+    return briefs.version(out, brief, by="architect", changed=["decision"]) if brief else out
+
+
+_shape = lambda f: [(x["k"], x["from"], x["v"], x["made"], x["turns"]) for x in f["steps"]]      # noqa: E731
+_said = lambda f: [t.get("text") or t["who"] for t in f.get("turns") or []]                    # noqa: E731
+_aside = lambda f: {k: [t.get("text") or t["who"] for t in v.get("turns", [])] for k, v in (f.get("aside") or {}).items()}      # noqa: E731
+_s1 = steps.take(briefs.version({}, {"question": "q"}))                                                        # a brief just opened
+_s2 = steps.take(_more(_s1, [_reply("a1", 2)], {"question": "q", "decision": "d"}))                            # the Architect's first reply, which wrote a part
+_s3 = steps.take(_more(_s2, [_person("p2"), _reply("a2", 2), {"who": "check", "found": []}]))                  # the person spoke; a reply that changed nothing and had the data looked up
+_s4 = steps.take(_more(_s3, [_reply("a2b", 3)], {"question": "q", "decision": "d", "expects": "e"}))           # the Architect goes on by itself, and writes a part
+_s5 = steps.take(briefs.version(_s4, {"question": "q", "decision": "by hand", "expects": "e"}, changed=["decision"]))      # the person changed a line by hand
+_s6 = steps.take(_more(_s5, [{"who": "reader", "missing": ["x"], "v": 4}]))                                    # the question read before its analysis
+_s7 = steps.take(_more(_s6, [_reply("a4", 5)], {"question": "q2", "decision": "by hand", "expects": "e"}))    # and the Architect's reply to what the reader could not place
+check("steps.take (0316): what is added to a framing is counted into a step. A brief just opened is one step, in use, the end of its way; the Architect's first reply is that step's, with the "
+      "version it made. Where the person speaks a step follows - their message, the reply, the lookups the reply asked for - and the reply the Architect gives by itself after them is the same "
+      "step's: its turns counted on, the version it made listed, the version in use at its end the step's. A line changed by hand - a version, and nothing said - is a step of its own; so is the "
+      "question's read, and the Architect's reply to it joins it. A framing with nothing added is left as it is, and the one passed in is never altered",
+      (_shape(_s1), _s1["step"], _s1["tip"]) == ([(1, 0, 1, [1], 0)], 1, 1) and _shape(_s2) == [(1, 0, 2, [1, 2], 1)] and (_s2["step"], _s2["tip"]) == (1, 1)
+      and _shape(_s3) == [(1, 0, 2, [1, 2], 1), (2, 1, 2, [], 3)] and (_s3["step"], _s3["tip"]) == (2, 2) and _shape(_s4)[-1] == (2, 1, 3, [3], 4) and len(_s4["steps"]) == 2
+      and _shape(_s5)[-1] == (3, 2, 4, [4], 0) and _shape(_s6)[-1] == (4, 3, 4, [], 1) and _shape(_s7)[-1] == (4, 3, 5, [5], 2) and (_s7["step"], _s7["tip"], len(_s7["steps"])) == (4, 4, 4)
+      and steps.take(_s7) == _s7 and _shape(_s1) == [(1, 0, 1, [1], 0)] and _shape(_s3)[-1] == (2, 1, 2, [], 3) and "aside" not in _s7 and "at" not in _s7,
+      (_shape(_s7), _s7["step"], _s7["tip"]))
+_b2 = steps.go(_s7, 2)                                                                                         # back to step 2
+_b3 = steps.take(_more(_b2, [_person("p5"), _reply("a5", 6)], {"question": "q", "decision": "another way"}))  # the person speaks from there: another way
+_b4 = steps.go(_b3, 4)                                                                                         # to the end of the way left
+_b5 = steps.go(_b4, 1)                                                                                         # to the first step
+_b6 = steps.take(_more(steps.go(_b3, 1), [_person("p6"), _reply("a6", 2)]))                                    # and the person speaks from the first step: a third way, which leaves the step where the other two part
+check("steps.go (0316): the framing with another step in use. It holds that step's way and nothing of the others: the turns up to the step's end, and the version of the brief that stood there "
+      "as the one in use; what the steps off the way hold is set aside, by step. What is said from there is a step that follows the one gone to - the steps that followed it before stay, set "
+      "aside - and the next version is counted on from the last. Going to a step on the other way brings its turns back and sets the new ones aside. The way being walked ends where it did "
+      "while the step gone to is on it, so the page's arrow forward finds the steps left; a step off that way has its own end, where the newest steps after it lead - from the step where "
+      "two ways part, the one made last. Going there and back "
+      "leaves the framing as it was; a step the framing does not have - nought, one too many, a yes, a number in words - changes nothing, nor does the one in use",
+      (_b2["step"], _b2["tip"], _b2["at"], _said(_b2), _aside(_b2)) == (2, 4, 3, ["a1", "p2", "a2", "check", "a2b"], {"4": ["reader", "a4"]}) and briefs.latest(_b2)["version"] == 3
+      and _shape(_b3)[-1] == (5, 2, 6, [6], 2) and (_b3["step"], _b3["tip"]) == (5, 5) and "at" not in _b3 and _said(_b3) == ["a1", "p2", "a2", "check", "a2b", "p5", "a5"]
+      and _aside(_b3) == {"4": ["reader", "a4"]} and [x["n"] for x in _b3["versions"]] == [1, 2, 3, 4, 5, 6]
+      and (_b4["step"], _b4["tip"], _b4["at"], _said(_b4), _aside(_b4)) == (4, 4, 5, ["a1", "p2", "a2", "check", "a2b", "reader", "a4"], {"5": ["p5", "a5"]})
+      and (_b5["step"], _b5["tip"], _b5["at"], _said(_b5)) == (1, 4, 2, ["a1"]) and sorted(_b5["aside"]) == ["2", "4", "5"]
+      and [steps.go(_b5, n)["tip"] for n in (2, 3, 4)] == [4, 4, 4] and steps.go(_b5, 5)["tip"] == 5 and steps.go(steps.go(_b5, 5), 2)["tip"] == 5
+      and _shape(_b6)[-1] == (6, 1, 2, [], 2) and (_b6["step"], _b6["tip"]) == (6, 6) and [steps.go(_b6, n)["tip"] for n in (1, 2, 3, 4, 5)] == [6, 5, 4, 4, 5]
+      and steps.go(steps.go(_b3, 1), 5) == _b3 and steps.go(steps.go(steps.go(_b3, 4), 3), 5) == _b3
+      and all(steps.go(_b3, n) == _b3 for n in (0, 6, -1, True, "2", None, 2.0, 5)) and _shape(steps.go(_b3, 1)) == _shape(_b3),
+      (_said(_b2), _aside(_b2), _b3.get("tip"), _b4.get("at"), _said(_b5)))
+_m1 = steps.take({**_more(_s3, [{"who": "memory", "found": []}]), "found": [{"passage": "p1"}, {"passage": "p2"}], "proposed": 1})      # a reading in step 2: two passages; and a proposal made by then
+_m2 = steps.take({**_more(_m1, [_person("p3"), {"who": "memory", "found": []}]), "found": _m1["found"] + [{"passage": "p3"}], "proposed": 2})
+_m3 = steps.go(_m2, 2)
+_d1 = steps.take(_more(steps.go(_s7, 2), [{"who": "draft", "drawn": []}]))      # at a step that has steps after it, something is added and nobody spoke: a draft drawn again
+check("steps (0316), what else belongs to a way: the passages its readings found and the count of what the Architect had proposed. A step holds the passages found in it; going back before a "
+      "reading sets its passages aside with its turns, and the count is the one that stood then - going forward again brings them back. And what was is not changed: where the step in use has "
+      "a step after it, what is added - a draft drawn again, nobody having spoken - is a step of its own, which follows it",
+      [(x["found"], x["proposed"]) for x in _m2["steps"]] == [(0, 0), (2, 1), (1, 2)] and (_m3["found"], _m3["proposed"]) == ([{"passage": "p1"}, {"passage": "p2"}], 1)
+      and _m3["aside"]["3"]["found"] == [{"passage": "p3"}] and (steps.go(_m3, 1)["found"], steps.go(_m3, 1)["proposed"]) == ([], 0)
+      and steps.go(_m3, 1)["aside"]["2"]["found"] == _m3["found"] and steps.go(steps.go(_m3, 1), 3) == _m2
+      and _shape(_d1)[-1] == (5, 2, 3, [], 1) and (_d1["step"], _d1["tip"]) == (5, 5) and _said(_d1)[-2:] == ["a2b", "draft"] and _aside(_d1) == {"4": ["reader", "a4"]},
+      ([(x["found"], x["proposed"]) for x in _m2["steps"]], _m3.get("aside"), _shape(_d1)[-1]))
+_legacy = {"versions": [{"n": n, "brief": {"question": "q"}} for n in (1, 2, 3)], "at": 2, "found": [{"passage": "p"}], "proposed": 1,
+        "turns": [_reply("a", 2), _person("p"), _reply("b", 2), {"who": "version", "v": 1}, _person("p2"), {"who": "memory", "found": [], "v": 1}, _reply("c", 3),
+                   _person("p3"), {"who": "check", "found": []}]}
+check("steps, a framing kept before them (0316): one way, a step to a version. An exchange - the person's message with what followed it, the word that they went to another version before "
+      "it - stands whole in one step: that of the last version made by then - an exchange that names no version too - so the conversation keeps its order; the passages found stand with "
+      "the first reading. The step in use is the version the framing names - the last, where it names one it does not have - the way ends on the last, and going back sets the later "
+      "steps aside as in any other framing. A framing that holds nothing is one step. way() is the steps "
+      "from the first to one, in order - none for a step that is not there; said() is every turn, those set aside after those of the way",
+      [(x["k"], x["from"], x["v"], x["made"], x["turns"], x["found"], x["proposed"]) for x in steps.take(_legacy)["steps"]] == [(1, 0, 1, [1], 0, 0, 1), (2, 1, 2, [2], 3, 0, 1), (3, 2, 3, [3], 6, 1, 1)]
+      and (steps.take(_legacy)["step"], steps.take(_legacy)["tip"]) == (2, 3) and "steps" not in _legacy
+      and (_said(steps.go(_legacy, 1)), steps.go(_legacy, 1)["at"], _aside(steps.go(_legacy, 1))) == ([], 1, {"2": ["a", "p", "b"], "3": ["version", "p2", "memory", "c", "p3", "check"]})
+      and steps.go(_legacy, 1)["aside"]["3"]["found"] == [{"passage": "p"}] and "found" not in steps.go(_legacy, 1)["aside"]["2"] and steps.go(_legacy, 1)["found"] == []
+      and steps.take({})["steps"] == steps.take(None)["steps"] == [{"k": 1, "from": 0, "v": 1, "made": [1], "turns": 0, "found": 0, "proposed": 0}]
+      and [(steps.take({**_legacy, "at": at})["step"], "at" in steps.take({**_legacy, "at": at})) for at in (9, 0, True, "2", 3)] == [(3, False)] * 5
+      and [x["k"] for x in steps.way(_b3["steps"], 5)] == [1, 2, 5] and steps.way(_b3["steps"], 9) == [] and steps.way(_b3["steps"], 0) == []
+      and [t.get("text") or t["who"] for t in steps.said(_b3)] == ["a1", "p2", "a2", "check", "a2b", "p5", "a5", "reader", "a4"] and steps.said({}) == [] and steps.said(None) == [],
+      ([(x["k"], x["turns"], x["found"]) for x in steps.take(_legacy)["steps"]], _aside(steps.go(_legacy, 1))))
+import random as _rnd
+_rnd.seed(316)
+_walk, _mine, _n, _held_true = steps.take(briefs.version({}, {"question": "q"})), {}, 0, True
+for _ in range(400):                                   # a long walk: steps taken and gone to at random
+    if _rnd.random() < 0.4:
+        _walk = steps.go(_walk, _rnd.randint(1, len(_walk["steps"])))
+    else:
+        _n, _before, _kind = _n + 1, len(_walk["steps"]), _rnd.choice(["say", "say", "hand", "goes on"])
+        _new = [_person(f"p{_n}"), _reply(f"a{_n}", 0)] if _kind == "say" else [_reply(f"g{_n}", 0)] if _kind == "goes on" else []
+        _walk = steps.take(briefs.version(_walk, {"question": f"q{_n}"}, changed=["question"]) if _kind == "hand" else _more(_walk, _new))
+        _mine.setdefault(len(_walk["steps"]) if len(_walk["steps"]) > _before else _walk["step"], []).extend(t["text"] for t in _new)
+    _way = steps.way(_walk["steps"], _walk["step"])
+    _held_true = (_held_true and sum(x["turns"] for x in _way) == len(_walk.get("turns") or []) and _said(_walk) == [t for x in _way for t in _mine.get(x["k"], [])]
+                  and briefs.latest(_walk)["version"] == _way[-1]["v"] and _walk["step"] in [x["k"] for x in steps.way(_walk["steps"], _walk["tip"])]
+                  and sorted(t["text"] for t in steps.said(_walk)) == sorted(t for texts in _mine.values() for t in texts))
+check("steps, a long walk (0316): four hundred moves at random - the person speaks, changes a line by hand, the Architect goes on by itself, the person goes to any step. After every one the "
+      "framing holds the turns of the way to the step in use, each step's own in order, and the version that stood at its end; every turn ever said is held once, on the way or set aside; and "
+      "the step in use is on the way being walked. At the end every step's way is as it was said",
+      _held_true and len(_walk["steps"]) > 100 and len({x["from"] for x in _walk["steps"]}) < len(_walk["steps"]) - 20
+      and all(_said(steps.go(_walk, x["k"])) == [t for y in steps.way(_walk["steps"], x["k"]) for t in _mine.get(y["k"], [])] for x in _walk["steps"]),
+      (len(_walk["steps"]), _walk["step"], _walk["tip"]))
+with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "steps.json"), encoding="utf-8") as _fh:
+    _fx = json.load(_fh)
+_MOVED = ("step", "tip", "at", "turns", "aside")      # what differs in a framing with another step in use
+_rest = lambda f: {key: value for key, value in f.items() if key not in _MOVED}      # noqa: E731
+_th = _fx["then"]
+_from = steps.go(_fx["framing"], _th["from"])
+_after = steps.take(briefs.version({**_from, "turns": _from["turns"] + _th["turns"], "calls": _from["calls"] + 1}, _th["brief"], by="architect", changed=_th["changed"], why="answer"))
+check("steps, the fixture the page's suite shares (0316; tests/analyst/fixtures/steps.json): a conversation that went one way, came back and went another. The framing is one the engine leaves "
+      "as it is, and with each of its steps in use it is what the file says - the step, the end of its way, the version in use, the turns of its way and what is set aside - with nothing else "
+      "changed. The person speaking once more from the step they had gone back to is one more step that follows it: the framing after is the file's too. The page is held to the same file "
+      "(test_architect.js): the two say the same of a step gone to",
+      steps.take(_fx["framing"]) == _fx["framing"] and sorted(_fx["go"]) == [str(x["k"]) for x in _fx["framing"]["steps"]] and len({x["from"] for x in _fx["framing"]["steps"]}) < len(_fx["framing"]["steps"])
+      and all({key: got[key] for key in _MOVED if key in got} == _fx["go"][k] and _rest(got) == _rest(_fx["framing"]) for k, got in ((k, steps.go(_fx["framing"], int(k))) for k in _fx["go"]))
+      and _after == _th["framing"] and _shape(_after)[-1] == (7, 2, 6, [6], 2) and (_after["step"], _after["tip"], sorted(_after["aside"])) == (7, 7, ["3", "4", "6"]),
+      ([k for k in _fx["go"] if {key: value for key, value in steps.go(_fx["framing"], int(k)).items() if key in _MOVED} != _fx["go"][k]], _after == _th["framing"]))
 _rb = {"question": "q", "decision": "d", "saved": [dict(x, accepted=False) for x in _KEPT]}
 _ticked = {**_rb, "saved": [dict(_KEPT[0], accepted=True), dict(_KEPT[1], accepted=False)]}
 _wpass = [dict(_KEPT[0], accepted=True), dict(_KEPT[1], accepted=True), dict(_KEPT[0], passage="gap = b - a", where="cell 1", accepted=True),
@@ -2295,28 +2408,34 @@ check("architect.prompt, the wording: the Architect reads the question as it sta
 _vn = Notebook("v"); _vr = _vn.new_run("q0"); _vr.status = "framing"; _vr.framing = {k: v for k, v in _f3.items() if k != "calls"}
 _llm9, _seen9 = _arch_llm([json.dumps({"say": "Noted.", "brief": {"expects": "e"}}), json.dumps({"say": "Yes."}), json.dumps({"say": "Still."}), json.dumps({"say": "On."}), json.dumps({"say": "Up."}),
                            json.dumps({"say": "x"}), json.dumps({"say": "Looking.", "recall": True})])
-_vr.framing = _v1 = arch.exchange(_llm9, _vn, _vr, "From the second one", version=2)       # the person went back to version 2 and answers: the reply's change is made to it
-_vr.framing = _v2 = arch.exchange(_llm9, _vn, _vr, "And the first", version=1)             # back to version 1, a reply that changes nothing: version 1 stays in use
-_vr.framing = _v3 = arch.exchange(_llm9, _vn, _vr, "Again", version=1)                     # the same version once more
-_vr.framing = _v4 = arch.exchange(_llm9, _vn, _vr, "No version said")                      # the page says none: the one in use stays
-_v5 = arch.exchange(_llm9, _vn, _vr, "The last", version=4)                                # forward to the last
-_v6 = arch.exchange(_llm9, _vn, _vr, "x", version=9)                                       # a version the framing does not have
-_v7 = arch.exchange(_llm9, _vn, _vr, "Look in what I saved", recall=_recall_of(_RESULT), saved=3)      # a reading while version 1 is in use
-check("architect.exchange, the version on screen (0308): where the person's message comes from another version than the one in use, that version is in use from then on - the conversation says so before "
-      "the message, the Architect reads its question and its brief, and the reply's changes are made to it, as one more version counted on from the last; the versions after it stay. A reply that "
-      "changes nothing leaves that version in use, and the reply's turn names it; the same version again, or none said, says nothing more; with the last version in use the framing names none; a "
-      "number the framing does not have changes nothing. A reading made while an earlier version is in use is a turn under that version",
-      [t["who"] for t in _v1["turns"]] == ["version", "person", "architect"] and _v1["turns"][0] == {"who": "version", "v": 2} and "at" not in _v1 and _v1["turns"][-1]["v"] == 4
+_vr.framing = _v1 = arch.exchange(_llm9, _vn, _vr, "From the second one", step=2)          # the person went back to step 2 and answers: the reply's change is made to its brief
+_vr.framing = _v2 = arch.exchange(_llm9, _vn, _vr, "And the first", step=1)                # back to step 1, a reply that changes nothing
+_vr.framing = _v3 = arch.exchange(_llm9, _vn, _vr, "Again", step=5)                        # the step in use, named
+_vr.framing = _v4 = arch.exchange(_llm9, _vn, _vr, "No step said")                         # the page says none: the conversation goes on from the one in use
+_v5 = arch.exchange(_llm9, _vn, _vr, "The last", step=4)                                   # to the step left, and on from it
+_v6 = arch.exchange(_llm9, _vn, _vr, "x", step=99)                                         # a step the framing does not have
+_v7 = arch.exchange(_llm9, _vn, _vr, "Look in what I saved", recall=_recall_of(_RESULT), saved=3)      # a reading on this way
+check("architect.exchange, the step on screen (0316): where the person's message comes from another step than the one in use, the exchange goes on from that step. The Architect reads the question "
+      "and the brief as they stood there and the conversation up to there - nothing of what was said on another way, and no word that the person went back: for the Architect it did not "
+      "happen. The reply's changes are made to that brief, as one more version counted on from the last, and message and reply are a step that follows the one gone to; the steps after it "
+      "stay, set aside with what they hold. A reply that changes nothing leaves the version of that step in use, and the reply's turn names it. The step in use named again, or none, or one "
+      "the framing does not have: the conversation goes on from the one in use. Going to the step left brings its conversation back. A reading is counted into its step, with what it found",
+      [t["who"] for t in _v1["turns"]] == ["person", "architect"] and "at" not in _v1 and _v1["turns"][-1]["v"] == 4 and (_v1["step"], _v1["tip"]) == (4, 4)
+      and _shape(_v1) == [(1, 0, 1, [1], 0), (2, 1, 2, [2], 0), (3, 2, 3, [3], 0), (4, 2, 4, [4], 2)]
       and briefs.latest(_v1) == {"question": "q1", "decision": "d1", "expects": "e", "version": 4} and [v["n"] for v in _v1["versions"]] == [1, 2, 3, 4] and _v1["versions"][2]["brief"]["question"] == "q2"
       and "QUESTION:\nq1\n(first asked as: q0)\n\nBRIEF (version 2):\ndecision: d1\nthinks: (empty)" in _seen9[0][1]
-      and "CONVERSATION:\n(the person went to version 2 of the brief: QUESTION and BRIEF show it)\nPerson: From the second one\n" in _seen9[0][1]
-      and _v2["at"] == 1 and briefs.latest(_v2) == {"question": "q0", "version": 1} and [t["who"] for t in _v2["turns"]][-3:] == ["version", "person", "architect"] and _v2["turns"][-1]["v"] == 1
-      and len(_v2["versions"]) == 4 and [t["who"] for t in _v3["turns"]][-3:] == ["architect", "person", "architect"] and _v3["at"] == 1
-      and [t["who"] for t in _v4["turns"]][-2:] == ["person", "architect"] and _v4["at"] == 1 and "BRIEF (version 1):" in _seen9[3][1]
-      and "at" not in _v5 and _v5["turns"][-3] == {"who": "version", "v": 4} and "BRIEF (version 4):" in _seen9[4][1]
-      and _v6["at"] == 1 and [t["who"] for t in _v6["turns"]][-2:] == ["person", "architect"] and "BRIEF (version 1):" in _seen9[5][1]
-      and _v7["turns"][-1]["who"] == "memory" and (_v7["turns"][-1]["v"], _v7["turns"][-2]["v"], _v7["at"], len(_v7["versions"])) == (1, 1, 1, 4),
-      ([t["who"] for t in _v1["turns"]], _v2.get("at"), _v5.get("at"), _v6.get("at")))
+      and _seen9[0][1].endswith("CONVERSATION:\nPerson: From the second one\n\nReply with the JSON object.") and "went to version" not in _seen9[0][1]
+      and _v2["at"] == 1 and briefs.latest(_v2) == {"question": "q0", "version": 1} and [t["who"] for t in _v2["turns"]] == ["person", "architect"] and _v2["turns"][-1]["v"] == 1
+      and len(_v2["versions"]) == 4 and _shape(_v2)[-1] == (5, 1, 1, [], 2) and _v2["aside"] == {"4": {"turns": _v1["turns"]}}
+      and _seen9[1][1].endswith("CONVERSATION:\nPerson: And the first\n\nReply with the JSON object.") and "From the second one" not in _seen9[1][1] and "BRIEF (version 1):" in _seen9[1][1]
+      and _shape(_v3)[-1] == (6, 5, 1, [], 2) and [t["who"] for t in _v3["turns"]] == ["person", "architect"] * 2 and _v3["at"] == 1
+      and _shape(_v4)[-1] == (7, 6, 1, [], 2) and len(_v4["turns"]) == 6 and _v4["at"] == 1 and "BRIEF (version 1):" in _seen9[3][1]
+      and "at" not in _v5 and _shape(_v5)[-1] == (8, 4, 4, [], 2) and "BRIEF (version 4):" in _seen9[4][1] and sorted(_v5["aside"]) == ["5", "6", "7"]
+      and _seen9[4][1].endswith("CONVERSATION:\nPerson: From the second one\nArchitect: Noted.\nPerson: The last\n\nReply with the JSON object.")
+      and _v6["at"] == 1 and _shape(_v6)[-1] == (8, 7, 1, [], 2) and [t["who"] for t in _v6["turns"]][-2:] == ["person", "architect"] and "BRIEF (version 1):" in _seen9[5][1]
+      and _v7["turns"][-1]["who"] == "memory" and (_v7["turns"][-1]["v"], _v7["turns"][-2]["v"], _v7["at"], len(_v7["versions"])) == (1, 1, 1, 4)
+      and _shape(_v7)[-1] == (8, 7, 1, [], 3) and _v7["steps"][-1]["found"] == len(_v7["found"]) > 0 and not any(t["who"] == "version" for f in (_v1, _v2, _v5, _v7) for t in steps.said(f)),
+      ([t["who"] for t in _v1["turns"]], _shape(_v2), _v2.get("at"), _v5.get("at"), _v6.get("at")))
 _tn = Notebook("t"); _tr = _tn.new_run("q"); _tr.status = "framing"; _tr.framing = briefs.version({}, {"question": "q"})
 _tllm, _tseen = _arch_llm([json.dumps({"say": "Looking.", "recall": True}), json.dumps({"say": "Built.", "build": [2], "brief": {"decision": "to build on it"}}), json.dumps({"say": "Both.", "build": [1, 2]}),
                            json.dumps({"say": "As it was.", "build": [2, 1]}), json.dumps({"say": "A word on something else."}), json.dumps({"say": "None.", "build": []}),
@@ -2413,11 +2532,11 @@ _gr.framing = _g1 = arch.exchange(_gllm, _gn, _gr, "Show me what it will look li
 _gr.framing = _g2 = arch.exchange(_gllm, _gn, _gr, "Yes")
 _gr.framing = _g3 = arch.exchange(_gllm, _gn, _gr, "I expect e")
 _gr.framing = _g4 = arch.exchange(_gllm, _gn, _gr, "Swap them")
-_gr.framing = _g5 = arch.exchange(_gllm, _gn, _gr, "From the first sketch, with another second", version=2)
+_gr.framing = _g5 = arch.exchange(_gllm, _gn, _gr, "From the first sketch, with another second", step=2)
 _gr.framing = _g6 = arch.exchange(_gllm, _gn, _gr, "No figures after all")
 check("architect.exchange, the figures (0309): a reply's `figures` are the brief's from that reply on - one more version of the Architect's, with the reply's other parts, each figure's place named as "
       "changed. Naming the same figures by their numbers changes nothing and makes no version; a reply that says nothing of them leaves them; another order is a version; the numbers are those of the "
-      "brief the reply read - the version on the person's screen; [] takes them out. The Architect reads the figures under their numbers in BRIEF, from the reply after. Its message says "
+      "brief the reply read - that of the step on the person's screen; [] takes them out. The Architect reads the figures under their numbers in BRIEF, from the reply after. Its message says "
       "nothing of them in a field of its own: what the page shows of the figures is the draft's turn (0310)",
       [f["title"] for f in briefs.latest(_g1)["figures"]] == ["Two paths on the curve", "Spread"] and briefs.latest(_g1)["decision"] == "to see it"
       and (_g1["versions"][-1]["by"], _g1["versions"][-1]["why"], _g1["versions"][-1]["changed"]) == ("architect", "answer", ["decision", "figures.0", "figures.1"])
@@ -2697,6 +2816,7 @@ check("draft.settle and draft.line (0310): a round taken into its run - the fram
                   "cost": 0.004, "call": 2}
       and _due1 == [(_k2, _df2)] and _t2 == {"who": "draft", "drawn": [], "missing": ["The rise in percent"], "failed": "the sandbox did not answer", "v": 2, "secs": 20.0, "cost": 0.0}
       and drafts.due(_rd.framing) == [] and [t["who"] for t in _rd.framing["turns"]] == ["draft", "draft"] and json.loads(_was)["versions"] == _rd.framing["versions"]
+      and [(x["k"], x["turns"]) for x in _rd.framing.get("steps", [])] == [(1, 0), (2, 2)] and _rd.framing.get("step") == 2      # each round is counted into the step in use (0316)
       and _ra.framing["drafts"] == {_k1: {"basis": "computed"}, _k2: {"basis": "made up"}} and [d["code"] for d in _ra.drafts] == ["an old cell", "the cell before", "c1"]
       and _ra.framing["turns"][-1] == {"who": "draft", "drawn": [{"title": "After against before", "basis": "computed"}, {"title": "The rise in percent", "basis": "made up"}], "v": 2, "secs": 3, "cost": 0.002, "call": 1}
       and drafts.line(_t1) == 'Draft of the figures: drawn - "After against before" (on made-up numbers); not drawn - "The rise in percent": the cell failed: ValueError: bad'
@@ -2812,23 +2932,25 @@ check("cold.ready, a question that stands on its own: one call, the reader's. Th
       and _ygot.startswith("EARLIER IN THIS THREAD") and "[run 1] Q: Does B beat A?" in _ygot and "\n\nDATA:\n`df`: 3 rows\n\nQUESTION:\n" in _ygot and "[always]" in _ygot and "the season" not in _ygot
       and {k: v for k, v in _y1["turns"][-1].items() if k != "secs"} == {"who": "reader", "missing": [], "v": 1, "cost": 0.002, "call": 1} and isinstance(_y1["turns"][-1]["secs"], float)
       and _yok1b is True and _y1b is _y1 and len(_yseen) == 1 and arch.conversation(_y1["turns"]) == "CONVERSATION:\n(nothing yet)", (_y1, _yok1, _yok1b, _ygot, _ysees[:len(_ygot) + 40]))
-_zn = Notebook("z"); _zr = _zn.new_run(_cq); _zr.status = "framing"; _zr.framing = {**briefs.version({}, {"question": _cq, "expects": "It rises."}), "data": False, "calls": 2}
+_zn = Notebook("z"); _zr = _zn.new_run(_cq); _zr.status = "framing"; _zr.framing = steps.take({**briefs.version({}, {"question": _cq, "expects": "It rises."}), "data": False, "calls": 2})
 _zread, _zseen = _arch_llm(['{"cannot_place": ["the bar version of 14 May", "as before"]}', '{"cannot_place": ["bars"]}'], usage={"cost": 0.002})
 _zarch, _zaseen = _arch_llm([json.dumps({"say": "I took out what pointed to earlier work.", "wording": "Draw the series as bars in one colour."})])
 _z1, _zok1 = cold.ready(_zarch, _zread, _zn, _zr, data="`df`: 3 rows")
 _z2, _zok2 = cold.ready(_zarch, _zread, _zn, _zr)
-_zback, _zokb = cold.ready(_zarch, _zread, _zn, _zr, version=1)
+_zback, _zokb = cold.ready(_zarch, _zread, _zn, _zr, step=1)
 _zsaw = _zaseen[0][1] if _zaseen else ""
 check("cold.ready, a question that points outside what the analyst gets: the read is a turn with the phrases, and the Architect goes on at once - one exchange with no message of the person's, whose "
       "CONVERSATION ends on what the reader could not place, and which is given what an exchange is given beside it, the data's description. Its wording is one more version; the analysis does "
-      "not start; the reply is numbered among the Architect's calls, the read among the reads. Both versions are listed as read: started again - the Architect's version, or the one before it, "
-      "which the person went back to - it starts, with no call. The reader was told the run has no data where it has none",
+      "not start; the reply is numbered among the Architect's calls, the read among the reads. The read and the reply to it are one step of the conversation, which follows the one read. Both "
+      "versions are listed as read: started again - the Architect's version, or the step before it, which the person went back to - it starts, with no call. The reader was told the run "
+      "has no data where it has none",
       _zok1 is False and len(_zseen) == 1 and len(_zaseen) == 1 and "\nWhat they expect to see: It rises." in _zseen[0][1] and "[always]" not in _zseen[0][1] and _zaseen[0][0] == arch.SYSTEM
       and _zsaw.startswith("DATA:\n`df`: 3 rows\n\n")
       and _zsaw.endswith('CONVERSATION:\nA reader given what the analyst will be given could not place: "the bar version of 14 May"; "as before"\n\nReply with the JSON object.')
       and [(v["n"], v["by"], v["changed"]) for v in _z1["versions"]] == [(1, "person", []), (2, "architect", ["question"])] and briefs.latest(_z1)["question"] == "Draw the series as bars in one colour."
       and _z1["read"] == [1, 2] and _z1["calls"] == 3 and [(t["who"], t["call"]) for t in _z1["turns"]] == [("reader", 1), ("architect", 3)]
       and _z1["turns"][0]["missing"] == ["the bar version of 14 May", "as before"] and _z1["turns"][0]["v"] == 1 and _z1["turns"][1]["wording"] == "Draw the series as bars in one colour."
+      and _shape(_z1) == [(1, 0, 1, [1], 0), (2, 1, 2, [2], 2)] and (_z1["step"], _z1["tip"]) == (2, 2)
       and _zr.framing is _z1 and _zok2 is True and _z2 is _z1 and _zokb is True and _zback is _z1 and len(_zseen) == 1 and len(_zaseen) == 1, (_z1, _zok1, _zok2, _zokb, _zsaw[-300:]))
 _zr.framing = briefs.version(_zr.framing, {**briefs.latest(_zr.framing), "question": "Draw the series as bars, as on 14 May."}, by="person", changed=["question"])
 _zbad, _zbseen = _arch_llm(["no object", "none either"])
@@ -2847,27 +2969,30 @@ check("cold.ready, a version made since - the person changed the question by han
 _vn = Notebook("v"); _vr = _vn.new_run("One, as before."); _vr.status = "framing"
 _vr.framing = briefs.version(briefs.version({}, {"question": "One, as before."}), {"question": "Two."}, by="architect", changed=["question"])
 _vread, _vseen = _arch_llm(['{"cannot_place": []}', '{"cannot_place": []}'])
-_v1, _vok = cold.ready(None, _vread, _vn, _vr, version=1)
-_v2, _vok2 = cold.ready(None, _vread, _vn, _vr, version=2)
-check("cold.ready reads the version on the person's screen - the one the analysis will run under - which need not be the last: version 1 is read, listed as read, and the one in use from then, as "
-      "the framing says; the conversation gains the read and nothing else. The last version, started later, is read in its turn, as the second of the reads, and is the one in use again",
+_v1, _vok = cold.ready(None, _vread, _vn, _vr, step=1)
+_v2, _vok2 = cold.ready(None, _vread, _vn, _vr, step=2)
+check("cold.ready reads the question of the step on the person's screen - the one the analysis will run under - which need not be the last: step 1 is read, its version listed as read and in "
+      "use from then, as the framing says; the read is a step that follows it, and the conversation gains nothing else. The other step, started later, is read in its turn: a step that "
+      "follows that one, on a way that holds no other read - and still the second of the brief's reads, by which the run log finds its call",
       _vok is True and _vseen[0][1].startswith("QUESTION:\nOne, as before.") and "Two." not in _vseen[0][1] and _v1["read"] == [1] and _v1.get("at") == 1 and [t["who"] for t in _v1["turns"]] == ["reader"]
       and _v1["turns"][-1]["v"] == 1 and briefs.latest(_v1)["question"] == "One, as before."
-      and _vok2 is True and len(_vseen) == 2 and _vseen[1][1].startswith("QUESTION:\nTwo.") and _v2["read"] == [1, 2] and "at" not in _v2 and [(t["v"], t["call"]) for t in _v2["turns"]] == [(1, 1), (2, 2)], (_v1, _v2))
+      and _shape(_v1) == [(1, 0, 1, [1], 0), (2, 1, 2, [2], 0), (3, 1, 1, [], 1)] and (_v1["step"], _v1["tip"]) == (3, 3)
+      and _vok2 is True and len(_vseen) == 2 and _vseen[1][1].startswith("QUESTION:\nTwo.") and _v2["read"] == [1, 2] and "at" not in _v2 and [(t["v"], t["call"]) for t in _v2["turns"]] == [(2, 2)]
+      and _shape(_v2)[-1] == (4, 2, 2, [], 1) and [(t["v"], t["call"]) for t in steps.said(_v2)] == [(2, 2), (1, 1)], (_v1, _v2))
 _wn = Notebook("w"); _wr = _wn.new_run("One, as before."); _wr.status = "framing"
 _wr.framing = briefs.version(briefs.version({}, {"question": "One, as before."}), {"question": "Two."}, by="architect", changed=["question"])
 _wread, _wseen = _arch_llm(['{"cannot_place": ["as before"]}'])
 _warch, _waseen = _arch_llm([json.dumps({"say": "I said what was before.", "wording": "One, from the start."})])
-_w1, _wok = cold.ready(_warch, _wread, _wn, _wr, version=1)
+_w1, _wok = cold.ready(_warch, _wread, _wn, _wr, step=1)
 _wsaw = _waseen[0][1] if _waseen else ""
-check("cold.ready, an earlier version that points outside what the analyst gets: the Architect goes on from that version - it reads its question and its brief, and its CONVERSATION says that "
-      "the person went to it, then what the reader could not place. Its wording is a version counted on from the last; the later version stays; the earlier one and the Architect's are listed "
-      "as read, and the Architect's is the one in use",
-      _wok is False and [t["who"] for t in _w1["turns"]] == ["version", "reader", "architect"] and _w1["turns"][0] == {"who": "version", "v": 1} and _w1["turns"][1]["v"] == 1
+check("cold.ready, an earlier step whose question points outside what the analyst gets: the Architect goes on from that step - it reads its question and its brief, and its CONVERSATION holds "
+      "what the reader could not place, and no word that the person went back. The read and the reply are one step, which follows the one read; the reply's wording is a version counted on "
+      "from the last; the later step stays; the version read and the Architect's are listed as read, and the Architect's is the one in use",
+      _wok is False and [t["who"] for t in _w1["turns"]] == ["reader", "architect"] and _w1["turns"][0]["v"] == 1 and _shape(_w1) == [(1, 0, 1, [1], 0), (2, 1, 2, [2], 0), (3, 1, 3, [3], 2)]
       and _wsaw.startswith("QUESTION:\nOne, as before.\n") and "BRIEF (version 1):" in _wsaw
-      and _wsaw.endswith('CONVERSATION:\n(the person went to version 1 of the brief: QUESTION and BRIEF show it)\nA reader given what the analyst will be given could not place: "as before"\n\nReply with the JSON object.')
+      and _wsaw.endswith('CONVERSATION:\nA reader given what the analyst will be given could not place: "as before"\n\nReply with the JSON object.')
       and [(v["n"], v["by"], v["brief"]["question"]) for v in _w1["versions"]] == [(1, "person", "One, as before."), (2, "architect", "Two."), (3, "architect", "One, from the start.")]
-      and _w1["read"] == [1, 3] and "at" not in _w1 and _w1["turns"][2]["v"] == 3, (_w1, _wok, _wsaw[-400:]))
+      and _w1["read"] == [1, 3] and "at" not in _w1 and _w1["turns"][1]["v"] == 3 and (_w1["step"], _w1["tip"]) == (3, 3), (_w1, _wok, _wsaw[-400:]))
 _csaid = {"what it is given": "QUESTION, the BRIEF it comes with, DATA where data is loaded,\nand above them the earlier analyses it follows, where it follows any.",
           "it has nothing else": "You have nothing else: not the conversation\nthe question came out of, and no other earlier work.",
           "what to find": "Find what in QUESTION points to something you were not given: an earlier analysis, figure or version that is not\namong those above, whether it is named by "
@@ -3020,14 +3145,15 @@ check("the Architect's instructions: who it is - a patient tutor, who gives befo
 _said08 = {"a short message": "One step a message, and a short one: a few plain sentences, about a hundred words, and at most one question",
            "starting is not a choice": "Starting the analysis is the person's own button: never offer it as a choice.",
            "the question is its to word": "QUESTION is what the analyst will be asked. It starts as the person's own words, and you word it for them: what you give under `wording` is the question from that reply on.",
-           "the person sees it change": "The person sees it change, can change it by hand, and can go back to an earlier version of the brief.",
+           "the person sees it change": "The person sees it change, and can change it by hand.",
            "the message says what the question now holds": "In your message say in a sentence what the question now holds, and ask whether it is what they mean.",
            "what a reading found, as it reads it": "the analyses found, each under a number, with its day, what was asked then and its passages",
-           "where the person went, in what it receives": "what you opened, what came of each draft of the figures, what a reader could not place, and where the person went to another version of the brief.",
+           "what it receives of the conversation": "what you opened, what came of each draft of the figures, and what a reader could not place.",
            "the whole question, not in the message": "give the whole question under `wording`", "not said twice": "Do not repeat the wording in the message: the person reads it beside the conversation.",
            "kept current": "Whenever what is to be done changes after that, word the whole question afresh from what now stands.",
            "worded again where it is not what they mean": "When the person says the question is not what they mean, word it again from what they say.",
-           "another version": "CONVERSATION says where the person went to another version of the brief. QUESTION and BRIEF then show that version: go on from it, and bring back what a later version held only where the person asks.",
+           "an earlier point of the conversation": "The person can go back to an earlier point of this conversation and go on from there. QUESTION, BRIEF and CONVERSATION then show that point, and nothing after it.",
+           "what they left behind": "Where they speak of something from this conversation that you cannot see - \"instead\", \"not that one\" - it is what they left behind: do not ask what it was, and go on from what they say now.",
            "the reply's form shows no key that belongs to one reply only": '{"say": "...", "choices": ["...", "..."], "brief": {"decision": "...", "rests_on": ["..."], "fixed": {"measure": "..."}, "drop": ["..."]}} - `say`: your message.',
            "the other keys, each in its reply": "`wording`, `lookups`, `marks`, `propose`, `recall`, `build`, `figures`, `open`: each only in the reply it belongs to, as set out above. Leave them out of every other reply.",
            "no claim the question does not bear out": "Say that the question holds something only where QUESTION shows it.",
@@ -3045,11 +3171,12 @@ _said08 = {"a short message": "One step a message, and a short one: a few plain 
            "no picture": "You are not shown the picture: where it matters, ask the person what they see in it.",
            "a follow-up starts from little": "The brief then starts with what the last answer was for and what the person thinks: keep what still holds for the new question, and change what does not."}
 check("the Architect's instructions, 0308: a short message; starting is the person's button and no choice; the question is the Architect's to word - whole, under its own key, again whenever the task "
-      "changes or the person says it is not what they mean - and is the question from that reply on, which the person sees, changes or steps back from; where they went to another version, it goes on "
-      "from that one; a line of the brief is a sentence of the person's, and the task is no part of it; a reading on a follow-up too, where it goes somewhere new, and never one claimed that is not "
+      "changes or the person says it is not what they mean - and is the question from that reply on, which the person sees and changes; where they went back to an earlier point of the "
+      "conversation (0316) it is shown nothing that came after, and does not ask what was left behind - no word of versions is left; a line of the brief is a sentence of the person's, and the task is no part of it; a reading on a follow-up too, where it goes somewhere new, and never one claimed that is not "
       "made; the person chooses what to build on by answering, and the reply names every analysis built on by its number; a part of an earlier analysis is opened one at a time and stays in view "
       "until the person speaks; no picture is shown. Nothing of the wording that waited (0307) is left: no agreement to report, nothing to take, nothing to tick",
-      not [k for k, s in _said08.items() if s not in _asys] and not any(x in _asys for x in ("`accept`", '"accept"', "the wording that waits", "not taken yet", "for the person to tick", "under `saved`")),
+      not [k for k, s in _said08.items() if s not in _asys]
+      and not any(x in _asys for x in ("`accept`", '"accept"', "the wording that waits", "not taken yet", "for the person to tick", "under `saved`", "another version", "earlier version")),
       [k for k, s in _said08.items() if s not in _asys])
 _said10 = {"when it describes": "When the person asks for a figure, or asks to see what the result will look like, describe it: give `figures`, three at most.",
            "not otherwise": "Describe none where no figure is asked for.",

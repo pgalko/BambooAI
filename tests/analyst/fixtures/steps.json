@@ -1,0 +1,233 @@
+{
+ "about": "A framing whose conversation went one way (step 3), came back to step 2 and went another (steps 4 to 6); under `go`, what differs in it with each step in use - as analyst/steps.py go() makes it; every key not listed there is the framing's - and under `then`, the person speaking from step 2 once more: the turns added, the brief the Architect left, and the framing after. The engine's suite checks all of it against analyst/steps.py; the page's suite holds architect.js to it.",
+ "framing": {
+  "versions": [
+   {
+    "n": 1,
+    "by": "person",
+    "changed": [],
+    "brief": {
+     "question": "Is B above A?"
+    }
+   },
+   {
+    "n": 2,
+    "by": "architect",
+    "changed": [
+     "decision"
+    ],
+    "brief": {
+     "decision": "Keep one arm.",
+     "question": "Is B above A?"
+    },
+    "why": "answer"
+   },
+   {
+    "n": 3,
+    "by": "architect",
+    "changed": [
+     "figures"
+    ],
+    "brief": {
+     "decision": "Keep one arm.",
+     "figures": [
+      {
+       "title": "A and B by week",
+       "kind": "line",
+       "x": "week",
+       "y": "mean height",
+       "series": [
+        {
+         "name": "A"
+        },
+        {
+         "name": "B"
+        }
+       ]
+      }
+     ],
+     "question": "Is B above A?"
+    },
+    "why": "answer"
+   },
+   {
+    "n": 4,
+    "by": "architect",
+    "changed": [
+     "fixed.period"
+    ],
+    "brief": {
+     "decision": "Keep one arm.",
+     "fixed": {
+      "period": "the first half"
+     },
+     "question": "Is B above A?"
+    },
+    "why": "answer"
+   },
+   {
+    "n": 5,
+    "by": "person",
+    "changed": [
+     "thinks"
+    ],
+    "brief": {
+     "decision": "Keep one arm.",
+     "thinks": "B is above A.",
+     "fixed": {
+      "period": "the first half"
+     },
+     "question": "Is B above A?"
+    }
+   }
+  ],
+  "data": true,
+  "steps": [
+   {
+    "k": 1,
+    "from": 0,
+    "v": 1,
+    "made": [
+     1
+    ],
+    "turns": 1,
+    "found": 0,
+    "proposed": 0
+   },
+   {
+    "k": 2,
+    "from": 1,
+    "v": 2,
+    "made": [
+     2
+    ],
+    "turns": 2,
+    "found": 0,
+    "proposed": 0
+   },
+   {
+    "k": 3,
+    "from": 2,
+    "v": 3,
+    "made": [
+     3
+    ],
+    "turns": 2,
+    "found": 0,
+    "proposed": 0
+   },
+   {
+    "k": 4,
+    "from": 2,
+    "v": 4,
+    "made": [
+     4
+    ],
+    "turns": 2,
+    "found": 0,
+    "proposed": 0
+   },
+   {
+    "k": 5,
+    "from": 4,
+    "v": 5,
+    "made": [
+     5
+    ],
+    "turns": 0,
+    "found": 0,
+    "proposed": 0
+   },
+   {
+    "k": 6,
+    "from": 5,
+    "v": 5,
+    "made": [],
+    "turns": 2,
+    "found": 0,
+    "proposed": 0
+   }
+  ],
+  "step": 6,
+  "tip": 6,
+  "turns": [
+   {
+    "who": "architect",
+    "text": "What will you do differently depending on the answer?",
+    "v": 1,
+    "cost": 0.01,
+    "call": 1,
+    "choices": [
+     "Keep one arm",
+     "Keep both"
+    ]
+   },
+   {
+    "who": "person",
+    "text": "Keep one arm"
+   },
+   {
+    "who": "architect",
+    "text": "What do you expect to see?",
+    "v": 2,
+    "cost": 0.01,
+    "call": 2
+   },
+   {
+    "who": "person",
+    "text": "Only the first half"
+   },
+   {
+    "who": "architect",
+    "text": "The period is the first half.",
+    "v": 4,
+    "cost": 0.01,
+    "call": 4
+   },
+   {
+    "who": "person",
+    "text": "Is that all you need?"
+   },
+   {
+    "who": "architect",
+    "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.",
+    "v": 5,
+    "cost": 0.01,
+    "call": 5
+   }
+  ],
+  "calls": 5,
+  "aside": {
+   "3": {
+    "turns": [
+     {
+      "who": "person",
+      "text": "Show it by week"
+     },
+     {
+      "who": "architect",
+      "text": "A line for each arm, by week.",
+      "v": 3,
+      "cost": 0.01,
+      "call": 3
+     }
+    ]
+   }
+  }
+ },
+ "go": {
+  "1": {"step": 1, "tip": 6, "at": 1, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}], "aside": {"2": {"turns": [{"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}]}, "3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}, "4": {"turns": [{"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}},
+  "2": {"step": 2, "tip": 6, "at": 2, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}], "aside": {"3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}, "4": {"turns": [{"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}},
+  "3": {"step": 3, "tip": 3, "at": 3, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}, {"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}], "aside": {"4": {"turns": [{"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}},
+  "4": {"step": 4, "tip": 6, "at": 4, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}, {"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}], "aside": {"3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}},
+  "5": {"step": 5, "tip": 6, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}, {"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}], "aside": {"3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}},
+  "6": {"step": 6, "tip": 6, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}, {"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}, {"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}], "aside": {"3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}}}
+ },
+ "then": {
+  "from": 2,
+  "turns": [{"who": "person", "text": "Compare the medians instead"}, {"who": "architect", "text": "The measure is the median.", "v": 6, "cost": 0.01, "call": 6}],
+  "changed": ["fixed.measure"],
+  "brief": {"decision": "Keep one arm.", "fixed": {"measure": "the median"}, "question": "Is B above A?"},
+  "framing": {"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Is B above A?"}}, {"n": 2, "by": "architect", "changed": ["decision"], "brief": {"decision": "Keep one arm.", "question": "Is B above A?"}, "why": "answer"}, {"n": 3, "by": "architect", "changed": ["figures"], "brief": {"decision": "Keep one arm.", "figures": [{"title": "A and B by week", "kind": "line", "x": "week", "y": "mean height", "series": [{"name": "A"}, {"name": "B"}]}], "question": "Is B above A?"}, "why": "answer"}, {"n": 4, "by": "architect", "changed": ["fixed.period"], "brief": {"decision": "Keep one arm.", "fixed": {"period": "the first half"}, "question": "Is B above A?"}, "why": "answer"}, {"n": 5, "by": "person", "changed": ["thinks"], "brief": {"decision": "Keep one arm.", "thinks": "B is above A.", "fixed": {"period": "the first half"}, "question": "Is B above A?"}}, {"n": 6, "by": "architect", "changed": ["fixed.measure"], "brief": {"decision": "Keep one arm.", "fixed": {"measure": "the median"}, "question": "Is B above A?"}, "why": "answer"}], "data": true, "steps": [{"k": 1, "from": 0, "v": 1, "made": [1], "turns": 1, "found": 0, "proposed": 0}, {"k": 2, "from": 1, "v": 2, "made": [2], "turns": 2, "found": 0, "proposed": 0}, {"k": 3, "from": 2, "v": 3, "made": [3], "turns": 2, "found": 0, "proposed": 0}, {"k": 4, "from": 2, "v": 4, "made": [4], "turns": 2, "found": 0, "proposed": 0}, {"k": 5, "from": 4, "v": 5, "made": [5], "turns": 0, "found": 0, "proposed": 0}, {"k": 6, "from": 5, "v": 5, "made": [], "turns": 2, "found": 0, "proposed": 0}, {"k": 7, "from": 2, "v": 6, "made": [6], "turns": 2, "found": 0, "proposed": 0}], "step": 7, "tip": 7, "turns": [{"who": "architect", "text": "What will you do differently depending on the answer?", "v": 1, "cost": 0.01, "call": 1, "choices": ["Keep one arm", "Keep both"]}, {"who": "person", "text": "Keep one arm"}, {"who": "architect", "text": "What do you expect to see?", "v": 2, "cost": 0.01, "call": 2}, {"who": "person", "text": "Compare the medians instead"}, {"who": "architect", "text": "The measure is the median.", "v": 6, "cost": 0.01, "call": 6}], "calls": 6, "aside": {"3": {"turns": [{"who": "person", "text": "Show it by week"}, {"who": "architect", "text": "A line for each arm, by week.", "v": 3, "cost": 0.01, "call": 3}]}, "4": {"turns": [{"who": "person", "text": "Only the first half"}, {"who": "architect", "text": "The period is the first half.", "v": 4, "cost": 0.01, "call": 4}]}, "6": {"turns": [{"who": "person", "text": "Is that all you need?"}, {"who": "architect", "text": "Yes. Start the analysis when you are ready. It will compare the two arms over the first half.", "v": 5, "cost": 0.01, "call": 5}]}}}
+ }
+}

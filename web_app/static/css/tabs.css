@@ -208,12 +208,14 @@
 #content-brief .ar-brief h1 { margin: 0; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-wrap; }
 #content-brief .ar-gets { margin: 8px 0 0; font-size: 12px; color: var(--text-tertiary); }
 #content-brief .ar-brief h3 { margin: 15px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
-#content-brief .ar-ver { display: flex; align-items: center; gap: 8px; margin-left: auto; }      /* which version is on screen, and the arrows to the others (0308) */
+#content-brief .ar-ver { display: flex; align-items: center; gap: 8px; margin-left: auto; }      /* which step of the conversation is on screen, the arrows to the ones beside it, and the button to the map of them all (0316; versions, 0308) */
 #content-brief .ar-ver .k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
 #content-brief .ar-ver b { min-width: 44px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
 #content-brief .ar-ver button { width: 28px; height: 28px; padding: 0 0 2px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font: inherit; font-size: 18px; line-height: 1; color: var(--text-primary); cursor: pointer; }
 #content-brief .ar-ver button:not(:disabled):hover { border-color: var(--c-model); color: var(--c-model); }
 #content-brief .ar-ver button:disabled { background: none; color: var(--text-quaternary); cursor: default; }
+#content-brief .ar-ver .ar-map { display: grid; place-items: center; margin-left: 4px; padding: 0; }      /* the map of the conversation's steps: the thread map's own mark */
+#content-brief .ar-ver .ar-map svg { display: block; width: 15px; height: 15px; }
 #content-brief .ar-line { position: relative; display: flex; align-items: baseline; gap: 9px; padding: 2px 0; }
 #content-brief .ar-line .tx { min-width: 0; overflow-wrap: anywhere; }
 #content-brief .ar-line .fact { display: block; font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--text-tertiary); }

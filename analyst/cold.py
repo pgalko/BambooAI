@@ -20,6 +20,7 @@ from typing import Callable, Optional
 
 from analyst import architect
 from analyst import brief as briefs
+from analyst import steps
 from analyst.notebook import Notebook, Run
 
 with open(os.path.join(os.path.dirname(__file__), "cold.md"), encoding="utf-8") as _fh:
@@ -63,39 +64,36 @@ def read(reader: Callable, question: str, text: str) -> tuple:
     return named(reply, question), float((usage or {}).get("cost") or 0.0)
 
 
-def ready(llm: Callable, reader: Callable, nb: Notebook, run: Run, version: Optional[int] = None, data: str = "", **more) -> tuple:
+def ready(llm: Callable, reader: Callable, nb: Notebook, run: Run, step: Optional[int] = None, data: str = "", **more) -> tuple:
     """Before the analysis of a framed question starts: (the framing as it then stands, whether it can start).
 
-    The question of the version to run under - `version`, the one on the person's screen - is read cold by `reader`,
-    once: a version the framing lists as read (`read`) is not read again. The version read is the one in use from
-    then (analyst/brief.py use()): its analysis is what was asked for. A read that names nothing is a turn of the
-    conversation, and the analysis can start. One that names something is a turn too, and the Architect goes on at
-    once - `llm`, one exchange with no message, whose CONVERSATION ends on what could not be placed, after the word
-    that the person went to this version where it was not the one in use; `data`, the data as described, and
-    `more` are the exchange's (analyst/architect.py exchange()). The analysis does not start then: the person sees
-    what the Architect made of it, and starts again. The version the Architect leaves is listed as read without a
-    read: a read holds a start up once.
+    The question to run under - that of the step on the person's screen, `step` (analyst/steps.py) - is read cold
+    by `reader`, once: a version of the brief the framing lists as read (`read`) is not read again. The step read
+    is the one in use from then: its analysis is what was asked for. The read is a step of the conversation. One
+    that names nothing lets the analysis start. One that names something has the Architect go on at once - `llm`,
+    one exchange with no message, whose CONVERSATION ends on what could not be placed; `data`, the data as
+    described, and `more` are the exchange's (analyst/architect.py exchange()). The analysis does not start then:
+    the person sees what the Architect made of it, and starts again. The version the Architect leaves is listed
+    as read without a read: a read holds a start up once.
 
-    A read is one call of its own kind: its turn numbers it among the reads, and the Architect's calls are counted
-    apart. Raises architect.Failed where the Architect's reply fails: the read stands, the calls of the failed reply
-    are counted, and the version is not read again."""
-    framing = run.framing or {}
-    was = briefs.latest(framing).get("version")
-    framing = briefs.use(framing, version) if version is not None else framing
+    A read is one call of its own kind: its turn numbers it among the reads of the whole brief - those of the
+    steps set aside too - and the Architect's calls are counted apart. Raises architect.Failed where the
+    Architect's reply fails: the read stands, the calls of the failed reply are counted, and the version is not
+    read again."""
+    framing = steps.go(run.framing or {}, step) if step is not None else run.framing or {}
     brief = briefs.latest(framing) or {"question": run.question}
     at, done = brief.get("version"), list(framing.get("read") or [])
     if at in done:
         return run.framing, True
-    began, question, turns = time.time(), brief.get("question") or run.question, list(framing.get("turns") or [])
+    began, question = time.time(), brief.get("question") or run.question
     missing, cost = read(reader, question, given(question, brief, framing.get("data") is not False, data, nb.render_ancestry(str(run.id))))
-    turn = {"who": "reader", "missing": missing, "v": at, "cost": round(cost, 4), "call": 1 + sum(1 for t in turns if t.get("who") == "reader"),
+    turn = {"who": "reader", "missing": missing, "v": at, "cost": round(cost, 4), "call": 1 + sum(1 for t in steps.said(framing) if t.get("who") == "reader"),
             "secs": round(time.time() - began, 1)}
-    went = [{"who": "version", "v": at}] if missing and was is not None and at != was else []      # the Architect goes on from a version the person went to: it is told
-    run.framing = {**framing, "turns": turns + went + [turn], "read": done + [at]}
+    run.framing = steps.take({**framing, "turns": list(framing.get("turns") or []) + [turn], "read": done + [at]})
     if not missing:
         return run.framing, True
     try:
-        after = architect.exchange(llm, nb, run, None, version=version, data=data, **more)
+        after = architect.exchange(llm, nb, run, None, data=data, **more)
     except architect.Failed as exc:
         run.framing = {**run.framing, "calls": int(framing.get("calls") or 0) + exc.calls}
         raise

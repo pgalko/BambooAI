@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.27 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.28 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; 2.8.1 begins with 0316, the steps of a brief's conversation and their map; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -56,7 +56,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 35 | A follow-up's brief starts from what the last answer was for and what the coach thinks. Only an answer to the Analyst's own question starts from the whole brief (§2.17). |
 | 36 | The Architect opens a part of an analysis the question follows on request - its report, a cell, the conversation - and reads it until the coach next speaks. Its prompt carries a line to each cell, not the work (§2.17). |
 | 37 | What the Brief tab shows is what the Analyst gets. The question changes as the conversation goes: the Architect words it, and its wording is the question at once, as one more version. Nothing waits to be taken (2026-11-17, from the product owner's test of 0307; §2.18). |
-| 38 | The version on screen is the one in use. The arrows step through the versions; an answer, a change and Start analysis all go on from the one shown (§2.18). |
+| 38 | The version on screen is the one in use. The arrows step through the versions; an answer, a change and Start analysis all go on from the one shown (§2.18). Since 0316 the arrows count the steps of the conversation, and going back takes the conversation with it (decision 55, §2.25). |
 | 39 | The brief shows the parts that hold something, and no other. One control adds a part (§2.18). |
 | 40 | A saved analysis is chosen by answering the Architect, a whole analysis at a time. What a reading found is shown to read, in both panes; nothing is ticked (§2.18). |
 | 41 | A figure the coach asks to see is a part of the brief. The Architect describes it and the Brief tab shows it (a sketch in 0309, a draft since 0310); nothing has to be accepted. Three at most; changed by saying so, taken out with a cross (2026-11-18, the product owner's idea after testing 0308; §2.19). |
@@ -73,6 +73,9 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 52 | Before an analysis starts, its question is read by a model that is given what the Analyst will be given, and nothing else. The words it cannot place go back to the Architect, which words the question again; the coach sees it, and starts again. A read holds a start up once, and a read that cannot be made holds nothing up (0313; §2.22). |
 | 53 | The closing card of a run says the run's numbers beside its title, and offers what can be done next as two buttons alike: *Next questions* and *Code map*. It links to no tab: the tabs are there to click (0313, the second of three mockups, the product owner's choice; §2.23). |
 | 54 | Next questions are a panel inside the closing card, not a list that drops over the page. The panel says what the questions are and what each of the five ways does, a sentence each, in the words of what the Architect is told to do at that way. The questions of the way picked take the list's place, in rows of the same look. The row a run opens on says the way and not what the question came from (0314, the first of three mockups, the product owner's choice: "very little explanation what the feature does, what the options mean", and of *From did not fit* on the run's row: "What does from did not fit even mean"; §2.24). |
+| 55 | What the coach says or changes, with what the Architect does in reply, is a step of the conversation. The coach can go back to any step and go on from it: another way. The Architect then reads the way to that step and nothing of the others, so a direction that led nowhere needs no correcting - it is left. The way that was left stays, to go back to and to go on from (2026-11-19, the product owner's idea; §2.25). |
+| 56 | What is on screen is in use. The arrows count the steps of the way being walked - *Step 3 of 5* - and both panes show the step on screen: the brief as it stood there, the conversation up to it. A step off that way is out of the conversation; no row lists what was left (the product owner, of a row that did: "It should go, it is confusing. Irrelevant steps should be simply removed from the left pane"; §2.25). |
+| 57 | The steps have a map: the thread map's own drawer and drawing, a box to a step, opened by a button beside the arrows. The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
 
 ## 2. The Architect
 
@@ -797,6 +800,10 @@ from the version shown:
   and `/query` carries the number. The run's brief and question are that version's (`brief.latest()` honours
   `at`). The later versions stay on the record, and the run's Brief tab opens on the version it ran under.
 
+*Since 0316* the arrows count the steps of the conversation and say **Step**; the request carries the step
+(`step`), `brief.use()` and the turn that said where the coach went are gone, and going back takes the conversation
+with it (§2.25). What follows stands for the brief itself.
+
 Every version can be changed, and the pencil shows on each line at rest. The strip over the conversation no
 longer names a version: it named the one in use on the record, which is not the one on screen once the coach
 steps. The control on the Brief tab is the one place that says which version it is; the fold above a run still
@@ -1145,8 +1152,9 @@ object: `{"cannot_place": [...]}`.
   if the coach goes back to it. A version the coach makes by hand is read when it is started.
 - *A read that cannot be made holds nothing up.* Where the provider fails or the route is refused, the analysis
   starts. Where the Architect's reply after a read fails, the read stands and the page says why.
-- The version read is the one in use from then, as with an answer (`use()`). Where the Architect goes on from a
-  version the coach went back to, its CONVERSATION says so before the read.
+- The version read is the one in use from then, as with an answer. Since 0316 the read is a step of the
+  conversation, which follows the step that was on screen (§2.25): where the coach had gone back, the Architect
+  reads the way to that step and the read, and nothing says that they went back.
 
 **The call.** One call on the Architect's seat at low effort, logged as *Question check* under the brief's chain
 and charged with its analysis. Its turn numbers it among the question checks; the Architect's calls are counted
@@ -1267,6 +1275,108 @@ back; the list with the count, the questions shown again with no call; more of a
 changed, run and marked; the stylesheet's rules. The walk: the panel in the card and within its box, the list's
 words, the questions in its place, the list with the counts, a way shown again with no call on the usage
 record, *Write more*, the run's row, sets and a row kept from before brought to today's shape in the browser.
+
+### 2.25 The steps of a conversation, and their map — built (0316, 2026-11-19)
+
+**Why.** The product owner's idea, the day 2.8.0 went out: "introduce a map feature to the Architect. The map
+would look similar to our thread map with nodes and arrows and would track all steps of user's conversation with
+the Architect. [...] instead of correcting the Architect and saying 'forget about the last step' they would be
+able to just step back via map and branch the conversation from the step just before the one that did not bear
+fruit." Until then the arrows went through the versions of the brief and nothing else: the Architect still read
+every turn, with a line that the coach had gone back, and a saved analysis kept the whole conversation (§2.18,
+§3.9). A direction that led nowhere stayed in what the Architect read.
+
+**What was agreed** (decisions 55 to 57). Branching until Start analysis; a way that is gone back from is fully
+out - the Architect is given the conversation from the start to the step the coach stands on, and nothing after;
+the button to the map beside the arrows; *Step* in the place of *Version*; no row for what was left; the map as
+the thread map is, hover and all.
+
+**A step** is what the coach said or changed, with what the Architect did in reply: its message, a round of
+lookups, a reading of the saved analyses, a draft, and the versions of the brief all that made. A change by hand
+is a step of its own. So is the question's read before an analysis (§2.22), with the Architect's reply to it.
+The first step is the question, with the Architect's first turn.
+
+**The engine** (`analyst/steps.py`). A framing keeps its steps beside what it kept before:
+
+    "steps": [{"k": 1, "from": 0, "v": 2, "made": [1, 2], "turns": 1, "found": 0, "proposed": 0}, ...]
+    "step": 3        the step in use: what is said or changed next follows it
+    "tip": 5         the last step of the way being walked: the arrows go forward to it
+    "aside": {"4": {"turns": [...], "found": [...]}}      what the steps off the way to the one in use hold
+
+- `turns`, `found`, `proposed` and `at` are **the way's**: the framing holds them for the way to the step in
+  use, as it always held one conversation - so the Architect's prompt, the page, the reader of saved analyses and
+  what is remembered of a run (`brief.said()`) read one way with no change to them. `versions`, the calls'
+  counts, the drafts, the versions read and the count of saved analyses are **the brief's**, whichever way.
+- `take()` counts what was added to a framing into a step. It is a new step where the first turn added is the
+  coach's or the question's read, where a version was made and nothing said, or where the step in use already
+  has a step after it; otherwise it joins the step in use. Every place that adds to a framing ends on it:
+  `architect.exchange()`, `cold.ready()`, `draft.settle()`, and the host where a brief opens or a line is changed.
+- `go(framing, k)` puts step `k` in use: the framing then holds that step's way, the version that stood at its
+  end is the one in use (`at`, as before), and what the other steps hold is set aside. Nothing is lost: going to
+  any step and back gives the framing as it was.
+- A reading of the saved analyses belongs to the way it was made on: its passages go with its step. The versions
+  read (§2.22) are the brief's: a question read on one way is not read again on another.
+
+**What the Architect is told** (`architect.md`). That the coach can go back to an earlier point and go on from
+there; that QUESTION, BRIEF and CONVERSATION then show that point and nothing after; and that where the coach
+speaks of something it cannot see - "instead", "not that one" - it is what they left behind: it does not ask what
+it was. The line *(the person went to version N ...)* is gone from the conversation.
+
+**The requests.** Each request that goes on names the step on the coach's screen: `/architect/say`,
+`/architect/brief`, `/architect/ready` and `/query` carry `step`. The server goes to that step first; what the
+request adds follows it. Where that step has steps after it, this is where another way begins - there is no
+command to branch.
+
+**On the page** (`architect.js`).
+
+- **The arrows.** *Step*, the two arrows, *3 of 5*: the place of the step on screen on the way through it. The
+  arrows go along the way being walked. A step is in use the moment it is on screen - here as it will be on the
+  server once the next request names it: the tab shows the brief as it stood there, with the lines that step
+  changed marked; the pane shows the conversation up to it, the last message's choices to click again; **Start
+  analysis from step 3** names the step unless it is the last of its way. Stepping sends nothing.
+- **While the Architect replies** the arrows and the map's button are off: what is on its way goes on from the
+  step it left.
+- **The map.** The button after the arrows opens the thread map's drawer (§2.9) as the *Conversation map*: how
+  many steps, where they branch. The drawing is the thread map's own (`workflowGraph.js`, which now takes
+  another map's boxes and is told what is that map's own): a box to a step, joined to the step it follows. On
+  a box: what the coach said - the question as it was asked on the first; *You changed a line*, *Question check*
+  where they said nothing - and under it what the step changed, in the tab's words. The way to the step on
+  screen is lit, the rest faint. Under the pointer a box lights its own way and the drawer's foot says, as the
+  thread map does of a chain: what was said, *Step* (as the arrows would count it), *Follows*, *Follow-ups*,
+  *Changed*, and the first sentence of the Architect's reply. A click goes to the step and shuts the drawer.
+  While the drawer is open the map follows its brief - an arrow pressed, a step added - and it shuts when another
+  chain comes on screen.
+- **The strip** over the conversation counts what the brief has cost over every step: a way that was left was
+  paid for.
+- **After Start analysis** the tab and the map are read: a click shows the brief of a step, and nothing else
+  changes. The fold above the run names the step it started from - *brief · step 8* - and holds the way to it.
+  What the report said against the brief (§2.21) stands under every step whose brief is the one the run was
+  under: the step it started from, and one before it that changed nothing.
+
+**What a run keeps.** The analysis starts from the step on screen, under the brief that stands there. The run's
+framing holds the way to that step; the steps off it are set aside on the record and are not in what a later
+question opens (§2.17) or in what is remembered of the analysis once it is saved (§3.9).
+
+**Kept from before.** A framing kept before 0316 has no steps. The engine counts it as one way, a step to a
+version, the first time it is touched (`steps.take()`); the page shows such a brief with the arrows, a step to a
+version, its conversation whole, and no map. Its rows that say which version was in use still show.
+
+**What it costs.** A way that is left was paid for and stays on the bill. A reading of the saved analyses made
+on a way that is left is not carried to another: asked for there, it is made again.
+
+**Tests.** `test_analyst.py`: `take()` and `go()` case by case - what opens a step, what joins one, what a way
+holds, a framing kept before - and four hundred moves at random, after each of which every turn is held once and
+the framing holds the way to the step in use. `tests/analyst/fixtures/steps.json` is a conversation that
+branched, with the framing as each step leaves it: the engine's suite checks it against `steps.py`, and the
+page's suite holds `architect.js` to the same file, so the two cannot drift apart. `test_app_path.py`: the step
+through each route - an answer, a change by hand, the question's read and Start analysis from an earlier step,
+and what the run keeps. `test_architect.js`: the helpers, both panes at a step, the arrows, a message from an
+earlier step, and the map driven on the page with the thread map's own drawing - its boxes, the lit way, the
+foot under the pointer, a click, the map following its brief - and the thread map, drawn by the same code, as
+it was. The walk: the arrows through the Architect's
+conversation with both panes following; in the tutor's, a step back and another way from it - the Architect's
+prompt read through the message's button, with not a word of the way left -, the map in the browser, the way
+that was left gone on from and come back from, and after the run the fold, the record and the steps set aside.
 
 ## 3. Memory from saved analyses
 
@@ -1648,6 +1758,8 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
 - New in 0313: the question read before its analysis (`analyst/cold.py`, `analyst/cold.md` - in the package
   data), and the closing card's shape.
 - New in 0314: Next questions as a panel in the closing card (the page only).
+- New in 0316: the steps of a brief's conversation (`analyst/steps.py`), the step each request names, and their
+  map on the page; the thread map's drawing takes another map's boxes.
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
@@ -1690,6 +1802,7 @@ on the last one.
 | 0313 | From the product owner's live test: the question is written for the Analyst and points to nothing it is not given; before an analysis starts its question is read as the Analyst will read it, and what cannot be placed goes back to the Architect (§2.22). The closing card: the numbers beside the title, two buttons, no links (§2.23). | built |
 | 0314 | From the product owner, of the list of five levels: Next questions are a panel inside the closing card - what the questions are, the five ways with a sentence each, the questions of the way picked in the list's place; the row a run opens on says the way only (§2.24). | built |
 | 0315 | The README's three sections on the Architect and memory cut to what a reader needs, from the product owner's review; the detail stays here. | built |
+| 0316 | 2.8.1, the product owner's idea: the conversation with the Architect in steps, with a map of them. Go back to any step and go on from it - another way, with nothing of the way left in what the Architect reads; the arrows count steps and both panes show the one on screen; the map in the thread map's drawer; a run and memory keep the way that was run (§2.25). | built |
 
 ## 8. Not in this release
 

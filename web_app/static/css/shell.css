@@ -243,6 +243,8 @@
 #workflowMapModal .details-plot-preview img { max-width: 100%; border-radius: var(--r-1); border: 1px solid var(--border-color); }
 #workflowMapModal .plot-preview-message { font-size: var(--fs-small); color: var(--text-quaternary); }
 #workflowMapModal .map-drawer-foot { display: flex; align-items: center; padding: 10px 14px; margin: 0; border: none; border-top: 1px solid var(--border-color); background: none; }
+#workflowMapModal.steps .map-drawer-foot { display: none; }      /* the drawer as the map of a brief's conversation (architect.js): the thread's buttons are not its own */
+#workflowMapModal.steps .wf-node-chain { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }      /* ... and a box's second line is words - what the step changed: one line, in the page's type */
 #workflowMapModal .workflow-actions-container { display: flex; gap: 8px; width: 100%; }
 #workflowMapModal .workflow-actions-container .ui-btn { flex: 1; justify-content: center; }
 #workflowMapModal .workflow-actions-container .ui-btn:disabled { opacity: .4; cursor: default; }

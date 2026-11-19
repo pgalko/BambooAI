@@ -1,7 +1,7 @@
 // The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §2.19, §3.7): the
 // Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
-// the Architect worded it, a line being changed by hand - an earlier version on screen, what the brief rests on checked
-// against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
+// the Architect worded it, a line being changed by hand - a conversation that branched, with an earlier step on screen
+// and with its map open (§2.25), what the brief rests on checked against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
 // the saved analyses - being read, and what was found with the one the brief builds on - the figures: as grey
 // windows while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json) - and
 // the question's check before an analysis starts: the question being read, and the words the Analyst could not
@@ -77,7 +77,33 @@ window.galleryArchitect = (function () {
                                               you('Build on the one on like-for-like soil.'),
                                               said('Done: the Analyst gets that analysis, and can open it. The brief is ready: start the analysis, or change a line.', { v: 4, call: 6 })]),
                        calls: 6, saved: 12 };
-  const entryOf = f => ({ status: 'framing', chain_id: 1763203380, thread_id: 1763203300, parentChainId: null, queryText: Q, tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, framing: f });
+  // A framing with the steps of its conversation, as a server sends it (§2.25; analyst/steps.py) - for a conversation that went one way: a step opens with the
+  // coach's message or the question's read and makes the versions its turns name; what the coach changed by hand after the last reply is a step of its own
+  const kept = f => {
+    if (f.steps) return f;
+    const steps = [{ k: 1, from: 0, v: 1, made: [1], turns: 0 }], last = () => steps[steps.length - 1];
+    const next = v => steps.push({ k: steps.length + 1, from: steps.length, v, made: [], turns: 0 });
+    const made = to => { for (let n = last().v + 1; n <= to; n++) last().made.push(n); last().v = Math.max(last().v, to); };
+    f.turns.forEach(t => { if (t.who === 'person' || t.who === 'reader') next(last().v); last().turns++; made(t.v || 0); });
+    if (last().v < f.versions.length) { next(last().v); made(f.versions.length); }
+    return Object.assign({}, f, { steps, step: steps.length, tip: steps.length });
+  };
+  // a conversation that branched: the coach asked for a line to each plot, saw it was no use, went back to the step before and asked for the gap by season; then changed a line by hand
+  const PLOTS = { title: 'Yield of each plot by season', kind: 'line', x: 'season', y: 'yield, t/ha', series: [{ name: 'a line to each plot' }] };
+  const GAP = { title: 'The gap between regime C and regime A by season', kind: 'line', x: 'season', y: 'gap in yield, t/ha', note: 'Whether the gap holds from season to season.', series: [{ name: 'C minus A' }] };
+  const B3 = { question: Q, decision: BRIEF.decision, expects: BRIEF.expects, fixed: { comparison: 'regime C against regime A' } };
+  const LEFT = [you('Show me the yield of each plot, one line a plot.'), said('One line to each of the 720 plots, by season.', { v: 4, call: 4 })];
+  const branched = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['decision', 'expects'], brief: B3 },
+                                { n: 4, by: 'architect', why: 'answer', changed: ['figures.0'], keys: ['p1'], brief: Object.assign({}, B3, { figures: [PLOTS] }) },
+                                { n: 5, by: 'architect', why: 'answer', changed: ['figures.0'], keys: ['g1'], brief: Object.assign({}, B3, { figures: [GAP] }) },
+                                { n: 6, by: 'person', changed: ['fixed.measure'], keys: ['g1'], brief: Object.assign({}, B3, { figures: [GAP], fixed: { comparison: 'regime C against regime A', measure: 'yield, plot means' } }) }],
+                     turns: [ASK, you('Switch the clay plots to regime C next season, or keep A.'), said('What do you expect to see?', { v: 2, call: 2 }),
+                             you('C yields at least 0.3 t/ha more than A.'), said('That is the size to look for. Which figure would settle it for you?', { v: 3, call: 3 }),
+                             you('Show me the gap between the two regimes by season instead.'), said('One line: the gap between regime C and regime A, season by season.', { v: 5, call: 5 })],
+                     steps: [{ k: 1, from: 0, v: 2, made: [1, 2], turns: 1 }, { k: 2, from: 1, v: 2, made: [], turns: 2 }, { k: 3, from: 2, v: 3, made: [3], turns: 2 }, { k: 4, from: 3, v: 4, made: [4], turns: 2 },
+                             { k: 5, from: 3, v: 5, made: [5], turns: 2 }, { k: 6, from: 5, v: 6, made: [6], turns: 0 }],
+                     step: 6, tip: 6, aside: { 4: { turns: LEFT } }, calls: 5 };
+  const entryOf = f => ({ status: 'framing', chain_id: 1763203380, thread_id: 1763203300, parentChainId: null, queryText: Q, tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, framing: kept(f) });
   const show = f => { const entry = entryOf(f); responses = [entry]; currentResponseIndex = 0; loadResponseContent(entry); updateNavigationButtons(); document.getElementById('architectSwitch').click(); return entry; };
   const REPORT = '<h1>Regime C is not distinguishable from regime A on like-for-like soil</h1>' +
     '<p>On plot means within soil type, regime C yields 0.112 t/ha against regime A (95% interval -0.071 to 0.290). For the decision, this trial gives no reason to switch.</p>' +
@@ -118,9 +144,14 @@ window.galleryArchitect = (function () {
       show(framing);
       document.querySelector('#content-brief .ar-line[data-path="expects"] .pen').click();
     },
-    version() {      // the arrow back, twice: an earlier version on screen, and Start analysis names it
-      show(framing);
+    step() {         // the arrow back, twice, in a conversation that branched: an earlier step on screen - the brief as it stood there, the conversation up to it - and Start analysis names it
+      show(branched);
       for (let k = 0; k < 2; k++) document.querySelector('#content-brief [data-ar="step"][data-step="-1"]').click();
+    },
+    map() {          // the map of that conversation, in the thread map's drawer: the way to the step on screen lit, the pointer on the end of the way that was left
+      show(branched);
+      document.querySelector('#content-brief [data-ar="map"]').click();
+      document.querySelectorAll('#workflowMapContainer .wf-node')[3].dispatchEvent(new MouseEvent('mouseenter'));
     },
     drawing() {      // the reply stands, a grey window to each figure while its draft is drawn: the row that says so, the composer held
       const entry = show(described);
@@ -147,7 +178,7 @@ window.galleryArchitect = (function () {
       activateTab('answer');
     },
     outcome() {      // it stands at the foot of that run's Brief tab: how it turned out
-      createOrUpdateTab('brief', ArchitectUI.build.brief(checked, { chain: 1763203380, thread: 1763203300, state: 'run' }));
+      createOrUpdateTab('brief', ArchitectUI.build.brief(kept(checked), { chain: 1763203380, thread: 1763203300, state: 'run' }));
       ArchitectUI.turnedOut(document.getElementById('contentOutput'), ArchitectUI.cutAnswer(REPORT).against);
       activateTab('brief');
     }

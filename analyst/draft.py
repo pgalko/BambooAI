@@ -26,6 +26,7 @@ import re
 from typing import Callable, Optional
 
 from analyst import brief as briefs
+from analyst import steps
 from analyst import tools
 from analyst.notebook import Notebook, Run
 
@@ -226,7 +227,7 @@ def settle(run: Run, figures: list, made: dict, secs: float = 0.0) -> None:
             "v": briefs.latest(framing).get("version") or len(framing.get("versions") or []), "secs": round(secs, 1), "cost": round(made["cost"], 4),
             **({"call": calls} if made["calls"] else {})}
     run.drafts = list(run.drafts) + made["cells"]
-    run.framing = {**framing, "drafts": kept, "draft_calls": calls, "turns": list(framing.get("turns") or []) + [turn]}
+    run.framing = steps.take({**framing, "drafts": kept, "draft_calls": calls, "turns": list(framing.get("turns") or []) + [turn]})
 
 
 def line(turn: dict) -> str:

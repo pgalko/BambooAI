@@ -1226,9 +1226,9 @@ class BambooAI:
         brief. A follow-up to a run that had a brief starts from what that answer was for and what the person thinks:
         the rest belonged to the question before. Where the analyst stopped and asked, the question is the person's
         answer, and it starts from that brief whole. The framing says whether data is loaded: the page lists the
-        checks every run on data makes only then. No model is called. Returns the ids the page keeps and the
-        framing."""
-        from analyst import brief as briefs
+        checks every run on data makes only then. The question is the first step of the brief's conversation
+        (analyst/steps.py). No model is called. Returns the ids the page keeps and the framing."""
+        from analyst import brief as briefs, steps
         from analyst.notebook import has_data
         thread_id = thread_id if thread_id is not None else utils.next_thread_id()
         nb = self._thread_notebook(thread_id)
@@ -1239,34 +1239,36 @@ class BambooAI:
         last = nb.runs[parent] if parent else None
         brief = last.brief if last is not None else {}
         before = brief if last is not None and last.status == "asked" else {k: brief[k] for k in ("decision", "thinks") if k in brief}
-        run.framing = {**briefs.version({}, {**before, "question": question}, changed=["from the last brief"] if before else []),
-                       "data": has_data(self._data_record(light=True))}
+        run.framing = steps.take({**briefs.version({}, {**before, "question": question}, changed=["from the last brief"] if before else []),
+                                  "data": has_data(self._data_record(light=True))})
         self.store.save(nb)
         return {"thread_id": thread_id, "chain_id": run_id, "parent_chain_id": chain_id if parent is not None else None, "framing": run.framing}
 
-    def save_brief(self, thread_id, run_id, brief, changed=None, question=None):
+    def save_brief(self, thread_id, run_id, brief, changed=None, question=None, step=None):
         """One more version of a framing run's brief, as the person left it; the question follows when they changed
-        it. No draft is drawn for it: a figure the change left as it was keeps its draft, and one it changed - with
-        the question, every one - has none until the Architect next replies. Returns the framing, or None when the
-        run is not one being framed."""
-        from analyst import brief as briefs, draft
+        it. `step`: the step of the conversation on their screen, where they made the change - the change is a step
+        of its own, which follows it (analyst/steps.py). No draft is drawn for it: a figure the change left as it
+        was keeps its draft, and one it changed - with the question, every one - has none until the Architect next
+        replies. Returns the framing, or None when the run is not one being framed."""
+        from analyst import brief as briefs, draft, steps
         nb = self._thread_notebook(thread_id)
         run = nb.runs.get(str(run_id))
         if run is None or run.status != "framing":
             return None
         if question and str(question).strip():
             run.question = str(question).strip()
-        run.framing = draft.keyed(briefs.version(run.framing, {**(brief if isinstance(brief, dict) else {}), "question": run.question}, changed=changed))
+        at = steps.go(run.framing, step) if step is not None else run.framing
+        run.framing = steps.take(draft.keyed(briefs.version(at, {**(brief if isinstance(brief, dict) else {}), "question": run.question}, changed=changed)))
         self.store.save(nb)
         return run.framing
 
-    def architect_say(self, thread_id, run_id, text=None, version=None):
+    def architect_say(self, thread_id, run_id, text=None, step=None):
         """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
         first turn, nor when it goes on after its lookups, a reading or a part it opened - and its reply, taken into the
         brief and the conversation; a part of an earlier analysis it opens comes from the thread's record, in the engine;
         the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
-        (_architect_recall) where the reply asks for it. `version`: the version of the brief on the person's screen -
-        the exchange goes on from it. After the reply, the figures of the brief that have no draft are drawn one
+        (_architect_recall) where the reply asks for it. `step`: the step of the conversation on the person's screen -
+        the exchange goes on from it (analyst/steps.py). After the reply, the figures of the brief that have no draft are drawn one
         (_draft). The calls are the run's own: logged under its chain as the Architect's - the draft's as the
         draft's -, and charged with its analysis - or when the instance is torn down, if no analysis follows
         (cleanup). Returns the framing, or None when the run is not one being framed; raises architect.Failed with
@@ -1286,7 +1288,7 @@ class BambooAI:
         try:
             framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
                                          self.notebook, run, text, data=self._data_description(), look=self._architect_look,
-                                         recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]), version=version)
+                                         recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]), step=step)
             run.framing = draft.keyed({**framing, "data": has_data(self._data_record(light=True))})      # as it is now: data may have been loaded since the brief opened
             run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
             self._draft(run)
@@ -1303,10 +1305,10 @@ class BambooAI:
                 logger.warning("The framing run's ledger line was not kept", exc_info=True)
         return run.framing
 
-    def architect_ready(self, thread_id, run_id, version=None):
+    def architect_ready(self, thread_id, run_id, step=None):
         """Before the analysis of a framed question starts (analyst/cold.py; docs/ARCHITECT_DESIGN.md §2.22): the
-        question of the version on the person's screen is read as the analyst will read it - by a model given what
-        the analyst is given, and nothing else - once for a version. Where it could not place something the
+        question of the step on the person's screen is read as the analyst will read it - by a model given what
+        the analyst is given, and nothing else - once for a version of the brief. Where it could not place something the
         Architect goes on at once, as after a message, and the figures due a draft are drawn one. The calls are the
         run's own: logged under its chain - the read as the question check's - and charged with its analysis.
         Returns {"framing", "clean": whether the analysis can start} - with "error", the reason in words for the
@@ -1327,7 +1329,7 @@ class BambooAI:
         try:
             framing, out["clean"] = cold.ready(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
                                                lambda system, user, **kw: self._llm(system, user, seat=seat, label="Question check", **kw),
-                                               self.notebook, run, version=version, data=self._data_description(), look=self._architect_look,
+                                               self.notebook, run, step=step, data=self._data_description(), look=self._architect_look,
                                                recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]))
             run.framing = draft.keyed({**framing, "data": has_data(self._data_record(light=True))})
             run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
@@ -1540,10 +1542,11 @@ class BambooAI:
 
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
                           image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, brief=None,
-                          run_id=None, candidate=None, version=None):
+                          run_id=None, candidate=None, step=None):
         # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
         # run_id: the framing run the brief was written in (open_framing); the analysis continues it, under its id
-        # version: the version of that run's brief on the person's screen when they started it; the analysis runs under it
+        # step: the step of that run's conversation on the person's screen when they started it (analyst/steps.py): the
+        # analysis runs under the brief that stands there, and what is kept of the conversation is the way to it
         # candidate: (the set, the question) by their places - the next question of the run this one follows that it was
         # started from (analyst/next_questions.py); it is marked there as run
         self.kill_signal = False
@@ -1571,10 +1574,10 @@ class BambooAI:
             self.output_manager.display_error("This brief can no longer be started: its analysis has started.", chain_id=run_id)
             return None
         if framed is not None:
-            from analyst import brief as briefs
+            from analyst import brief as briefs, steps
             self.chain_id = int(run_id) if str(run_id).isdigit() else run_id      # the analysis of a framed run keeps the run's id
-            if version is not None:
-                framed.framing = briefs.use(framed.framing, version)              # ... the version the person started is the one in use
+            if step is not None:
+                framed.framing = steps.go(framed.framing, step)                   # ... the step the person started from is the one in use
             brief = brief or briefs.latest(framed.framing)                         # ... and the run is under that brief
             parent = framed.parent                                                 # ... and attaches where the framing run did
             parent_for_ui = int(parent) if parent and parent.isdigit() else parent

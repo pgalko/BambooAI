@@ -9,6 +9,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location('rp', os.path.join(HERE, 'render_page.py')); rp = importlib.util.module_from_spec(spec); spec.loader.exec_module(rp)
 FILL = open(os.path.join(HERE, 'fixtures', 'fill_page.js')).read() if os.path.exists(os.path.join(HERE, 'fixtures', 'fill_page.js')) else ''
 ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # the Architect's states (2026-11-15): an invented brief and a report against it
+DAGRE = open(os.path.join(HERE, 'fixtures', 'dagre_stub.js')).read()             # the maps' layout library, as the harness has it: here the library's address is not reached (2026-11-19, the map of a brief's conversation)
 PLOTLY = open(os.path.join(HERE, 'stack', 'browser', 'libs_stub_plotly.js')).read()      # the stack's stand-in for Plotly: here the library's address is not reached (2026-11-18, the drafts of the figures)
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
 STATES = {
@@ -32,7 +33,8 @@ STATES = {
     'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Architect reading, the composer held
     'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
     'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
-    'architect_version': ARCHITECT + "galleryArchitect.version();",    # an earlier version on screen: Start analysis names it (§2.18)
+    'architect_step': ARCHITECT + "galleryArchitect.step();",          # an earlier step of a conversation that branched on screen: both panes are that step's, Start analysis names it (§2.25)
+    'architect_map': DAGRE + ARCHITECT + "galleryArchitect.map();",    # its map, in the thread map's drawer: the way to the step on screen lit, the pointer on the way that was left (§2.25)
     'architect_drawing': ARCHITECT + "galleryArchitect.drawing();",    # a grey window to each figure while its draft is drawn: the reply above the row that says so (§2.20; 0311)
     'architect_draft': PLOTLY + ARCHITECT + "galleryArchitect.draft();",      # the drafts drawn on the Brief tab: one on made-up numbers, marked, one computed (§2.20)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)

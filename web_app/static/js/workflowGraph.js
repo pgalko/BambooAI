@@ -2,6 +2,14 @@
 //  WORKFLOW GRAPH — Dagre + HTML/SVG Renderer
 //  Replaces Mermaid-based workflow map rendering
 //  Dependency: dagre.js (https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js)
+//
+//  The thread map draws a thread's chains. The same drawing serves another map - the steps of a brief's
+//  conversation (architect.js; docs/ARCHITECT_DESIGN.md §2.25) - which gives its boxes as chains are given
+//  ({chain_id, parentChainId, queryText}) and says, in render()'s last argument, what is its own:
+//      sub(item, i)    a box's second line
+//      show(item, i)   what the drawer's foot says of the box under the pointer
+//      pick(item, i)   a box clicked
+//  and has the way to the box in use lit while no box is under the pointer.
 //--------------------
 
 window.WorkflowGraph = (function () {
@@ -137,7 +145,7 @@ window.WorkflowGraph = (function () {
 
     // ── Layout ──────────────────────────────────────────────
 
-    function computeLayout(responses) {
+    function computeLayout(responses, of) {
         var g = new dagre.graphlib.Graph();
         g.setGraph({
             rankdir: 'TB',
@@ -158,7 +166,7 @@ window.WorkflowGraph = (function () {
                 chainId: response.chain_id || 'N/A',
                 width: 190,
                 height: 52,
-                type: getNodeType(response.queryText),
+                type: of ? 'normal' : getNodeType(response.queryText),      // another map's boxes are no chains: what one says makes it no fork
                 index: index
             });
         });
@@ -169,7 +177,7 @@ window.WorkflowGraph = (function () {
                 var parentIndex = responses.findIndex(function (r) { return r.chain_id === response.parentChainId; });
                 if (parentIndex >= 0) {
                     g.setEdge(String(parentIndex), String(index), {
-                        isFork: getNodeType(response.queryText) === 'fork'
+                        isFork: !of && getNodeType(response.queryText) === 'fork'
                     });
                 }
             }
@@ -188,7 +196,7 @@ window.WorkflowGraph = (function () {
 
     // ── Render ──────────────────────────────────────────────
 
-    function render(container, responses, activeIndex) {
+    function render(container, responses, activeIndex, of) {
         container.innerHTML = '';
         currentZoom = 1;
 
@@ -197,7 +205,7 @@ window.WorkflowGraph = (function () {
             return;
         }
 
-        var graph = computeLayout(responses);
+        var graph = computeLayout(responses, of);
         var info = graph.graph();
         var W = (info.width || 400) + 60;
         var H = (info.height || 300) + 60;
@@ -274,8 +282,10 @@ window.WorkflowGraph = (function () {
 
         // ── Precompute data for interactions ──
         var chainIndex = buildChainIndex(responses);
-        var nodeContents = responses.map(function (r) { return extractTaskFromResponse(r); });
-        var nodePlots    = responses.map(function (r) { return extractPlotDataFromResponse(r); });
+        var nodeContents = of ? [] : responses.map(function (r) { return extractTaskFromResponse(r); });
+        var nodePlots    = of ? [] : responses.map(function (r) { return extractPlotDataFromResponse(r); });
+        // another map's way to the box in use, lit while no box is under the pointer
+        var atRest = function () { if (of && responses[activeIndex]) highlightPath(wrapper, getAncestorPath(activeIndex, responses, chainIndex)); };
 
         // ── HTML nodes ──
         graph.nodes().forEach(function (nodeId) {
@@ -300,11 +310,11 @@ window.WorkflowGraph = (function () {
 
             var chainSpan = document.createElement('span');
             chainSpan.className = 'wf-node-chain';
-            chainSpan.textContent = 'Chain: ' + nd.chainId;
+            chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;
             div.appendChild(chainSpan);
 
             // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Architect, or a brief not yet run
-            var made = window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';
+            var made = !of && window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';
             if (made) {
                 var madeSpan = document.createElement('span');
                 madeSpan.className = 'wf-node-made';
@@ -315,7 +325,7 @@ window.WorkflowGraph = (function () {
 
             // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
             // the chain, the drawer closes, the map opens
-            if (resp && resp.chain_id && made !== 'not run') {
+            if (!of && resp && resp.chain_id && made !== 'not run') {
                 var eye = document.createElement('button');
                 eye.className = 'wf-node-map';
                 eye.type = 'button';
@@ -335,16 +345,19 @@ window.WorkflowGraph = (function () {
             // ── Hover ──
             div.addEventListener('mouseenter', function () {
                 var ancestors = getAncestorPath(idx, responses, chainIndex);
+                clearHighlight(wrapper);
                 highlightPath(wrapper, ancestors);
-                updateDetailPane(idx, resp, nodeContents, nodePlots, responses);
+                if (of) of.show(resp, idx); else updateDetailPane(idx, resp, nodeContents, nodePlots, responses);
             });
 
             div.addEventListener('mouseleave', function () {
                 clearHighlight(wrapper);
+                atRest();
             });
 
             // ── Click → navigate ──
             div.addEventListener('click', function () {
+                if (of) { of.pick(resp, idx); return; }
                 currentResponseIndex = idx;
                 lastActiveChainId = responses[idx].chain_id || null;
                 loadResponseContent(responses[idx]);
@@ -357,6 +370,7 @@ window.WorkflowGraph = (function () {
         });
 
         container.appendChild(wrapper);
+        atRest();
 
         // ── Zoom controls + fullscreen button ──
         // Attach to scrollable parent (.workflow-map-container) so they stay fixed during scroll

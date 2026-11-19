@@ -3,6 +3,10 @@ Architect on opens a framing run on the thread's record; the Architect then fill
 for what is missing and checks what the brief rests on against the data, one exchange a call; every change to the
 brief is kept as a version. The analysis then continues that run through /query, which names it as run_id.
 
+What the person says or changes, with the reply, is a step of the conversation (§2.25; analyst/steps.py). They may
+go back to an earlier step and go on from there: each request that goes on - /architect/say, /architect/brief,
+/architect/ready, /query - names the step on their screen (`step`), and what it adds follows that step.
+
 An exchange may have the person's saved analyses read (§3.7): the stream then carries how far the reading is, the
 person can skip it (/architect/skip), and a saved analysis the brief names can be read whole (/architect/saved).
 Where the brief holds figures, a draft of them is drawn after the reply (§2.20): the stream carries the framing as
@@ -37,6 +41,12 @@ def _instance():
     return _app().get_bamboo_ai(session['session_id'])
 
 
+def _step(data):
+    """The step of the conversation on the person's screen, as a request names it: a whole number, or none."""
+    step = data.get('step')
+    return step if isinstance(step, int) and not isinstance(step, bool) else None
+
+
 @architect_bp.route('/architect/open', methods=['POST'])
 @requires_auth
 def architect_open():
@@ -58,9 +68,9 @@ def architect_open():
 @architect_bp.route('/architect/say', methods=['POST'])
 @requires_auth
 def architect_say():
-    """One exchange with the Architect: {thread_id, chain_id, text, version} - no text on its first turn, nor when it
+    """One exchange with the Architect: {thread_id, chain_id, text, step} - no text on its first turn, nor when it
     goes on after a round of lookups, a reading of the saved analyses or a part of an earlier analysis it opened;
-    `version`: the version of the brief on the person's screen, which the exchange goes on from - as a stream that
+    `step`: the step of the conversation on the person's screen, which the exchange goes on from - as a stream that
     ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no reply was kept. While the saved
     analyses are read the stream carries {"type": "architect_saved", "read", "of"}; where a draft of the figures
     follows the reply, {"type": "architect_draft", "framing": the framing with the reply} before it is drawn."""
@@ -72,11 +82,11 @@ def architect_say():
         return refused
     instance = _instance()
     text = str(data.get('text') or '').strip()[:QUESTION_CHARS] or None
-    version = data.get('version') if isinstance(data.get('version'), int) and not isinstance(data.get('version'), bool) else None
+    step = _step(data)
 
     def work():
         try:
-            framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)
+            framing = instance.architect_say(data['thread_id'], data['chain_id'], text, step=step)
         except Failed as exc:
             return {'architect': {'error': str(exc)}}
         except Exception as exc:                             # noqa: BLE001
@@ -91,7 +101,7 @@ def architect_say():
 @architect_bp.route('/architect/ready', methods=['POST'])
 @requires_auth
 def architect_ready():
-    """Before a framed question's analysis starts (§2.22): {thread_id, chain_id, version} - the version of the brief
+    """Before a framed question's analysis starts (§2.22): {thread_id, chain_id, step} - the step of the conversation
     on the person's screen. Its question is read as the analyst will read it; the stream ends on {"architect":
     {"framing": ..., "clean": whether the analysis can start}}. Where it cannot, the Architect has gone on: the
     framing holds what the reader could not place and the Architect's reply - or "error" says why there is none -
@@ -104,11 +114,11 @@ def architect_ready():
     if refused is not None:
         return refused
     instance = _instance()
-    version = data.get('version') if isinstance(data.get('version'), int) and not isinstance(data.get('version'), bool) else None
+    step = _step(data)
 
     def work():
         try:
-            got = instance.architect_ready(data['thread_id'], data['chain_id'], version=version)
+            got = instance.architect_ready(data['thread_id'], data['chain_id'], step=step)
         except Exception as exc:                             # noqa: BLE001
             logger.exception("architect: the question could not be read before its analysis")
             return {'architect': {'error': f'The question could not be checked: {str(exc)[:300]}'}}
@@ -185,15 +195,16 @@ def architect_next():
 @architect_bp.route('/architect/brief', methods=['POST'])
 @requires_auth
 def architect_brief():
-    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed} -> {framing}. The brief
-    is the one on the person's screen with their change: made on an earlier version, it goes on from that one."""
+    """Keep one more version of a framing run's brief: {thread_id, chain_id, brief, changed, step} -> {framing}. The
+    brief is the one on the person's screen with their change; `step`: the step of the conversation it was made
+    at - the change is a step that follows it."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None or not isinstance(data.get('brief'), dict):
         return jsonify({'error': 'The thread, the chain and the brief are needed.'}), 400
     try:
         framing = _instance().save_brief(data['thread_id'], data['chain_id'], data['brief'],
                                          changed=data.get('changed') if isinstance(data.get('changed'), list) else None,
-                                         question=str(data['brief'].get('question') or '')[:QUESTION_CHARS])
+                                         question=str(data['brief'].get('question') or '')[:QUESTION_CHARS], step=_step(data))
     except Exception as exc:                                 # noqa: BLE001
         logger.exception("architect: the brief was not kept")
         return jsonify({'error': f'The change was not kept: {str(exc)[:200]}'}), 500

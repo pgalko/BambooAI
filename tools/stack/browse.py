@@ -220,8 +220,8 @@ def story(w, mod, dataset, questions):
 
     # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14, §2.18): a question typed with the switch on, the conversation that
     # fills its brief, the parts + Add offers, the check of what it rests on against the data, the explanation it proposes and
-    # the coach ticks, a line changed by hand, an earlier version on screen, the analysis started from the brief, the report
-    # against it, the thread map
+    # the coach ticks, a line changed by hand, an earlier step of the conversation on screen, the analysis started from the brief,
+    # the report against it, the thread map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):
@@ -283,12 +283,11 @@ def story(w, mod, dataset, questions):
         p.hover('#content-brief .ar-line[data-path="rests_on.0"]')
         p.wait_for_timeout(300)
         w.shot("architect_brief")
-        p.click('#content-brief [data-ar="step"][data-step="-1"]')
-        p.click('#content-brief [data-ar="step"][data-step="-1"]')
-        p.click('#content-brief [data-ar="step"][data-step="-1"]')
+        for _ in range(5):                                   # the arrow back, to before the coach kept their view: both panes are that step's (§2.25)
+            p.click('#content-brief [data-ar="step"][data-step="-1"]')
         p.wait_for_timeout(300)
-        w.shot("architect_brief_older_version")
-        for _ in range(3):
+        w.shot("architect_step_back")
+        for _ in range(5):
             p.click('#content-brief [data-ar="step"][data-step="1"]')
         p.click("#railMapButton")
         p.wait_for_timeout(900)
@@ -419,8 +418,8 @@ def story(w, mod, dataset, questions):
         p.click("#architectSwitch")
 
     # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question as the
-    # Architect words it - written at once, a version each time - and an earlier version brought back with the arrow; then the
-    # analysis, a question that follows it - the saved analyses read, the report of the analysis before opened - and "build on it"
+    # Architect words it - written at once, a version each time; an earlier step brought back with the arrow and gone on from -
+    # another way - and the conversation's map, with the way that was left to go back to (§2.25); then the analysis, a question that follows it - the saved analyses read, the report of the analysis before opened - and "build on it"
     tutor_question = getattr(mod, "TUTOR_QUESTION", None)
     if brief_question and tutor_question and p.query_selector("#architectSwitch"):
         w.js("handleNewConversation()")
@@ -441,12 +440,28 @@ def story(w, mod, dataset, questions):
         p.fill("#queryInput", mod.ARCHITECT_OWN + "Plot regime C beside regime A")      # a wording of the coach's own: one more version
         p.click("#submitQuery")
         said(3)
-        p.click('#content-brief [data-ar="step"][data-step="-1"]')      # the arrow back: the version before is on screen, and Start analysis names it
+        p.click('#content-brief [data-ar="step"][data-step="-1"]')      # the arrow back: the step before is on screen in both panes, and Start analysis names it
         p.wait_for_timeout(300)
-        w.shot("tutor_version_back")
+        w.shot("tutor_step_back")
+        p.click("#streamOutput .ar-choice >> nth=0")          # the coach goes on from it - another way: the wording they gave is left behind
+        said(3)
+        p.click('#content-brief .ar-ver [data-ar="map"]')     # the conversation's map: both ways, the one in use lit
+        p.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
+        p.wait_for_timeout(600)
+        w.shot("tutor_map")
+        p.hover("#workflowMapModal .wf-node >> nth=2")        # the pointer on the step that was left: what was said there
+        p.wait_for_timeout(300)
+        w.shot("tutor_map_hover")
+        p.click("#workflowMapModal .wf-node >> nth=2")        # a click goes to it: both panes are that step's
+        p.wait_for_timeout(400)
+        w.shot("tutor_way_left")
+        p.click('#content-brief .ar-ver [data-ar="map"]')     # and back, by the map, to the way the coach took
+        p.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
+        p.click("#workflowMapModal .wf-node >> nth=3")
+        p.wait_for_timeout(400)
         follow = getattr(mod, "FOLLOW_QUESTION", None)
         if follow:
-            for path, text in (("decision", "I want to see the two side by side."), ("fixed.period", "the 2025 season")):      # added to the version on screen
+            for path, text in (("decision", "I want to see the two side by side."), ("fixed.period", "the 2025 season")):      # added at the step on screen
                 write(path, text)
             p.wait_for_timeout(300)
             w.shot("tutor_brief")

@@ -11,8 +11,14 @@
 // One rule holds the Brief tab together: what it shows is what the Analyst gets. The question is its top box, and
 // the Architect words it as the conversation goes: each wording is one more version, and a row of the conversation
 // says so. Under it stand the parts that hold something, and no other; + Add lists the ones a coach can add by hand.
-// The arrows step through the versions, and the one on screen is the one in use: an answer, a change and Start
-// analysis all go on from it (the version rides with the request; analyst/brief.py use()).
+//
+// What the coach says or changes, with the Architect's reply, is a step of the conversation (§2.25; analyst/steps.py).
+// The arrows step through the steps of the way being walked, and the one on screen is the one in use: the pane shows
+// the conversation up to it, the tab the brief as it stood there, and an answer, a change and Start analysis all go
+// on from it (the step rides with the request). Going on from a step that has steps after it starts another way:
+// the steps left are set aside, out of the pane and of what the Architect reads. The map beside the arrows shows
+// every step - in the thread map's own drawer and drawing (workflowGraph.js) - and a click goes to one. A brief kept
+// before steps is one way, a step to a version, and has no map.
 //
 // Where a reply has the coach's saved analyses read (§3.7), the stream says how far the reading is: a row of the
 // conversation with a count and Skip (POST /architect/skip). What was found is listed under the row, an analysis to
@@ -30,15 +36,15 @@
 // has gone on - the question worded again - and the coach starts again when they have seen it.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
-// Brief tab's markup carries the versions (data-framing), so a restored chain or a saved favourite steps through them
-// with nothing else kept.
+// Brief tab's markup carries the framing (data-framing), so a restored chain or a saved favourite steps through its
+// steps - and opens their map, to be read - with nothing else kept.
 //
 // The report of a run with a brief has a part "Against the brief" (analyst/session.py). It is not the Answer's - the
 // Answer is what goes to other people: cutAnswer() takes it out, and turnedOut() shows it at the foot of that run's
 // Brief tab, as a card of verdicts (§2.21). The page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
-//                        cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout }
+//                        cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout }
 
 (function () {
     'use strict';
@@ -50,8 +56,8 @@
                 also_check: 'Other explanations to test', figures: 'What it will look like', builds: 'Builds on', aside: 'Set aside' },
         add: '+ Add', another: 'Another explanation to test', tick: 'Have the analysis test it',
         always: 'Always tested on data: chance, measurement error, how the cases were chosen.',
-        version: 'Version', of: (k, n) => k + ' of ' + n, before: 'The version before', after: 'The version after',
-        start: 'Start analysis', startWith: k => 'Start analysis with version ' + k,
+        step: 'Step', of: (k, n) => k + ' of ' + n, before: 'The step before', after: 'The step after',
+        start: 'Start analysis', startFrom: k => 'Start analysis from step ' + k,
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
         noReply: 'The Architect did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
@@ -61,7 +67,7 @@
         memory: 'Found in your saved analyses', memoryNote: 'For you to read. The Analyst gets only what you build on.',
         notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation',
         opened: 'READ', chars: n => (Number(n) || 0).toLocaleString('en-US') + ' characters',
-        question: 'QUESTION', updated: 'updated', versionN: k => 'version ' + k, brief: 'BRIEF', inUse: k => 'version ' + k + ' in use',
+        question: 'QUESTION', updated: 'updated', stepN: k => 'step ' + k, brief: 'BRIEF', inUse: k => 'step ' + k + ' in use',
         figures: 'FIGURES', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',
         drawing: 'Drawing a draft…', noDraft: 'No draft could be drawn.', noDraftYet: 'No draft yet.', notDrafted: 'No draft was drawn.', notShown: 'The draft could not be shown.',
         drawingRow: 'DRAWING A DRAFT', drawingHold: 'A draft of the figures is being drawn',
@@ -69,6 +75,12 @@
         unplaced: 'the Analyst cannot place', checkPrompt: 'what the question check was given (run log)',
         drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)',
         notStarted: 'The analysis did not start',
+        // the map of the conversation's steps: the drawer's words, what a box says where the coach said nothing, and its second line - the parts of the brief the step changed, in the tab's words
+        map: 'Conversation map', mapSub: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : '') + ' · click one to go to it',
+        mapHover: 'Hover over a step to read what was said', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',
+        info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Architect' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
+        part: { question: 'question', decision: 'what it is for', thinks: 'what you think', rests_on: 'why you think so', expects: 'what you expect', would_change: 'what would change your mind',
+                also_check: 'other explanations', 'fixed.comparison': 'what is compared', 'fixed.measure': 'measured by', 'fixed.period': 'period', figures: 'figure', saved: 'builds on' },
         against: { head: 'How it turned out', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked', missing: 'The report does not say.' }
     };
     const TEXT_CHARS = 600, QUESTION_CHARS = 4000;   // one line of a brief, and the question, as analyst/brief.py bounds them
@@ -88,7 +100,10 @@
     const ICON = {
         pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
         ok: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
-        x: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>'
+        x: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
+        // the thread map's own mark (index.html, the rail): boxes joined by lines
+        map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/>' +
+            '<rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg>'
     };
 
     // ------------------------------------------------------------ helpers
@@ -103,13 +118,70 @@
         const all = versionsOf(framing);
         return all[Math.min(all.length, Math.max(1, n || all.length)) - 1] || { n: 1, by: 'person', changed: [], brief: {} };
     }
-    // the version in use: the one the coach went back to (`at`, analyst/brief.py use()), else the last
+    // the version in use: the one the framing names (`at`: the step in use ends on it), else the last
     function inUse(framing) { const n = latestN(framing), at = framing && framing.at; return Number.isInteger(at) && at >= 1 && at <= n ? at : n; }
-    // the framing with version k in use, as the server will have it once the request that carries k is taken (pure)
-    function use(framing, k) {
-        const out = Object.assign({}, framing || {});
+
+    // ---- the steps of the conversation (pure; analyst/steps.py holds the same on the server). A framing keeps its
+    // steps, the one in use, the last of the way being walked, and - set aside - the turns of the steps off the way to
+    // the one in use; its own turns are those of that way. One kept before steps has a step to a version, and its
+    // conversation is one: nothing in it is cut.
+    const steps = {
+        kept(framing) { return !!(framing && Array.isArray(framing.steps) && framing.steps.length); },
+        of(framing) { return steps.kept(framing) ? framing.steps : Array.from({ length: latestN(framing) }, (_, i) => ({ k: i + 1, from: i, v: i + 1, made: [i + 1] })); },
+        // the step in use, and the last step of the way being walked
+        on(framing) { return steps.kept(framing) ? framing.step : inUse(framing); },
+        tip(framing) { return steps.kept(framing) ? framing.tip : latestN(framing); },
+        // the steps from the first to step k, in order
+        way(all, k) {
+            const out = [];
+            while (all[k - 1] && out.length < all.length) { out.unshift(all[k - 1]); k = all[k - 1].from; }
+            return out;
+        },
+        // where the way through step k ends: where the way being walked does, while k is on it; else where the newest steps after k lead
+        end(framing, k) {
+            const all = steps.of(framing), tip = steps.tip(framing);
+            if (steps.way(all, tip).some(s => s.k === k)) return tip;
+            for (;;) {
+                const after = all.filter(s => s.from === k).map(s => s.k);
+                if (!after.length) return k;
+                k = Math.max.apply(null, after);
+            }
+        },
+        // where step k stands on the way through it: its place, of how many, and the steps before and after it
+        place(framing, k) {
+            const way = steps.way(steps.of(framing), steps.end(framing, k)).map(s => s.k), i = way.indexOf(k);
+            return { i: i + 1, n: way.length, before: way[i - 1] || 0, after: way[i + 1] || 0 };
+        },
+        // the turns each step holds, by its number: those of the way to the step in use from the framing's turns, cut by their counts, the others from what is set aside
+        held(framing) {
+            const out = {}, aside = framing.aside || {};
+            let at = 0;
+            steps.of(framing).forEach(s => { out[s.k] = (aside[s.k] || {}).turns || []; });
+            if (steps.kept(framing)) steps.way(framing.steps, framing.step).forEach(s => { out[s.k] = turnsOf(framing).slice(at, at + s.turns); at += s.turns; });
+            return out;
+        },
+        // every turn the framing holds, those set aside too: what the brief has cost is counted over them
+        all(framing) { const aside = (framing && framing.aside) || {}; return Object.keys(aside).reduce((out, k) => out.concat(aside[k].turns || []), turnsOf(framing)); },
+        // the brief as it stood at the end of step k
+        brief(framing, k) { const s = steps.of(framing)[k - 1]; return versionAt(framing, s ? s.v : inUse(framing)).brief || {}; },
+        // the parts of the brief step k changed: those of the versions it made
+        changed(framing, k) { const s = steps.of(framing)[k - 1]; return ((s && s.made) || []).reduce((out, n) => out.concat(versionAt(framing, n).changed || []), []); },
+        // whether the brief of step k is the one in use - the one an analysis that ran was under: a step that changed nothing has the brief of the step before it
+        used(framing, k) { return (steps.of(framing)[k - 1] || {}).v === inUse(framing); }
+    };
+    // the framing with step k in use, as the server will have it once the request that names k is taken (pure;
+    // analyst/steps.py go()): the version that stood at the step's end is the one in use and - where the framing keeps
+    // steps - its turns are those of the way to the step, the others' set aside. A step it does not have changes nothing
+    function go(framing, k) {
+        const all = steps.of(framing), to = Number.isInteger(k) ? all[k - 1] : null;
+        if (!to || k === steps.on(framing)) return framing || {};
+        const out = Object.assign({}, framing);
         delete out.at;
-        if (Number.isInteger(k) && k >= 1 && k < latestN(framing)) out.at = k;
+        if (to.v < latestN(framing)) out.at = to.v;
+        if (!steps.kept(framing)) return out;
+        const held = steps.held(framing), on = steps.way(all, k).map(s => s.k);
+        Object.assign(out, { step: k, tip: steps.end(framing, k), turns: on.reduce((said, n) => said.concat(held[n]), []), aside: {} });
+        all.forEach(s => { if (on.indexOf(s.k) < 0 && held[s.k].length) out.aside[s.k] = { turns: held[s.k] }; });
         return out;
     }
     function valueAt(brief, path) {
@@ -303,11 +375,14 @@
             const rows = (items || []).map((x, i) => build.line(c, part + '.' + i, x.text, Object.assign({ list: true, locked: LOCKED.indexOf(x.source) >= 0 }, of(x))));
             return rows.concat(adding === part + '.+' ? [build.line(c, part + '.+', '')] : []).join('');
         },
-        // which version is on screen, of how many, and the arrows to the one before and the one after
-        version(framing, shown) {
-            const n = latestN(framing);
-            const arrow = (d, glyph, title, off) => '<button type="button" data-ar="step" data-step="' + d + '" title="' + title + '" aria-label="' + title + '"' + (off ? ' disabled' : '') + '>' + glyph + '</button>';
-            return '<div class="ar-ver"><span class="k">' + WORDS.version + '</span>' + arrow(-1, '‹', WORDS.before, shown <= 1) + '<b>' + WORDS.of(shown, n) + '</b>' + arrow(1, '›', WORDS.after, shown >= n) + '</div>';
+        // which step of the conversation is on screen, of how many on the way through it, the arrows to the one before
+        // and the one after, and - where the framing keeps steps - the button to the map of them all. held: the
+        // Architect is replying - what is on its way goes on from the step it left, so none of them can be pressed
+        stepper(framing, shown, held) {
+            const at = steps.place(framing, shown), off = held ? ' disabled' : '';
+            const arrow = (d, glyph, title, to) => '<button type="button" data-ar="step" data-step="' + d + '" title="' + title + '" aria-label="' + title + '"' + (to ? off : ' disabled') + '>' + glyph + '</button>';
+            return '<div class="ar-ver"><span class="k">' + WORDS.step + '</span>' + arrow(-1, '‹', WORDS.before, at.before) + '<b>' + WORDS.of(at.i, at.n) + '</b>' + arrow(1, '›', WORDS.after, at.after) +
+                (steps.kept(framing) ? '<button type="button" class="ar-map" data-ar="map" title="' + WORDS.map + '" aria-label="' + WORDS.map + '"' + off + '>' + ICON.map + '</button>' : '') + '</div>';
         },
         // the button that shows a saved analysis whole, in a dialog over the page
         view(thread, run) {
@@ -345,17 +420,17 @@
                     (o.full ? g.passages.map(p => '<div class="qt">' + esc(p.quote) + '</div>' + (p.note ? '<div class="why">' + esc(p.note) + '</div>' : '')).join('') : '') + '</div>';
             }).join('');
         },
-        // the Brief tab: on top what the Analyst will be asked, with the version on screen; under it the parts the
-        // Analyst gets with it - those that hold something, and the one the coach is adding (o.adding: its path) - and,
-        // while the brief can be changed, the one control that adds a part (o.adds: its list is open), what the
-        // readings of the saved analyses found, and Start analysis, which names the version when it is not the last.
-        // o: {chain, thread, state: 'framing' | 'run', shown, drawing: a draft of the figures is on its way, against:
-        // what the run's report says against the brief - the card's rows (cutAnswer())}; the versions ride in the
-        // markup, with the thread the drafts' plots are kept under and what the report says against the brief - shown
-        // at the foot of the version the run was under
+        // the Brief tab: on top what the Analyst will be asked, with the step of the conversation on screen; under it
+        // the parts the Analyst gets with it, as they stood at that step - those that hold something, and the one the
+        // coach is adding (o.adding: its path) - and, while the brief can be changed, the one control that adds a part
+        // (o.adds: its list is open), what the readings of the saved analyses found, and Start analysis, which names
+        // the step when it is not the last of its way. o: {chain, thread, state: 'framing' | 'run', shown: the step on
+        // screen, held: the Architect is replying, drawing: a draft of the figures is on its way, against: what the
+        // run's report says against the brief - the card's rows (cutAnswer())}; the framing rides in the markup, with the thread the drafts' plots are
+        // kept under and what the report says against the brief - shown at the foot of a step whose brief is the one the run was under
         brief(framing, o) {
-            const n = latestN(framing), shown = Math.min(n, Math.max(1, o.shown || inUse(framing))), v = versionAt(framing, shown), b = v.brief || {};
-            const c = { edit: o.state === 'framing', changed: v.changed || [], keys: v.keys || [], drafts: (framing && framing.drafts) || {}, drawing: !!o.drawing };
+            const all = steps.of(framing), shown = all[(o.shown || 0) - 1] ? o.shown : steps.on(framing), v = versionAt(framing, all[shown - 1].v), b = v.brief || {};
+            const c = { edit: o.state === 'framing', changed: steps.changed(framing, shown), keys: v.keys || [], drafts: (framing && framing.drafts) || {}, drawing: !!o.drawing };
             const adding = c.edit ? (o.adding || '') : '';
             const part = (name, body) => body ? '<h3>' + name + '</h3>' + body : '';
             const one = path => valueAt(b, path) || adding === path ? build.line(c, path, valueAt(b, path)) : '';
@@ -365,7 +440,7 @@
             return '<div class="ar-brief" data-chain="' + esc(o.chain) + '" data-thread="' + esc(o.thread) + '" data-state="' + esc(o.state) + '" data-shown="' + shown + '"' +
                     (o.adds ? ' data-adds="1"' : '') + (o.drawing ? ' data-drawing="1"' : '') + (o.against ? ' data-against="' + esc(o.against) + '"' : '') +
                     ' data-framing="' + esc(JSON.stringify(framing || {})) + '">' +
-                '<div class="ar-top"><span class="label">' + WORDS.asked + '</span>' + build.version(framing, shown) + '</div>' +
+                '<div class="ar-top"><span class="label">' + WORDS.asked + '</span>' + build.stepper(framing, shown, o.held) + '</div>' +
                 '<h1 class="ar-line ar-q' + (c.changed.indexOf('question') >= 0 ? ' changed' : '') + '" data-path="question"><span class="tx">' + esc(b.question || '') + '</span>' +
                     (c.edit ? '<button type="button" class="pen" data-ar="edit" title="Change">' + ICON.pen + '</button>' : '') + '</h1>' +
                 (c.edit ? '<p class="ar-gets">' + WORDS.gets + '</p>' : '') +
@@ -383,8 +458,9 @@
                 (kinds.length ? '<div class="ar-more"><button type="button" class="ar-add" data-ar="more" aria-expanded="' + !!o.adds + '">' + WORDS.add + '</button>' +
                     (o.adds ? '<div class="ar-kinds">' + kinds.map(k => '<button type="button" data-ar="add" data-path="' + k[0] + '">' + k[1] + '</button>').join('') + '</div>' : '') + '</div>' : '') +
                 (found.length ? '<div class="ar-memory"><h3>' + WORDS.memory + '</h3><p class="note">' + WORDS.memoryNote + '</p>' + build.found(found, { full: true, built: built.map(g => g.id) }) + '</div>' : '') +
-                (c.edit ? '<div class="ar-foot"><button type="button" class="ui-btn primary" data-ar="start">' + (shown === n ? WORDS.start : WORDS.startWith(shown)) + '</button></div>' : '') +
-                (o.against && shown === inUse(framing) ? build.turnedOut(o.against) : '') +
+                (c.edit ? '<div class="ar-foot"><button type="button" class="ui-btn primary" data-ar="start">' +
+                    (steps.place(framing, shown).after ? WORDS.startFrom(steps.place(framing, shown).i) : WORDS.start) + '</button></div>' : '') +
+                (o.against && steps.used(framing, shown) ? build.turnedOut(o.against) : '') +
                 '</div>';
         },
         // what the run's report says against the brief, as a card of verdicts under it (rows: cutAnswer())
@@ -405,9 +481,9 @@
             const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
             return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + choices + '</div>';
         },
-        // the question changed with the reply above it: the Architect worded it, and it is the top box of that version
-        asked(turn) {
-            return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.question + '</span><span class="out">' + WORDS.updated + '</span><span class="t">' + WORDS.versionN(esc(turn.v)) + '</span></div>';
+        // the question changed with the reply above it: the Architect worded it, and it is the top box from that step on (at: the step's place on its way)
+        asked(at) {
+            return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.question + '</span><span class="out">' + WORDS.updated + '</span><span class="t">' + WORDS.stepN(esc(at)) + '</span></div>';
         },
         // a draft of the figures, done: how many were drawn and how many were not - why is the row's title - the
         // seconds, and the button to the prompt its cell was written from (the run log's call)
@@ -434,7 +510,7 @@
                 '<span class="out">' + (missing.length ? WORDS.unplaced + ' ' + missing.map(m => '“' + esc(m) + '”').join(' · ') : WORDS.standsAlone) + '</span>' +
                 '<span class="t">' + Math.max(1, Math.round(Number(turn.secs) || 0)) + ' s</span>' + prompt + '</div>';
         },
-        // the coach went to another version of the brief before the message under it: the conversation goes on from that one
+        // in a conversation kept before steps: the coach went to another version of the brief before the message under it
         went(turn) {
             return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.brief + '</span><span class="out">' + WORDS.inUse(esc(turn.v)) + '</span></div>';
         },
@@ -470,36 +546,41 @@
             return '<div class="sp-row tool read pending"><span class="live"></span><span class="in">' + WORDS.searching + '</span><span class="out">' + WORDS.readSoFar(at.read, at.of) + '</span>' +
                 '<button type="button" class="ar-skip" data-ar="skip"' + (at.of == null ? ' disabled' : '') + '>' + WORDS.skip + '</button></div>';
         },
-        // the conversation: the question, then what was said, what was looked up, what the saved analyses hold, what
-        // was opened, where the question changed, what a draft of the figures came to and where the coach went to
-        // another version. o: {live: the last message's choices can be clicked - a draft's row may stand under it -,
-        // sent: a message on its way, waiting: the Architect is replying, saved: the saved analyses are being read -
-        // how far -, drawing: its reply stands and the draft is on its way, checking: the question is being read
-        // before its analysis}
+        // the conversation of the way to the step in use: the question, then what was said, what was looked up, what
+        // the saved analyses hold, what was opened, where the question changed - at which step of the way -, what a
+        // draft of the figures came to and, in a conversation kept before steps, where the coach went to another
+        // version. o: {live: the last message's choices can be clicked - a draft's row may stand under it -, sent: a
+        // message on its way, waiting: the Architect is replying, saved: the saved analyses are being read - how far
+        // -, drawing: its reply stands and the draft is on its way, checking: the question is being read before its
+        // analysis}
         talk(entry, o) {
             o = o || {};
             const turns = turnsOf(entry.framing), versions = versionsOf(entry.framing), can = o.live && !o.waiting;
+            // the place on the way of the step each turn belongs to; in a conversation kept before steps, the version the turn left
+            const way = steps.kept(entry.framing) ? steps.way(entry.framing.steps, entry.framing.step) : [];
+            const places = way.reduce((out, s, i) => out.concat(Array(s.turns).fill(i + 1)), []), placeOf = (t, i) => places[i] || t.v;
             // a reply worded the question when the version it left is the Architect's, changed the question, and reads as the reply has it
             const worded = t => { const v = versions[(t.v || 0) - 1]; return !!(t.wording && v && v.by === 'architect' && (v.changed || []).indexOf('question') >= 0 && (v.brief || {}).question === t.wording); };
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
                 turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t) : t.who === 'version' ? build.went(t)
                     : t.who === 'draft' ? build.drafted(t, entry.chain_id) : t.who === 'reader' ? build.checkedQ(t, entry.chain_id)
-                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && turns.slice(i + 1).every(x => x.who === 'draft')) + (worded(t) ? build.asked(t) : '')
+                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && turns.slice(i + 1).every(x => x.who === 'draft')) + (worded(t) ? build.asked(placeOf(t, i)) : '')
                     : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? (o.saved ? build.reading(o.saved) : o.drawing ? build.pending(WORDS.drawingRow) : o.checking ? build.pending(WORDS.checkingRow)
                     : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
         },
-        // the left pane of a brief not yet run: what the Architect's calls cost, and the conversation. Which version is
-        // on screen is the Brief tab's to say, in one place
+        // the left pane of a brief not yet run: what the brief's calls have cost - those of the steps set aside too -
+        // and the conversation. Which step is on screen is the Brief tab's to say, in one place
         pane(entry, o) {
-            const cost = turnsOf(entry.framing).reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+            const cost = steps.all(entry.framing).reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
             return '<div class="sp-strip"><span class="live idle"></span><span class="mode">Architect</span>' + (cost >= 0.005 ? '<span>$' + cost.toFixed(2) + '</span>' : '') + '</div>' +
                 '<div class="sp-stream">' + build.talk(entry, Object.assign({ live: true }, o)) + '</div>';
         },
-        // the framing folded to one row, above the run it started - under the version it started with: the conversation is inside
+        // the framing folded to one row, above the run it started - from which step of the conversation: the way to it is inside
         fold(entry) {
-            return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Architect</span><span class="kind">brief v' + inUse(entry.framing) + '</span>' +
+            return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Architect</span><span class="kind">brief · ' +
+                WORDS.stepN(steps.place(entry.framing, steps.on(entry.framing)).i) + '</span>' +
                 '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.talk(entry) + '</div></details>';
         },
         // a saved analysis in a dialog: what was asked, the day, whose data and which, the report; folded under it the
@@ -586,9 +667,11 @@
         pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true, saved: talking.saved, drawing: talking.drawing, checking: talking.checking } : {});
         pane.scrollTop = pane.scrollHeight;
     }
-    // the Brief tab of a brief not yet run, as it stands now - its figures saying so while their draft is on its way
+    // the Brief tab of a brief not yet run, as it stands now - its steps held while the Architect replies, its figures
+    // saying so while their draft is on its way
     function briefOf(entry) {
-        return build.brief(entry.framing, { chain: entry.chain_id, thread: entry.thread_id, state: 'framing', drawing: !!(talking && talking.entry === entry && talking.drawing) });
+        const mid = talking && talking.entry === entry;
+        return build.brief(entry.framing, { chain: entry.chain_id, thread: entry.thread_id, state: 'framing', held: !!mid, drawing: !!(mid && talking.drawing) });
     }
     function show(entry) {
         drawPane(entry);
@@ -601,9 +684,10 @@
         const root = briefRoot();
         if (root) { root.parentNode.innerHTML = briefOf(entry); mount(briefRoot()); }
         drawPane(entry);
+        mapFollows();
     }
     // a chain comes on screen: a brief not yet run is drawn from its versions; any other Brief tab came with its markup, and its drafts are drawn in it
-    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else mountAll(); }
+    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else mountAll(); mapFollows(); }
     // While a brief not yet run is on screen the composer is the conversation with the Architect: held while it
     // replies or the saved analyses are read, and while another chain runs - whose Stop stays within reach. Anywhere
     // else it is as it was.
@@ -682,7 +766,7 @@
         });
         return pump();
     }
-    // a framing taken as the chain's - as the server sent it, or with a version put in use: the question of the
+    // a framing taken as the chain's - as the server sent it, or with a step put in use: the question of the
     // version in use is the chain's own
     function take(entry, framing) {
         entry.framing = framing;
@@ -704,25 +788,24 @@
             }
         };
     }
-    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. `version`: the
-    // version of the brief on screen when the coach spoke - the exchange goes on from it. Where the reply had the data
+    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. The request
+    // names the step in use here - the one on screen - and the exchange goes on from it. Where the reply had the data
     // looked up, the saved analyses read or a part of an earlier analysis opened, the Architect goes on at once: one
     // more exchange, with nothing said. While the saved analyses are read the pane follows the count. Where a draft of
     // the figures follows the reply, the stream carries the framing with the reply first: the page shows it, and the
     // figures as grey windows, until the stream ends on the framing with the draft - a stream that ends before it
     // leaves the reply standing, its figures without a draft. Resolves to whether the last reply was kept; when one
     // was not, the brief stands as it did and the reason is said.
-    function exchange(entry, text, version) {
+    function exchange(entry, text) {
         if (busy || !entry || entry.status !== 'framing') return Promise.resolve(false);
         busy = true;
-        if (version != null) entry.framing = use(entry.framing, version);      // in use from now, here as on the server
         const mine = talking = { entry, sent: text };
         const inView = () => responses[currentResponseIndex] === entry;
         const draw = () => { if (inView()) { refresh(entry); onChain(entry); } };
         const lost = why => { if (!mine.drawing) say(why); return !!mine.drawing; };      // no reply is said, unless one already stands: the stream ended while its draft was drawn
         draw();
         return window.authService.fetch('/architect/say', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                             body: JSON.stringify(Object.assign({ thread_id: entry.thread_id, chain_id: entry.chain_id, text: text || null }, version != null ? { version } : {})) })
+                                                             body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, text: text || null, step: steps.on(entry.framing) }) })
             .then(r => readStream(r, along(entry, mine, draw))).then(body => {
                 const out = closing(body);
                 if (out.framing) { take(entry, out.framing); return true; }
@@ -737,8 +820,8 @@
                 return kept;
             });
     }
-    // what the coach typed or chose, said to the Architect of the brief on screen - of the version on screen; a line
-    // being typed in the brief is kept first
+    // what the coach typed or chose, said to the Architect of the brief on screen; a line being typed in the brief is
+    // kept first
     function tell(text) {
         const entry = responses[currentResponseIndex], root = briefRoot();
         text = String(text || '').trim();
@@ -746,9 +829,9 @@
         if (typeof queryRunning !== 'undefined' && queryRunning) { say(WORDS.busyRun); return Promise.resolve(false); }
         return (root ? keep(root) : Promise.resolve({})).then(out => {
             if (!out) return false;
-            const input = byId('queryInput'), now = briefRoot();
+            const input = byId('queryInput');
             if (input) { input.value = ''; input.style.height = 'auto'; }
-            return exchange(entry, text, now ? stateOf(now).shown : null);
+            return exchange(entry, text);
         });
     }
 
@@ -757,7 +840,7 @@
         let framing = {};
         try { framing = JSON.parse(root.getAttribute('data-framing') || '{}'); } catch (e) { framing = {}; }
         return { framing, chain: root.getAttribute('data-chain'), thread: root.getAttribute('data-thread'), state: root.getAttribute('data-state'),
-                 shown: Number(root.getAttribute('data-shown')) || inUse(framing), adds: root.getAttribute('data-adds') === '1', drawing: root.getAttribute('data-drawing') === '1',
+                 shown: Number(root.getAttribute('data-shown')) || steps.on(framing), adds: root.getAttribute('data-adds') === '1', drawing: root.getAttribute('data-drawing') === '1',
                  against: root.getAttribute('data-against') || '' };
     }
     function entryOf(root) {
@@ -769,11 +852,13 @@
         const st = stateOf(root), host = root.parentNode;
         host.innerHTML = build.brief(st.framing, Object.assign({ chain: st.chain, thread: st.thread, state: st.state, shown: shown || st.shown, drawing: st.drawing, against: st.against }, more || {}));
         mount(host.querySelector('.ar-brief'));
+        mapFollows();
     }
     // What a run's report says against its brief, on that run's Brief tab (0312). `root` holds the run's tabs: the page's,
     // or the holder of a run that goes on while another chain is on screen. The rows are kept in the brief's own markup,
     // as its versions are, so the arrows and a chain shown again have them with nothing else kept; the card stands at
-    // the foot of the version the run was under. The tab is changed where it stands - its drafts are not drawn again.
+    // the foot of a step whose brief is the one the run was under. The tab is changed where it stands - its drafts are
+    // not drawn again.
     // An answer that says nothing against a brief leaves the tab as it is: a chain shown again has its card already
     function turnedOut(root, against) {
         const brief = against && root ? root.querySelector('#content-brief .ar-brief') : null;
@@ -781,7 +866,7 @@
         brief.setAttribute('data-against', against);
         const st = stateOf(brief), old = brief.querySelector('.ar-against');
         if (old) old.remove();
-        if (st.shown === inUse(st.framing)) brief.insertAdjacentHTML('beforeend', build.turnedOut(against));
+        if (steps.used(st.framing, st.shown)) brief.insertAdjacentHTML('beforeend', build.turnedOut(against));
     }
     // a click on another line while one is being typed: the typed line is kept first, then the click is carried out on the
     // brief as it then stands - the clicked line one place up when a line above it was left out
@@ -800,7 +885,7 @@
         }
         const st = stateOf(root);
         line.classList.add('editing');
-        line.innerHTML = build.editor(valueAt(versionAt(st.framing, st.shown).brief || {}, path), path === 'question');
+        line.innerHTML = build.editor(valueAt(steps.brief(st.framing, st.shown), path), path === 'question');
         const input = line.querySelector('.ar-input');
         if (input) { input.focus(); grow(input); if (input.setSelectionRange) input.setSelectionRange(input.value.length, input.value.length); }
     }
@@ -823,14 +908,14 @@
         const input = line.querySelector('.ar-input');
         return change(root, line.getAttribute('data-path'), input.value != null ? input.value : input.textContent);
     }
-    // one change kept as a version - made to the version on screen, which it goes on from: a line's text (apply), a
-    // proposal ticked (tick), a saved analysis built on no longer (unbuild), a figure taken out (unfigure)
+    // one change kept as a version - made to the brief of the step on screen, and a step that follows it: a line's
+    // text (apply), a proposal ticked (tick), a saved analysis built on no longer (unbuild), a figure taken out (unfigure)
     function change(root, path, text, how) {
-        const entry = entryOf(root);
-        const out = entry ? (how || apply)(versionAt(entry.framing, stateOf(root).shown).brief, path, text) : null;      // of the version on screen
+        const entry = entryOf(root), step = entry ? steps.on(entry.framing) : 0;
+        const out = entry ? (how || apply)(steps.brief(entry.framing, step), path, text) : null;      // of the step in use: the one on screen
         if (!out) { redraw(root); return Promise.resolve({}); }                // nothing changed: the line as it was
         busy = true;
-        return post('/architect/brief', { thread_id: entry.thread_id, chain_id: entry.chain_id, brief: out.brief, changed: out.changed }).then(res => {
+        return post('/architect/brief', { thread_id: entry.thread_id, chain_id: entry.chain_id, brief: out.brief, changed: out.changed, step }).then(res => {
             if (!res.ok || !res.json.framing) { say(res.json.error || WORDS.notKept + '.'); return false; }      // the line stays open, with what was typed
             take(entry, res.json.framing);
             if (responses[currentResponseIndex] === entry) refresh(entry);
@@ -842,22 +927,22 @@
         if (root.querySelector('.ar-line.editing')) keepThen(root, path, (again, at) => change(again, at, text, how));
         else change(root, path, text, how);
     }
-    // Before a brief's analysis starts (0313, §2.22): the question of the version it will run under is read as the
-    // Analyst will read it - once: a version the framing lists as read starts at once. While it is read the pane
+    // Before a brief's analysis starts (0313, §2.22): the question of the step in use is read as the Analyst will
+    // read it - once: a version of the brief the framing lists as read starts at once. While it is read the pane
     // says so and the composer is held. Resolves to whether the analysis can start. Where the reader could not place
     // something, the Architect has gone on: the conversation and the brief are the record's - the read, its reply,
     // the question as it worded it, the figures as grey windows while a draft follows - or the page says why it
     // made no reply; the coach starts again when they have seen it. A read that could not be had holds nothing up:
     // the start goes on, and says what it meets
-    function ready(entry, version) {
+    function ready(entry) {
         if (busy) return Promise.resolve(false);
-        if (((entry.framing || {}).read || []).indexOf(version) >= 0) return Promise.resolve(true);
+        if (((entry.framing || {}).read || []).indexOf(inUse(entry.framing)) >= 0) return Promise.resolve(true);
         busy = true;
         const mine = talking = { entry, checking: true };
         const draw = () => { if (responses[currentResponseIndex] === entry) { refresh(entry); onChain(entry); } };
         draw();
         return window.authService.fetch('/architect/ready', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                                               body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, version }) })
+                                                               body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, step: steps.on(entry.framing) }) })
             .then(r => readStream(r, along(entry, mine, draw))).then(body => {      // the Architect's reply after the read, as after a message
                 const out = closing(body);
                 if (!out.framing) return true;
@@ -878,10 +963,9 @@
         if (!entry || !free()) return;
         keep(root).then(out => {
             if (!out) return;
-            const shown = stateOf(briefRoot() || root).shown;      // the version on screen is the one the analysis runs under
-            take(entry, use(entry.framing, shown));
-            // the read takes a moment: the analysis starts where the brief is still on screen, and nothing else began meanwhile
-            ready(entry, shown).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, version: shown }); });
+            // the read takes a moment: the analysis starts where the brief is still on screen, and nothing else began meanwhile. It starts from the
+            // step in use then - the one on screen, or the read, which is a step of its own - under the brief that stands there
+            ready(entry).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, step: steps.on(entry.framing) }); });
         });
     }
     // the analysis of a brief begins (handleQuerySubmit, after the panes are cleared): the framing folds to one row above
@@ -897,6 +981,70 @@
         if (responses[currentResponseIndex] === entry) show(entry);
         if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
         if (why) say(WORDS.notStarted + ': ' + why);
+    }
+
+    // Another step on screen (the arrows, the map). In a brief not yet run it is the one in use from then, here as it
+    // will be on the server: the pane shows the conversation up to it, the tab the brief as it stood there. Not while
+    // the Architect replies to this brief: what is on its way goes on from the step it left. A brief that ran is
+    // read: its tab shows the brief of that step, and nothing else changes
+    function stepTo(root, k) {
+        const entry = entryOf(root);
+        if (!entry) { redraw(root, k); return; }
+        if (talking && talking.entry === entry) return;
+        take(entry, go(entry.framing, k));
+        if (responses[currentResponseIndex] === entry) { refresh(entry); onChain(entry); }
+    }
+    // what a step is, for its box on the map and for the drawer's foot: what the coach said in it - for the first, the
+    // question as it was asked - or, where they said nothing, what was done: a line changed by hand, the question
+    // read, the Architect gone on; what the Architect last replied; and the parts of the brief the step changed, in
+    // the tab's words
+    function stepWords(framing, s, turns) {
+        const said = (turns.find(t => t.who === 'person') || {}).text, reply = (turns.filter(t => t.who === 'architect').pop() || {}).text || '';
+        const parts = steps.changed(framing, s.k).map(p => WORDS.part[p] || WORDS.part[String(p).split('.')[0]] || '').filter((w, i, all) => w && all.indexOf(w) === i);
+        const label = !s.from ? (versionAt(framing, 1).brief || {}).question || '' : said || (!turns.length ? WORDS.byHand : turns[0].who === 'reader' ? WORDS.checked : WORDS.wentOn);
+        return { label, reply, parts };
+    }
+    // The map of a brief's conversation (§2.25): every step a box, in the thread map's own drawer and with its drawing
+    // (workflowGraph.js) - the way to the step on screen lit, the steps off it faint; a box says what the coach said
+    // and, under it, what the step changed. Under the pointer a box lights its own way, and the drawer's foot says, as
+    // the thread map's does of a chain: what was said, where the step stands - as the arrows would count it -, what it
+    // follows, how many follow it, what it changed and what the Architect replied. A click goes to the step and shuts
+    // the drawer
+    function openMap(root) {
+        const st = stateOf(root), framing = st.framing, all = steps.of(framing), held = steps.held(framing), drawer = byId('workflowMapModal');
+        if (!drawer || !window.WorkflowGraph) return;
+        const words = all.map(s => stepWords(framing, s, held[s.k]));
+        const forks = all.filter(s => all.filter(x => x.from === s.k).length > 1).length;
+        const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
+        drawer.classList.add('steps');                         // the thread's own buttons are not this map's
+        drawer.setAttribute('data-chain', st.chain);
+        drawer.querySelector('h2').textContent = WORDS.map;
+        byId('mapDrawerSub').textContent = WORDS.mapSub(all.length, forks);
+        byId('nodeTaskContent').textContent = WORDS.mapHover;
+        byId('nodePlotPreview').innerHTML = '';
+        drawer.style.display = 'flex';
+        window.WorkflowGraph.render(byId('workflowMapContainer'), all.map((s, i) => ({ chain_id: s.k, parentChainId: s.from || null, queryText: words[i].label })), st.shown - 1, {
+            sub: (item, i) => (all[i].from ? [] : [WORDS.asked1]).concat(words[i].parts).join(' · '),
+            show: (item, i) => {
+                const s = all[i], at = steps.place(framing, s.k), next = all.filter(x => x.from === s.k).length, first = /^[\s\S]{20,240}?[.!?](?=\s|$)/.exec(words[i].reply);
+                byId('nodeTaskContent').textContent = words[i].label.length > 300 ? words[i].label.slice(0, 297) + '...' : words[i].label;
+                byId('nodePlotPreview').innerHTML = '<div class="wf-info">' +
+                    row(WORDS.info.step, WORDS.of(at.i, at.n) + (s.k === st.shown ? ' · ' + WORDS.onScreen : '')) +
+                    row(WORDS.info.follows, s.from ? WORDS.stepN(at.i - 1) : WORDS.theStart) + row(WORDS.info.next, next || WORDS.none) +
+                    row(WORDS.info.changed, esc(words[i].parts.join(' · ') || WORDS.nothing)) +
+                    (words[i].reply ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.replied + '</span><b>' + esc(first ? first[0] : words[i].reply.slice(0, 240)) + '</b></div>' : '') + '</div>';
+            },
+            // a box clicked: the drawer shuts, and the map's brief - the one on screen while the drawer is open (mapFollows()) - goes to the step
+            pick: (item, i) => { drawer.style.display = 'none'; stepTo(briefRoot(), all[i].k); }
+        });
+    }
+    // The map, while its drawer is open, follows its brief: drawn again whenever the brief is - another step may be on
+    // screen, a step may have been added - and shut once another chain is on screen
+    function mapFollows() {
+        const drawer = byId('workflowMapModal'), root = briefRoot();
+        if (!drawer || !drawer.classList.contains('steps') || drawer.style.display !== 'flex') return;
+        if (root && root.getAttribute('data-chain') === drawer.getAttribute('data-chain')) openMap(root);
+        else drawer.style.display = 'none';
     }
 
     // a saved analysis a reading found, viewed whole in a dialog over the page: the report, and under it the conversation,
@@ -924,7 +1072,8 @@
         const root = hit ? hit.closest('.ar-brief') : null;
         if (!root) return;
         const act = hit.getAttribute('data-ar');
-        if (act === 'step') { settled(root, r => redraw(r, stateOf(r).shown + Number(hit.getAttribute('data-step')))); return; }
+        if (act === 'step') { settled(root, r => { const at = steps.place(stateOf(r).framing, stateOf(r).shown); stepTo(r, Number(hit.getAttribute('data-step')) < 0 ? at.before : at.after); }); return; }
+        if (act === 'map') { settled(root, openMap); return; }
         if (busy) return;
         const line = hit.closest('.ar-line');
         if (act === 'edit') edit(root, line);
@@ -957,5 +1106,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, use, build, readStream, draftLayout };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout };
 })();

@@ -35,6 +35,7 @@ from typing import Callable, Optional
 from analyst import brief as briefs
 from analyst import draft
 from analyst import lookup
+from analyst import steps
 from analyst.notebook import Notebook, Run, Turn
 
 with open(os.path.join(os.path.dirname(__file__), "architect.md"), encoding="utf-8") as _fh:
@@ -236,7 +237,8 @@ def conversation(turns: list, numbers: Optional[dict] = None) -> str:
     then, where the reply worded it, and the choices it offered, which the person may answer by - what each round of
     lookups found, a numbered line to a lookup, what a reading of the saved analyses found, what was opened, what a
     draft of the figures came to, what a reader given what the analyst will be given could not place
-    (analyst/cold.py), and where the person went to another version of the brief."""
+    (analyst/cold.py), and - in a conversation kept before its steps were (analyst/steps.py) - where the person went
+    to another version of the brief."""
     said = []
     for t in turns:
         if t.get("who") == "check":
@@ -418,7 +420,7 @@ def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = E
 
 
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None,
-             recall: Optional[Callable] = None, saved: int = 0, version: Optional[int] = None) -> dict:
+             recall: Optional[Callable] = None, saved: int = 0, step: Optional[int] = None) -> dict:
     """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
     after a round of lookups, a reading or a part opened - and its reply. A reply that cannot be read is asked for
     once more. Returns the framing as it then stands: the brief as one more version when the reply changed a part,
@@ -428,9 +430,10 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     conversation's last turn: the next exchange, with no message, reads it. What the reply proposes enters the
     brief only where it names a column of the data, and a brief takes two proposals in all.
 
-    `version`: the version of the brief on the person's screen. Where it is not the one in use, it is from now
-    (analyst/brief.py use()), the conversation says so, and the reply's changes are made to it: the versions after
-    it stay, and the next one is counted on from the last.
+    `step`: the step of the conversation on the person's screen (analyst/steps.py). Where it is not the one in
+    use, it is from now: the exchange goes on from it - the Architect reads the way to it, and nothing that was
+    said on another - and what the exchange adds is a step that follows it. The steps after it stay, set aside,
+    and the next version is counted on from the last.
 
     The question is never written from the reply's brief. A wording the reply gives is the question from this
     reply on - one more change of the version - and the host makes it the run's; the message that worded it keeps
@@ -452,15 +455,12 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     what it still asks for is not done.
     Raises Failed; nothing is kept of an exchange that fails."""
     framing = {**(run.framing or {}), "saved": int(saved or 0)}
+    framing = steps.go(framing, step) if step is not None else framing
     turns = list(framing.get("turns") or [])
     if sum(1 for t in turns if t.get("who") == "architect") >= TURNS_MAX:
         raise Failed(SPENT)
     first = not turns and not text
-    was = briefs.latest(framing).get("version")
-    framing = briefs.use(framing, version) if version is not None else framing
     brief = briefs.latest(framing) or {"question": run.question}
-    if was is not None and brief.get("version") != was:
-        turns.append({"who": "version", "v": brief["version"]})          # the person went to another version: this exchange goes on from it
     said = text.strip()[:briefs.QUESTION_CHARS] if isinstance(text, str) else ""
     if said:
         turns.append({"who": "person", "text": said})
@@ -505,5 +505,5 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
         turns.append(_opened(nb, run.id, got["open"]))
     framing = {**framing, "turns": turns, "calls": made}
     if got["recall"] and not unread:
-        return _read(framing, turns, written, recall, written.get("question") or question)
-    return framing
+        framing = _read(framing, turns, written, recall, written.get("question") or question)
+    return steps.take(framing)

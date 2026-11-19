@@ -256,13 +256,16 @@ Switch **Architect** on beside the mode control and type a question. Nothing run
 through with you in the left pane, and the brief builds up on its own tab.
 
 - **The question.** The top of the Brief tab is what the Analyst will be asked. The Architect rewrites it as you
-  talk, and you can change it with its pencil. Each change is a new version; the arrows step through them.
+  talk, and you can change it with its pencil.
 - **The brief.** Under the question: what the answer is for, what you think is going on, what you expect to see.
   Any line can be changed in place.
 - **Checks.** What the brief rests on is looked up in the data and marked *holds*, *does not hold* or *cannot be
   checked*. The Architect may also propose up to two other explanations; you tick the ones to test.
 - **Figures.** Ask for a figure and a draft appears in the brief, so you see what you will get. A draft drawn on
   made-up numbers is marked so.
+- **Going back.** Each message or change is a step. The arrows go back through the steps, and the map beside them
+  shows them all. Go on from an earlier step and the conversation branches: the Architect no longer sees what you
+  left behind, and you can return to it from the map.
 - **Start analysis.** The question is first read without the conversation, as the Analyst will read it. If it
   points to something the Analyst does not have, the Architect rewords it and you start again.
 - **The result.** The Brief tab shows *How it turned out*: what you expected, and how each other explanation
@@ -697,8 +700,8 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
   store.
 - `analyst/context.py`, `analyst/coder.py` and `containers/executor/intervals_store.py` implement
   training context, coding and incremental data storage.
-- `analyst/architect.py`, `analyst/brief.py`, `analyst/lookup.py`, `analyst/draft.py`, `analyst/cold.py` and
-  `analyst/next_questions.py` implement the Architect; `analyst/memory.py` and `analyst/reader.py` the memory
+- `analyst/architect.py`, `analyst/brief.py`, `analyst/steps.py`, `analyst/lookup.py`, `analyst/draft.py`,
+  `analyst/cold.py` and `analyst/next_questions.py` implement the Architect; `analyst/memory.py` and `analyst/reader.py` the memory
   made of saved analyses.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.

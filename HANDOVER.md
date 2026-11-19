@@ -648,6 +648,42 @@
   analyses as memory* went from about 1,400 words to about 530: what a user does and sees, in plain words. The
   version rules, the reading limits, the follow-up and how the reader's second model works are left to
   `docs/ARCHITECT_DESIGN.md`. README only; no test changed.
+  **0316 (2026-11-19), 2.8.1: the conversation in steps, and their map** (decisions 55 to 57, §2.25). The
+  product owner's idea: a map of the conversation with the Architect, like the thread map, to step back on and
+  branch from - a direction that led nowhere is left, not corrected. Agreed with him: branching until Start
+  analysis; a way gone back from is fully out of what the Architect reads; the button beside the arrows; *Step*
+  for *Version*; no row for what was left ("it is confusing"); the map as the thread map is, hover and all.
+  *The engine:* `analyst/steps.py` (new) - a framing keeps `steps` (`k`, `from`, `v`, `made`, and how many
+  `turns`, `found`, `proposed` are a step's own), `step` (in use), `tip` (the end of the way being walked) and
+  `aside` (what the steps off the way to the one in use hold); `turns`, `found`, `proposed`, `at` are the way's,
+  so every reader of a framing reads one way as before; `take()` counts what was added into a step - a new one
+  where the coach spoke, the question was read, a version was made by hand, or the step in use has one after
+  it; a framing kept before is counted as one way, a step to a version, the first time -, `go()` puts a step
+  in use, `said()` is every turn. `architect.exchange(..., step=)`, `cold.ready(..., step=)` and `draft.settle()` end on `take()`;
+  `brief.use()` and the turn `{"who": "version"}` are gone (`conversation()` still renders old ones).
+  `architect.md`: the coach can go back and go on from there; what they speak of that it cannot see is what
+  they left - it does not ask (16,990 characters of 17,000). *The host:* `open_framing`, `save_brief(...,
+  step=)`, `architect_say(..., step=)`, `architect_ready(..., step=)`, `pd_agent_converse(..., step=)`; the
+  routes read `step` (`architect_routes._step`), `/query` too. *The page* (`architect.js`): `steps` (`kept`,
+  `of`, `on`, `tip`, `way`, `end`, `place`, `held`, `all`, `brief`, `changed`, `used`) and `go()` mirror the
+  engine - `tests/analyst/fixtures/steps.json` holds both to the same answers; `build.stepper()` (*Step*, the
+  arrows, the map's button - all off while the Architect replies), `stepTo()` (the step is in use at once: both
+  panes), every request names `steps.on(framing)`, `openMap()` in the thread map's drawer (`.steps` on
+  `#workflowMapModal`), `stepWords()`, `mapFollows()` (an open map is drawn again with its brief, and shut on
+  another chain); `use()` is gone; the card of §2.21 stands under every step whose brief the run was under.
+  `workflowGraph.js`: `render(container, items, active, of)` - `of.sub`, `of.show`, `of.pick`, `of.rest`; the
+  thread map passes nothing. `workflow-management.js`: the thread map takes the drawer back (title, foot).
+  `query-processing.js`: `options.step`. `tabs.css`: `.ar-ver .ar-map`; `shell.css`: `#workflowMapModal.steps`.
+  *Defaults that were mine, said to the product owner:* a change by hand is a step; so is the question's read;
+  a brief kept before has the arrows and no map; the strip counts every step's cost; a reading made on a way
+  that is left is made again where asked; stepping waits while the Architect replies; after Start the map is
+  read. Tests: `test_analyst.py` 377 (+6), `test_app_path.py` 276, `test_architect.js` 156 (+14); the battery
+  2,423 with the OpenAI adapter's suite that came with pull request 65 (7, which need the real `openai`
+  library and did not run where this was built); the walk 220 (+3), and 213 of 217 in the local edition; the
+  gallery 33 (`architect_step` for `architect_version`, `architect_map`; its briefs keep their steps); the
+  story 67 shots (`architect_step_back`, `tutor_step_back`, `tutor_map`, `tutor_map_hover`, `tutor_way_left`).
+  Not run against a live model, where it was built: whether the Architect takes "instead" without asking what
+  was left is the live test's to show.
 - **Published.** 2.8.0 (2026-11-16): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306; the tag goes on the last patch). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

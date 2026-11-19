@@ -27,8 +27,9 @@ the step that draws is given it in words (figure_lines()). normalise() brings wh
 agreed() is the brief as the analyst receives it, render() writes the BRIEF block of the prompt, held() says
 whether the report is to answer to it, and outcome() reads back what a report says against the brief. While a brief
 is being written it is kept as versions on its run: version() adds one, latest() is the one in use - the last, or
-an earlier one the person went back to (use()); write() takes in what a reply of the Architect's names and mark()
-the marks it gives after its lookups; said() is the conversation the brief came from, as text.
+the one the step of the conversation the person went back to ends on (analyst/steps.py); write() takes in what a
+reply of the Architect's names and mark() the marks it gives after its lookups; said() is the conversation the brief
+came from, as text.
 """
 from __future__ import annotations
 
@@ -163,16 +164,6 @@ def version(framing: dict, brief, by: str = "person", changed=None, why: str = "
     if why:
         entry["why"] = str(why)[:60]
     return {**{k: v for k, v in (framing or {}).items() if k != "at"}, "versions": versions + [entry]}
-
-
-def use(framing: dict, n) -> dict:
-    """The framing with version `n` in use: the person went back to it, and what is done next - an answer, a change,
-    the analysis - goes on from it. The later versions stay. A number the framing does not have changes nothing."""
-    versions = (framing or {}).get("versions") or []
-    if not isinstance(n, int) or isinstance(n, bool) or not 1 <= n <= len(versions):
-        return dict(framing or {})
-    rest = {k: v for k, v in framing.items() if k != "at"}
-    return rest if n == len(versions) else {**rest, "at": n}
 
 
 def write(brief, parts) -> tuple:
@@ -324,8 +315,8 @@ def mark(brief, marks, facts) -> tuple:
 
 
 def latest(framing: dict) -> dict:
-    """The brief of the version in use, numbered with it: the one the person went back to (use()), else the last;
-    {} when there is none."""
+    """The brief of the version in use, numbered with it: the one the framing names (`at`: the step of the
+    conversation in use ends on it, analyst/steps.py), else the last; {} when there is none."""
     versions = (framing or {}).get("versions") or []
     at = (framing or {}).get("at")
     v = versions[at - 1] if isinstance(at, int) and not isinstance(at, bool) and 1 <= at <= len(versions) else versions[-1] if versions else {}

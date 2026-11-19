@@ -35,10 +35,10 @@ function initializeMainQuerySubmission() {
 }
 
 // options.typed: the composer's own send; options.framed: the chain whose brief is being started (architect.js), with
-// options.version, the version of that brief on screen, which the analysis runs under;
+// options.step, the step of its conversation on screen, from which the analysis starts - under the brief that stands there;
 // options.next: the next question the analysis is started from (next-questions.js) - run as it stands, with no brief
 function handleQuerySubmit(options = {}) {
-    const { synthesis, image, typed, framed, next, version } = options;
+    const { synthesis, image, typed, framed, next, step } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
     const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());
@@ -133,7 +133,7 @@ function handleQuerySubmit(options = {}) {
     if (synthesis) requestBody.synthesis = true;
     if (image) requestBody.image = image;
     if (framed) requestBody.run_id = framed.chain_id;   // the analysis continues the run its brief was written in
-    if (framed && version) requestBody.version = version;      // ... under the version of the brief on screen
+    if (framed && step) requestBody.step = step;               // ... from the step of its conversation on screen
 
     let streaming = false;      // the server has started the run
 

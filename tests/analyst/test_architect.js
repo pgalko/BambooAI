@@ -3,10 +3,11 @@
 // "Against the brief" taken out of the answer for the run's Brief tab (0312), the thread map's mark - and the module
 // driven on the mini DOM with a scripted server: a
 // typed question opens its brief and the Architect takes its first turn, the coach answers with a click or in words, a
-// line is changed where it stands and kept as a version, the versions are stepped through, the analysis is started in the
-// same chain, the composer is the conversation's while a brief not yet run is on screen; the figures of a brief as
-// grey windows (0311), and their drafts drawn with a Plotly that keeps what it is asked for (0310). Then the page's
-// hooks, read from the source.
+// line is changed where it stands and kept as a version, the steps of the conversation are gone through - with the
+// arrows, and on their map, where a conversation that branched shows every way it went (0316) - the analysis is
+// started in the same chain, the composer is the conversation's while a brief not yet run is on screen; the figures
+// of a brief as grey windows (0311), and their drafts drawn with a Plotly that keeps what it is asked for (0310).
+// Then the page's hooks, read from the source.
 // Run: node tests/analyst/test_architect.js
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -34,6 +35,14 @@ const host = doc.createElement('div'); doc.body.appendChild(host);
 host.innerHTML = '<button id="architectSwitch" class="ar-switch" aria-pressed="false"></button><textarea id="queryInput"></textarea><button id="submitQuery"></button>' +
   '<div id="streamOutput"></div><div id="tabContainer"></div><div id="contentOutput"></div>';
 const $ = id => doc.getElementById(id);
+// the drawer the thread map and the map of a brief's conversation share, as index.html has it, and the drawing they share (workflowGraph.js) on the harness's dagre
+const drawerHost = doc.createElement('div'); doc.body.appendChild(drawerHost);
+drawerHost.innerHTML = '<div id="workflowMapModal" class="modal map-drawer"><h2>Thread map</h2><div id="mapDrawerSub">the chains of this thread; click one to open it</div>' +
+  '<div id="workflowMapContainer" class="workflow-map-container"></div><div id="nodeTaskContent">Hover over a chain to see its question</div><div id="nodePlotPreview"></div><div class="map-drawer-foot"></div></div>';
+$('workflowMapModal').style.display = 'none';
+doc.createElementNS = (ns, tag) => doc.createElement(tag);      // the drawing asks for SVG elements: here they are elements like any other
+// what the thread map's own boxes ask of the page (content-rendering.js): what a chain was asked, and no plot
+global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText }); global.extractPlotDataFromResponse = () => null;
 $('queryInput').placeholder = 'Enter your query here';      // the mini DOM keeps properties apart from attributes
 // the page's own parts, as far as the module leans on them
 global.loadResponseContent = r => { $('tabContainer').innerHTML = r.tabContent || ''; $('contentOutput').innerHTML = r.contentOutput || ''; $('streamOutput').innerHTML = r.streamOutput || '';
@@ -44,6 +53,8 @@ const tabs = []; global.createOrUpdateTab = (type, html) => tabs.push([type, htm
 const rows = []; global.paneAppend = html => rows.push(html);
 const reverted = []; global.revertLiveChain = e => { reverted.push(e); e.status = 'framing'; };
 
+require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;      // window.dagre: the harness's layered stand-in
+require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'));
 require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'architect.js'));
 const A = window.ArchitectUI, b = A.build;
 const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
@@ -110,13 +121,13 @@ const h3s = root => root.querySelectorAll('h3').map(h => h.textContent).join('|'
 const KINDS = 'decision=What it is for|thinks=What you think|rests_on.+=Why you think so|expects=What you expect to see|would_change=What would change your mind|also_check.+=Another explanation to test|' +
   'fixed.comparison=What is compared|fixed.measure=Measured by|fixed.period=Period';
 const kindsOf = root => root.querySelectorAll('.ar-kinds [data-ar="add"]').map(x => x.getAttribute('data-path') + '=' + x.textContent).join('|');
-check('a brief that holds only the question (0308): on top what the Analyst will be asked - said in those words - with the version beside it under its own name: "Version", "1 of 1", both arrows off and '
+check('a brief that holds only the question (0308): on top what the Analyst will be asked - said in those words - with the step beside it under its own name: "Step", "1 of 1", both arrows off, no button to a map - the framing was kept before steps (0316) - and '
   + 'nothing said of who made it; the question in its box with its pencil, and under it one line that says this is what the Analyst gets. No part stands: a part shows only when it holds '
   + 'something. One control adds a part, its list shut; Start analysis at the foot. Nothing says what is always tested - a brief with nothing in it is no brief - and no button has the saved '
   + 'analyses read, whatever the framing says of them',
   root1.elements[0].className === 'ar-top' && root1.querySelector('.ar-top .label').textContent === 'What the Analyst will be asked'
-  && root1.querySelector('.ar-top .ar-ver .k').textContent === 'Version' && root1.querySelector('.ar-ver b').textContent === '1 of 1' && !root1.querySelector('.why') && !root1.querySelector('.step')
-  && root1.querySelectorAll('.ar-ver [data-ar="step"]').map(x => x.getAttribute('data-step') + x.hasAttribute('disabled') + x.getAttribute('aria-label')).join() === '-1trueThe version before,1trueThe version after'
+  && root1.querySelector('.ar-top .ar-ver .k').textContent === 'Step' && !root1.querySelector('[data-ar="map"]') && root1.querySelector('.ar-ver b').textContent === '1 of 1' && !root1.querySelector('.why') && !root1.querySelector('.step')
+  && root1.querySelectorAll('.ar-ver [data-ar="step"]').map(x => x.getAttribute('data-step') + x.hasAttribute('disabled') + x.getAttribute('aria-label')).join() === '-1trueThe step before,1trueThe step after'
   && root1.elements[1].tag === 'h1' && root1.elements[2].className === 'ar-gets' && root1.elements[2].textContent === 'This is what the Analyst gets. Change any line before you start.'
   && root1.querySelector('h1.ar-line.ar-q .tx').textContent === 'Is B above A?' && root1.querySelector('h1 .pen[data-ar="edit"]') && root1.querySelector('h1').getAttribute('data-path') === 'question'
   && h3s(root1) === '' && root1.querySelectorAll('.ar-line').length === 1 && !/\+ Add.*\+ Add/.test(t1.textContent) && !/not said|left to/.test(t1.textContent)
@@ -135,7 +146,7 @@ check('+ Add (0308): opened, it lists the parts the brief does not hold, in the 
   && !adding1.querySelector('.ar-kinds') && h3s(addingList) === 'Why you think so' && addingList.querySelector('.ar-line[data-path="rests_on.+"]') && h3s(addingFixed) === 'Period'
   && addingFixed.querySelector('.ar-line[data-path="fixed.period"]') && opened1.querySelectorAll('.ar-kinds button').every(x => x.getAttribute('type') === 'button')
   && (opened1.textContent.match(/\+ Add/g) || []).length === 1, opened1.outerHTML);
-check('the tab carries what it needs to be stepped through later: the chain, the state, the version shown and every version',
+check('the tab carries what it needs to be stepped through later: the chain, the state, the step shown and the framing whole',
   root1.getAttribute('data-chain') === '71' && root1.getAttribute('data-state') === 'framing' && root1.getAttribute('data-shown') === '1' && same(JSON.parse(root1.getAttribute('data-framing')), F1));
 const BUILT = [{ thread: '7', run: '8', when: '2026-02-20', question: 'Was B above A before?', passage: 'B led by 3.', accepted: true },
                { thread: '7', run: '8', when: '2026-02-20', question: 'Was B above A before?', passage: 'And by 2 later.', accepted: true },
@@ -195,14 +206,15 @@ check('what the Architect proposed has a box to tick, its mark as the one who br
   && acceptedRun.querySelector('button.tick.on') && acceptedRun.querySelector('.tick').hasAttribute('disabled') && !acceptedRun.querySelector('[data-ar]'), accepted.outerHTML + proposed.outerHTML);
 const old = el(b.brief(F3, { chain: 71, state: 'framing', shown: 2 })).querySelector('.ar-brief');
 const ran = el(b.brief(F3, { chain: 71, state: 'run' })).querySelector('.ar-brief'), ranAt = el(b.brief(Object.assign({ at: 2 }, F3), { chain: 71, state: 'run' })).querySelector('.ar-brief');
-check('an older version on screen (0308) is the brief as it stood then, and can be gone on from: "2 of 3", both arrows live, the parts it held and no other, each with its pencil, the one control that '
-  + 'adds a part - and Start analysis names it, so that the coach sees which version will run. A framing that says which version is in use shows that one, and names it on the button too',
+check('an earlier step on screen (0316; a version, 0308) is the brief as it stood then, and can be gone on from: "2 of 3", both arrows live, the parts it held and no other, each with its pencil, the one '
+  + 'control that adds a part - and Start analysis names the step, so that the coach sees where the analysis will start from. A framing that says which version is in use shows its step, and names it '
+  + 'on the button too',
   old.querySelector('.ar-ver b').textContent === '2 of 3' && old.getAttribute('data-shown') === '2' && !old.querySelectorAll('[data-ar="step"]').some(x => x.hasAttribute('disabled'))
   && h3s(old) === 'What it is for' && !lineOf(old, 'thinks') && lineOf(old, 'decision').className === 'ar-line changed' && lineOf(old, 'decision').querySelector('.pen[data-ar="edit"]') && old.querySelector('h1 .pen')
-  && old.querySelector('.ar-gets') && old.querySelector('.ar-more [data-ar="more"]') && old.querySelector('.ar-foot [data-ar="start"]').textContent === 'Start analysis with version 2'
+  && old.querySelector('.ar-gets') && old.querySelector('.ar-more [data-ar="more"]') && old.querySelector('.ar-foot [data-ar="start"]').textContent === 'Start analysis from step 2'
   && root3.querySelector('.ar-foot [data-ar="start"]').textContent === 'Start analysis'
   && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-ver b').textContent === '1 of 3'
-  && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing' })).querySelector('[data-ar="start"]').textContent === 'Start analysis with version 1'
+  && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing' })).querySelector('[data-ar="start"]').textContent === 'Start analysis from step 1'
   && el(b.brief(Object.assign({ at: 1 }, F3), { chain: 71, state: 'framing', shown: 3 })).querySelector('[data-ar="start"]').textContent === 'Start analysis'
   && [0, 4, '2', true, null].every(at => el(b.brief(Object.assign({ at }, F3), { chain: 71, state: 'framing' })).querySelector('.ar-ver b').textContent === '3 of 3'), old.outerHTML);
 check('the brief of a run that has started is read, not changed: what the Analyst got, at the version it started with - the last, or the one the framing names - under the plain names, with no pencil, no '
@@ -394,13 +406,88 @@ check('unbuild() (0308): the brief builds no longer on one saved analysis, named
   same(A.unbuild(BS, '7/8'), { brief: { question: 'q', saved: [BS.saved[2]] }, changed: ['saved'] }) && A.unbuild(BS, '7/9').brief.saved.length === 2
   && !('saved' in A.unbuild({ question: 'q', saved: [BS.saved[2]] }, '7/9').brief) && A.unbuild(BS, '5/5') === null && A.unbuild({ question: 'q' }, '7/8') === null && A.unbuild(null, '7/8') === null
   && BS.saved.length === 3 && A.tick(BS, 'saved.0') === null && A.apply(BS, 'saved.0', '') === null && A.apply(BS, 'saved.0', 'other words') === null);
-check('use() (0308): the framing with a version in use, as the server will have it once the request that carries the number is taken - an earlier version is named, the last names none, and a number '
-  + 'the framing does not have names none either; the framing passed in is not altered',
-  A.use(F3, 2).at === 2 && A.use(F3, 1).versions === F3.versions && !('at' in A.use(Object.assign({ at: 1 }, F3), 3)) && !('at' in F3)
-  && [0, 3, 4, -1, '2', true, null, 1.5].every(k => !('at' in A.use(Object.assign({ at: 2 }, F3), k))) && same(A.use(null, 1), {}) && A.use(Object.assign({ at: 2 }, F3), 1).at === 1);
+check('go() on a framing kept before steps (0316; use(), 0308): a step is a version there, and the framing with one in use is as the server will have it once the request that names the step is '
+  + 'taken - an earlier one is named, the last names none - with nothing else changed: no steps are made up, the conversation stays whole. A number the framing has no step for changes nothing; '
+  + 'the framing passed in is not altered',
+  A.go(F3, 2).at === 2 && A.go(F3, 1).versions === F3.versions && !('at' in A.go(Object.assign({ at: 1 }, F3), 3)) && !('at' in F3)
+  && [0, 4, -1, '2', true, null, 1.5, undefined].every(k => same(A.go(Object.assign({ at: 2 }, F3), k), Object.assign({ at: 2 }, F3))) && same(A.go(null, 1), {}) && A.go(Object.assign({ at: 2 }, F3), 1).at === 1
+  && same(Object.keys(A.go(F3, 2)).sort(), ['at', 'versions']) && A.go(F3, 3) === F3 && typeof A.use === 'undefined');
 const namedAt = at => el(b.fold({ chain_id: 71, queryText: 'q', framing: Object.assign(at === undefined ? {} : { at }, F3) })).querySelector('.kind').textContent;
-check('the version in use, as the fold above a run names it (0308): the one the framing names where it has that version, else the last',
-  namedAt(undefined) === 'brief v3' && namedAt(2) === 'brief v2' && namedAt(1) === 'brief v1' && [0, 4, 9, -1, '2', 1.5, null].every(at => namedAt(at) === 'brief v3'), [namedAt(2), namedAt(9)]);
+check('the step in use, as the fold above a run names it (0316; the version, 0308) - in a framing kept before steps: that of the version the framing names where it has that version, else the last',
+  namedAt(undefined) === 'brief · step 3' && namedAt(2) === 'brief · step 2' && namedAt(1) === 'brief · step 1' && [0, 4, 9, -1, '2', 1.5, null].every(at => namedAt(at) === 'brief · step 3'),
+  [namedAt(2), namedAt(9)]);
+// ---- the steps of a brief's conversation (0316, §2.25). The fixture is the one the engine's suite checks against analyst/steps.py: a conversation that went
+// one way (step 3: a figure by week), came back to step 2 and went another (steps 4 to 6: the period, a line by hand, a reply that changed nothing)
+const FX = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'steps.json'), 'utf8')), FS = FX.framing, S = A.steps, FS_AS_READ = JSON.stringify(FS);
+const ks = list => list.map(x => x.k).join(), EVERY = [1, 2, 3, 4, 5, 6];
+const asideOf = f => Object.keys(f.aside || {}).sort().map(k => [k, f.aside[k].turns || []]);
+const wholeAt = k => Object.assign({}, FS, FX.go[k]);      // the framing with step k in use, as the engine makes it: the file holds what differs
+const OLD3 = { versions: FS.versions.slice(0, 3), turns: FS.turns };      // a framing kept before steps: three versions, one conversation
+check('the steps of a framing (0316): as it keeps them, with the one in use and the end of the way being walked. The way to a step is the steps from the first to it. The way through a step ends '
+  + 'where the way being walked does while the step is on it, else where the newest steps after it lead; a step\'s place is counted on that way, with the steps beside it - what the arrows '
+  + 'show and where they lead. Each step holds its own turns: those of the way in use cut from the framing\'s by their counts, the others from what is set aside; every turn the framing '
+  + 'holds is counted where the cost is. The brief of a step is the version that stood at its end, and what it changed is the parts of the versions it made. A framing kept before steps '
+  + 'has a step to a version, in use the version it names, and its conversation is not cut: no step holds turns of its own',
+  S.kept(FS) && !S.kept(F3) && !S.kept(null) && !S.kept({ steps: [] }) && S.of(FS) === FS.steps && S.on(FS) === 6 && S.tip(FS) === 6
+  && ks(S.way(FS.steps, 6)) === '1,2,4,5,6' && ks(S.way(FS.steps, 3)) === '1,2,3' && ks(S.way(FS.steps, 0)) === '' && ks(S.way(FS.steps, 9)) === ''
+  && [1, 2, 4, 5, 6].every(k => S.end(FS, k) === 6) && S.end(FS, 3) === 3 && S.end(wholeAt(3), 2) === 3 && S.end(wholeAt(3), 4) === 6
+  && S.end({ steps: [{ k: 1, from: 0 }, { k: 2, from: 1 }, { k: 3, from: 1 }, { k: 4, from: 3 }, { k: 5, from: 3 }], step: 2, tip: 2 }, 3) === 5
+  && same(EVERY.map(k => S.place(FS, k)), [{ i: 1, n: 5, before: 0, after: 2 }, { i: 2, n: 5, before: 1, after: 4 }, { i: 3, n: 3, before: 2, after: 0 }, { i: 3, n: 5, before: 2, after: 5 },
+                                          { i: 4, n: 5, before: 4, after: 6 }, { i: 5, n: 5, before: 5, after: 0 }])
+  && same(EVERY.map(k => S.held(FS)[k].length), [1, 2, 2, 2, 0, 2]) && S.held(FS)[3][0].text === 'Show it by week' && S.held(FS)[4][0].text === 'Only the first half' && S.held(FS)[2][0] === FS.turns[1]
+  && S.all(FS).length === 9 && S.all(F3).length === 0 && S.all(null).length === 0 && S.all(OLD3).length === 7
+  && S.brief(FS, 3) === FS.versions[2].brief && S.brief(FS, 6) === FS.versions[4].brief && same(EVERY.map(k => S.changed(FS, k).join()), ['', 'decision', 'figures', 'fixed.period', 'thinks', ''])
+  && same(S.of(OLD3), [{ k: 1, from: 0, v: 1, made: [1] }, { k: 2, from: 1, v: 2, made: [2] }, { k: 3, from: 2, v: 3, made: [3] }]) && S.on(OLD3) === 3 && S.on(Object.assign({ at: 2 }, OLD3)) === 2
+  && S.tip(Object.assign({ at: 2 }, OLD3)) === 3 && same(S.place(Object.assign({ at: 1 }, OLD3), 2), { i: 2, n: 3, before: 1, after: 3 }) && same(S.held(OLD3), { 1: [], 2: [], 3: [] })
+  && same(S.of({}), [{ k: 1, from: 0, v: 1, made: [1] }]) && S.on(null) === 1,
+  [EVERY.map(k => S.place(FS, k)), EVERY.map(k => S.changed(FS, k).join())]);
+const goneAs = (got, want) => got.step === want.step && got.at === want.at && same(got.turns, want.turns) && same(asideOf(got), asideOf(want))
+  && Object.keys(FS).every(key => ['step', 'tip', 'at', 'turns', 'aside'].indexOf(key) >= 0 || got[key] === FS[key]);
+check('go() on a framing that keeps its steps (0316) is held to what the engine makes (tests/analyst/fixtures/steps.json): with a step in use the framing names it, the end of its way and - '
+  + 'unless it is the last - the version that stood at its end; its turns are those of the way to the step, and the turns of the other steps are set aside; nothing else is changed, and the '
+  + 'framing passed in is not altered. The same from any step to any other: a step is gone to from wherever the coach stands. The way being walked stays the one the coach is on while they '
+  + 'step along it - back from the end of the way that was left, the arrows lead forward to that end again - and is another once they go to a step off it. The step in use, and a step the '
+  + 'framing does not have, change nothing',
+  EVERY.every(k => goneAs(A.go(FS, k), FX.go[k]) && A.go(FS, k).tip === FX.go[k].tip) && EVERY.every(from => EVERY.every(k => goneAs(A.go(A.go(FS, from), k), FX.go[k])))
+  && same(EVERY.map(k => A.go(A.go(FS, 3), k).tip), [3, 3, 3, 6, 6, 6]) && same(EVERY.map(k => A.go(A.go(A.go(FS, 3), 2), k).tip), [3, 3, 3, 6, 6, 6]) && same(EVERY.map(k => A.go(A.go(FS, 2), k).tip), [6, 6, 3, 6, 6, 6])
+  && A.go(FS, 6) === FS && [0, 7, -1, '2', 2.5, null, undefined, true].every(k => A.go(FS, k) === FS) && JSON.stringify(FS) === FS_AS_READ && !('at' in A.go(A.go(FS, 2), 6)) && !('at' in A.go(FS, 5)),
+  EVERY.map(k => [k, goneAs(A.go(FS, k), FX.go[k]), A.go(FS, k).tip]));
+const tabS = (f, o) => el(b.brief(f, Object.assign({ chain: 71, thread: 7, state: 'framing' }, o))).querySelector('.ar-brief');
+const cutS = '<div class="r"><span class="k">You expected</span> <span class="t">B above A</span> <span class="v ok">met</span></div>';      // what a report said against the brief
+const verS = r => r.querySelector('.ar-ver').elements.map(e => e.tag + (e.getAttribute('data-step') || e.getAttribute('data-ar') || '') + (e.hasAttribute('disabled') ? ' off' : '') + (e.tag === 'button' ? '' : '=' + e.textContent)).join('|');
+const tabAt = k => { const r = tabS(A.go(FS, k), {}); return [verS(r), r.getAttribute('data-shown'), r.querySelector('[data-ar="start"]').textContent, r.querySelectorAll('.ar-line.changed').map(x => x.getAttribute('data-path')).join(), h3s(r)].join(' / '); };
+const mapBtn = tabS(FS, {}).querySelector('.ar-ver button.ar-map[data-ar="map"]');
+check('the Brief tab of a conversation that branched (0316): beside "Step" the arrows count the way through the step on screen - "5 of 5" at its end, where the arrow forward is off - and after '
+  + 'them stands the button to the map, under its name. With another step in use the tab is the brief as it stood there: its place on its way, the parts it held, the line it changed marked, '
+  + 'and Start analysis names the step unless it is the last of its way - the end of the way that was left is one, "3 of 3", with its figure. While the Architect replies neither arrow nor '
+  + 'the map\'s button can be pressed. The tab of a run shows the step it is asked for, to be read; what its report said against the brief stands under every step whose brief is the one the run '
+  + 'was under - the step it started from, and one before it that the last step did not change - and under no other',
+  tabAt(6) === 'span=Step|button-1|b=5 of 5|button1 off|buttonmap / 6 / Start analysis /  / What it is for|What you think|Period'
+  && tabAt(5) === 'span=Step|button-1|b=4 of 5|button1|buttonmap / 5 / Start analysis from step 4 / thinks / What it is for|What you think|Period'
+  && tabAt(2) === 'span=Step|button-1|b=2 of 5|button1|buttonmap / 2 / Start analysis from step 2 / decision / What it is for'
+  && tabAt(3) === 'span=Step|button-1|b=3 of 3|button1 off|buttonmap / 3 / Start analysis /  / What it is for|What it will look like'
+  && tabAt(1) === 'span=Step|button-1 off|b=1 of 5|button1|buttonmap / 1 / Start analysis from step 1 /  / '
+  && mapBtn.getAttribute('title') === 'Conversation map' && mapBtn.getAttribute('aria-label') === 'Conversation map' && mapBtn.getAttribute('type') === 'button' && mapBtn.querySelector('svg')
+  && verS(tabS(FS, { held: true })) === 'span=Step|button-1 off|b=5 of 5|button1 off|buttonmap off' && verS(tabS(A.go(FS, 2), { held: true })) === 'span=Step|button-1 off|b=2 of 5|button1 off|buttonmap off'
+  && verS(tabS(FS, { state: 'run', shown: 3 })) === 'span=Step|button-1|b=3 of 3|button1 off|buttonmap' && !tabS(FS, { state: 'run', shown: 3 }).querySelector('[data-ar="start"]')
+  && tabS(FS, { state: 'run', shown: 3 }).getAttribute('data-shown') === '3' && tabS(FS, { state: 'run', shown: 9 }).getAttribute('data-shown') === '6'
+  && same(EVERY.map(k => !!tabS(FS, { state: 'run', against: cutS, shown: k }).querySelector('.ar-against')), [false, false, false, false, true, true])
+  && same(EVERY.map(k => S.used(FS, k)), [false, false, false, false, true, true]) && same([1, 2, 3].map(k => S.used(Object.assign({ at: 2 }, OLD3), k)), [false, true, false]) && !S.used(FS, 9),
+  EVERY.map(tabAt));
+const paneS = k => { const p = el(b.pane({ chain_id: 71, thread_id: 7, queryText: 'q', framing: A.go(FS, k) }));
+  return [p.querySelector('.sp-strip').textContent, p.querySelectorAll('.ar-msg').map(m => m.className.split(' ')[1] + ':' + m.querySelector('.who').textContent.replace('⌘', '') + ':' + m.textContent.split('⌘').pop().replace(/^You/, '')).join('|'),
+          p.querySelectorAll('.ar-choice').length].join(' / '); };
+// the conversation of the way to step k, as the engine holds it: the question as it was first asked, then each turn under who said it - a reply's choices after its words
+const saidS = k => ['you:You:Is B above A?'].concat(FX.go[k].turns.map(t => (t.who === 'person' ? 'you:You:' : 'arch:Architect:') + t.text)).join('|');
+const foldS = k => el(b.fold({ chain_id: 71, queryText: 'q', framing: A.go(FS, k) }));
+check('the left pane of a conversation that branched (0316): the conversation of the way to the step in use, and nothing of the others - at the end of the way walked, no word of the figure by '
+  + 'week; at the end of the way that was left, that exchange and nothing of what came after the coach went back; at the first step the question and the Architect\'s first message, whose '
+  + 'choices can be clicked again. No row says where the coach went. The strip counts what the brief has cost over every step, those set aside too: a way that was left was paid for. The '
+  + 'fold above a run names the step it started from, as the arrows count it, and holds the way to it',
+  [2, 3, 4, 5, 6].every(k => paneS(k) === 'Architect$0.05 / ' + saidS(k) + ' / 0') && paneS(1) === 'Architect$0.05 / ' + saidS(1) + 'Keep one armKeep both / 2'
+  && /Only the first half/.test(paneS(6)) && !/by week/.test(paneS(6)) && /Show it by week/.test(paneS(3)) && !/first half/.test(paneS(3)) && paneS(5) === paneS(4) && !/in use|step/.test(el(b.pane({ chain_id: 71, queryText: 'q', framing: A.go(FS, 2) })).textContent)
+  && same([6, 5, 3, 2, 1].map(k => foldS(k).querySelector('.kind').textContent), ['brief · step 5', 'brief · step 4', 'brief · step 3', 'brief · step 2', 'brief · step 1'])
+  && foldS(3).querySelectorAll('.sp-detail .ar-msg').length === 6 && foldS(2).querySelectorAll('.sp-detail .ar-msg').length === 4, [paneS(6), paneS(3), paneS(1)]);
 const dlg = el(b.savedDialog({ id: '7/8', when: '2026-03-02T10:00:00Z', question: 'Was B above A in <spring>?', title: 'B led', report: '# B led\n\nB led A by <3> units.', marks: ['picked', 'routine'],
                               data: { name: 'spring.csv', period: '2026-03-01 to 2026-05-31', person: 'First <Person>' }, cells: [{ n: 1, code: 'gap = b - a  # <b>' }] }));
 const dlgB = el(b.savedDialog({ question: 'q', report: 'r', brief: 'Decision: keep <one>\nFixed before the run:\n- measure: height', cells: [{ n: 2, code: 'x = 1' }] }));
@@ -437,8 +524,8 @@ check('the left pane of a brief not yet run: the strip says Architect and what i
   && paneOf({ chain_id: 1, queryText: 'q', framing: F1 }).querySelector('.sp-stream').textContent === 'YouIs B above A?'
   && paneOf({ chain_id: 1, queryText: 'q', framing: {} }).querySelector('.sp-stream').textContent === 'Youq', paneOf(TALK).innerHTML);
 const folded = el(b.fold(TALK));
-check('once the analysis starts the framing is one folded row above it - Architect, the version, the question - with the conversation inside, to be read: no choices, the prompt buttons kept',
-  folded.querySelector('details.sp-turn.ar-fold summary').textContent === 'Architectbrief v1Is B above A?' && folded.querySelectorAll('.sp-detail .ar-msg').length === 4
+check('once the analysis starts the framing is one folded row above it - Architect, the step, the question - with the conversation inside, to be read: no choices, the prompt buttons kept',
+  folded.querySelector('details.sp-turn.ar-fold summary').textContent === 'Architectbrief · step 1Is B above A?' && folded.querySelectorAll('.sp-detail .ar-msg').length === 4
   && folded.querySelectorAll('.sp-detail .sp-prompt').length === 2
   && el(b.fold({ chain_id: 71, queryText: 'q', framing: { versions: F1.versions, turns: [ASK] } })).querySelectorAll('.ar-choice').length === 0, folded.innerHTML);
 const NASTY = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is "B" <b>above</b> A & C?', decision: '<script>alert(1)</script>', thinks: 'x &lt; y &amp; z' } }] };
@@ -454,8 +541,8 @@ check('the left pane of a brief not yet run: the strip says Architect, idle; the
   && pane.querySelector('.sp-stream .ar-msg.you .who').textContent === 'You' && pane.querySelector('.sp-stream .ar-msg.you').textContent === 'YouIs B above A?'
   && el(b.pane({ chain_id: 71, queryText: 'A later wording', framing: { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B <above> A?' } }, { n: 2, by: 'architect', changed: ['question'], brief: { question: 'A later wording' } }] } }))
        .querySelector('.sp-stream .ar-msg.you').textContent === 'YouIs B <above> A?', pane.innerHTML);
-check('once the analysis starts the framing is one folded row above the run: Architect, the version, the question; the coach\'s card inside',
-  fold.querySelector('details.sp-turn.ar-fold') && !fold.querySelector('details').hasAttribute('open') && fold.querySelector('summary .n').textContent === 'Architect' && fold.querySelector('summary .kind').textContent === 'brief v3'
+check('once the analysis starts the framing is one folded row above the run: Architect, the step, the question; the coach\'s card inside',
+  fold.querySelector('details.sp-turn.ar-fold') && !fold.querySelector('details').hasAttribute('open') && fold.querySelector('summary .n').textContent === 'Architect' && fold.querySelector('summary .kind').textContent === 'brief · step 3'
   && fold.querySelector('summary .peek').textContent === 'Is B <above> A?' && fold.querySelector('.sp-detail .ar-msg.you').textContent === 'YouIs B above A?', fold.innerHTML);
 check('the line being typed: a field holding the text, bounded as a line of the brief is - as the question is, for the question - then Keep and Cancel',
   ed.querySelector('.ar-edit textarea.ar-input').textContent === 'a "line" & more' && ed.querySelector('textarea').getAttribute('maxlength') === '600'
@@ -470,16 +557,28 @@ const entryW = f => ({ chain_id: 71, queryText: 'Plot it', framing: f });
 const talkW = el(b.talk(entryW(FW), { live: true })), rowW = talkW.querySelectorAll('.sp-row')[0];
 const rowsIn = (versions, turns) => el(b.talk(entryW({ versions, turns }))).querySelectorAll('.sp-row').length;
 check('a reply that worded the question (0308): its message shows its words and its choices and nothing of the wording - the question\'s box has it - and under the message a row says the question was '
-  + 'updated, and in which version. No row where a reply\'s wording was not written: a message of 0307 whose wording waited, a version the coach made, a version that changed another part, a question '
+  + 'updated, and at which step. No row where a reply\'s wording was not written: a message of 0307 whose wording waited, a version the coach made, a version that changed another part, a question '
   + 'that reads otherwise, a reply with none. Nothing in the conversation is taken with a button',
   talkW.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool'
   && talkW.querySelector('.ar-msg.arch').elements.map(e => e.className).join() === 'who,ar-choices' && !talkW.querySelector('.ar-wording') && !talkW.querySelector('[data-ar="use"]')
   && !/against z/.test(talkW.querySelector('.ar-msg.arch').textContent)
-  && rowW.className === 'sp-row tool read' && rowW.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=QUESTION|out=updated|t=version 2'
+  && rowW.className === 'sp-row tool read' && rowW.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=QUESTION|out=updated|t=step 2'
   && rowsIn(FW.versions.slice(0, 1), [Object.assign({}, turnW, { v: 1 })]) === 0
   && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { by: 'person' })], [turnW]) === 0 && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { changed: ['decision'] })], [turnW]) === 0
   && rowsIn([FW.versions[0], Object.assign({}, FW.versions[1], { brief: { question: 'My own words' } })], [turnW]) === 0 && rowsIn(FW.versions, [{ who: 'architect', text: 'No wording.', v: 2 }]) === 0
-  && rowsIn(FW.versions, [turnW]) === 1 && el(b.asked({ v: '<3>' })).querySelector('.t').textContent === 'version <3>' && typeof A.pending === 'undefined' && typeof b.wording === 'undefined', talkW.innerHTML);
+  && rowsIn(FW.versions, [turnW]) === 1 && el(b.asked('<3>')).querySelector('.t').textContent === 'step <3>' && typeof A.pending === 'undefined' && typeof b.wording === 'undefined', talkW.innerHTML);
+// a reply that worded the question, in a conversation that keeps its steps: the row names the step's place on its way, which is not the version's number
+const WS = { versions: [FW.versions[0], FW.versions[1]], turns: [{ who: 'architect', text: 'What is it for?', v: 1 }, { who: 'person', text: 'To choose.' }, { who: 'architect', text: 'And over which period?', v: 1 },
+                                                              { who: 'person', text: 'x against z' }, turnW],
+             steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 1 }, { k: 2, from: 1, v: 1, made: [], turns: 2 }, { k: 3, from: 2, v: 2, made: [2], turns: 2 }], step: 3, tip: 3 };
+// ... and one whose way passes a step that was left: the question was read, then the coach went back to the first step and spoke from it
+const WL = { versions: [FW.versions[0], FW.versions[1]], turns: [{ who: 'architect', text: 'What is it for?', v: 1 }, { who: 'person', text: 'x against z' }, turnW],
+             steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 1 }, { k: 2, from: 1, v: 1, made: [], turns: 1 }, { k: 3, from: 1, v: 2, made: [2], turns: 2 }], step: 3, tip: 3,
+             aside: { 2: { turns: [{ who: 'reader', missing: [], v: 1 }] } } };
+check('the row under a reply that worded the question, in a conversation that keeps its steps (0316): it names the step\'s place on its way - the third step, though the version it made is the '
+  + 'second; and the second where the way passes a step that was left - a step off the way is not counted',
+  el(b.talk(entryW(WS))).querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedstep 3' && turnW.v === 2
+  && el(b.talk(entryW(WL))).querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedstep 2', [b.talk(entryW(WS)), b.talk(entryW(WL))]);
 const DRAFT_OK = { who: 'draft', drawn: [{ title: 'A', basis: 'computed' }, { title: 'B', basis: 'made up' }], v: 2, secs: 6.4, cost: 0.002, call: 3 };
 const DRAFT_PART = { who: 'draft', drawn: [{ title: 'A', basis: 'made up' }], missing: ['B'], failed: 'the cell failed: <ValueError>', v: 3, secs: 0.2, cost: 0.004, call: 5 };
 const DRAFT_NONE = { who: 'draft', drawn: [], missing: ['A', 'B'], failed: 'it could not be drawn: the sandbox is away', v: 3, secs: 21, cost: 0 };
@@ -492,7 +591,7 @@ check('the draft of the figures in the conversation (0310): a row under the repl
   + 'of them in grey after it) - in the place of the Architect\'s "reading"; a reading of the saved analyses is said first. Nothing in a row is markup; a reply of 0309 that says how many it '
   + 'sketched has no row',
   talkD.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,sp-row.tool' && talkD.querySelectorAll('.ar-choice').length === 2
-  && talkD.querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedversion 2|✓FIGURES2 drawn6 s⌘'
+  && talkD.querySelectorAll('.sp-row').map(r => r.textContent).join('|') === '✓QUESTIONupdatedstep 2|✓FIGURES2 drawn6 s⌘'
   && rowsD[0].className === 'sp-row tool read' && !rowsD[0].hasAttribute('title') && rowsD[0].elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=FIGURES|out=2 drawn|t=6 s|agent-instructions-btn sp-prompt=⌘'
   && ['data-agent', 'data-chain', 'data-call', 'title'].map(a => rowsD[0].querySelector('.sp-prompt').getAttribute(a)).join('|') === 'Draft|71|3|the prompt the draft was written from (run log)'
   && rowsD[1].className === 'sp-row tool read skipped' && rowsD[1].getAttribute('title') === 'the cell failed: <ValueError>' && rowsD[1].textContent === '–FIGURES1 drawn · 1 not1 s⌘'
@@ -527,12 +626,12 @@ check('the question\'s check in the conversation (0313): a row where the questio
   [qClean.outerHTML, qNot.outerHTML, talkQ.innerHTML]);
 const wentRow = el(b.went({ who: 'version', v: 2 })).querySelector('.sp-row');
 const talkV = el(b.talk(entryW({ versions: FW.versions, turns: FW.turns.concat([{ who: 'version', v: 1 }, { who: 'person', text: 'From the first one' }, { who: 'architect', text: 'As you say.', v: 1 }]) })));
-check('where the coach went to another version before a message (0308), a row says which version is in use from there - before the message it came with; the fold above a run names the version in '
-  + 'use, which is not always the last',
-  wentRow.className === 'sp-row tool read' && wentRow.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=BRIEF|out=version 2 in use'
+check('a conversation kept before steps (0316): where the coach went to another version before a message (0308), a row says which step is in use from there - before the message it came with; the '
+  + 'fold above a run names the step in use, which is not always the last',
+  wentRow.className === 'sp-row tool read' && wentRow.elements.map(e => e.className + '=' + e.textContent).join('|') === '=✓|in=BRIEF|out=step 2 in use'
   && talkV.elements.map(e => e.className.split(' ').slice(0, 2).join('.')).join() === 'ar-msg.you,ar-msg.you,ar-msg.arch,sp-row.tool,sp-row.tool,ar-msg.you,ar-msg.arch'
-  && talkV.querySelectorAll('.sp-row')[1].textContent === '✓BRIEFversion 1 in use'
-  && el(b.fold(entryW(Object.assign({ at: 1 }, FW)))).querySelector('summary .kind').textContent === 'brief v1' && el(b.fold(entryW(FW))).querySelector('summary .kind').textContent === 'brief v2', talkV.innerHTML);
+  && talkV.querySelectorAll('.sp-row')[1].textContent === '✓BRIEFstep 1 in use'
+  && el(b.fold(entryW(Object.assign({ at: 1 }, FW)))).querySelector('summary .kind').textContent === 'brief · step 1' && el(b.fold(entryW(FW))).querySelector('summary .kind').textContent === 'brief · step 2', talkV.innerHTML);
 const rowO = el(b.opened({ who: 'opened', what: 'cell', n: 5, label: 'cell <5>', chars: 12345 })).querySelector('.sp-row');
 const rowN = el(b.opened({ who: 'opened', missing: 'there is no cell 99: the cells are 1 to 5' })).querySelector('.sp-row');
 const talkO = el(b.talk(entryW({ versions: FW.versions, turns: [{ who: 'person', text: 'How was it drawn?' }, { who: 'architect', text: 'I am opening the cell.', v: 1 },
@@ -605,13 +704,13 @@ check('an answer kept from before (0312) holds the card itself: it leaves the an
   kept.html === '<h1>T</h1><p>Lead.</p><h2>Did not fit</h2><ul><li>Nothing.</li></ul>' && kept.against === cut.against && same(rowsOf(el(b.turnedOut(kept.against))), ROWS)
   && same(bare, { html: '<p>a</p><p>b</p>', against: '' }) && same(A.cutAnswer(kept.html), { html: kept.html, against: '' }), [kept, bare]);
 
-// ---- on the Brief tab: the rows ride in the brief's own markup, the card stands at the foot of the version the run was under
+// ---- on the Brief tab: the rows ride in the brief's own markup, the card stands at the foot of a step whose brief is the one the run was under
 const FT = { versions: [{ n: 1, by: 'person', changed: [], brief: { question: 'Is B above A?' } },
                         { n: 2, by: 'architect', why: 'answer', changed: ['expects'], brief: { question: 'Is B above A?', expects: 'B is 2 above A.' } }] };
 const tabT = o => el(b.brief(FT, Object.assign({ chain: 71, thread: 7, state: 'run' }, o))).querySelector('.ar-brief');
 const withT = tabT({ against: cut.against }), olderT = tabT({ against: cut.against, shown: 1 }), noneT = tabT({});
 check('the Brief tab of a run whose report said how it stands against the brief (0312): the rows ride in the brief\'s own markup, as its versions do, and the card is the last thing on the tab - under the '
-  + 'version the run was under. On an earlier version the rows ride still and no card is shown: it would be read against lines the run was not under. A run that said nothing has neither',
+  + 'brief the run was under. On a step with another brief the rows ride still and no card is shown: it would be read against lines the run was not under. A run that said nothing has neither',
   withT.getAttribute('data-against') === cut.against && withT.elements[withT.elements.length - 1].className === 'ar-against' && withT.querySelectorAll('.ar-against').length === 1
   && same(rowsOf(withT), ROWS) && withT.querySelector('.ar-against .label').textContent === 'How it turned out'
   && olderT.getAttribute('data-against') === cut.against && !olderT.querySelector('.ar-against') && olderT.querySelector('.ar-ver b').textContent === '1 of 2'
@@ -652,8 +751,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && entry.status === 'framing' && entry.chain_id === 71 && entry.thread_id === 7 && entry.parentChainId === 70 && entry.queryText === 'Is B above A?' && same(entry.framing, F1)
     && currentData.chain_id === 71 && $('queryInput').value === '', [calls[0], entry]);
   doc.dispatch('click', $('contentOutput').querySelector('[data-ar="more"]'));
-  check('the Architect takes its first turn at once: asked with the brief\'s thread and chain and no words of the coach\'s; while it replies the pane says it is reading, the composer is held and says why, and the brief takes no change',
-    same(calls[1], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]) && same(pane(), ['you|YouIs B above A?', 'arch wait|Architectreading…'])
+  check('the Architect takes its first turn at once: asked with the brief\'s thread and chain, no words of the coach\'s, and the step in use - every request names it (0316); while it replies the pane says it is reading, the composer is held and says why, and the brief takes no change',
+    same(calls[1], ['/architect/say', { thread_id: 7, chain_id: 71, text: null, step: 1 }]) && same(pane(), ['you|YouIs B above A?', 'arch wait|Architectreading…'])
     && same(locks[locks.length - 1], ['lock', 'The Architect is replying']) && $('queryInput').disabled === true && doc.body.classList.contains('ar-framing') && A.framingInView() === true
     && !$('contentOutput').querySelector('.editing') && !$('contentOutput').querySelector('.ar-kinds'), [calls[1], pane(), locks.slice(-2)]);
   const F1T = { versions: F1.versions, turns: [ASK], calls: 1 };
@@ -676,7 +775,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   const brief = () => $('contentOutput').querySelector('.ar-brief');
   // a part the brief does not hold is added through the one control: its list opened, the part chosen - its line is then open for typing
   const addPart = path => { doc.dispatch('click', brief().querySelector('[data-ar="more"]')); doc.dispatch('click', brief().querySelector('.ar-kinds [data-ar="add"][data-path="' + path + '"]')); return lineOf(brief(), path); };
-  const serve = () => { answers['/architect/brief'] = body => { const f = JSON.parse(JSON.stringify(entry.framing)); f.versions.push({ n: f.versions.length + 1, by: 'person', changed: body.changed, brief: body.brief }); return [200, { framing: f }]; }; };
+  const serve = () => { answers['/architect/brief'] = body => { const f = JSON.parse(JSON.stringify(entry.framing)); f.versions.push({ n: f.versions.length + 1, by: 'person', changed: body.changed, brief: body.brief }); delete f.at; return [200, { framing: f }]; }; };      // a version made is the one in use
   serve();
   doc.dispatch('click', brief().querySelector('[data-ar="more"]'));
   const listed = kindsOf(brief()) + '|' + brief().getAttribute('data-adds');
@@ -692,7 +791,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   field.value = '  keep one   arm ';
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('[data-ar="keep"]')); await tick();
   check('Keep: the server is sent the brief as it would stand and the part changed; it answers with one more version',
-    same(calls[calls.length - 1], ['/architect/brief', { thread_id: 7, chain_id: 71, brief: { question: 'Is B above A?', decision: 'keep one arm' }, changed: ['decision'] }]) && entry.framing.versions.length === 2, calls[calls.length - 1]);
+    same(calls[calls.length - 1], ['/architect/brief', { thread_id: 7, chain_id: 71, brief: { question: 'Is B above A?', decision: 'keep one arm' }, changed: ['decision'], step: 1 }]) && entry.framing.versions.length === 2, calls[calls.length - 1]);
   check('the tab shows the new version, "2 of 2", the changed line marked and no longer being typed',
     brief().querySelector('.ar-ver b').textContent === '2 of 2' && !brief().querySelector('.why') && lineOf(brief(), 'decision').className === 'ar-line changed'
     && lineOf(brief(), 'decision').querySelector('.tx').textContent === 'keep one arm', brief().outerHTML);
@@ -776,20 +875,22 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   serve();
   doc.dispatch('keydown', lineOf(brief(), 'thinks').querySelector('.ar-input'), { key: 'Enter' }); await tick();
 
-  // the versions: the arrows show another one, and what is done next goes on from it
+  // the steps: the arrows show another one, and what is done next goes on from it
   const before0 = entry.framing.versions.length;
   n = calls.length;
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   const back = brief();
-  check('the arrow back shows the version before (0308): which it is of how many, its own lines with their pencils, and Start analysis naming it; nothing is sent',
+  check('the arrow back shows the step before (0316; the version, 0308): which it is of how many, its own lines with their pencils, and Start analysis naming it. It is the one in use on the page at '
+    + 'once - the framing names its version - and nothing is sent',
     back.querySelector('.ar-ver b').textContent === (before0 - 1) + ' of ' + before0 && back.getAttribute('data-shown') === String(before0 - 1) && !lineOf(back, 'thinks') && lineOf(back, 'decision').querySelector('.pen')
-    && back.querySelector('[data-ar="start"]').textContent === 'Start analysis with version ' + (before0 - 1) && calls.length === n);
+    && back.querySelector('[data-ar="start"]').textContent === 'Start analysis from step ' + (before0 - 1) && calls.length === n && entry.framing.at === before0 - 1);
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
   lineOf(brief(), 'decision').querySelector('.ar-input').value = 'keep the better arm';
   doc.dispatch('keydown', lineOf(brief(), 'decision').querySelector('.ar-input'), { key: 'Enter' }); await tick();
   const last = entry.framing.versions.length;
-  check('a line changed on an earlier version (0308): the server is sent that version\'s brief with the change - what the version after it held is not in it - and the version it answers with is the last, on screen',
-    same(calls[calls.length - 1][1].changed, ['decision']) && calls[calls.length - 1][1].brief.decision === 'keep the better arm' && !('thinks' in calls[calls.length - 1][1].brief)
+  check('a line changed on an earlier step (0316; 0308): the server is sent the brief that stood there with the change - what the step after it held is not in it - and the step, and the version it '
+    + 'answers with is the last, on screen',
+    same(calls[calls.length - 1][1].changed, ['decision']) && calls[calls.length - 1][1].step === before0 - 1 && calls[calls.length - 1][1].brief.decision === 'keep the better arm' && !('thinks' in calls[calls.length - 1][1].brief)
     && last === before0 + 1 && brief().querySelector('.ar-ver b').textContent === last + ' of ' + last && brief().querySelector('[data-ar="start"]').textContent === 'Start analysis', calls[calls.length - 1]);
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   const withThinks = !!lineOf(brief(), 'thinks');
@@ -798,7 +899,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   doc.dispatch('keydown', lineOf(brief(), 'decision').querySelector('.ar-input'), { key: 'Escape' });
   const olderStill = brief().querySelector('.ar-ver b').textContent + '|' + !brief().querySelector('.editing');
   doc.dispatch('click', brief().querySelector('[data-step="1"]'));
-  check('the arrows step both ways: back to the version that held the other line - there the pencil opens a line with that version\'s text, and Escape leaves that version on screen - and forward to the last',
+  check('the arrows step both ways: back to the step that held the other line - there the pencil opens a line with the text that stood there, and Escape leaves that step on screen - and forward to the last',
     withThinks && olderText === 'keep one arm' && olderStill === (last - 1) + ' of ' + last + '|true' && brief().querySelector('.ar-ver b').textContent === last + ' of ' + last && !lineOf(brief(), 'thinks'),
     [olderText, olderStill]);
 
@@ -824,20 +925,20 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   queryRunning = false;
   addPart('expects').querySelector('.ar-input').value = 'B above A by 2';
   doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
-  check('Start analysis with a line still being typed: the line is kept first; then the question of the version on screen is sent to be read as the Analyst will read it (0313) - the thread, the chain, '
-    + 'the version; then the page\'s own send starts this chain, under that version, which the send is told',
+  check('Start analysis with a line still being typed: the line is kept first; then the question of the step on screen is sent to be read as the Analyst will read it (0313) - the thread, the chain, '
+    + 'the step; then the page\'s own send starts this chain, from that step, which the send is told',
     calls[calls.length - 2][0] === '/architect/brief' && calls[calls.length - 2][1].brief.expects === 'B above A by 2'
-    && same(calls[calls.length - 1], ['/architect/ready', { thread_id: 7, chain_id: 71, version: entry.framing.versions.length }])
-    && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed,version'
-    && submitted[0].version === entry.framing.versions.length && !('at' in entry.framing)
+    && same(calls[calls.length - 1], ['/architect/ready', { thread_id: 7, chain_id: 71, step: entry.framing.versions.length }])
+    && submitted.length === 1 && submitted[0].framed === entry && Object.keys(submitted[0]).join() === 'framed,step'
+    && submitted[0].step === entry.framing.versions.length && !('at' in entry.framing)
     && entry.framing.versions[entry.framing.versions.length - 1].brief.expects === 'B above A by 2', submitted);
   // what the send does next: the chain runs, the framing folds, the Brief tab stays
   entry.status = 'running';
   ['streamOutput', 'tabContainer', 'contentOutput'].forEach(id => { $(id).innerHTML = ''; });      // as the send clears the panes for the run
   A.started(entry);
   const stays = el(tabs[0][1]).querySelector('.ar-brief');
-  check('the analysis begins: the framing is one row above the run; the Brief tab is made again to be read, with its versions',
-    rows.length === 1 && el(rows[0]).querySelector('details.ar-fold .kind').textContent === 'brief v' + entry.framing.versions.length && tabs[0][0] === 'brief' && stays.getAttribute('data-state') === 'run'
+  check('the analysis begins: the framing is one row above the run, which names the step it started from; the Brief tab is made again to be read, with its framing',
+    rows.length === 1 && el(rows[0]).querySelector('details.ar-fold .kind').textContent === 'brief · step ' + entry.framing.versions.length && tabs[0][0] === 'brief' && stays.getAttribute('data-state') === 'run'
     && !stays.querySelector('.pen') && !stays.querySelector('[data-ar="start"]') && same(JSON.parse(stays.getAttribute('data-framing')), entry.framing), rows);
   updateNavigationButtons();
   check('the composer is free once the brief runs (its send is the run\'s Stop)', same(locks[locks.length - 1], ['unlock']));
@@ -848,36 +949,36 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && same(locks[locks.length - 1], ['unlock']) && $('queryInput').placeholder === 'Answer, or say what to change' && toasts[toasts.length - 1] === 'The analysis did not start: Network response was not ok');
   const quiet = toasts.length; A.notStarted(entry);
   check('refused for the balance, the page has its own dialog: nothing more is said', toasts.length === quiet);
-  // Start analysis with an earlier version on screen: the send is told which, and the chain is that version's from then on
+  // Start analysis with an earlier step on screen: the send is told which, and the chain is that step's from then on
   const lastNow = entry.framing.versions.length, textNow = entry.queryText;
   const asksOther = lastNow - entry.framing.versions.slice().reverse().findIndex(v => v.brief.question !== textNow);      // the last version that asks another question
   for (let k = lastNow; k > asksOther; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   doc.dispatch('click', brief().querySelector('[data-ar="start"]')); await tick();
   entry.status = 'running';
   A.started(entry);
-  const olderRun = { sent: submitted.length, version: submitted[submitted.length - 1].version, at: entry.framing.at, text: entry.queryText, was: entry.framing.versions[asksOther - 1].brief.question,
+  const olderRun = { sent: submitted.length, step: submitted[submitted.length - 1].step, at: entry.framing.at, text: entry.queryText, was: entry.framing.versions[asksOther - 1].brief.question,
                      tab: el(tabs[tabs.length - 1][1]).querySelector('.ar-ver b').textContent, fold: el(rows[rows.length - 1]).querySelector('.kind').textContent, calls: calls.length };
   A.notStarted(entry);
   const olderBack = brief().querySelector('.ar-ver b').textContent + '|' + brief().querySelector('[data-ar="start"]').textContent;
-  entry.framing = A.use(entry.framing, lastNow); entry.queryText = textNow; loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again, for what follows
-  check('Start analysis with an earlier version on screen (0308) - one that asks another question than the last: nothing is sent to the brief\'s own route - the send is told the version, the chain\'s '
-    + 'framing names it as the one in use and the chain\'s question is that version\'s; the run\'s Brief tab and the fold above it show that version; an analysis the server did not start leaves the '
-    + 'brief on it',
+  entry.framing = A.go(entry.framing, lastNow); entry.queryText = textNow; loadResponseContent(entry); updateNavigationButtons();      // the last step on screen again, for what follows
+  check('Start analysis with an earlier step on screen (0316; a version, 0308) - one that asks another question than the last: nothing is sent to the brief\'s own route - the send is told the step, the '
+    + 'chain\'s framing names its version as the one in use and the chain\'s question is the one that stood there; the run\'s Brief tab and the fold above it show that step; an analysis the server '
+    + 'did not start leaves the brief on it',
     asksOther < lastNow && olderRun.was !== textNow
-    && same(olderRun, { sent: 2, version: asksOther, at: asksOther, text: olderRun.was, was: olderRun.was, tab: asksOther + ' of ' + lastNow, fold: 'brief v' + asksOther, calls: olderRun.calls })
-    && olderBack === asksOther + ' of ' + lastNow + '|Start analysis with version ' + asksOther && !('at' in entry.framing), [asksOther, lastNow, olderRun, olderBack]);
+    && same(olderRun, { sent: 2, step: asksOther, at: asksOther, text: olderRun.was, was: olderRun.was, tab: asksOther + ' of ' + lastNow, fold: 'brief · step ' + asksOther, calls: olderRun.calls })
+    && olderBack === asksOther + ' of ' + lastNow + '|Start analysis from step ' + asksOther && !('at' in entry.framing), [asksOther, lastNow, olderRun, olderBack]);
 
   // the conversation: a choice clicked, an answer typed, a reply that does not come
   const latest = () => entry.framing.versions[entry.framing.versions.length - 1];
   const answered = (said, text, version, more) => { const f = JSON.parse(JSON.stringify(entry.framing));
-    if (version) f.versions.push(Object.assign({ n: f.versions.length + 1, by: 'architect', why: 'answer' }, version));
+    if (version) { f.versions.push(Object.assign({ n: f.versions.length + 1, by: 'architect', why: 'answer' }, version)); delete f.at; }
     f.turns = f.turns.concat([{ who: 'person', text: said }, Object.assign({ who: 'architect', text, v: f.versions.length, cost: 0.02, call: (f.calls || 0) + 1 }, more || {})]); f.calls = (f.calls || 0) + 1; return f; };
   held();
   doc.dispatch('click', $('streamOutput').querySelector('.ar-choice')); await tick();
   const sent = calls[calls.length - 1];
   doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen'));
   check('a choice clicked is the coach\'s answer: said to the Architect as it reads, shown at once as the coach\'s message; the choices are gone, the Architect is reading, the composer is held, the brief takes no change',
-    same(sent, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Keep one arm', version: entry.framing.versions.length }]) && same(pane().slice(-2), ['you|YouKeep one arm', 'arch wait|Architectreading…'])
+    same(sent, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Keep one arm', step: entry.framing.versions.length }]) && same(pane().slice(-2), ['you|YouKeep one arm', 'arch wait|Architectreading…'])
     && $('streamOutput').querySelectorAll('.ar-choice').length === 0 && same(locks[locks.length - 1], ['lock', 'The Architect is replying']) && !brief().querySelector('.editing'), [sent, pane()]);
   const was = entry.framing.versions.length;
   reply([200, stream({ framing: answered('Keep one arm', 'What do you expect to see?', { changed: ['decision'], brief: Object.assign({}, latest().brief, { decision: 'Keep one arm' }) }) })]); await tick();
@@ -893,9 +994,9 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: answered('Yes, like that', 'I have put that into the question.\n\nLook at how far apart the two end.', { changed: ['question'], brief: Object.assign({}, latest().brief, { question: 'Is B above A, on plot means?' }) },
                                          { wording: 'Is B above A, on plot means?' }) })]); await tick();
   check('a reply that words the question (0308): the Architect\'s version holds it, the question\'s box shows it, marked as changed, and the chain\'s own text follows; under the message a row says the '
-    + 'question was updated, and in which version - nothing is there to take; the conversation still opens on the question as it was first asked, and a message keeps its lines',
+    + 'question was updated, and at which step - nothing is there to take; the conversation still opens on the question as it was first asked, and a message keeps its lines',
     entry.queryText === 'Is B above A, on plot means?' && brief().querySelector('h1 .tx').textContent === 'Is B above A, on plot means?' && brief().querySelector('h1').className === 'ar-line ar-q changed'
-    && $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0] === '✓QUESTIONupdatedversion ' + entry.framing.versions.length
+    && $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0] === '✓QUESTIONupdatedstep ' + entry.framing.versions.length
     && !$('streamOutput').querySelector('.ar-wording') && !$('streamOutput').querySelector('[data-ar="use"]') && !brief().querySelector('.ar-wording') && pane()[0] === 'you|You' + asked1 && asked1 !== entry.queryText
     && pane()[pane().length - 1] === 'arch|Architect⌘I have put that into the question.\n\nLook at how far apart the two end.', [entry.queryText, pane()[0], pane()[pane().length - 1]]);
   // an answer typed, with a line of the brief still open: the line is kept first, then the answer is said
@@ -905,7 +1006,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   held(); n = calls.length;
   A.tell('  B above A by 3 '); await tick();
   check('an answer typed in the composer while a line of the brief is being typed: the line is kept first, as a version of the coach\'s; then the answer is said, the composer emptied',
-    calls.length === n + 2 && calls[n][0] === '/architect/brief' && calls[n][1].brief.fixed.period === 'this season' && same(calls[n + 1], ['/architect/say', { thread_id: 7, chain_id: 71, text: 'B above A by 3', version: entry.framing.versions.length }])
+    calls.length === n + 2 && calls[n][0] === '/architect/brief' && calls[n][1].brief.fixed.period === 'this season' && same(calls[n + 1], ['/architect/say', { thread_id: 7, chain_id: 71, text: 'B above A by 3', step: entry.framing.versions.length }])
     && $('queryInput').value === '' && latest().by === 'person' && h3s(brief()).indexOf('Period') >= 0 && pane()[pane().length - 2] === 'you|YouB above A by 3', calls.slice(n));
   const stood = JSON.stringify(entry.framing);
   reply([200, stream({ error: 'The Architect\'s reply could not be read (it holds no JSON object).' })]); await tick();
@@ -951,7 +1052,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: marking })]); await tick();
   const line0 = lineOf(brief(), 'rests_on.0');
   check('a reply that had the data looked up: the round is a row under its message, and the Architect is asked again at once with nothing said - the pane says it is reading, the composer stays held, nothing to click',
-    same(goesOn.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'B well above A', version: asking.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    same(goesOn.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'B well above A', step: asking.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null, step: asking.versions.length }]])
     && same(goesOn.pane, ['you|YouB well above A', 'arch|Architect⌘Checking this against the data.', 'arch wait|Architectreading…']) && goesOn.rows === 2 && goesOn.choices === 0      // the round's row, under the row of the question worded before
     && same(goesOn.lock, ['lock', 'The Architect is replying']), goesOn);
   check('the reply after the round: one more version, made after checking the data - the line with its mark and, in red, the fact beside it; the question whether to keep or change, with its choices; no further call, and the composer is the conversation\'s again',
@@ -969,7 +1070,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   doc.dispatch('click', lineOf(brief(), 'also_check.0').querySelector('.tick')); await tick();
   check('the box on what the Architect proposed: a click sends the brief with the line accepted, and the tab shows the new version - the box ticked, the line marked; another click takes the '
     + 'tick back - a line being typed elsewhere kept first, as its own version',
-    boxWas === 'tick|Architect|ar-line changed' && same(ticked.call, ['/architect/brief', { thread_id: 7, chain_id: 71, brief: Object.assign({}, marking.versions[marking.versions.length - 1].brief, { also_check: [Object.assign({}, ITS, { accepted: true })] }), changed: ['also_check.0'] }])
+    boxWas === 'tick|Architect|ar-line changed' && same(ticked.call, ['/architect/brief', { thread_id: 7, chain_id: 71, brief: Object.assign({}, marking.versions[marking.versions.length - 1].brief, { also_check: [Object.assign({}, ITS, { accepted: true })] }), changed: ['also_check.0'], step: marking.versions.length }])
     && ticked.box === 'tick on' && ticked.ver === (marking.versions.length + 1) + ' of ' + (marking.versions.length + 1) && ticked.line === 'ar-line changed' && ticked.by === 'person'
     && calls.length === n + 3 && same(calls[n + 1][1].changed, ['expects']) && calls[n + 1][1].brief.expects === 'B above A by 4' && calls[n + 1][1].brief.also_check[0].accepted === true
     && same(calls[n + 2][1].changed, ['also_check.0']) && calls[n + 2][1].brief.also_check[0].accepted === false && calls[n + 2][1].brief.expects === 'B above A by 4'
@@ -1032,7 +1133,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     + 'taken whole - the held composer says so, and Skip tells the server once; the reading done, its row stands under the Architect\'s message with the analyses found under it, the Brief tab lists them in '
     + 'full under the brief - which has not changed: no version, nothing built on - and the Architect is asked again with nothing said',
     !early && opened === 'SEARCHING MEMORY0 of 12 readSkip' && waitGone && holds === 'Your saved analyses are being read' && mid === '5 of 12 read' && same(skipped, { call: ['/architect/skip', {}], off: true })
-    && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.', version: shownGo }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    && same(went.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'Go on.', step: shownGo }], ['/architect/skip', {}], ['/architect/say', { thread_id: 7, chain_id: 71, text: null, step: shownGo }]])
     && same(went.pane, ['arch|Architect⌘I am looking in your saved analyses.', 'arch wait|Architectreading…']) && went.row === '✓MEMORY2 analyses found · read 9 of 1241 s' && !went.pending
     && went.left === '2 Mar 2026 · Was B above A in <spring>?|2 Apr 2026 · Synthesis: Two arms' && went.right === 2 && went.ver === shownGo + ' of ' + shownGo && !went.built && same(entry.framing, told)
     && pane()[pane().length - 1] === 'arch|Architect⌘You asked this in spring. Build on it, or go another way?Build on the spring oneGo another way', [opened, mid, skipped, went]);
@@ -1068,40 +1169,41 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('\'build on it\' (0308): the coach\'s choice is said to the Architect like any answer; its reply brings the analysis into the brief - one line under Builds on, however many passages, marked as '
     + 'changed, with View - and the list under the brief marks the analysis as built on. The cross on that line sends the brief without its passages - a version of the coach\'s - and the part is gone, '
     + 'the mark with it; what was found stays listed',
-    same(builtNow.said, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Build on the spring one', version: told.versions.length }])
+    same(builtNow.said, ['/architect/say', { thread_id: 7, chain_id: 71, text: 'Build on the spring one', step: told.versions.length }])
     && same(builtNow, { said: builtNow.said, heads: 'Builds on|Found in your saved analyses', line: 'ar-line ar-built changed|2 Mar 2026 · Was B above A in <spring>?', lines: 1, tags: 'built on|', view: 'View' })
     && calls.length === n + 1 && same(calls[n][1].changed, ['saved']) && !('saved' in calls[n][1].brief) && latest().by === 'person' && !brief().querySelector('.ar-built') && h3s(brief()).indexOf('Builds on') < 0
     && brief().querySelectorAll('.ar-memory .it').length === 2 && !brief().querySelector('.ar-memory .tag') && !brief().querySelector('[data-ar="look"]') && !brief().querySelector('.ar-memory .tick') && !brief().querySelector('.ar-built .tick'), [builtNow, calls[n]]);
-  // the coach goes back to an earlier version and answers from it: the version rides with the message, and a row says which is in use
+  // the coach goes back to an earlier step and answers from it: the step rides with the message
   const lastB = entry.framing.versions.length;
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   held(); n = calls.length;
   A.tell('From this one, then.'); await tick();
   const fromOlder = { call: calls[n], at: entry.framing.at, shown: brief().querySelector('.ar-ver b').textContent };
   const older = JSON.parse(JSON.stringify(entry.framing));
-  older.turns = older.turns.concat([{ who: 'version', v: lastB - 1 }, { who: 'person', text: 'From this one, then.' }, { who: 'architect', text: 'As you say.', v: lastB - 1, cost: 0.01, call: 21 }]);
+  older.turns = older.turns.concat([{ who: 'person', text: 'From this one, then.' }, { who: 'architect', text: 'As you say.', v: lastB - 1, cost: 0.01, call: 21 }]);
   reply([200, stream({ framing: older })]); await tick();
-  check('an answer sent from an earlier version (0308): the message carries the version on screen; that version is the one in use at once, and the tab stays on it; after the reply a row in '
-    + 'the conversation says which version is in use, before the message that came with it; the tab stays on that version, and Start analysis names it',
-    same(fromOlder, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: 'From this one, then.', version: lastB - 1 }], at: lastB - 1, shown: (lastB - 1) + ' of ' + lastB })
-    && $('streamOutput').querySelectorAll('.sp-row').map(r => r.textContent).slice(-1)[0] === '✓BRIEFversion ' + (lastB - 1) + ' in use' && pane().slice(-2)[0] === 'you|YouFrom this one, then.'
-    && brief().querySelector('.ar-ver b').textContent === (lastB - 1) + ' of ' + lastB && brief().querySelector('[data-ar="start"]').textContent === 'Start analysis with version ' + (lastB - 1)
+  check('an answer sent from an earlier step (0316; a version, 0308): the message names the step on screen, which is the one in use; no row of the conversation says where the coach went - what is '
+    + 'on screen is in use; after the reply the tab stays on that step, and Start analysis names it',
+    same(fromOlder, { call: ['/architect/say', { thread_id: 7, chain_id: 71, text: 'From this one, then.', step: lastB - 1 }], at: lastB - 1, shown: (lastB - 1) + ' of ' + lastB })
+    && !/in use/.test($('streamOutput').textContent) && pane().slice(-2)[0] === 'you|YouFrom this one, then.'
+    && brief().querySelector('.ar-ver b').textContent === (lastB - 1) + ' of ' + lastB && brief().querySelector('[data-ar="start"]').textContent === 'Start analysis from step ' + (lastB - 1)
     && h3s(brief()).indexOf('Builds on') >= 0, [fromOlder, brief().querySelector('.ar-ver b').textContent]);
-  entry.framing = A.use(entry.framing, lastB); loadResponseContent(entry); updateNavigationButtons();      // the last version again, for what follows
+  entry.framing = A.go(entry.framing, lastB); loadResponseContent(entry); updateNavigationButtons();      // the last step again, for what follows
   const textB = entry.queryText, otherB = lastB - entry.framing.versions.slice().reverse().findIndex(v => v.brief.question !== textB);      // the last version that asks another question
   for (let k = lastB; k > otherB; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   held();
   A.tell('And from here.'); await tick();
+  const offMid = brief().querySelectorAll('.ar-ver button').map(x => x.hasAttribute('disabled')).join();
   doc.dispatch('click', brief().querySelector('[data-step="1"]'));
   const steppedMid = brief().querySelector('.ar-ver b').textContent;
   const fromOther = JSON.parse(JSON.stringify(entry.framing));
-  fromOther.turns = fromOther.turns.concat([{ who: 'version', v: otherB }, { who: 'person', text: 'And from here.' }, { who: 'architect', text: 'From there, then.', v: otherB, cost: 0.01, call: 22 }]);
+  fromOther.turns = fromOther.turns.concat([{ who: 'person', text: 'And from here.' }, { who: 'architect', text: 'From there, then.', v: otherB, cost: 0.01, call: 22 }]);
   reply([200, stream({ framing: fromOther })]); await tick();
-  check('an answer from a version that asks another question (0308): once the reply is in, the chain\'s own text is the question of the version in use; and while the Architect replies the arrows '
-    + 'still step',
-    otherB < lastB && steppedMid === (otherB + 1) + ' of ' + lastB && entry.framing.at === otherB && entry.queryText === entry.framing.versions[otherB - 1].brief.question && entry.queryText !== textB
+  check('an answer from a step that asks another question (0316; 0308): the chain\'s own text is the question that stood there. While the Architect replies the arrows are off - what is on its way '
+    + 'goes on from the step it left - and a click on one changes nothing; with the reply they are back',
+    otherB < lastB && offMid === 'true,true' && steppedMid === otherB + ' of ' + lastB && !brief().querySelector('[data-step="1"]').hasAttribute('disabled') && entry.framing.at === otherB && entry.queryText === entry.framing.versions[otherB - 1].brief.question && entry.queryText !== textB
     && brief().querySelector('.ar-ver b').textContent === otherB + ' of ' + lastB, [otherB, lastB, steppedMid, entry.queryText]);
-  entry.framing = A.use(entry.framing, lastB); entry.queryText = textB; loadResponseContent(entry); updateNavigationButtons();
+  entry.framing = A.go(entry.framing, lastB); entry.queryText = textB; loadResponseContent(entry); updateNavigationButtons();
   // a part of an earlier analysis opened (0307): a row of the conversation, and the Architect goes on at once
   held(); n = calls.length;
   A.tell('How was the figure drawn?'); await tick();
@@ -1115,7 +1217,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   reply([200, stream({ framing: spoke })]); await tick();
   check('a reply that opened a part of an earlier analysis: the part is a row under its message - READ, what it is, how long - and the Architect is asked again at once with nothing said; its next message '
     + 'stands under the row, and no further call is made',
-    same(openedNow.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'How was the figure drawn?', version: opening.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null }]])
+    same(openedNow.calls, [['/architect/say', { thread_id: 7, chain_id: 71, text: 'How was the figure drawn?', step: opening.versions.length }], ['/architect/say', { thread_id: 7, chain_id: 71, text: null, step: opening.versions.length }]])
     && openedNow.row === '✓READcell 51,234 characters' && openedNow.wait === 'arch wait|Architectreading…' && same(openedNow.lock, ['lock', 'The Architect is replying'])
     && calls.length === n + 2 && pane()[pane().length - 1] === 'arch|Architect⌘It draws one line a month.' && same(locks[locks.length - 1], ['unlock']), openedNow);
   // a part of what is fixed before a run that the brief does not hold: added like any part, under its own name
@@ -1288,7 +1390,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const rowsNow = () => $('streamOutput').querySelectorAll('.sp-row').map(r => r.className + ':' + r.textContent), lastRow = () => rowsNow().slice(-1)[0];
     const startBtn = () => brief().querySelector('[data-ar="start"]'), sentNow = () => submitted.length, asksNow = () => brief().querySelector('h1 .tx').textContent;
     const posted = from => calls.slice(from).map(c => [c[0], c[0] === '/architect/ready' ? c[1] : c[0] === '/architect/brief' ? c[1].changed : c[1].text]);
-    // the framing as the server leaves it after a read of the version in use: the reader's turn, the version listed as read
+    // the framing as the server leaves it after a read of the question in use: the reader's turn, the version listed as read
     const readAs = (missing, more) => { const f = JSON.parse(JSON.stringify(entry.framing)), at = f.at || f.versions.length;
       f.turns = f.turns.concat([{ who: 'reader', missing, v: at, cost: 0.002, call: f.turns.filter(t => t.who === 'reader').length + 1, secs: 2.4 }]);
       f.read = (f.read || []).concat([at]); return Object.assign(f, more || {}); };
@@ -1309,19 +1411,19 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const still = lastRow();
     live.send(JSON.stringify({ architect: { framing: readAs([]), clean: true } }) + '\n'); live.end(); await tick();
     const button = $('streamOutput').querySelectorAll('.sp-row').slice(-1)[0].querySelector('.sp-prompt');
-    const clean = { sent: sentNow() - sent0, how: Object.keys(submitted[submitted.length - 1]).join(), framed: submitted[submitted.length - 1].framed === entry, version: submitted[submitted.length - 1].version, row: lastRow(),
+    const clean = { sent: sentNow() - sent0, how: Object.keys(submitted[submitted.length - 1]).join(), framed: submitted[submitted.length - 1].framed === entry, step: submitted[submitted.length - 1].step, row: lastRow(),
                     read: entry.framing.read, prompt: ['data-agent', 'data-chain', 'data-call', 'title'].map(a => button.getAttribute(a)), hold: $('queryInput').placeholder, lock: locks[locks.length - 1], told: toasts.length };
     n = calls.length;
     doc.dispatch('click', startBtn()); await tick();
     const again = { posted: calls.length - n, sent: sentNow() - sent0 };
-    check('Start analysis reads the question first (0313): the version on screen is sent to be read as the Analyst will read it - the thread, the chain, the version. While it is read a row says so, the '
-      + 'composer is held with those words, nothing starts, and neither Start nor a pencil does anything. The read came back clean: the page\'s own send starts the chain under that version; the '
+    check('Start analysis reads the question first (0313): the question of the step on screen is sent to be read as the Analyst will read it - the thread, the chain, the step. While it is read a row says so, the '
+      + 'composer is held with those words, nothing starts, and neither Start nor a pencil does anything. The read came back clean: the page\'s own send starts the chain from that step; the '
       + 'conversation holds the read as a row - the question stands on its own, the seconds, the button to what the reader was given, the first call of the question check in the run log - and the '
       + 'framing lists the version as read. Started again - the server had not started it - the same version starts at once: nothing is sent to be read',
-      same(inFlight, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: v0 }]], row: 'sp-row tool read pending:CHECKING THE QUESTION', hold: 'The question is being read as the Analyst will read it',
+      same(inFlight, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, step: v0 }]], row: 'sp-row tool read pending:CHECKING THE QUESTION', hold: 'The question is being read as the Analyst will read it',
                        lock: ['lock', 'The question is being read as the Analyst will read it'], sent: 0, start: true })
       && same(meanwhile, { posted: 1, editing: false, sent: 0 }) && still === inFlight.row
-      && same(clean, { sent: 1, how: 'framed,version', framed: true, version: v0, row: 'sp-row tool read:✓CHECK questionstands on its own2 s⌘', read: [v0],
+      && same(clean, { sent: 1, how: 'framed,step', framed: true, step: v0, row: 'sp-row tool read:✓CHECK questionstands on its own2 s⌘', read: [v0],
                        prompt: ['Question check', '71', '1', 'what the question check was given (run log)'], hold: 'Answer, or say what to change', lock: ['unlock'], told: clean.told })
       && same(again, { posted: 0, sent: 2 }), [inFlight, meanwhile, still, clean, again]);
 
@@ -1338,33 +1440,33 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
                      safe: !$('streamOutput').innerHTML.includes('<before>') };
     n = calls.length;
     doc.dispatch('click', startBtn()); await tick();
-    const startsNow = { posted: calls.length - n, sent: sentNow() - sent1, version: submitted[submitted.length - 1].version };
+    const startsNow = { posted: calls.length - n, sent: sentNow() - sent1, step: submitted[submitted.length - 1].step };
     doc.dispatch('click', brief().querySelector('[data-step="-1"]')); n = calls.length;
     doc.dispatch('click', startBtn()); await tick();
-    const wentBack = { posted: calls.length - n, sent: sentNow() - sent1, version: submitted[submitted.length - 1].version };
-    entry.framing = A.use(entry.framing, v1 + 1); loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again, for what follows
+    const wentBack = { posted: calls.length - n, sent: sentNow() - sent1, step: submitted[submitted.length - 1].step };
+    entry.framing = A.go(entry.framing, v1 + 1); loadResponseContent(entry); updateNavigationButtons();      // the last step on screen again, for what follows
     check('a question the Analyst could not place something in (0313): a line being typed is kept first, as a version of the coach\'s, and that version is read. The analysis does not start. The '
       + 'conversation holds the read - which words the Analyst cannot place, as text - then the Architect\'s reply and the row of its wording; the Brief tab is on the version the Architect left, '
-      + 'with its question, which is the chain\'s; the composer is the conversation\'s again, and nothing more is said. Start analysis then starts that version at once - a read holds a start up '
-      + 'once - and so does the version before it, which the coach went back to: both are listed as read',
-      same(sentFor, [['/architect/brief', ['question']], ['/architect/ready', { thread_id: 7, chain_id: 71, version: v1 }]]) && v1 === v0 + 1
-      && same(heldUp, { sent: 0, rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “as on 14 May” · “<before>”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedversion ' + (v1 + 1)],
+      + 'with its question, which is the chain\'s; the composer is the conversation\'s again, and nothing more is said. Start analysis then starts from that step at once - a read holds a start up '
+      + 'once - and so does the step before it, which the coach went back to: both versions are listed as read',
+      same(sentFor, [['/architect/brief', ['question']], ['/architect/ready', { thread_id: 7, chain_id: 71, step: v1 }]]) && v1 === v0 + 1
+      && same(heldUp, { sent: 0, rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “as on 14 May” · “<before>”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedstep ' + (v1 + 1)],
                         said: 'arch|Architect⌘I took out what pointed to another day.', ver: (v1 + 1) + ' of ' + (v1 + 1), asks: 'Draw the series as bars, in one colour.', text: 'Draw the series as bars, in one colour.',
                         start: 'Start analysis', hold: 'Answer, or say what to change', lock: ['unlock'], told: 0, read: [v0, v1, v1 + 1], safe: true })
-      && same(startsNow, { posted: 0, sent: 1, version: v1 + 1 }) && same(wentBack, { posted: 0, sent: 2, version: v1 }), [sentFor, heldUp, startsNow, wentBack]);
+      && same(startsNow, { posted: 0, sent: 1, step: v1 + 1 }) && same(wentBack, { posted: 0, sent: 2, step: v1 }), [sentFor, heldUp, startsNow, wentBack]);
 
-    // an earlier version on screen that nobody has read: the server reads that one, and it is the one in use from then
+    // an earlier step on screen whose question nobody has read: the server reads that one, and it is the one in use from then
     const lastK = entry.framing.versions.length, earlyK = v0 - 1, sentK = sentNow();
     for (let k = lastK; k > earlyK; k--) doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
     answers['/architect/ready'] = () => [200, stream({ framing: readAs([]), clean: true })]; n = calls.length;
     doc.dispatch('click', startBtn()); await tick();
-    const early = { posted: posted(n), sent: sentNow() - sentK, version: submitted[submitted.length - 1].version, at: entry.framing.at, text: entry.queryText === entry.framing.versions[earlyK - 1].brief.question,
+    const early = { posted: posted(n), sent: sentNow() - sentK, step: submitted[submitted.length - 1].step, at: entry.framing.at, text: entry.queryText === entry.framing.versions[earlyK - 1].brief.question,
                     other: entry.framing.versions[earlyK - 1].brief.question !== entry.framing.versions[lastK - 1].brief.question, fold: el(b.fold(entry)).querySelector('.kind').textContent,
                     read: entry.framing.read.slice(-1), row: lastRow() };
-    entry.framing = A.use(entry.framing, lastK); entry.queryText = entry.framing.versions[lastK - 1].brief.question; loadResponseContent(entry); updateNavigationButtons();      // the last version on screen again
-    check('Start analysis with an earlier version on screen that was not read (0313): that version is sent to be read; the framing the server leaves names it as the one in use, the chain\'s question '
-      + 'is that version\'s, the send is told the version, and the fold above the run would name it',
-      same(early, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: earlyK }]], sent: 1, version: earlyK, at: earlyK, text: true, other: true, fold: 'brief v' + earlyK, read: [earlyK],
+    entry.framing = A.go(entry.framing, lastK); entry.queryText = entry.framing.versions[lastK - 1].brief.question; loadResponseContent(entry); updateNavigationButtons();      // the last step on screen again
+    check('Start analysis with an earlier step on screen whose question was not read (0313): the step is named for the read; the framing the server leaves names its version as the one in use, the '
+      + 'chain\'s question is the one that stood there, the send is told the step, and the fold above the run would name it',
+      same(early, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, step: earlyK }]], sent: 1, step: earlyK, at: earlyK, text: true, other: true, fold: 'brief · step ' + earlyK, read: [earlyK],
                     row: 'sp-row tool read:✓CHECK questionstands on its own2 s⌘' }), early);
 
     // ... and the Architect made no reply to it: the page says why, the read stands
@@ -1385,13 +1487,13 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     for (const answer of ['down', [502, 'Bad gateway'], [200, stream({ error: 'This brief can no longer be changed: its analysis has started.' })], [402, { message: 'Your balance is used up.' }], [200, 'not a stream at all']]) {
       const before = { sent: sentNow(), told: toasts.length, turns: entry.framing.turns.length }; answers['/architect/ready'] = answer; n = calls.length;
       doc.dispatch('click', startBtn()); await tick();
-      outs.push({ posted: posted(n).map(c => c[0]).join(), sent: sentNow() - before.sent, version: submitted[submitted.length - 1].version, told: toasts.length - before.told, turns: entry.framing.turns.length - before.turns,
+      outs.push({ posted: posted(n).map(c => c[0]).join(), sent: sentNow() - before.sent, step: submitted[submitted.length - 1].step, told: toasts.length - before.told, turns: entry.framing.turns.length - before.turns,
                   read: (entry.framing.read || []).indexOf(v3) >= 0, hold: $('queryInput').placeholder, pending: $('streamOutput').querySelectorAll('.sp-row.pending').length });
     }
     check('a read that cannot be had holds nothing up (0313): the server unreachable, an error page, a brief the server says has started, a refusal for the balance, a body that is no stream - each '
-      + 'time the page\'s own send starts the chain under the version on screen, which says what it meets; the page says nothing of the read, the conversation gains no row, the version is not '
+      + 'time the page\'s own send starts the chain from the step on screen, which says what it meets; the page says nothing of the read, the conversation gains no row, the version is not '
       + 'listed as read - the next start asks again - and no row is left saying a read is under way',
-      outs.length === 5 && outs.every(o => same(o, { posted: '/architect/ready', sent: 1, version: v3, told: 0, turns: 0, read: false, hold: 'Answer, or say what to change', pending: 0 })), outs);
+      outs.length === 5 && outs.every(o => same(o, { posted: '/architect/ready', sent: 1, step: v3, told: 0, turns: 0, read: false, hold: 'Answer, or say what to change', pending: 0 })), outs);
 
     // the read takes a moment: the coach may have left the brief, or another analysis may have begun
     const live5 = liveBody(), sent5 = sentNow(), told5 = toasts.length; answers['/architect/ready'] = live5;
@@ -1456,10 +1558,10 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
       + 'says a draft is being drawn - not that the question is read -, the composer is held with those words, the figure is a grey window, and the question is the reply\'s; the stream ends on the '
       + 'framing with the draft, which is drawn in its place. Where the reply went to look something up, the Architect goes on as after any lookup: one more exchange, with nothing said. Where '
       + 'it had the saved analyses read, the row follows the count and the composer says so, and the Architect goes on after the reading. None of the three starts the analysis',
-      same(drawing, { rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “the one of spring”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedversion ' + (v5 + 1), 'sp-row tool read pending:DRAWING A DRAFT'],
+      same(drawing, { rows: ['sp-row tool read skipped ar-unplaced:–CHECK questionthe Analyst cannot place “the one of spring”2 s⌘', 'sp-row tool read:✓QUESTIONupdatedstep ' + (v5 + 1), 'sp-row tool read pending:DRAWING A DRAFT'],
                       hold: 'A draft of the figures is being drawn', fig: 1, asks: 'Draw the series as bars.', sent: 0, posted: ['/architect/ready'] })
       && same(drawn, { row: 'sp-row tool read:✓FIGURES1 drawn5 s⌘', hold: 'Answer, or say what to change', figs: 1, sent: 0, drew: 'cold1', pending: 0 })
-      && same(looked, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, version: v6 }], ['/architect/say', null]], sent: 0, said: 'arch|Architect⌘The table has three rows. Is that the one you mean?',
+      && same(looked, { posted: [['/architect/ready', { thread_id: 7, chain_id: 71, step: v6 }], ['/architect/say', null]], sent: 0, said: 'arch|Architect⌘The table has three rows. Is that the one you mean?',
                         hold: 'Answer, or say what to change' })
       && same(reading, { row: 'sp-row tool read pending:SEARCHING MEMORY1 of 3 readSkip', hold: 'Your saved analyses are being read' })
       && same(readThem, { posted: ['/architect/ready', '/architect/say'], sent: 0, said: 'arch|Architect⌘Nothing saved is from two springs ago. What should the bars show?', hold: 'Answer, or say what to change' }),
@@ -1467,7 +1569,181 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     answers['/architect/ready'] = undefined;
   }
 
-  // a chain kept with its brief: the tab alone steps through the versions
+  // a conversation that branched (0316): the arrows and the map go through its steps, both panes follow, and what is said next goes on from the step on screen
+  {
+    const TH = FX.then, stepped = { status: 'framing', chain_id: 90, thread_id: 7, parentChainId: 70, queryText: 'Is B above A?', framing: JSON.parse(FS_AS_READ), tabContent: '', contentOutput: '', streamOutput: '' };
+    responses.push(stepped);
+    const show90 = () => { currentResponseIndex = responses.indexOf(stepped); loadResponseContent(stepped); updateNavigationButtons(); };
+    show90();
+    const nowS = () => [brief().querySelector('.ar-ver b').textContent, stepped.framing.step, pane().length, brief().querySelector('[data-ar="start"]').textContent, h3s(brief())].join(' / ');
+    const arrow = d => doc.dispatch('click', brief().querySelector('[data-step="' + d + '"]'));
+    const sameAs = (got, want) => got.step === want.step && got.tip === want.tip && got.at === want.at && same(got.turns, want.turns) && same(asideOf(got), asideOf(want));
+    n = calls.length;
+    const atEnd = nowS();
+    arrow(-1);
+    const atHand = nowS() + ' / ' + lineOf(brief(), 'thinks').className;
+    arrow(-1); arrow(-1);
+    const atTwo = nowS() + ' / ' + /first half/.test($('streamOutput').textContent) + ' / ' + stepped.framing.at + ' / ' + $('queryInput').placeholder, asTwo = sameAs(stepped.framing, FX.go[2]);
+    arrow(1);
+    const forward = nowS();
+    arrow(-1);
+    check('the arrows in a conversation that branched (0316): each goes to the step beside the one on screen, on the way being walked, and that step is in use at once - the tab is the brief as it '
+      + 'stood there, the pane the conversation up to there, Start analysis names the step, and the composer is still the conversation\'s. The framing the page then holds is the one the engine '
+      + 'would make of it. Forward from the step where the ways part, the arrow follows the way being walked. Nothing is sent',
+      atEnd === '5 of 5 / 6 / 8 / Start analysis / What it is for|What you think|Period'
+      && atHand === '4 of 5 / 5 / 6 / Start analysis from step 4 / What it is for|What you think|Period / ar-line changed'
+      && atTwo === '2 of 5 / 2 / 4 / Start analysis from step 2 / What it is for / false / 2 / Answer, or say what to change' && asTwo
+      && forward === '3 of 5 / 4 / 6 / Start analysis from step 3 / What it is for|Period' && calls.length === n && sameAs(stepped.framing, FX.go[2]), [atEnd, atHand, atTwo, forward]);
+
+    // the coach speaks from step 2: one more way
+    held(); n = calls.length;
+    A.tell(TH.turns[0].text); await tick();
+    const sent90 = { call: calls[n], pane: pane().slice(-2), ver: verS(brief()) };
+    arrow(1);                                                    // pressed all the same while the Architect replies: nothing
+    const mid90 = stepped.framing.step;
+    reply([200, stream({ framing: TH.framing })]); await tick();
+    const after90 = [nowS(), $('streamOutput').querySelector('.sp-strip').textContent, pane().slice(-1)[0], verS(brief()), /by week|first half/.test($('streamOutput').textContent)].join(' / ');
+    check('a message from an earlier step (0316): it names the step on screen. While the Architect replies the pane shows the conversation up to that step and the message, and neither arrow nor '
+      + 'the map\'s button can be pressed - an arrow pressed all the same does nothing. The reply is one more step, which follows the step the coach spoke from: the tab is at the end of a new '
+      + 'way, "3 of 3", with what the reply changed; the pane holds that way - the question, the first exchange, this one - and nothing of the ways left, whose cost the strip still counts',
+      same(sent90, { call: ['/architect/say', { thread_id: 7, chain_id: 90, text: 'Compare the medians instead', step: 2 }], pane: ['you|YouCompare the medians instead', 'arch wait|Architectreading…'],
+                     ver: 'span=Step|button-1 off|b=2 of 5|button1 off|buttonmap off' })
+      && mid90 === 2 && same(stepped.framing, TH.framing)
+      && after90 === '3 of 3 / 7 / 6 / Start analysis / What it is for|Measured by / Architect$0.06 / arch|Architect⌘The measure is the median. / span=Step|button-1|b=3 of 3|button1 off|buttonmap / false',
+      [sent90, mid90, after90]);
+
+    // the map: the thread map's drawer and its drawing, with the steps for boxes
+    const drawer = $('workflowMapModal'), boxes = () => $('workflowMapContainer').querySelectorAll('.wf-node');
+    const lit = () => boxes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
+    const foot = () => [$('nodeTaskContent').textContent].concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
+    const openIt = () => doc.dispatch('click', brief().querySelector('[data-ar="map"]'));
+    const graphWas = window.WorkflowGraph; window.WorkflowGraph = null;
+    openIt();
+    const noDrawing = drawer.style.display;
+    window.WorkflowGraph = graphWas; n = calls.length;
+    openIt();
+    const opened = { shown: drawer.style.display, cls: drawer.className, chain: drawer.getAttribute('data-chain'), title: drawer.querySelector('h2').textContent, sub: $('mapDrawerSub').textContent, foot: foot(),
+                     boxes: boxes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent), kinds: boxes().map(x => x.className.replace(/wf-node--(ancestor|active)/g, '').trim()).filter((c, i, all) => all.indexOf(c) === i).join(),
+                     on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), wrap: $('workflowMapContainer').querySelector('.wf-graph').className,
+                     edges: $('workflowMapContainer').querySelectorAll('.wf-edge').map(e => e.getAttribute('data-from') + '>' + e.getAttribute('data-to')).join(),
+                     thread: $('workflowMapContainer').querySelectorAll('.wf-node-made, .wf-node-map, .wf-edge-label').length };
+    boxes()[2].dispatch('mouseenter');
+    const over3 = { foot: foot(), lit: lit() };
+    boxes()[2].dispatch('mouseleave');
+    const left3 = lit();
+    const feet = [0, 1, 4, 5, 6].map(i => { boxes()[i].dispatch('mouseenter'); const f = foot(); boxes()[i].dispatch('mouseleave'); return f; });
+    check('the map of a conversation (0316): the button beside the arrows opens the thread map\'s drawer as the conversation\'s - its name, how many steps and where they branch, a line that says '
+      + 'what hovering does, the thread\'s own buttons out of it. Every step is a box, drawn by the thread map\'s drawing and joined to the step it follows: on it what the coach said - the '
+      + 'question as it was asked on the first, and what was done where they said nothing - and under that what the step changed, in the tab\'s words. The step on screen is the open box, and '
+      + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the thread map\'s marks. Under the pointer a box lights its own way and the foot says, as the thread map '
+      + 'does of a chain: what was said, where the step stands as the arrows would count it - "on screen" for the one that is -, what it follows, how many follow it, what it changed, and the '
+      + 'first sentence of what the Architect replied; when the pointer leaves, the way to the step on screen is lit again. Without the drawing on the page the button does nothing; nothing is sent',
+      noDrawing === 'none' && same(opened, { shown: 'flex', cls: 'modal map-drawer steps', chain: '90', title: 'Conversation map', sub: '7 steps · 1 branch · click one to go to it',
+        foot: 'Hover over a step to read what was said',
+        boxes: ['Is B above A? > your question', 'Keep one arm > what it is for', 'Show it by week > figure', 'Only the first half > period', 'You changed a line > what you think', 'Is that all you need? > ',
+                'Compare the medians instead > measured by'],
+        kinds: 'wf-node wf-node--normal', on: '7', lit: '1,2,7', wrap: 'wf-graph wf-path-active', edges: '0>1,1>2,1>3,3>4,4>5,1>6', thread: 0 })
+      && same(over3, { foot: 'Show it by week | Step=3 of 3 | Follows=step 2 | Follow-ups=none | Changed=figure | Architect=A line for each arm, by week.', lit: '1,2,3' }) && left3 === '1,2,7'
+      && same(feet, ['Is B above A? | Step=1 of 3 | Follows=the start | Follow-ups=1 | Changed=nothing | Architect=What will you do differently depending on the answer?',
+                     'Keep one arm | Step=2 of 3 | Follows=step 1 | Follow-ups=3 | Changed=what it is for | Architect=What do you expect to see?',
+                     'You changed a line | Step=4 of 5 | Follows=step 3 | Follow-ups=1 | Changed=what you think',
+                     'Is that all you need? | Step=5 of 5 | Follows=step 4 | Follow-ups=none | Changed=nothing | Architect=Yes. Start the analysis when you are ready.',
+                     'Compare the medians instead | Step=3 of 3 · on screen | Follows=step 2 | Follow-ups=none | Changed=measured by | Architect=The measure is the median.'])
+      && calls.length === n, [noDrawing, opened, over3, left3, feet]);
+
+    // a box clicked: the step is the one on screen, the drawer shuts
+    boxes()[2].dispatch('click');
+    const picked = [drawer.style.display, nowS(), /Show it by week/.test($('streamOutput').textContent), /medians/.test($('streamOutput').textContent), sameAs(stepped.framing, Object.assign({}, TH.framing, { step: 3, tip: 3, at: 3 }, { turns: FX.go[3].turns, aside: stepped.framing.aside }))].join(' / ');
+    const asideNow = Object.keys(stepped.framing.aside).join();
+    openIt();
+    const again = { on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), foot: foot() };
+    arrow(-1);                                                    // an arrow, with the map open: the map follows
+    const followed = { shown: drawer.style.display, on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), ver: brief().querySelector('.ar-ver b').textContent };
+    boxes()[5].dispatch('click');
+    const toSix = [drawer.style.display, nowS()].join(' / ');
+    openIt();
+    currentResponseIndex = 0; loadResponseContent(responses[0]); updateNavigationButtons();      // another chain on screen, the map still open: it shuts
+    const elsewhere = drawer.style.display + '/' + stepped.framing.step;
+    show90();
+    check('a box clicked (0316): the drawer shuts and the step is the one on screen and in use - at the end of the way that was left, the tab shows its figure and the pane that exchange, and '
+      + 'nothing of the ways taken since; the steps off that way are set aside. Opened again, the map has that step open and its way lit, and its foot says what hovering does - nothing of the box last under the pointer. While the drawer is open the map follows its brief: an '
+      + 'arrow pressed, and the box of the step now on screen is the open one. A click on the end of another way goes there. With another chain on screen the drawer shuts. Nothing is sent',
+      picked === 'none / 3 of 3 / 3 / 6 / Start analysis / What it is for|What it will look like / true / false / true' && asideNow === '4,6,7'
+      && same(again, { on: '3', lit: '1,2,3', foot: 'Hover over a step to read what was said' }) && same(followed, { shown: 'flex', on: '2', lit: '1,2', ver: '2 of 3' })
+      && toSix === 'none / 5 of 5 / 6 / 8 / Start analysis / What it is for|What you think|Period' && elsewhere === 'none/6' && calls.length === n, [picked, asideNow, again, followed, toSix, elsewhere]);
+
+    // the tab of a run: the map is read
+    const ran = { chain_id: 91, thread_id: 7, queryText: 'Is B above A?', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
+                  contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(TH.framing, { chain: 91, thread: 7, state: 'run' }) + '</div>', streamOutput: '<div class="kept">the run\'s pane</div>' };
+    responses.push(ran); currentResponseIndex = responses.indexOf(ran); loadResponseContent(ran); updateNavigationButtons();
+    openIt();
+    const ranMap = [drawer.style.display, drawer.getAttribute('data-chain'), boxes().length, lit()].join(' / ');
+    boxes()[3].dispatch('click');
+    const ranAt = [drawer.style.display, brief().querySelector('.ar-ver b').textContent, brief().getAttribute('data-shown'), brief().getAttribute('data-state'), h3s(brief()), !!brief().querySelector('.pen, [data-ar="start"]'),
+                   $('streamOutput').textContent, same(JSON.parse(brief().getAttribute('data-framing')), TH.framing)].join(' / ');
+    check('the map on the tab of a run (0316): the same drawer, with the step the run started from open. A box clicked shows the brief as it stood at that step, to be read - the tab alone '
+      + 'changes: its framing, the run\'s pane and the record stay as they are, and nothing is sent',
+      ranMap === 'flex / 91 / 7 / 1,2,7' && ranAt === 'none / 3 of 5 / 4 / run / What it is for|Period / false / the run\'s pane / true' && calls.length === n, [ranMap, ranAt]);
+    openIt();
+    doc.dispatch('click', brief().querySelector('[data-step="-1"]'));      // an arrow on the run's tab, the map open: the map follows
+    const ranFollows = [drawer.style.display, brief().querySelector('.ar-ver b').textContent, boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit()].join(' / ');
+    // the thread map in the drawer: the conversation's is not drawn over it
+    drawer.classList.remove('steps'); drawer.querySelector('h2').textContent = 'Thread map'; $('workflowMapContainer').innerHTML = '<div class="thread">the thread\'s chains</div>';
+    doc.dispatch('click', brief().querySelector('[data-step="1"]'));
+    const threads = [drawer.style.display, drawer.querySelector('h2').textContent, $('workflowMapContainer').textContent, brief().querySelector('.ar-ver b').textContent].join(' / ');
+    drawer.style.display = 'none';
+    check('the map while its drawer is open (0316): an arrow pressed on a run\'s tab - back from a step off the way the run took, to the step where the ways part, counted on the run\'s way '
+      + 'again - and the box of the step now on screen is the open one, its way lit. Where the drawer holds the thread map, the conversation\'s map is not drawn over it: the tab steps - forward, '
+      + 'along the run\'s way - and the drawer is the thread\'s',
+      ranFollows === 'flex / 2 of 3 / 2 / 1,2' && threads === 'flex / Thread map / the thread\'s chains / 3 of 3', [ranFollows, threads]);
+
+    // the map's words: a conversation of one step; a step in which the question was read, one in which the Architect went on by itself, a step that changed two lines of one part
+    const mapOf = framing => { const e = { chain_id: 92, thread_id: 7, queryText: 'Q?', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
+                                             contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(framing, { chain: 92, thread: 7, state: 'run' }) + '</div>', streamOutput: '' };
+      responses.push(e); currentResponseIndex = responses.indexOf(e); loadResponseContent(e); updateNavigationButtons(); openIt();
+      const feet = boxes().map(x => { x.dispatch('mouseenter'); const f = foot(); x.dispatch('mouseleave'); return f; });
+      const out = { sub: $('mapDrawerSub').textContent, boxes: boxes().map(x => x.className.replace(/ wf-node--(ancestor|active)/g, '') + ': ' + x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent),
+                    feet, forks: $('workflowMapContainer').querySelectorAll('.wf-edge-label').length };
+      drawer.style.display = 'none'; responses.pop(); return out; };
+    const ONE = { versions: F1.versions, steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 0 }], step: 1, tip: 1 };
+    const WORDY = { versions: [F1.versions[0], { n: 2, by: 'architect', changed: ['rests_on.0'], brief: { question: 'Is B above A?', rests_on: [{ text: 'a' }] } },
+                               { n: 3, by: 'architect', changed: ['rests_on.1', 'also_check.0'], brief: { question: 'Is B above A?', rests_on: [{ text: 'a' }, { text: 'b' }], also_check: [{ text: 'c' }] } }],
+                    turns: [{ who: 'person', text: 'User requested variations of the plot, on two grounds.' }, { who: 'architect', text: 'Checking this against the data.', v: 2 }, { who: 'check', found: [] },
+                            { who: 'architect', text: 'Both hold. Anything else?', v: 3 }, { who: 'reader', missing: [], v: 3 }, { who: 'architect', text: 'A draft of the figure is drawn.', v: 3 }],
+                    steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 0 }, { k: 2, from: 1, v: 3, made: [2, 3], turns: 4 }, { k: 3, from: 2, v: 3, made: [], turns: 1 }, { k: 4, from: 3, v: 3, made: [], turns: 1 }],
+                    step: 4, tip: 4 };
+    const one = mapOf(ONE), wordy = mapOf(WORDY);
+    check('the map\'s words (0316): a conversation of one step is said so - "1 step", and no word of branches where it has none. A box where the coach said nothing says what was done: the '
+      + 'question was read; the Architect went on. Under a box each part the step changed is named once, whatever the lines; the foot gives the Architect\'s last reply of the step. What a box '
+      + 'says makes it no fork of the thread map\'s: the coach\'s own words may be the thread map\'s',
+      same(one, { sub: '1 step · click one to go to it', boxes: ['wf-node wf-node--normal: Is B above A? > your question'],
+                  feet: ['Is B above A? | Step=1 of 1 · on screen | Follows=the start | Follow-ups=none | Changed=nothing'], forks: 0 })
+      && wordy.sub === '4 steps · click one to go to it' && wordy.forks === 0
+      && same(wordy.boxes, ['wf-node wf-node--normal: Is B above A? > your question', 'wf-node wf-node--normal: User requested variations o... > why you think so · other explanations',
+                            'wf-node wf-node--normal: Question check > ', 'wf-node wf-node--normal: The Architect went on > '])
+      && same(wordy.feet.slice(1), ['User requested variations of the plot, on two grounds. | Step=2 of 4 | Follows=step 1 | Follow-ups=1 | Changed=why you think so · other explanations | Architect=Both hold. Anything else?',
+                                    'Question check | Step=3 of 4 | Follows=step 2 | Follow-ups=1 | Changed=nothing',
+                                    'The Architect went on | Step=4 of 4 · on screen | Follows=step 3 | Follow-ups=none | Changed=nothing | Architect=A draft of the figure is drawn.']), [one, wordy]);
+    // the thread map, drawn by the same drawing with nothing said of another map: as it was
+    const CHAINS = [{ chain_id: 11, parentChainId: null, queryText: 'A first question', streamOutput: '', technicalAnswer: '<p>B is above A by two units, on plot means.</p>' },
+                    { chain_id: 12, parentChainId: 11, queryText: 'User requested variations', streamOutput: '' }, { chain_id: 13, parentChainId: 11, queryText: 'A brief', status: 'framing', framing: F1 }];
+    window.WorkflowGraph.render($('workflowMapContainer'), CHAINS, 0);
+    const wrap = () => $('workflowMapContainer').querySelector('.wf-graph').className;
+    const thread = { boxes: boxes().map(x => x.className + ': ' + x.textContent), rest: wrap(), forks: $('workflowMapContainer').querySelectorAll('.wf-edge-label').map(x => x.textContent).join(),
+                     eyes: boxes().map(x => !!x.querySelector('.wf-node-map')).join() };
+    boxes()[2].dispatch('mouseenter');
+    const threadOver = [foot(), wrap(), lit()].join(' / ');
+    boxes()[2].dispatch('mouseleave');
+    check('the thread map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code map\'s eye unless '
+      + 'it is a brief not yet run; a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
+      + 'the chain, what it follows, its follow-ups',
+      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
+                             'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', eyes: 'true,true,false' })
+      && threadOver === 'A brief | Chain=3 of 3 13 | Follows=chain 1 | Follow-ups=none / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
+    show90();
+  }
+
+  // a chain kept with its brief: the tab alone goes through the steps
   const done = { chain_id: 80, thread_id: 7, queryText: 'A framed question', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
                  contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(F3, { chain: 80, state: 'run' }) + '</div>', streamOutput: '' };
   responses.push(done); currentResponseIndex = 2; loadResponseContent(done); updateNavigationButtons();
@@ -1477,7 +1753,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   doc.dispatch('click', brief().querySelector('[data-step="-1"]'));
   n = calls.length;
   doc.dispatch('click', brief().querySelector('h1'));
-  check('a restored chain: its Brief tab steps through the versions from its own markup, down to the first and no further; nothing can be changed, nothing is sent',
+  check('a restored chain: its Brief tab goes through the steps from its own markup, down to the first and no further; nothing can be changed, nothing is sent',
     first === '1 of 3|false|0' && brief().querySelector('.ar-ver b').textContent === '1 of 3' && !brief().querySelector('[data-ar="start"]') && brief().getAttribute('data-state') === 'run' && calls.length === n && A.mark(done) === 'Architect', first);
 
   // what the run's report says against its brief comes to that run's Brief tab (0312)
@@ -1485,7 +1761,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const tabs = $('contentOutput'), shownNow = () => brief().querySelector('.ar-ver b').textContent, cardNow = () => brief().querySelectorAll('.ar-against').length;
     const lastOf = () => { const all = brief().elements; return all[all.length - 1].className; };
     A.turnedOut(tabs, cut.against);
-    const onFirst = [shownNow(), cardNow(), brief().getAttribute('data-against') === cut.against];        // the tab stands on its first version: the rows are kept, no card is shown
+    const onFirst = [shownNow(), cardNow(), brief().getAttribute('data-against') === cut.against];        // the tab stands on its first step: the rows are kept, no card is shown
     doc.dispatch('click', brief().querySelector('[data-step="1"]'));
     const onSecond = [shownNow(), cardNow()];
     doc.dispatch('click', brief().querySelector('[data-step="1"]'));
@@ -1503,7 +1779,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const nowhere = [(() => { try { A.turnedOut(null, cut.against); A.turnedOut($('streamOutput'), cut.against); return 'quiet'; } catch (e) { return String(e); } })(), $('streamOutput').querySelectorAll('.ar-against').length,
                      brief().querySelector('.ar-against .t').textContent];        // the page's own brief is not the one meant: it keeps what it had
     check('what a run\'s report says against its brief comes to that run\'s Brief tab (0312), in the tabs it is handed - the page\'s, or the holder of a run that goes on off screen. The rows are kept in the '
-      + 'brief\'s markup whichever version is on screen; the card stands under the version the run was under and under no other, so the arrows show it and take it away, from the markup alone. Said '
+      + 'brief\'s markup whichever step is on screen; the card stands under the brief the run was under and under no other, so the arrows show it and take it away, from the markup alone. Said '
       + 'again, there is one card still, the last thing on the tab; other rows take its place; an answer that says nothing leaves the tab as it is - a chain shown again has its card already. Tabs '
       + 'without a brief, and none at all, take nothing - and the brief on the page, which is not among them, keeps what it had',
       same(onFirst, ['1 of 3', 0, true]) && same(onSecond, ['2 of 3', 0]) && same(onLast, ['3 of 3', 1, 'ar-against', true]) && same(twice, [1, 'ar-against'])
@@ -1541,8 +1817,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);
   const graph = js('workflowGraph.js');
   check('the thread map: a box says how its question was made; a brief not yet run has no code map to open',
-    graph.includes("var made = window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
-    && graph.includes("if (resp && resp.chain_id && made !== 'not run') {"));
+    graph.includes("var made = !of && window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
+    && graph.includes("if (!of && resp && resp.chain_id && made !== 'not run') {"));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
   check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and - on it since 0312, in the answer no more - the card of what the '
     + 'report says against the brief in tabs.css, with a place for a part that goes as the report wrote it',
@@ -1566,31 +1842,48 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && !/not said|left to the Analyst|unsaid|Use this wording|Look in saved|Fixed before the run|from your answer|changed by you/.test(js('architect.js'))
     && ["asked: 'What the Analyst will be asked'", "gets: 'This is what the Analyst gets. Change any line before you start.'", "decision: 'What it is for'", "rests_on: 'Why you think so'", "expects: 'What you expect to see'",
         "would_change: 'What would change your mind'", "also_check: 'Other explanations to test'", "builds: 'Builds on'", "another: 'Another explanation to test'",
-        "always: 'Always tested on data: chance, measurement error, how the cases were chosen.'", "version: 'Version'", "startWith: k => 'Start analysis with version ' + k", "view: 'View'",
+        "always: 'Always tested on data: chance, measurement error, how the cases were chosen.'", "step: 'Step', of: (k, n) => k + ' of ' + n, before: 'The step before', after: 'The step after',", "start: 'Start analysis', startFrom: k => 'Start analysis from step ' + k,", "view: 'View'",
         "memory: 'Found in your saved analyses', memoryNote: 'For you to read. The Analyst gets only what you build on.'", "['comparison', 'What is compared'], ['measure', 'Measured by'], ['period', 'Period']",
         "opened: 'READ'", "question: 'QUESTION', updated: 'updated'"].every(s => js('architect.js').includes(s)));
   const engine = f => fs.readFileSync(path.join(root, '..', 'analyst', f), 'utf8'), own = js('architect.js');
   check('the saved analyses: the page knows a skipped reading by the reader\'s own sentence; the dialog of a saved analysis lies over the page, the row\'s Skip is styled in pane.css and View in tabs.css; '
-    + 'the version in use is read as the engine keeps it (`at`), and the send carries the version on screen to the server, which hands it to the analysis',
+    + 'the version in use is read as the engine keeps it (`at`), and the send carries the step on screen to the server, which hands it to the analysis - as each route of the Architect '
+    + 'does (0316): the engine goes to the step, and nothing of 0308\'s use() is left',
     engine('reader.py').includes('\nSKIPPED = "The person skipped it."\n') && own.includes("const SKIPPED = 'The person skipped it.';") && !own.includes('READINGS')
     && css('dialogs.css').includes('#savedAnalysisModal { display: none; position: fixed; inset: 0;') && own.includes("modal.id = 'savedAnalysisModal'; modal.className = 'ui-modal-plain';")
     && paneCss.includes('#streamOutput .sp-row .ar-skip {') && tabsCss.includes('#content-brief .ar-open {')
-    && /^def use\(framing: dict, n\) -> dict:/m.test(engine('brief.py')) && engine('brief.py').includes('at = (framing or {}).get("at")') && own.includes('const n = latestN(framing), at = framing && framing.at;')
-    && qp.includes('if (framed && version) requestBody.version = version;') && qp.includes('const { synthesis, image, typed, framed, next, version } = options;')
-    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("version = request.json.get('version')")
-    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('version=version if isinstance(version, int) and not isinstance(version, bool) else None,')
-    && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("framing = instance.architect_say(data['thread_id'], data['chain_id'], text, version=version)"));
+    && !/^def use\(/m.test(engine('brief.py')) && /^def go\(framing: dict, k\) -> dict:/m.test(engine('steps.py')) && engine('brief.py').includes('at = (framing or {}).get("at")') && own.includes('const n = latestN(framing), at = framing && framing.at;')
+    && qp.includes('if (framed && step) requestBody.step = step;') && qp.includes('const { synthesis, image, typed, framed, next, step } = options;')
+    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("step = request.json.get('step')")
+    && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('step=step if isinstance(step, int) and not isinstance(step, bool) else None,')
+    && ["framing = instance.architect_say(data['thread_id'], data['chain_id'], text, step=step)", "got = instance.architect_ready(data['thread_id'], data['chain_id'], step=step)",
+        "question=str(data['brief'].get('question') or '')[:QUESTION_CHARS], step=_step(data))"].every(t => fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes(t))
+    && ["text: text || null, step: steps.on(entry.framing) }) })", "brief: out.brief, changed: out.changed, step })", "chain_id: entry.chain_id, step: steps.on(entry.framing) }) })"].every(t => own.includes(t)));
   check('the question\'s check, 0313, from the sources: the words are plain ones - what is being done while it is read, what the row says, what the composer says; Start analysis has the question read '
     + 'first and starts only where the brief is still on screen and nothing else runs; the page posts to the route the server has, reads the list of versions read that the engine keeps, and '
     + 'names the call as the host logs it',
     ["checkingRow: 'CHECKING THE QUESTION', checkingHold: 'The question is being read as the Analyst will read it', checkQ: 'CHECK question', standsAlone: 'stands on its own',",
      "unplaced: 'the Analyst cannot place', checkPrompt: 'what the question check was given (run log)'"].every(t => own.includes(t))
-    && own.includes("ready(entry, shown).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, version: shown }); });")
-    && own.includes("window.authService.fetch('/architect/ready', { method: 'POST'") && own.includes("if (((entry.framing || {}).read || []).indexOf(version) >= 0) return Promise.resolve(true);")
+    && own.includes("ready(entry).then(clean => { if (clean && responses[currentResponseIndex] === entry && free()) handleQuerySubmit({ framed: entry, step: steps.on(entry.framing) }); });")
+    && own.includes("window.authService.fetch('/architect/ready', { method: 'POST'") && own.includes("if (((entry.framing || {}).read || []).indexOf(inUse(entry.framing)) >= 0) return Promise.resolve(true);")
     && own.includes("t.who === 'reader' ? build.checkedQ(t, entry.chain_id)") && own.includes('data-agent="Question check"')
     && fs.readFileSync(path.join(root, 'architect_routes.py'), 'utf8').includes("@architect_bp.route('/architect/ready', methods=['POST'])")
     && fs.readFileSync(path.join(root, '..', 'bambooai', 'bambooai.py'), 'utf8').includes('label="Question check"')
-    && engine('cold.py').includes('run.framing = {**framing, "turns": turns + went + [turn], "read": done + [at]}') && engine('cold.py').includes('turn = {"who": "reader", "missing": missing, "v": at,'));
+    && engine('cold.py').includes('run.framing = steps.take({**framing, "turns": list(framing.get("turns") or []) + [turn], "read": done + [at]})')
+    && engine('cold.py').includes('turn = {"who": "reader", "missing": missing, "v": at,'));
+  check('the map of a conversation, 0316, from the sources: the page has the drawer and the places in it the map writes to; the thread map takes the drawer back as its own - its title, its '
+    + 'foot; the button is styled in tabs.css beside the arrows, and the thread\'s buttons are out of the drawer while it holds the steps; the drawing is told what is the map\'s own in its '
+    + 'last argument, and the thread map tells it nothing; the words are plain ones; the module gives go() and the steps, and nothing of 0308\'s use()',
+    ['id="workflowMapModal"', '<h2>Thread map</h2>', 'id="mapDrawerSub"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t))
+    && wm.includes("modal.classList.remove('steps');") && wm.includes("modal.querySelector('h2').textContent = 'Thread map';") && wm.includes('WorkflowGraph.render(container, responses, currentResponseIndex);')
+    && tabsCss.includes('#content-brief .ar-ver .ar-map {') && tabsCss.includes('#content-brief .ar-ver button:disabled {') && shell.includes('#workflowMapModal.steps .map-drawer-foot { display: none; }')
+    && /#workflowMapModal\.steps \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
+    && graph.includes('function render(container, responses, activeIndex, of) {') && graph.includes('if (of) { of.pick(resp, idx); return; }')
+    && graph.includes('if (of) of.show(resp, idx); else updateDetailPane(idx, resp, nodeContents, nodePlots, responses);') && graph.includes("chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;")
+    && ["map: 'Conversation map',", "mapHover: 'Hover over a step to read what was said', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',",
+        "info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Architect' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',",
+        "question: 'QUESTION', updated: 'updated', stepN: k => 'step ' + k, brief: 'BRIEF', inUse: k => 'step ' + k + ' in use',"].every(t => own.includes(t))
+    && /window\.ArchitectUI = \{[^}]*\bgo, steps, build\b/.test(own) && !/\buse\(|WORDS\.version|startWith|set aside'|setAside/.test(own));
   check('the stylesheet and the words, 0311: the panels of the figures are styled in tabs.css - one under another, the tag - in the kernel\'s sand where the numbers are made up -, the cross in view, '
     + 'the plot\'s place with its height, the grey window - as tall for every state, hidden under a drawn draft, its line breathing only while a draft is on its way and still for a reader who '
     + 'asked for less motion - and the made-up line in the kernel\'s sand. Nothing is left of the sketch of 0309 - its drawing, its key, the word - nor of the points a model wrote, nor of the '
