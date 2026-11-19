@@ -93,13 +93,16 @@ window.galleryArchitect = (function () {
     { title: 'What it rests on', text: 'Did the C plots get more rain than the A plots in any single season?', from: [{ kind: 'anchor', text: RAIN + ' (does not hold: ' + RAIN_FACT + ')' }] },
     { title: 'The answer and the soil', text: 'Is the gap within soil type the same in early and late seasons?', from: [{ kind: 'found', text: 'On plot means within soil type, regime C yields 0.112 t/ha against regime A.' }, MISFIT] }] };
   return {
-    next() {         // under a finished analysis' closing card: a set of questions - where each comes from, one already run - and the list of levels open by the button
-      const pane = document.getElementById('streamOutput');
+    next(shown) {    // the panel the Next questions button opens in a finished analysis' closing card: what the questions are and the five ways to go - one has questions already, and
+      const pane = document.getElementById('streamOutput');      // says how many; `shown`: that way's questions in the list's place - what each starts from, one already run
       responses = [{ chain_id: 1763203380, thread_id: 1763203300, parentChainId: null, queryText: Q, streamOutput: '' }]; currentResponseIndex = 0;      // the chain on screen is a finished one
       NextQuestionsUI.dress(pane);
-      pane.querySelector('.sp-stream').insertAdjacentHTML('beforeend', NextQuestionsUI.build.set(NEXT, 0));
+      const button = pane.querySelector('[data-nq="open"]');
+      button.click();
+      pane.querySelector('.nq-sets').insertAdjacentHTML('beforeend', NextQuestionsUI.build.set(NEXT, 0));
+      button.click(); button.click();                            // shut and opened again: the list is drawn with the set in it
+      if (shown) pane.querySelector('.nq-row .n').click();
       pane.scrollTop = pane.scrollHeight;
-      pane.querySelector('[data-nq="open"]').click();
     },
     talk() { show(first); },      // the Architect's first turn: what the question states is in the brief, and its first question has two choices
     adding() {       // + Add, open: the parts the brief does not show, each under its name

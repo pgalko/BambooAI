@@ -132,28 +132,54 @@
 #streamOutput .sp-row .ar-skip:not(:disabled):hover { border-color: var(--text-tertiary); color: var(--text-primary); }
 #streamOutput .sp-row .ar-skip:disabled { color: var(--text-quaternary); cursor: default; }
 #streamOutput .sp-row.ar-unplaced .out { white-space: normal; overflow: visible; overflow-wrap: anywhere; }   /* the words the Analyst cannot place are read whole (0313): the row wraps */
-/* ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, 2026-11-16): the button on a finished analysis' closing card; under the card the sets of questions, a card each - where it comes from, the question, a pencil and an arrow; and the row a run opens on when a question started it ---- */
-#streamOutput .nq-set { margin-left: 10px; }
-#streamOutput .nq-head, #streamOutput .nq-from { display: flex; align-items: center; gap: 6px; padding: 2px 2px 8px; font-family: Arial, sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
-#streamOutput .nq-from { margin-left: 10px; padding-bottom: 2px; }
-#streamOutput .nq-head .lv, #streamOutput .nq-from .lv { color: var(--c-model); font-weight: 600; }
-#streamOutput .nq-head .r { margin-left: auto; display: inline-flex; align-items: center; text-transform: none; letter-spacing: 0; font-size: 11px; }
-#streamOutput .nq-reading { padding: 0 2px 6px; font-family: Arial, sans-serif; font-size: 12.5px; font-style: italic; color: var(--text-tertiary); }
-#streamOutput .nq-card { position: relative; margin-bottom: 8px; padding: 9px 62px 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font-family: Arial, sans-serif; }
-#streamOutput .nq-card:last-child { margin-bottom: 0; }
-#streamOutput .nq-card .from { margin-bottom: 3px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
-#streamOutput .nq-card .tx { font-size: 13px; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; }
-#streamOutput .nq-card .tx b { font-weight: 600; }
-#streamOutput .nq-card .tools { position: absolute; top: 7px; right: 8px; display: flex; gap: 2px; }
+/* ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, §2.24; the panel 2026-11-19): the button on a finished analysis' closing card opens a panel inside the card - what the questions are, five ways to go, a row each; the questions of the way picked take the list's place, in rows of the same look - a title, the question with what it starts from under it, a pencil and an arrow; and the row a run opens on when a question started it ---- */
+#streamOutput .sp-done .nq-panel { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); font-family: Arial, sans-serif; }
+#streamOutput .sp-done .nq-panel.shut { display: none; }
+#streamOutput .nq-ph { display: flex; align-items: center; gap: 8px; }
+#streamOutput .nq-ph .t { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
+#streamOutput .nq-x { margin-left: auto; padding: 0 2px; border: none; background: none; font-size: 18px; line-height: 1; color: var(--text-quaternary); cursor: pointer; }
+#streamOutput .nq-x:hover { color: var(--text-primary); }
+#streamOutput .nq-back { padding: 0; border: none; background: none; font: inherit; font-size: 12px; color: var(--c-model); cursor: pointer; }
+#streamOutput .nq-what { margin: 4px 0 10px; font-size: 12px; line-height: 1.5; color: var(--text-tertiary); }
+#streamOutput .nq-row { display: grid; grid-template-columns: 128px 1fr auto auto; align-items: baseline; gap: 14px; width: 100%; box-sizing: border-box; margin-top: 4px; padding: 8px 10px; border: 1px solid var(--border-color); border-radius: 6px; background: none; font: inherit; font-size: 12.5px; text-align: left; cursor: pointer; }
+#streamOutput .nq-row:hover { background: var(--bg-tertiary); }
+#streamOutput .nq-row b { font-weight: 600; color: var(--text-primary); }
+#streamOutput .nq-row span { line-height: 1.45; color: var(--text-secondary); }
+#streamOutput .nq-row i { font-style: normal; font-size: 15px; line-height: 1; color: var(--text-quaternary); }
+#streamOutput .nq-row em { font-style: normal; font-size: 11px; white-space: nowrap; }
+#streamOutput .nq-row .n { padding: 1px 7px; border: 1px solid var(--border-color); border-radius: 9px; color: var(--text-tertiary); }   /* a way that has questions: how many */
+#streamOutput .nq-row.on { border-color: var(--c-model); cursor: default; }   /* the way a set is being written for; the others stand back */
+#streamOutput .nq-row.on:hover { background: none; }
+#streamOutput .nq-row.dim { opacity: .45; }
+#streamOutput .nq-row .live { color: var(--c-model); }
+#streamOutput .nq-row .live::before { content: ''; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--c-model); animation: sp-pulse 1.2s ease-in-out infinite; }
+#streamOutput .nq-lv { margin: 8px 0 10px; font-size: 12.5px; line-height: 1.5; }
+#streamOutput .nq-lv b { margin-right: 10px; font-weight: 600; color: var(--text-primary); }
+#streamOutput .nq-lv span { color: var(--text-tertiary); }
+#streamOutput .nq-set { display: none; }                   /* the sets of the way shown are shown, one under another */
+#streamOutput .nq-set.on { display: block; margin-bottom: 8px; }
+#streamOutput .nq-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--text-quaternary); }
+#streamOutput .nq-more { padding: 3px 10px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; font: inherit; font-size: 12px; color: var(--c-model); cursor: pointer; }
+#streamOutput .nq-more:not(:disabled):hover { background: var(--accent-bg-hover); }
+#streamOutput .nq-more:disabled { border-color: var(--border-color); font-style: italic; color: var(--text-quaternary); cursor: default; }
+#streamOutput .nq-from { display: flex; align-items: center; gap: 6px; margin-left: 10px; padding: 2px 2px 2px; font-family: Arial, sans-serif; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
+#streamOutput .nq-from .lv { color: var(--c-model); font-weight: 600; }
+#streamOutput .nq-card { display: grid; grid-template-columns: 128px 1fr auto auto; align-items: start; gap: 3px 14px; margin-top: 4px; padding: 9px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 12.5px; }
+#streamOutput .nq-card .tx { display: contents; }          /* the title and the question are cells of the row */
+#streamOutput .nq-card .tx b { grid-column: 1; grid-row: 1 / span 2; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+#streamOutput .nq-card .q { grid-column: 2; grid-row: 1; line-height: 1.45; color: var(--text-primary); overflow-wrap: anywhere; }
+#streamOutput .nq-card .from { grid-column: 2; grid-row: 2; font-size: 11px; color: var(--text-quaternary); }
+#streamOutput .nq-card .tools { grid-column: 4; grid-row: 1; display: flex; gap: 2px; }
 #streamOutput .nq-card .pen, #streamOutput .nq-card .go { display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 5px; background: none; cursor: pointer; }
 #streamOutput .nq-card .pen { color: var(--text-tertiary); }
 #streamOutput .nq-card .go { color: var(--c-model); }
 #streamOutput .nq-card .pen:hover, #streamOutput .nq-card .go:hover { background: var(--bg-tertiary); }
 #streamOutput .nq-card .pen:hover { color: var(--text-primary); }
 #streamOutput .nq-card .pen svg, #streamOutput .nq-card .go svg { width: 14px; height: 14px; fill: currentColor; }
-#streamOutput .nq-card .was { position: absolute; right: 10px; bottom: 8px; padding: 0 7px; border: 1px solid var(--chip-model-border); border-radius: 8px; background: none; font: inherit; font-size: 10.5px; line-height: 16px; color: var(--c-model); cursor: pointer; }   /* a question that was run: the mark opens its analysis */
+#streamOutput .nq-card .was { grid-column: 3; grid-row: 1; align-self: center; padding: 0 7px; border: 1px solid var(--chip-model-border); border-radius: 8px; background: none; font: inherit; font-size: 10.5px; line-height: 16px; color: var(--c-model); cursor: pointer; }   /* a question that was run: the mark opens its analysis */
 #streamOutput .nq-card .was:hover { background: var(--accent-bg-hover); }
-#streamOutput .nq-card.editing .tx, #streamOutput .nq-card.editing .pen { display: none; }
+#streamOutput .nq-card.editing .q, #streamOutput .nq-card.editing .pen, #streamOutput .nq-card.editing .was { display: none; }
+#streamOutput .nq-card .nq-edit { grid-column: 2 / 4; grid-row: 1; }
 #streamOutput .nq-edit { display: flex; align-items: flex-start; gap: 6px; }
 #streamOutput .nq-input { flex: 1; min-width: 0; box-sizing: border-box; min-height: 44px; margin: 0; padding: 4px 8px; border: 1px solid var(--c-model); border-radius: 5px; background: var(--bg-primary); color: var(--text-primary); font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5; resize: none; overflow: hidden; outline: none; }
 #streamOutput .nq-edit .ok, #streamOutput .nq-edit .no { flex-shrink: 0; display: grid; place-items: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 5px; background: none; cursor: pointer; }

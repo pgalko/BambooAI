@@ -299,10 +299,11 @@ code and output, the conversation - when you ask about it; it reads the part unt
 shown the figure itself. On the thread map a framed question is one box.
 
 The closing card of a finished analysis says its numbers - turns, cells, plots, cost, time - and offers two
-buttons, **Next questions** and **Code map**. **Next questions** has five levels - refine focus, shift angle, test
-boundaries, blend elements, follow emergence - and at each up to five questions, every one from a line the
-analysis left: a result that did not fit, a line that could not be checked, an explanation not tested. A question
-can be changed, and running it starts a new analysis.
+buttons, **Next questions** and **Code map**. **Next questions** opens a panel in the card with five ways to go
+on - refine focus, shift angle, test boundaries, blend elements, follow emergence - and a sentence on what each
+does. The one you pick brings up to five questions, every one from a line the analysis left: a result that did
+not fit, a line that could not be checked, an explanation not tested. A question can be changed, and running it
+starts a new analysis.
 
 The Architect follows [`analyst/architect.md`](analyst/architect.md). Its messages are a model's, so the brief is
 yours to correct: the Analyst gets what the version you start with shows, and nothing else.

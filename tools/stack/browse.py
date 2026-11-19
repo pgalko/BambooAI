@@ -314,17 +314,31 @@ def story(w, mod, dataset, questions):
         w.shot("architect_map")
         p.click("#workflowMapModal .workflow-close")
         p.wait_for_timeout(300)
-        # next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on the closing card, the levels, the cards of one level, a
-        # question run as it stands - the switch still on - and the analysis it follows with the card marked
+        # next questions (docs/ARCHITECT_DESIGN.md §2.7, §2.24): the button on the closing card, the panel it opens in the card
+        # with the five ways to go, the questions of one way in the list's place, the list again with how many that way has, a
+        # question run as it stands - the switch still on - and the analysis it follows with the question marked
+        low = "const s = document.getElementById('streamOutput'); s.scrollTop = s.scrollHeight;"      # the card's foot in view
         w.js("activateTab('answer')")
         p.click('#streamOutput .sp-done [data-nq="open"]')
-        p.wait_for_selector("#nextLevels .it", state="visible", timeout=5000)
+        p.wait_for_selector("#streamOutput .nq-panel .nq-row", state="visible", timeout=5000)
+        w.js(low)
+        p.mouse.move(2, 2)                      # no row under the pointer
         p.wait_for_timeout(300)
         w.shot("next_levels")
-        p.click('#nextLevels .it[data-level="emergence"]')
-        p.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', timeout=30000)
+        p.click('#streamOutput .nq-row[data-level="emergence"]')
+        p.wait_for_selector('#streamOutput .nq-panel .nq-set[data-set="0"] .nq-card', timeout=30000)
+        w.js(low)
+        p.mouse.move(2, 2)                      # no row under the pointer
         p.wait_for_timeout(500)
         w.shot("next_cards")
+        p.click('#streamOutput .nq-panel [data-nq="list"]')
+        p.wait_for_selector("#streamOutput .nq-row .n", state="visible", timeout=5000)
+        w.js(low)
+        p.mouse.move(2, 2)                      # no row under the pointer
+        p.wait_for_timeout(300)
+        w.shot("next_levels_again")
+        p.click('#streamOutput .nq-row[data-level="emergence"]')
+        p.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', state="visible", timeout=5000)
         followed = p.evaluate("() => responses.length")
         p.click('#streamOutput .nq-set[data-set="0"] .nq-card[data-k="0"] .go')
         p.wait_for_function("(n) => responses.length === n + 1 && !responses[n].status", arg=followed, timeout=180000)

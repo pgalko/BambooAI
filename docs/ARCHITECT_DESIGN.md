@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.26 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312 and 0313; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.27 (2026-11-19; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313 and 0314; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -72,6 +72,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 51 | The question is written for the Analyst, who was not in the conversation. It says what is to be done and on what, in two or three sentences, and points to nothing the Analyst is not given: the question, the brief, the data, the analyses the question follows, and of the saved analyses those the brief builds on. How a figure is to look is the figure's to say (0313, from the product owner's live run: a question that pointed to an analysis of another day; §2.22). |
 | 52 | Before an analysis starts, its question is read by a model that is given what the Analyst will be given, and nothing else. The words it cannot place go back to the Architect, which words the question again; the coach sees it, and starts again. A read holds a start up once, and a read that cannot be made holds nothing up (0313; §2.22). |
 | 53 | The closing card of a run says the run's numbers beside its title, and offers what can be done next as two buttons alike: *Next questions* and *Code map*. It links to no tab: the tabs are there to click (0313, the second of three mockups, the product owner's choice; §2.23). |
+| 54 | Next questions are a panel inside the closing card, not a list that drops over the page. The panel says what the questions are and what each of the five ways does, a sentence each, in the words of what the Architect is told to do at that way. The questions of the way picked take the list's place, in rows of the same look. The row a run opens on says the way and not what the question came from (0314, the first of three mockups, the product owner's choice: "very little explanation what the feature does, what the options mean", and of *From did not fit* on the run's row: "What does from did not fit even mean"; §2.24). |
 
 ## 2. The Architect
 
@@ -156,7 +157,7 @@ The engine's side of this is built: §2.10.
 - A changed anchor loses its mark until it is checked again.
 - A fact from a lookup and a passage from a saved analysis cannot be changed. They can be left out.
 
-### 2.7 Next questions: the sapling in the Architect (agreed; built in 0300, §2.15)
+### 2.7 Next questions: the sapling in the Architect (agreed; built in 0300, §2.15; a panel in the card from 0314, §2.24)
 
 How the sapling worked until then:
 
@@ -563,6 +564,9 @@ shows its five questions; they can be read, not run. Nothing follows from such a
 
 Not built: a way to stop a set in flight. Questions written after an analysis was saved are not in its saved copy
 until it is saved again: a save stores the pane as it stands then.
+
+*From 0314* the list and the questions are a panel inside the closing card, and the run's row says the way only
+(§2.24). The engine, the record and the money are as above.
 
 ### 2.16 The Architect as a tutor — built (0306, 2026-11-17)
 
@@ -1207,6 +1211,63 @@ the two buttons in their row. Its numbers keep the words they were written with.
 button and the sources. The walk: the card's shape in the browser - one line of title and numbers, no link, no
 arrow, the two buttons alike and side by side - and a card kept from before, shown again.
 
+### 2.24 Next questions, a panel in the card — built (0314, 2026-11-19)
+
+**Why.** The product owner, of the list the button opened: "very little explanation what the feature does, what
+the options mean, and it collapses down to the very edge of the workspace which looks crowded". The list dropped
+over the card and the question box, and the questions then stood under the card, each set under a head of its
+own. Of three mockups he chose the first, and asked to see what follows a click before it was built: "we need to
+make sure we stay consistent". Of the first sentences for the five ways: "mechanical" - they were written again
+from what the Architect is told to do at each way (`analyst/next_questions.py`: `LEVELS`, `OWN`).
+
+**What it is now** (decision 54; `next-questions.js`, `pane.css`). Only the page changed.
+
+- The button opens a panel inside the card, under the row of buttons; the button, or the panel's cross, shuts
+  it. Nothing drops over the page.
+- **The list.** A heading, *Where do you want to go from here?*; one line of what the questions are; then the
+  five ways, a row each: its name, and a sentence of what its questions do.
+
+  | Way | Its sentence |
+  |---|---|
+  | Refine focus | Stay with the same question and look closer: a smaller group, a shorter period, a stricter measure. |
+  | Shift angle | Ask whether something else explains the result, and put that to the test. |
+  | Test boundaries | Check what the result stands on, and find where it stops being true. |
+  | Blend elements | Bring two findings together in one question, such as this result and an earlier one. |
+  | Follow emergence | Go after what did not fit: the things this analysis could not explain. |
+
+- **A way picked.** Its row says *writing the questions…* and the others stand back. The questions then take
+  the list's place: over them the way back, *‹ All five*, and the way's name and sentence; then a row for each
+  question on the same columns as the list - its title, its text with what it starts from under it in small
+  plain letters, the pencil and the arrow; under them how many there are, what the call cost, the button to
+  what the Architect read, and **Write more**.
+- **The list again.** A way that has questions says how many. A click on it shows them: no call. A way without
+  questions is asked for, as before; **Write more** asks for a further set of the way shown, which stands under
+  the first.
+- **The run's row.** *Next question · Test boundaries*: the way, and no more. What the question came from is on
+  the question's own row, where it is read with the question.
+- What a question starts from, in three cases reworded: *what it rests on*, *what did not fit*, *what was also
+  checked*.
+
+**How it is kept.** The panel is part of the analysis' pane, kept with the chain: its sets as before
+(`.nq-set`, `.nq-card`), in `.nq-sets`; what stands over and under them (`.nq-top`, `.nq-end`) is drawn from the
+sets and from what the panel shows (`data-show`: `list`, or a way's key), so a kept panel comes back as it was
+left - open or shut, on the list or on a way. That a set is being written is of the moment and is not kept.
+
+**Kept from before.** Sets the page kept under the card are taken into the panel when their chain is shown
+again (`gather()`): the head goes, the cost and the prompt's button come under the questions, the three
+phrases are today's, and the panel is open on the last set's way. The row of a run kept from before loses what
+it said after the way.
+
+**The page's request.** `/query` is sent `next: {text, chain, set, k, level}`; the label and the lines, which
+only the run's row used, are no longer sent. The server reads `set` and `k`, as before.
+
+**Tests.** `test_next_questions.js`: the panel's parts as built; a chain shown again, with sets and a run's row
+kept from before; the panel opened and shut; a way picked, its row while it is written, the set that comes
+back; the list with the count, the questions shown again with no call; more of a way; no set made; a question
+changed, run and marked; the stylesheet's rules. The walk: the panel in the card and within its box, the list's
+words, the questions in its place, the list with the counts, a way shown again with no call on the usage
+record, *Write more*, the run's row, sets and a row kept from before brought to today's shape in the browser.
+
 ## 3. Memory from saved analyses
 
 ### 3.1 What counts (agreed)
@@ -1586,6 +1647,7 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
   for a script on the coach's own machine.
 - New in 0313: the question read before its analysis (`analyst/cold.py`, `analyst/cold.md` - in the package
   data), and the closing card's shape.
+- New in 0314: Next questions as a panel in the closing card (the page only).
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
@@ -1626,6 +1688,7 @@ on the last one.
 | 0311 | From the product owner's live test of 0310, "a little too busy": no picture of a saved analysis in the brief; a grey window with one line where a figure has no draft, in place of the sketch; the rows in flight say what is being done; a figure's note is no longer cut at 240 characters (§2.19, §2.20, §3.7). | built |
 | 0312 | From the product owner's live test: the Answer is what goes to other people - what the report says against the brief leaves it, in both versions and in the export, for the foot of the run's Brief tab (§2.21). | built |
 | 0313 | From the product owner's live test: the question is written for the Analyst and points to nothing it is not given; before an analysis starts its question is read as the Analyst will read it, and what cannot be placed goes back to the Architect (§2.22). The closing card: the numbers beside the title, two buttons, no links (§2.23). | built |
+| 0314 | From the product owner, of the list of five levels: Next questions are a panel inside the closing card - what the questions are, the five ways with a sentence each, the questions of the way picked in the list's place; the row a run opens on says the way only (§2.24). | built |
 
 ## 8. Not in this release
 

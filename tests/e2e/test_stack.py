@@ -599,86 +599,157 @@ def walk_architect(page, st, mod, wa, edition, user):
 
 # ---- next questions (docs/ARCHITECT_DESIGN.md §2.7, §2.15): the helpers of its section ----
 def sets_on_screen(page):
-    """The sets of next questions under the closing card, as the coach sees them: each set's level and head, each card's label, the lines it comes from (the label's title), its title, its
-    question, and the chain its mark opens once it was run."""
-    return page.evaluate("""() => [...document.querySelectorAll('#streamOutput .nq-set:not(.nq-wait)')].map(s => ({ at: s.dataset.set, level: s.dataset.level,
-        head: [...s.querySelectorAll('.nq-head .k, .nq-head .lv')].map(x => x.textContent), prompt: !!s.querySelector('.nq-head .sp-prompt'),
+    """The sets of next questions in the closing card's panel, as the coach sees them: each set's way, whether it is among those shown, the line under it and whether that has the button to its
+    prompt, and each question's row: what it starts from, the lines behind that (the label's title), its title, its question, and the chain its mark opens once it was run."""
+    return page.evaluate("""() => [...document.querySelectorAll('#streamOutput .sp-done .nq-panel .nq-sets > .nq-set')].map(s => ({ at: s.dataset.set, level: s.dataset.level,
+        shown: getComputedStyle(s).display !== 'none' && s.getBoundingClientRect().height > 0, foot: (s.querySelector('.nq-foot span') || {}).textContent || '', prompt: !!s.querySelector('.nq-foot .sp-prompt'),
         cards: [...s.querySelectorAll('.nq-card')].map(c => ({ from: c.querySelector('.from .l').textContent, lines: c.querySelector('.from').title, title: (c.querySelector('.tx b') || {}).textContent || '',
             q: c.querySelector('.q').textContent, ran: c.classList.contains('ran') ? c.querySelector('.was').dataset.chain : '' })) }))""")
 
 
+def panel_on_screen(page):
+    """The Next questions panel as the coach sees it: how many there are, whether it is open, in the closing card under its row of buttons and within the card's box; what it shows - the list (its
+    heading, its line of what the questions are, a row for each way: key, name, sentence, how many questions it has) or the questions of one way (the way back, the way's name and sentence, the button
+    for more)."""
+    return page.evaluate("""() => { const all = document.querySelectorAll('#streamOutput .nq-panel'), p = all[0], text = s => (p.querySelector(s) || {}).textContent || '';
+        if (!p) return { n: 0 };
+        const card = p.closest('.sp-done'), box = p.getBoundingClientRect(), around = card ? card.getBoundingClientRect() : null;
+        return { n: all.length, open: getComputedStyle(p).display !== 'none' && box.height > 0, show: p.dataset.show, under: !!card && p.previousElementSibling === card.querySelector('.acts'),
+            within: !!around && box.left >= around.left && box.right <= around.right && box.bottom <= around.bottom, head: text('.nq-ph .t'), what: text('.nq-what'), back: text('.nq-back'),
+            way: [...p.querySelectorAll('.nq-lv b, .nq-lv span')].map(x => x.textContent), more: text('.nq-more'),
+            rows: [...p.querySelectorAll('.nq-row')].map(r => [r.dataset.level, r.querySelector('b').textContent, r.querySelector('span').textContent, (r.querySelector('.n') || {}).textContent || '']) }; }""")
+
+
+NEXT_WAYS = [["refine", "Refine focus", "Stay with the same question and look closer: a smaller group, a shorter period, a stricter measure."],
+             ["shift", "Shift angle", "Ask whether something else explains the result, and put that to the test."],
+             ["test", "Test boundaries", "Check what the result stands on, and find where it stops being true."],
+             ["blend", "Blend elements", "Bring two findings together in one question, such as this result and an earlier one."],
+             ["emergence", "Follow emergence", "Go after what did not fit: the things this analysis could not explain."]]
+
+
 def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
-    """A finished analysis carries a Next questions button on its closing card: it opens the five levels, and the one picked brings up to five questions as cards under the card, each from a line
-    the analysis left - the level's own lines first: at Follow emergence the misfit the report planted, at Test boundaries the lines the brief rests on that did not hold or could not be checked.
-    A question is changed and run with the Architect's switch on: a new analysis at once, under the one it follows, with no brief; its card is marked, and its box on the map says how it was made."""
+    """A finished analysis carries a Next questions button on its closing card: it opens a panel in the card - what the questions are, and the five ways to go, a sentence each. A way picked brings
+    up to five questions in the list's place, each from a line the analysis left - the way's own lines first: at Follow emergence the misfit the report planted, at Test boundaries the lines the
+    brief rests on that did not hold or could not be checked. The list again says how many questions a way has, and that way shows them with no call; more of a way are written on request. A
+    question is changed and run with the Architect's switch on: a new analysis at once, under the one it follows, with no brief; its row is marked, and its box on the map says how it was made."""
     rows0, month0 = len(usage_rows(wa, edition, user)), month_queries(page)
+    bare = lambda s: {k: v for k, v in s.items() if k != "shown"}
     page.click("#prevResponse")
     wait_text(page, "#chainPosition", "chain 2 of 3", 10000)
     page.wait_for_selector('#streamOutput .sp-done [data-nq="open"]', timeout=10000)
     card = page.evaluate("""() => ({ buttons: [...document.querySelectorAll('#streamOutput [data-nq="open"]')].map(b => b.textContent), inCard: !!document.querySelector('#streamOutput .sp-done .acts > .sp-next:first-child'),
-        plant: !!document.getElementById('suggestQuestions'), list: !!document.getElementById('nextLevels'), tab: document.querySelector('#tabContainer .tab.active').textContent })""")
+        plant: !!document.getElementById('suggestQuestions'), list: !!document.getElementById('nextLevels'), panels: document.querySelectorAll('#streamOutput .nq-panel').length,
+        tab: document.querySelector('#tabContainer .tab.active').textContent })""")
     page.click('#streamOutput [data-nq="open"]')
-    page.wait_for_selector("#nextLevels .it", state="visible", timeout=5000)
-    levels = page.evaluate("() => [...document.querySelectorAll('#nextLevels .it')].map(i => [i.dataset.level, i.querySelector('b').textContent, i.querySelector('span').textContent])")
-    check("the plant has left the composer: a finished analysis carries one Next questions button, first in its closing card's row of what can be done next; it opens the five levels, each a name and "
-          "one plain line",
-          card["buttons"] == ["Next questions"] and card["inCard"] and not card["plant"] and not card["list"]
-          and levels == [["refine", "Refine focus", "the same question, narrower"], ["shift", "Shift angle", "another explanation of the result"], ["test", "Test boundaries", "what the result rests on"],
-                         ["blend", "Blend elements", "two findings together"], ["emergence", "Follow emergence", "what did not fit"]], (card, levels))
+    page.wait_for_selector("#streamOutput .sp-done .nq-panel .nq-row", state="visible", timeout=5000)
+    opened = panel_on_screen(page)
+    page.click('#streamOutput .nq-panel [data-nq="shut"]')
+    crossed = panel_on_screen(page)
+    page.click('#streamOutput [data-nq="open"]')
+    page.wait_for_selector("#streamOutput .nq-panel .nq-row", state="visible", timeout=5000)
+    page.click('#streamOutput [data-nq="open"]')
+    shut = panel_on_screen(page)
+    page.click('#streamOutput [data-nq="open"]')
+    page.wait_for_selector("#streamOutput .nq-panel .nq-row", state="visible", timeout=5000)
+    check("the plant has left the composer: a finished analysis carries one Next questions button, first in its closing card's row of what can be done next. It opens one panel in the card, under that "
+          "row and within the card's box - nothing drops over the page: a heading, a line of what the questions are, and the five ways to go, each a name and a sentence. Its cross shuts it, and so "
+          "does the button; the button opens it again",
+          card["buttons"] == ["Next questions"] and card["inCard"] and not card["plant"] and not card["list"] and card["panels"] == 0
+          and (opened["n"], opened["open"], opened["show"], opened["under"], opened["within"]) == (1, True, "list", True, True) and opened["head"] == "Where do you want to go from here?"
+          and opened["what"].startswith("Up to five questions that could follow this analysis.") and opened["rows"] == [w + [""] for w in NEXT_WAYS] and not opened["back"] and not opened["more"]
+          and (crossed["n"], crossed["open"]) == (1, False) and (shut["n"], shut["open"]) == (1, False) and panel_on_screen(page) == opened, (card, opened, crossed, shut))
 
-    # a level picked: the questions, each from a line of the record - the level's own first
+    # a way picked: its questions in the list's place, each from a line of the record - the way's own first
     done = thread_run(wa, user, tid, cid2)
     misfit = (done.get("brief_outcome", {}).get("did_not_fit") or [""])[0]
     wide = re.search(r"t/ha on (\w+),", misfit)
-    page.click('#nextLevels .it[data-level="emergence"]')
-    page.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', timeout=20000)
-    s0 = sets_on_screen(page)
-    after0 = page.evaluate("""() => ({ list: getComputedStyle(document.getElementById('nextLevels')).display, tab: document.querySelector('#tabContainer .tab.active').textContent,
-        under: (document.querySelector('#streamOutput .sp-stream > .sp-done + .nq-set') || {}).dataset || {}, wait: document.querySelectorAll('#streamOutput .nq-wait').length })""")
+    page.click('#streamOutput .nq-row[data-level="emergence"]')
+    page.wait_for_selector('#streamOutput .nq-panel .nq-set[data-set="0"] .nq-card', timeout=20000)
+    s0, p0 = sets_on_screen(page), panel_on_screen(page)
+    after0 = page.evaluate("""() => ({ tab: document.querySelector('#tabContainer .tab.active').textContent, loose: document.querySelectorAll('#streamOutput .sp-stream > .nq-set').length,
+        heads: document.querySelectorAll('#streamOutput .nq-head').length })""")
     first = s0[0]["cards"][0] if s0 and s0[0]["cards"] else {}
-    check("Follow emergence: five questions as cards under the closing card, the answer's side of the page as it was. The first comes from the misfit the report planted - the gap by soil, which the "
-          "coach's frame does not explain: its card says From did not fit, the report's own line behind the label, and asks about the soil where the gap is widest; the others come from the other lines "
-          "of the brief and the report, each saying which",
-          len(s0) == 1 and s0[0]["level"] == "emergence" and s0[0]["head"] == ["Next questions", "Follow emergence"] and s0[0]["prompt"] and len(s0[0]["cards"]) == 5
-          and misfit.startswith(mod.NEXT_MISFIT) and wide is not None and first.get("from") == "From did not fit" and first.get("lines") == misfit
-          and first.get("q") == f"Is regime C above regime A on {wide.group(1)} alone, on plot means of yield?" and first.get("title") == f"The {wide.group(1)} plots."
-          and [c["from"] for c in s0[0]["cards"][1:]] == ["From what was compared", "From the measure", "From also checked", "From also checked"]
-          and all(c["lines"] and not c["ran"] for c in s0[0]["cards"]) and after0 == {"list": "none", "tab": card["tab"], "under": {"set": "0", "level": "emergence"}, "wait": 0}, (s0, misfit, after0))
-    page.click('#streamOutput [data-nq="open"]')
-    page.click('#nextLevels .it[data-level="test"]')
-    page.wait_for_selector('#streamOutput .nq-set[data-set="1"] .nq-card', timeout=20000)
-    s1 = sets_on_screen(page)
-    rests = [c for c in (s1[1]["cards"] if len(s1) > 1 else []) if c["from"] == "From it rests on"]
-    check("Test boundaries, a second set under the first: its questions come first from what the brief rests on - the premise that did not hold, with the numbers the data gave, and the line that could "
-          "not be checked, with why - then from what would change the coach's mind; no question of the first set is asked again",
-          len(s1) == 2 and s1[0] == s0[0] and s1[1]["level"] == "test" and s1[1]["head"] == ["Next questions", "Test boundaries"] and len(s1[1]["cards"]) == 5
-          and [c["from"] for c in s1[1]["cards"][:3]] == ["From it rests on", "From it rests on", "From what would change your mind"]
+    check("Follow emergence: five questions in the panel, in the list's place, the answer's side of the page as it was: over them the way back to the list and the way's name and sentence, under "
+          "them how many there are, the button to what the Architect read, and Write more. The first comes from the misfit the report planted - the gap by soil, which the coach's frame does not "
+          "explain: its row says From what did not fit, the report's own line behind the label, and asks about the soil where the gap is widest; the others come from the other lines of the brief "
+          "and the report, each saying which",
+          len(s0) == 1 and s0[0]["level"] == "emergence" and s0[0]["shown"] and s0[0]["prompt"] and re.fullmatch(r"5 questions( · \$\d+\.\d\d)?", s0[0]["foot"]) and len(s0[0]["cards"]) == 5
+          and (p0["n"], p0["open"], p0["show"], p0["within"], p0["back"], p0["way"], p0["more"], p0["rows"], p0["head"]) == (1, True, "emergence", True, "‹ All five", NEXT_WAYS[4][1:], "Write more", [], "")
+          and misfit.startswith(mod.NEXT_MISFIT) and wide is not None and first.get("from") == "From what did not fit" and first.get("lines") == misfit
+          and first.get("q") == f"Is regime C above regime A on {wide.group(1)} alone, on plot means of yield?" and first.get("title") == f"The {wide.group(1)} plots"
+          and [c["from"] for c in s0[0]["cards"][1:]] == ["From what was compared", "From the measure", "From what was also checked", "From what was also checked"]
+          and all(c["lines"] and not c["ran"] for c in s0[0]["cards"]) and after0 == {"tab": card["tab"], "loose": 0, "heads": 0}, (s0, p0, misfit, after0))
+    page.click('#streamOutput .nq-panel [data-nq="list"]')
+    page.wait_for_selector('#streamOutput .nq-row[data-level="test"]', state="visible", timeout=5000)
+    listed, hidden = panel_on_screen(page), [s["shown"] for s in sets_on_screen(page)]
+    page.click('#streamOutput .nq-row[data-level="test"]')
+    page.wait_for_selector('#streamOutput .nq-panel .nq-set[data-set="1"] .nq-card', timeout=20000)
+    s1, p1 = sets_on_screen(page), panel_on_screen(page)
+    rests = [c for c in (s1[1]["cards"] if len(s1) > 1 else []) if c["from"] == "From what it rests on"]
+    check("the list again: the way that has questions says how many, the questions themselves out of sight. Test boundaries, a second set, shown in the first one's place: its questions come first "
+          "from what the brief rests on - the premise that did not hold, with the numbers the data gave, and the line that could not be checked, with why - then from what would change the coach's "
+          "mind; no question of the first set is asked again",
+          listed["show"] == "list" and listed["rows"] == [w + (["5 questions"] if w[0] == "emergence" else [""]) for w in NEXT_WAYS] and hidden == [False]
+          and len(s1) == 2 and bare(s1[0]) == bare(s0[0]) and [s["shown"] for s in s1] == [False, True] and s1[1]["level"] == "test" and len(s1[1]["cards"]) == 5
+          and (p1["n"], p1["show"], p1["way"], p1["within"]) == (1, "test", NEXT_WAYS[2][1:], True)
+          and [c["from"] for c in s1[1]["cards"][:3]] == ["From what it rests on", "From what it rests on", "From what would change your mind"]
           and len(rests) == 2 and rests[0]["lines"].startswith("The C plots got the most rain. (does not hold: total of rainfall_mm by regime: ")
           and rests[1]["lines"].endswith(f"(cannot be checked: {mod.ARCHITECT_UNRECORDED})") and rests[1]["q"].startswith("Does the answer change without this: ")
-          and not {c["q"] for c in s1[1]["cards"]} & {c["q"] for c in s0[0]["cards"]}, s1[1:])
-    page.click('#streamOutput .nq-set[data-set="1"] .nq-head .sp-prompt')
+          and not {c["q"] for c in s1[1]["cards"]} & {c["q"] for c in s0[0]["cards"]}, (listed, hidden, s1[1:], p1))
+    page.click('#streamOutput .nq-set[data-set="1"] .nq-foot .sp-prompt')
     page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /SOURCES:/.test(u.textContent); }", timeout=15000)
     read, instructions = page.inner_text("#userInstructions"), page.evaluate("() => document.getElementById('systemInstructions').textContent")
     page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
-    rec = thread_run(wa, user, tid, cid2).get("next_questions") or []
-    by_chain = {}
-    for r in usage_rows(wa, edition, user)[rows0:]:
-        by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
-    month1 = month_queries(page)
-    check("what the Architect read for the second set, through the set's button: its instructions for next questions, then the data, the analyses before, the question, the report whole, the brief as "
-          "the analyst received it, the questions proposed before, the level, and the lines numbered - what the brief rests on first, then the others",
+    check("what the Architect read for the second set, through the button under it: its instructions for next questions, then the data, the analyses before, the question, the report whole, the brief "
+          "as the analyst received it, the questions proposed before, the level, and the lines numbered - what the brief rests on first, then the others",
           instructions.lstrip().startswith("You propose the questions to analyse next.") and read.startswith("DATA:\n") and "\n\nEARLIER (the analyses this question follows, oldest first):\n[1] Q: " + mod.BRIEF_QUESTION in read and "\n\nREPORT:\n## Regime C is " in read and "\n## Did not fit\n" in read
           and "\n\nBRIEF (agreed with the person before this run):\n" in read and "\n\nPROPOSED BEFORE:\n- " + first.get("q", "?") + "\n" in read
           and "\n\nLEVEL: test - a question at this level tests what the result rests on, or where it stops holding\n\nSOURCES:\n1. Rests on: The C plots got the most rain. (does not hold: " in read
           and "\nOther lines:\n" in read and read.index("\n3. Would change their mind: ") < read.index("\nOther lines:\n") < read.index(". Did not fit: " + misfit) and read.endswith("Reply with the JSON object."),
           read[-1400:])
-    check("the two sets are kept with the analysis they follow, on its record: the level, each question with the lines it comes from, the chain its call was logged under. Each set was one call of the "
-          "Architect's under a chain of its own, which is no run of the thread - and a query of the month's (the self-hosted edition counts none)",
-          [s.get("level") for s in rec] == ["emergence", "test"] and [len(s.get("questions", [])) for s in rec] == [5, 5]
+
+    # the list, a way that has questions - shown with no call - and more of a way
+    calls2 = len(usage_rows(wa, edition, user))
+    page.click('#streamOutput .nq-panel [data-nq="list"]')
+    page.wait_for_selector('#streamOutput .nq-row[data-level="emergence"] .n', state="visible", timeout=5000)
+    both = panel_on_screen(page)["rows"]
+    page.click('#streamOutput .nq-row[data-level="emergence"]')
+    page.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', state="visible", timeout=5000)
+    page.wait_for_timeout(600)
+    again, calls3 = sets_on_screen(page), len(usage_rows(wa, edition, user))
+    check("the list says how many questions each of the two ways has, and a click on one that has some shows them, the other's out of sight - no call",
+          [r[3] for r in both] == ["", "", "5 questions", "", "5 questions"] and [bare(s) for s in again] == [bare(s) for s in s1] and [s["shown"] for s in again] == [True, False] and calls3 == calls2,
+          (both, again, calls2, calls3))
+    page.click('#streamOutput .nq-panel [data-nq="list"]')
+    page.click('#streamOutput .nq-row[data-level="blend"]')
+    page.wait_for_selector('#streamOutput .nq-panel .nq-set[data-set="2"] .nq-card', timeout=20000)
+    page.click('#streamOutput .nq-panel .nq-more')
+    page.wait_for_selector('#streamOutput .nq-panel .nq-set[data-set="3"] .nq-card', timeout=20000)
+    s2, p2 = sets_on_screen(page), panel_on_screen(page)
+    joined, more = (s2[2]["cards"], s2[3]["cards"]) if len(s2) > 3 else ([], [])
+    page.click('#streamOutput .nq-panel [data-nq="list"]')
+    counted = [r[3] for r in panel_on_screen(page)["rows"]]
+    page.click('#streamOutput .nq-row[data-level="emergence"]')
+    page.wait_for_selector('#streamOutput .nq-set[data-set="0"] .nq-card', state="visible", timeout=5000)
+    check("Blend elements, each question from two lines; then Write more, under its questions: a further set of the same way, shown under the first, each with its own count and button to its "
+          "prompt - none of its questions was proposed before. The list counts the two sets as one way's questions",
+          len(s2) == 4 and [(s["level"], s["shown"]) for s in s2] == [("emergence", False), ("test", False), ("blend", True), ("blend", True)] and len(joined) == 5 and 1 <= len(more) <= 5
+          and all(c["from"].startswith("From the answer and ") and "\n" in c["lines"] for c in joined + more) and s2[2]["prompt"] and s2[3]["prompt"] and s2[2]["foot"].startswith("5 questions")
+          and s2[3]["foot"].startswith(f"{len(more)} question") and not {c["q"] for c in more} & {c["q"] for s in s2[:3] for c in s["cards"]}
+          and (p2["n"], p2["show"], p2["way"], p2["more"], p2["within"]) == (1, "blend", NEXT_WAYS[3][1:], "Write more", True)
+          and counted == ["", "", "5 questions", f"{5 + len(more)} questions", "5 questions"], (s2[2:], p2, counted))
+    rec = thread_run(wa, user, tid, cid2).get("next_questions") or []
+    by_chain = {}
+    for r in usage_rows(wa, edition, user)[rows0:]:
+        by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
+    month1 = month_queries(page)
+    check("the four sets are kept with the analysis they follow, on its record: the level, each question with the lines it comes from, the chain its call was logged under. Each set was one call of "
+          "the Architect's under a chain of its own, which is no run of the thread - and a query of the month's (the self-hosted edition counts none)",
+          [s.get("level") for s in rec] == ["emergence", "test", "blend", "blend"] and [len(s.get("questions", [])) for s in rec] == [5, 5, 5, len(more)]
           and rec[0]["questions"][0] == {"title": f"The {wide.group(1)} plots", "text": first.get("q"), "from": [{"kind": "misfit", "text": misfit}]}
           and [q["from"][0]["kind"] for q in rec[1]["questions"][:3]] == ["anchor", "anchor", "would_change"] and not any("ran" in q for s in rec for q in s["questions"])
           and sorted(by_chain) == sorted(str(s.get("chain")) for s in rec) and all(v == ["Architect"] for v in by_chain.values())
-          and not any(thread_run(wa, user, tid, s.get("chain")) for s in rec) and month1 - month0 == (2 if edition == "hosted" else 0), (rec[:1], by_chain, month0, month1))
+          and not any(thread_run(wa, user, tid, s.get("chain")) for s in rec) and month1 - month0 == (4 if edition == "hosted" else 0), (rec[:1], by_chain, month0, month1))
 
     # a question changed, then run - with the Architect's switch on: an analysis at once, as it stands
     changed = f"Is regime C above regime A on {wide.group(1)} plots alone, season by season?"
@@ -692,18 +763,20 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     page.wait_for_function("() => responses.length === 4 && !responses[3].status", timeout=60000)
     ran = page.evaluate("""() => ({ first: (document.querySelector('#streamOutput .sp-stream > *') || {}).className, row: (document.querySelector('#streamOutput .nq-from') || {}).textContent,
         behind: (document.querySelector('#streamOutput .nq-from') || {}).title, tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent), fold: !!document.querySelector('#streamOutput .ar-fold'),
-        on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), typed: document.getElementById('queryInput').value, button: document.querySelectorAll('#streamOutput .sp-done [data-nq="open"]').length })""")
+        on: document.getElementById('architectSwitch').getAttribute('aria-pressed'), typed: document.getElementById('queryInput').value, button: document.querySelectorAll('#streamOutput .sp-done [data-nq="open"]').length,
+        panels: document.querySelectorAll('#streamOutput .nq-panel').length })""")
     cid4 = page.evaluate("() => currentData.chain_id")
     fourth, followed = thread_run(wa, user, tid, cid4), thread_run(wa, user, tid, cid2)
     month2 = month_queries(page)
     check("a question changed and run: a new analysis at once, though the Architect's switch is on - no brief on the page, none on the run - under the analysis it follows, asking what the coach made of "
-          "the question. Its pane opens on the row that says it was a next question, at which level and from what; what the coach was typing in the composer is still there; the new analysis has a Next "
-          "questions button of its own. On the record the question is marked with the chain it started, and it is a query of the month's as any analysis is",
-          ran["first"] == "nq-from" and ran["row"] == "Next question·Follow emergence·From did not fit" and ran["behind"] == misfit and "Brief" not in ran["tabs"] and "Answer" in ran["tabs"] and not ran["fold"]
-          and ran["on"] == "true" and ran["typed"] == "typed by the coach, not sent" and ran["button"] == 1
+          "the question. Its pane opens on the row that says it was a next question and which way it went - not what it came from; what the coach was typing in the composer is still there; the new "
+          "analysis has a Next questions button of its own, and no panel until it is asked for. On the record the question is marked with the chain it started, and it is a query of the month's as "
+          "any analysis is",
+          ran["first"] == "nq-from" and ran["row"] == "Next question·Follow emergence" and not ran["behind"] and "Brief" not in ran["tabs"] and "Answer" in ran["tabs"] and not ran["fold"]
+          and ran["on"] == "true" and ran["typed"] == "typed by the coach, not sent" and ran["button"] == 1 and ran["panels"] == 0
           and fourth.get("status") == "answered" and fourth.get("question") == changed and str(fourth.get("parent")) == str(cid2) and fourth.get("brief") == {} and fourth.get("framing") == {}
           and [q.get("ran") for q in followed["next_questions"][0]["questions"]] == [str(cid4), None, None, None, None] and followed["next_questions"][0]["questions"][0]["text"] == first.get("q")
-          and not any("ran" in q for q in followed["next_questions"][1]["questions"]) and month2 - month1 == (1 if edition == "hosted" else 0), (ran, fourth.get("parent"), followed["next_questions"][0]["questions"][0], month2))
+          and not any("ran" in q for s in followed["next_questions"][1:] for q in s["questions"]) and month2 - month1 == (1 if edition == "hosted" else 0), (ran, fourth.get("parent"), followed["next_questions"][0]["questions"][0], month2))
     page.evaluate("showWorkflowMap()")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--fork')])")
@@ -712,15 +785,63 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     page.click("#prevResponse")
     wait_text(page, "#chainPosition", "chain 2 of 4", 10000)
     page.wait_for_selector("#streamOutput .nq-card.ran", timeout=10000)
-    back = sets_on_screen(page)
+    back, pback = sets_on_screen(page), panel_on_screen(page)
+    check("the thread map gained one box - the questions are none, the one that was run is one, under the analysis it follows - and it says next question; no box is a fork. Back on the analysis the "
+          "panel is as it was left, open on the way the question was run from, and the sets are as they were kept: the question as the coach changed it, without the title it came with, marked as run",
+          boxes == [["Architect", False], ["Architect", False], ["", False], ["next question", False]] and len(back) == 4 and (pback["n"], pback["open"], pback["show"], pback["within"]) == (1, True, "emergence", True)
+          and back[0]["cards"][0] == {"from": "From what did not fit", "lines": misfit, "title": "", "q": changed, "ran": str(cid4)} and back[0]["cards"][1:] == s0[0]["cards"][1:]
+          and [bare(s) for s in back[1:]] == [bare(s) for s in s2[1:]] and [s["shown"] for s in back] == [True, False, False, False], (boxes, back[0]["cards"][:1], pback))
+
+    # sets kept by the page before the panel (0313): under the card, each under a head; and the row of the run a question started, which also said what it came from - shown again, and put back
+    kept = page.evaluate("""async () => { const e = responses[currentResponseIndex], was = e.streamOutput, d = document.createElement('div');
+        d.innerHTML = was;
+        const panel = d.querySelector('.nq-panel'), card = panel.closest('.sp-done'), names = { emergence: 'Follow emergence', test: 'Test boundaries' };
+        const before = { 'From what it rests on': 'From it rests on', 'From what did not fit': 'From did not fit', 'From what was also checked': 'From also checked' };
+        [...panel.querySelectorAll('.nq-set')].slice(0, 2).reverse().forEach(s => {
+            const foot = s.querySelector('.nq-foot'), prompt = foot.querySelector('.sp-prompt'), head = document.createElement('div');
+            head.className = 'nq-head';
+            head.innerHTML = '<span class="k">Next questions</span><span class="sep">·</span><span class="lv">' + names[s.dataset.level] + '</span><span class="r">$0.02' + (prompt ? prompt.outerHTML : '') + '</span>';
+            foot.remove(); s.classList.remove('on'); s.insertBefore(head, s.firstChild);
+            s.querySelectorAll('.tx b').forEach(b => { b.textContent += '.'; });
+            s.querySelectorAll('.from .l').forEach(l => { l.textContent = before[l.textContent] || l.textContent; });
+            card.after(s);
+        });
+        panel.remove(); e.streamOutput = d.innerHTML;
+        loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 400));
+        const p = document.querySelector('#streamOutput .nq-panel'), sets = [...document.querySelectorAll('#streamOutput .nq-set')], vis = x => getComputedStyle(x).display !== 'none';
+        const shown = { panels: document.querySelectorAll('#streamOutput .nq-panel').length, inCard: !!p && !!p.closest('.sp-done') && vis(p), show: p ? p.dataset.show : '', heads: document.querySelectorAll('#streamOutput .nq-head').length,
+            loose: sets.filter(s => !s.closest('.nq-panel')).length, sets: sets.map(s => [s.dataset.set, s.dataset.level, vis(s), s.querySelector('.nq-foot span').textContent, !!s.querySelector('.nq-foot .sp-prompt')]),
+            from: [...new Set([...document.querySelectorAll('#streamOutput .nq-card .from .l')].map(l => l.textContent))].sort(), stops: [...document.querySelectorAll('#streamOutput .nq-card .tx b')].filter(b => b.textContent.endsWith('.')).length,
+            ran: document.querySelectorAll('#streamOutput .nq-card.ran').length };
+        e.streamOutput = was; loadResponseContent(e);
+        await new Promise(r => setTimeout(r, 400));
+        // the run the question started: its row as 0313 kept it
+        const r = responses[responses.length - 1], rowWas = r.streamOutput, f = document.createElement('div');
+        f.innerHTML = rowWas;
+        const row = f.querySelector('.nq-from');
+        row.title = 'the line'; row.insertAdjacentHTML('beforeend', '<span class="sep">·</span><span>From did not fit</span>');
+        r.streamOutput = f.innerHTML;
+        const old = row.textContent, at = currentResponseIndex;
+        currentResponseIndex = responses.length - 1; loadResponseContent(r);
+        await new Promise(x => setTimeout(x, 400));
+        const now = document.querySelector('#streamOutput .nq-from'), rowNow = [now.textContent, now.title, now.children.length];
+        r.streamOutput = rowWas; currentResponseIndex = at; loadResponseContent(responses[at]);
+        await new Promise(x => setTimeout(x, 400));
+        return { shown, old, rowNow, back: document.querySelectorAll('#streamOutput .nq-panel .nq-set').length }; }""")
+    check("sets the page kept before the panel - under the closing card, each under its own head - are taken into the card's panel when their analysis is shown again: one panel, open on the last "
+          "set's way, no head left, each set's count, cost and prompt button under its questions, what a question starts from in today's words, no title ending on a full stop, the mark of the one "
+          "that was run still on it. The row of a run kept from then, which also said From did not fit, says the way only. The page's own copies are put back",
+          kept["shown"]["panels"] == 1 and kept["shown"]["inCard"] and kept["shown"]["show"] == "test" and kept["shown"]["heads"] == 0 and kept["shown"]["loose"] == 0
+          and kept["shown"]["sets"] == [["0", "emergence", False, "5 questions · $0.02", True], ["1", "test", True, "5 questions · $0.02", True]]
+          and not [f for f in kept["shown"]["from"] if f in ("From it rests on", "From did not fit", "From also checked")] and "From what did not fit" in kept["shown"]["from"]
+          and kept["shown"]["stops"] == 0 and kept["shown"]["ran"] == 1 and kept["old"] == "Next question·Follow emergence·From did not fit" and kept["rowNow"] == ["Next question·Follow emergence", "", 3]
+          and kept["back"] == 4, kept)
+    page.wait_for_selector("#streamOutput .nq-card.ran .was", state="visible", timeout=10000)
     page.click("#streamOutput .nq-card.ran .was")
     wait_text(page, "#chainPosition", "chain 4 of 4", 10000)
     page.click("#architectSwitch")
-    check("the thread map gained one box - the five questions are none, the one that was run is one, under the analysis it follows - and it says next question; no box is a fork. Back on the analysis "
-          "the sets are as they were kept: the question as the coach changed it, without the title it came with, marked as run - and the mark opens the analysis it started",
-          boxes == [["Architect", False], ["Architect", False], ["", False], ["next question", False]] and len(back) == 2
-          and back[0]["cards"][0] == {"from": "From did not fit", "lines": misfit, "title": "", "q": changed, "ran": str(cid4)} and back[0]["cards"][1:] == s0[0]["cards"][1:] and back[1] == s1[1]
-          and page.evaluate("() => String(currentData.chain_id)") == str(cid4), (boxes, back[0]["cards"][:1]))
+    check("the mark on the question that was run opens the analysis it started", page.evaluate("() => String(currentData.chain_id)") == str(cid4), page.evaluate("() => String(currentData.chain_id)"))
 
 
 # ---- the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the helpers of its section ----

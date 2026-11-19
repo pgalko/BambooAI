@@ -42,7 +42,8 @@ STATES = {
     'architect_outcome': ARCHITECT + "galleryArchitect.outcome();",    # which stands at the foot of that run's Brief tab: how it turned out (§2.21)
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)
     'architect_saved': ARCHITECT + "galleryArchitect.saved();",        # what they hold: the analyses found, to read, and the one the brief builds on (§2.18)
-    'next_questions': ARCHITECT + "galleryArchitect.next();",          # next questions under a finished analysis: a set of cards, one run, and the levels open (§2.15)
+    'next_questions': ARCHITECT + "galleryArchitect.next();",          # the panel of next questions in a finished analysis' closing card: the five ways to go, one with questions (§2.24)
+    'next_shown': ARCHITECT + "galleryArchitect.next(true);",          # the questions of one way in the list's place, one of them run (§2.24)
 }
 
 def render_all(out, light=False):

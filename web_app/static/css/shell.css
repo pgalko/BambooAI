@@ -478,10 +478,6 @@
 .save-menu .it b { font-size: 12.5px; font-weight: 600; color: var(--text-primary); }
 .save-menu .it span { font-size: var(--fs-small); color: var(--text-quaternary); line-height: 1.4; }
 .save-menu .it.done { cursor: default; } .save-menu .it.done:hover { background: none; } .save-menu .it.done b { color: var(--c-model); }
-.save-menu.nq-menu { min-width: 330px; }      /* the five levels of next questions (next-questions.js): a name and its one line, side by side */
-.save-menu.nq-menu::before { display: none; }
-.save-menu.nq-menu .it { flex-direction: row; align-items: baseline; gap: 14px; }
-.save-menu.nq-menu .it b { flex: 0 0 118px; }
 
 /* ---- the Documents pill (2026-10-03, docs/DOCUMENTS_DESIGN.md D53-D54): one pill for the thread's documents, blue so it
    reads apart from the green dataset pills. The spinner and "parsing name…" while a file is parsed; the refusal sentence

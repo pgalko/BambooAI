@@ -641,8 +641,9 @@ class Scenario:
             return {"title": title, "question": sentence.format(t=bare(text))}
         if level == "blend":
             answer = next(n for n, kind, _ in lines if kind == "Found")
-            return json.dumps({"questions": [{"title": "Two findings", "question": f"Does one explain the other: the answer, and this - {bare(text)}?", "from": [answer, n]}
-                                             for n, kind, text in lines if n != answer][:5]})
+            joined = [{"title": "Two findings", "question": f"Does one explain the other: the answer, and this - {bare(text)}?", "from": [answer, n]}
+                      for n, kind, text in lines if n != answer]
+            return json.dumps({"questions": [q for q in joined if q["question"] not in before][:5]})
         asked = [{**question(kind, text), "from": [n]} for n, kind, text in lines]
         return json.dumps({"questions": [q for q in asked if q["question"] not in before][:5]})
 
