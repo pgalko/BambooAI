@@ -2592,6 +2592,64 @@ def main():
                   "PLOTS=" in row9 and "LATER=0" in row9 and "The kernel went back to the state chain" in logs["webapp"]
                   and (compute == "local" or (bool(went) and went[-1][0] == went[-1][1] and went[-1][2] == "0")), (row9[:200], went[-2:], compute))
 
+            # a branch (0319, docs/BRANCH_DESIGN.md §4): go on from a turn of an analysis, with a hint. The page has no control for
+            # it yet, so the route is called as the page will call it: the chain in view, the turn, and the hint as the query.
+            # First from the chain asked just before, whose state the thread's kernel holds: the kernel goes back, no cell is
+            # run again. Then from the turn of the first analysis that pooled the soil types - a chain on a frame loaded
+            # earlier, so a fresh kernel runs its kept cells again
+            def go_on(chain, turn):
+                stream = page.evaluate("""async (a) => { const r = await window.authService.fetch('/query', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: a.hint, thread_id: a.thread, chain_id: a.chain, branch: { turn: a.turn } }) }); return await r.text(); }""",
+                                       {"hint": mod.BRANCH_HINT, "thread": int(tid_b), "chain": int(chain), "turn": turn})
+                sent = []
+                for ln in stream.splitlines():
+                    try:
+                        sent.append(json.loads(ln))
+                    except ValueError:
+                        pass
+                made = thread_run(wa, USER, tid_b, str(next((m.get("chain_id") for m in sent if m.get("type") == "id"), ""))) or {}
+                logs = {name: open(os.path.join(workdir, "logs", name + ".log"), encoding="utf-8", errors="replace").read() if os.path.exists(os.path.join(workdir, "logs", name + ".log")) else ""
+                        for name in ("webapp", "executor")}
+                return sent, made, [t for t in made.get("turns", []) if t["kind"] == "cell" and t.get("cell_no") is not None and not t.get("step")], logs
+
+            def runs_b():
+                with open(os.path.join(wa, "storage", USER, "threads", f"{tid_b}.json"), encoding="utf-8") as fh:
+                    return json.load(fh)["runs"]
+
+            tid_b = str(page.evaluate("() => currentData.thread_id"))
+            thread_b = runs_b()
+            first_b = min((r for r in thread_b.values() if r["question"] == mod.QUESTIONS[0] and not r.get("brief")), key=lambda r: r["created"])
+            last_b = max((r for r in thread_b.values() if r["question"] == mod.BACK_QUESTION), key=lambda r: r["created"])
+            _, run_g, cells_g, logs_g = go_on(last_b["id"], 1)
+            went_g = re.findall(r"at step (\d+) from the state after step (\d+), (\d+) step\(s\) run again", logs_g["executor"])
+            check("a branch (0319) from a turn whose state the kernel holds: the kernel goes back to it - the app says so, the executor says it got there from that "
+                  "state's own snapshot with no step run again - and the branch's cell finds what the path made and nothing a later chain made",
+                  run_g.get("branch") == {"of": last_b["id"], "turn": 1} and run_g.get("status") == "answered" and [c.get("kept") for c in cells_g] == ["kept", ""]
+                  and "KEPT=1 LATER=0" in cells_g[-1]["stdout"] and f"The kernel went back to the state after turn 1 of chain {last_b['id']}" in logs_g["webapp"]
+                  and (compute == "local" or (bool(went_g) and went_g[-1][0] == went_g[-1][1] and went_g[-1][2] == "0")),
+                  (run_g.get("branch"), run_g.get("status"), [c.get("kept") for c in cells_g], went_g[-2:], compute))
+            sent_b, run_b, cells_b, logs_b = go_on(first_b["id"], mod.BRANCH_TURN)
+            id_b = next((m for m in sent_b if m.get("type") == "id"), {})
+            start_b = next((m for m in sent_b if m.get("type") == "pane_run_start"), {})
+            cards_b = [(m.get("turn"), bool(m.get("kept"))) for m in sent_b if m.get("type") == "pane_turn_start" and isinstance(m.get("turn"), int)]
+            check("a branch (0319) of the first analysis, after the turn that pooled the soil types: a chain of its own beside it, its four kept turns sent to the pane "
+                  "first and marked, then its own; a fresh kernel ran its kept cells again and they printed what they had, so none is marked; its cell finds what "
+                  "they made, the function among it; the report follows the hint and its replay reproduces; the first analysis is as it was",
+                  id_b.get("branch_of") == int(first_b["id"]) and id_b.get("branch_turn") == mod.BRANCH_TURN and start_b.get("branch", {}).get("hint") == mod.BRANCH_HINT
+                  and cards_b[:mod.BRANCH_TURN] == [(n, True) for n in range(1, mod.BRANCH_TURN + 1)] and cards_b[mod.BRANCH_TURN:] == [(5, False), (6, False)]
+                  and run_b.get("branch") == {"of": first_b["id"], "turn": mod.BRANCH_TURN} and run_b.get("hints") == [{"turn": mod.BRANCH_TURN, "text": mod.BRANCH_HINT}]
+                  and run_b.get("parent") == first_b.get("parent") and run_b.get("status") == "answered" and run_b.get("replay_status") == "reproduced"
+                  and [c.get("kept") for c in cells_b] == ["kept", "kept", ""] and "KEPT=1 LATER=0" in cells_b[-1]["stdout"] and "APART_LOAM=" in cells_b[-1]["stdout"]
+                  and "## Each soil type on its own" in run_b.get("report", "") and (thread_run(wa, USER, tid_b, first_b["id"]) or {}).get("turns") == first_b["turns"]
+                  and f"a branch of chain {first_b['id']} after turn {mod.BRANCH_TURN}" in logs_b["webapp"]
+                  and f"A fresh kernel for the branch: the 0 cells before chain {first_b['id']} and the 2 it keeps of it are run again" in logs_b["webapp"],
+                  (id_b, start_b.get("branch"), cards_b, run_b.get("branch"), run_b.get("status"), run_b.get("replay_status"), [c.get("stdout", "")[-60:] for c in cells_b[-1:]]))
+            n_b = len(runs_b())
+            sent_n, _, _, _ = go_on(first_b["id"], None)
+            check("a branch (0319) whose request names no turn is refused: the person is told, and what they typed is not asked as a question - no chain is made",
+                  any(str(m.get("error", "")).startswith("Turn 0 cannot be gone on from: this analysis can go on from turns 1 to ") for m in sent_n)
+                  and not any(m.get("type") == "id" for m in sent_n) and len(runs_b()) == n_b, ([m for m in sent_n if m.get("error") or m.get("type") == "id"], n_b))
+
             # ---- the Usage dialog (docs/USAGE_DESIGN.md, step 3): what it shows against the rows the logger wrote ----
             rows = usage_rows(wa, edition, USER)
             by_chain = {}

@@ -34,6 +34,10 @@ REACH_QUESTION = "Is the integrations service answering right now?"
 # a chain asked from an earlier chain (docs/BRANCH_DESIGN.md §3): the kernel goes back to the state that chain ended in, so its
 # cell finds what the first analysis made and nothing of the chain asked after it (the reach chain's `calls`)
 BACK_QUESTION = "How many plots stand behind the comparison?"
+# a branch (docs/BRANCH_DESIGN.md §4): the person goes back to the turn that pooled the soil types in the first analysis
+# and says this; the analyst goes on from there with a cell of its own and a report
+BRANCH_HINT = "Keep the soil types apart."
+BRANCH_TURN = 4
 
 # a question that needs no data (docs/ROUTINES_DESIGN.md §24): asked in a workflow with nothing loaded, its cell computes from
 # values written into it - the routine made from it has those values as its inputs and runs without data
@@ -278,6 +282,12 @@ print(f"ADJ_DIFF={est:.3f} CI_LO={lo:.3f} CI_HI={hi:.3f}")
 print(f"N_PLOTS_A={int((plot_means.regime == 'A').sum())} N_PLOTS_B={int((plot_means.regime == 'B').sum())}")
 RESULT('yield, regime B vs A within soil type, plot means', est, lo, hi, 't/ha', 'B higher')
 DS.save(plot_means, 'plot_means')"""
+
+CELL_APART = """# B minus A within each soil type, from the plot means the kept turns left in the kernel
+apart = {soil: float(g[g.regime == 'B']['yield_t_ha'].mean() - g[g.regime == 'A']['yield_t_ha'].mean()) for soil, g in plot_means.groupby('soil')}
+for soil in sorted(apart):
+    print(f"APART_{soil.upper()}={apart[soil]:.3f}")
+print(f"KEPT={int('adj_diff' in globals())} LATER={int('calls' in globals())}")"""
 
 CELL_FIGURE = """# Plot-level yield by regime within each soil type
 fig, axes = plt.subplots(1, 3, figsize=(10, 3.4), sharey=True)
@@ -708,7 +718,7 @@ class Scenario:
             titles = re.findall(r'^\d+\. "(.*?)"(?: - .*)?$', agreed.group(1), re.M)
             draw = titles if len(titles) < 2 or "YOUR LAST REPLY LEFT OUT" in user else titles[:-1]
             return "```python\n" + agreed_cell(draw) + "\n```\n" + "\n".join(f"CAPTION: {t[:1].lower() + t[1:]}" for t in draw)
-        m = re.search(r"QUESTION:\n(.*?)\n\n(?:THE FIGURES AGREED|THE DRAFT THE PERSON SAW|THE REPORT)", user, re.S)
+        m = re.search(r"QUESTION:\n(.*?)\n\n(?:HINT FROM THE PERSON|THE FIGURES AGREED|THE DRAFT THE PERSON SAW|THE REPORT)", user, re.S)
         q = (m.group(1) if m else "").strip()
         if q != QUESTIONS[0]:
             return "NONE"
@@ -731,6 +741,13 @@ class Scenario:
         q = _question(user)
         turn, of = _turn(user)
         forced = "STOP:" in user or "Write REPORT now" in user
+        if "\nHINT FROM THE PERSON (" in user:
+            # a branch: the turns kept are in the prompt, and the hint; one cell of its own, then the report
+            if forced or "APART_CLAY=" in user:
+                return self.report_apart(user, q)
+            return _cell("The person went back to the pooled comparison and wants the soil types kept apart: B minus A within each, from the plot means.",
+                         _note(q, held="soil type (each on its own)", plan="B minus A within each soil type, then report", names="df, plot_means, apart")
+                         .replace("Standing instructions from the person: none", "Standing instructions from the person: " + BRANCH_HINT), CELL_APART)
         if "\nBRIEF (" in user:
             return self.briefed(user, q, turn, forced)
         if q == QUESTIONS[0]:
@@ -991,6 +1008,16 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         return _report("The service answered; that is the answer.", _note(q, est="answering", plan="report"),
                        f"## The service answers\n\nThe integrations service answered its health route [cell {cell}]; it had taken {n} calls at the time. "
                        "The box's process list could not be read: the executor does not run that operation.")
+
+    def report_apart(self, user, q):
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        v = {soil: _grab(user, "APART_" + soil.upper()) for soil in ("clay", "loam", "sand")}
+        return _report("Each soil type has its own difference now; that is what the hint asked for.",
+                       _note(q, est="B minus A by soil type, see the report", held="soil type (each on its own)", plan="report", names="df, plot_means, apart")
+                       .replace("Standing instructions from the person: none", "Standing instructions from the person: " + BRANCH_HINT),
+                       f"## Each soil type on its own\n\nKept apart, regime B minus regime A is {v['clay']:.3f} t/ha on clay, {v['loam']:.3f} on loam and "
+                       f"{v['sand']:.3f} on sand [cell {cell}]. The hint asked for the soil types apart, and this is the comparison within each.")
 
     def report_back(self, user, q):
         nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]

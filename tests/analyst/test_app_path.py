@@ -2705,4 +2705,210 @@ except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("0318: the kernel's states through the instance: the checks ran", False, traceback.format_exc()[-1200:])
 
+# a branch (2.9, patch 0319, docs/BRANCH_DESIGN.md): go on from a turn of a chain, another way, under a hint from the person -
+# through the instance: the kernel at the state the kept turns left, the branch a chain of its own, the page told
+try:
+    from analyst.notebook import AGAIN_LINE
+    def _cell(code):
+        return "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\n" + code + "\n```"
+    _REPORT = "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone.\n"
+    _WHICH = _cell("print('here:', sorted(n for n in ('one', 'two', 'three') if n in globals()), round(drew, 6) if 'drew' in globals() else None)")
+    _HINT = "HINT FROM THE PERSON (given after turn %d; it holds from there to the report):\n%s"
+
+    def _go_on(script, of, turn, hint="keep the two apart", **more):
+        """A branch of chain `of` after its turn `turn`, the person typing `hint`: (its run or None, what the page was sent, the analyst's prompts)."""
+        state.update(i=0, script=script); n0, was = len(state["calls"]), BAMBOO.chain_id
+        while not BAMBOO.output_manager.input_queue.empty(): BAMBOO.output_manager.input_queue.get()     # what earlier checks typed and nothing read
+        BAMBOO.output_manager.add_user_input(hint)
+        BAMBOO.pd_agent_converse(thread_id="2909", chain_id=of, after=turn, **more)
+        sent = []
+        while not q.empty(): sent.append(json.loads(q.get()))
+        made = BAMBOO.notebook.runs.get(str(BAMBOO.chain_id)) if BAMBOO.chain_id != was else None           # a refusal takes no chain id
+        return made, sent, [u for a, u in state["calls"][n0:] if "TASK: turn" in u]
+
+    def _drew(cell):
+        return cell.stdout.split("drew")[1].split()[0]
+
+    BAMBOO.df, BAMBOO.df_id = df, "d1"
+    _first = _chain([_cell("one = 1\nprint('one')"), _cell("import random\ndrew = random.random()\ntwo = one + 1\nprint('two', two, 'drew', round(drew, 6))"),
+                     _cell("print(no_such_name)"), _cell("three = two + 1\nprint('three', three)"), _REPORT], _talk.id)
+    _first.turns[0].usage["elapsed"] = 7.0                   # the time its first turn took: a branch's closing card counts its own turns' time
+    _k = BAMBOO._kernel
+    _b, _sent, _prompts = _go_on([_WHICH, _REPORT], _first.id, 2, mode="quick")      # whatever mode the page sends, it runs in the first run's
+    check("0319: a branch goes on from a turn in the kernel the thread has, at the state the kept turns left: nothing is run again - the number a kept cell drew "
+          "without a seed is the one it drew - and what the chain made after that turn is not there",
+          _b is not None and BAMBOO._kernel is _k and _k.last_goto["replayed"] == [] and f"{_k.uid}:{_k.last_goto['step']}" == _first.cells()[1].snap
+          and _b.cells()[-1].stdout.strip() == f"here: ['one', 'two'] {_drew(_first.cells()[1])}" and BAMBOO._kernel_tip == _b.id, (_b and _b.cells()[-1].stdout, _k.last_goto))
+    check("0319: the branch is a chain of its own beside the one it goes on from - the same parent, question, mode and limits - with the chain, the turn and the hint "
+          "on its record, the kept turns marked, its own cell numbered on; the chain it left is as it was",
+          _b.parent == _talk.id and _b.question == _first.question and _b.mode == "Deep" and _b.budget == _first.budget and _b.branch == {"of": _first.id, "turn": 2}
+          and _b.hints == [{"turn": 2, "text": "keep the two apart"}] and [t.kept for t in _b.turns[:2]] == ["kept", "kept"] and [c.cell_no for c in _b.cells()] == [1, 2, 3]
+          and _b.status == "answered" and [c.cell_no for c in _first.cells()] == [1, 2, 3] and _first.cells()[2].code.startswith("three") and not any(t.kept for t in _first.turns),
+          (_b.branch, _b.hints, _b.budget, [c.cell_no for c in _b.cells()]))
+    check("0319: the analyst is given the hint in every prompt of the branch, the first at the turn after the one kept, and nothing of the turns that were left",
+          len(_prompts) == 2 and all(_HINT % (2, "keep the two apart") in u for u in _prompts) and "TASK: turn 3;" in _prompts[0] and "TASK: turn 4;" in _prompts[1]
+          and not any("three = two + 1" in u or "no_such_name" in u for u in _prompts), [u[-300:] for u in _prompts])
+    _id = next((m for m in _sent if m.get("type") == "id"), {})
+    _start = next((m for m in _sent if m.get("type") == "pane_run_start"), {})
+    _end = next((m for m in _sent if m.get("type") == "pane_run_end"), {})
+    _cards = [(m.get("turn"), bool(m.get("kept"))) for m in _sent if m.get("type") == "pane_turn_start" and isinstance(m.get("turn"), int)]
+    _rows = [(m.get("cell_no"), m.get("kept")) for m in _sent if m.get("type") == "pane_cell"]
+    _ends = [bool(m.get("kept")) for m in _sent if m.get("type") == "pane_turn_end" and isinstance(m.get("turn"), int)]
+    check("0319: the page is told - the new chain with the chain and the turn it goes on from, and where it attaches; the run's card with the branch and its hint, in "
+          "the first run's mode and limits; the kept turns' cards and cells first, each marked, each cell with the time it took; the closing card counting the "
+          "chain's turns and the time of its own",
+          (_id.get("chain_id"), _id.get("branch_of"), _id.get("branch_turn"), _id.get("parent_chain_id")) == (BAMBOO.chain_id, int(_first.id), 2, int(_talk.id))
+          and _start.get("branch") == {"of": int(_first.id), "turn": 2, "hint": "keep the two apart"} and (_start.get("mode"), _start.get("of")) == ("Deep", _first.budget["turns"])
+          and _cards == [(1, True), (2, True), (3, False), (4, False)] and _ends == [True, True, False, False] and _rows == [(1, "kept"), (2, "kept"), (3, None)]
+          and [m.get("elapsed") for m in _sent if m.get("type") == "pane_cell"] == [c.elapsed for c in _b.cells()]
+          and (_end.get("turns"), _end.get("cells")) == (4, 3) and _end.get("seconds") < 7, (_id, _start, _cards, _ends, _rows, _end.get("turns"), _end.get("seconds")))
+    _bb, _sent_bb, _ = _go_on([_REPORT], _b.id, 1, "from a turn the branch kept")
+    _id_bb = next((m for m in _sent_bb if m.get("type") == "id"), {})
+    check("0319: a branch that goes on from a turn its chain kept from another is a branch of that other chain: its record says so, and the page is told so",
+          _bb is not None and _bb.branch == {"of": _first.id, "turn": 1} and (_id_bb.get("branch_of"), _id_bb.get("branch_turn")) == (int(_first.id), 1)
+          and next((m for m in _sent_bb if m.get("type") == "pane_run_start"), {}).get("branch", {}).get("of") == int(_first.id) and _bb.hints == [{"turn": 1, "text": "from a turn the branch kept"}],
+          (_bb and _bb.branch, _id_bb))
+    # the kernel is gone: the cells the branch keeps are run again, and the one that drew a number prints another
+    BAMBOO._drop_kernel()
+    _c, _sent_c, _prompts_c = _go_on([_WHICH, _REPORT], _first.id, 4, "say which is larger")
+    _kc = BAMBOO._kernel
+    check("0319: with the kernel gone the cells the branch keeps are run again in a new one: the cell that drew a number printed another, so the branch marks it, holds "
+          "the new output - the one its kernel has - and tells the analyst under the cell's header; the others only name their new states; the first chain's record is untouched",
+          _c is not None and _kc is not _k and [c.kept for c in _c.cells()[:3]] == ["kept", "differs", "kept"] and _drew(_c.cells()[1]) != _drew(_first.cells()[1])
+          and _c.cells()[-1].stdout.strip() == f"here: ['one', 'three', 'two'] {_drew(_c.cells()[1])}" and [c.snap.split(":")[0] for c in _c.cells()] == [_kc.uid] * 4
+          and all(c.snap.startswith(_k.uid + ":") for c in _first.cells()) and ("--- cell 2 ---\n" + AGAIN_LINE) in _prompts_c[0] and _prompts_c[0].count(AGAIN_LINE) == 1
+          and [m.get("kept") for m in _sent_c if m.get("type") == "pane_cell"][:4] == ["kept", "differs", "kept", "kept"],
+          ([c.kept for c in _c.cells()], _c.cells()[-1].stdout, [c.snap for c in _c.cells()]))
+    # a state the kernel did not save (a generator in it): going back runs the cells since the last saved state again
+    _gen = _chain([_cell("gen = (n for n in range(3))\nseen = 'first'\nprint('seen', seen)"), _cell("later = 1\nprint('later')"), _REPORT], _talk.id)
+    _kg, _steps = BAMBOO._kernel, None
+    _g, _, _ = _go_on([_cell("print('next of gen:', next(gen), 'later' in globals())"), _REPORT], _gen.id, 1)
+    check("0319: a state the kernel could not save is reached by running its cell again; it printed what the record has, so the branch goes on in that kernel, unmarked",
+          _g is not None and BAMBOO._kernel is _kg and len(_kg.last_goto["replayed"]) >= 1 and _g.cells()[0].kept == "kept" and _g.cells()[-1].stdout.strip() == "next of gen: 0 False",
+          (_g and [c.kept for c in _g.cells()], _kg.last_goto))
+    _rnd = _chain([_cell("import random\ngen = (n for n in range(3))\nluck = random.random()\nprint('luck', round(luck, 6))"), _cell("later = 1\nprint('later')"), _REPORT], _talk.id)
+    _kr = BAMBOO._kernel
+    _r, _, _ = _go_on([_cell("print('luck now', round(luck, 6), 'later' in globals())"), _REPORT], _rnd.id, 1)
+    check("0319: ... and where the cell run again printed something else, the kernel does not hold what the record shows: a new kernel, the cell run once more, "
+          "the branch marked and holding the output its kernel has",
+          _r is not None and BAMBOO._kernel is not _kr and _r.cells()[0].kept == "differs" and _r.cells()[0].stdout != _rnd.cells()[0].stdout
+          and _r.cells()[-1].stdout.strip() == "luck now " + _r.cells()[0].stdout.split()[1] + " False", (_r and [c.kept for c in _r.cells()], _r and _r.cells()[-1].stdout))
+    _pr = _chain([_cell("import random\ngen = (n for n in range(3))\nluck = random.random()\nprint('luck', round(luck, 6))"), _REPORT], _talk.id)
+    _ch = _chain([_cell("mine = 1\nprint('mine')"), _cell("more = 2\nprint('more')"), _REPORT], _pr.id)
+    _kp = BAMBOO._kernel
+    _on_ch, _, _ = _go_on([_cell("print('more there:', 'more' in globals())"), _REPORT], _ch.id, 1)
+    check("0319: ... but a cell of an earlier chain that printed something else when the kernel ran it again does not: the earlier chains' cells are run again as "
+          "they are for any follow-up, and the branch goes on in the same kernel",
+          _on_ch is not None and BAMBOO._kernel is _kp and len(_kp.last_goto["replayed"]) >= 2 and _on_ch.cells()[0].kept == "kept"
+          and _on_ch.cells()[-1].stdout.strip() == "more there: False", (_on_ch and [c.kept for c in _on_ch.cells()], _kp.last_goto))
+    _slip = _chain([_cell("print(no_such_name)"), _cell("made = 1\nprint('made')"), _REPORT], _talk.id)
+    _ks = BAMBOO._kernel
+    _s, _, _ps = _go_on([_cell("print('made there:', 'made' in globals())"), _REPORT], _slip.id, 1)
+    check("0319: a branch after a turn that kept no cell - the chain's first cell failed - goes back to the state before that cell, in the same kernel, and the "
+          "analyst is shown the failure it goes on from",
+          _s is not None and BAMBOO._kernel is _ks and _ks.last_goto["step"] == 0 and _s.cells()[-1].stdout.strip() == "made there: False"
+          and "YOUR LAST CELL FAILED" in _ps[0] and _s.turns[0].kept == "kept", (_s and _s.cells()[-1].stdout, _ks.last_goto))
+    _halt = _chain([_cell("half = 1\nprint('half')"), _cell("rest = 1\nprint('rest')"), _REPORT], _talk.id, stop_after_first=True)
+    _h, _, _ = _go_on([_cell("print('goes on:', 'half' in globals(), 'rest' in globals())"), _REPORT], _halt.id, 1)
+    check("0319: an analysis the person stopped can be gone on from a turn it kept", _halt.status == "stopped" and _h is not None and _h.status == "answered"
+          and _h.cells()[-1].stdout.strip() == "goes on: True False", (_halt.status, _h and _h.cells()[-1].stdout))
+    _two = _chain([_cell("aa = 1\nprint('aa')"), _cell("bb = 2\nprint('bb')"), _REPORT], _talk.id)
+    _send = BAMBOO.output_manager.send_chain_id
+    def _no_page(*a, **kw):
+        raise RuntimeError("no page")
+    BAMBOO.output_manager.send_chain_id = _no_page
+    try:
+        _go_on([_REPORT], _two.id, 1)
+        _fell = False
+    except RuntimeError:
+        _fell = True
+    finally:
+        BAMBOO.output_manager.send_chain_id = _send
+    _after = _chain([_cell("print('bb there:', 'bb' in globals())"), _REPORT], _two.id)
+    check("0319: a branch takes the kernel off the chain's end it stood at; where the request then fails before its run starts, the kernel is not taken for warm: "
+          "the next chain asked from that end finds what the chain made", _fell and _after.cells()[-1].stdout.strip() == "bb there: True", (_fell, _after.cells()[-1].stdout))
+    # what cannot be gone on from: said to the person, and nothing is started
+    def _refused(of, turn, hint="x"):
+        n = len(BAMBOO.notebook.runs); made, sent, prompts = _go_on([_REPORT], of, turn, hint)
+        return next((m["error"] for m in sent if "error" in m), "") if (made is None and len(BAMBOO.notebook.runs) == n and not prompts and not any(m.get("type") == "id" for m in sent)) else "STARTED"
+    # a chain that follows another: the cells before it are part of the state the branch goes on from
+    _SEES = _cell("print('sees:', sorted(n for n in ('par', 'kid', 'after_kid') if n in globals()))")
+    _par = _chain([_cell("par = 1\nprint('par')"), _REPORT], _talk.id)
+    _kid = _chain([_cell("kid = par + 1\nprint('kid', kid)"), _cell("after_kid = 1\nprint('after')"), _REPORT], _par.id)
+    _kk = BAMBOO._kernel
+    _held, _, _ = _go_on([_SEES, _REPORT], _kid.id, 1)
+    _was_held = BAMBOO._kernel is _kk and _kk.last_goto["replayed"] == [] and _held is not None and _held.cells()[-1].stdout.strip() == "sees: ['kid', 'par']" and [c.cell_no for c in _held.cells()] == [2, 3]
+    BAMBOO._drop_kernel()
+    _anew, _, _ = _go_on([_SEES, _REPORT], _kid.id, 1)
+    check("0319: a branch of a chain that follows another goes on from the state the whole path left - the earlier chain's cell and its own kept one, nothing after the "
+          "turn: in the kernel that holds it, with nothing run again; with the kernel gone, the earlier chain's cells are run again as for any follow-up, then the kept ones",
+          _was_held and _anew is not None and BAMBOO._kernel is not _kk and _anew.cells()[-1].stdout.strip() == "sees: ['kid', 'par']" and _anew.parent == _par.id
+          and _anew.cells()[0].snap.startswith(BAMBOO._kernel.uid + ":") and _par.cells()[0].snap.startswith(BAMBOO._kernel.uid + ":"), (_was_held, _anew and _anew.cells()[-1].stdout))
+    _kid2 = _chain([_cell("print(no_such_name)"), _cell("kid2 = par + 1\nprint('kid2')"), _REPORT], _par.id)
+    _kk2 = BAMBOO._kernel
+    _under, _, _ = _go_on([_cell("print('sees:', sorted(n for n in ('par', 'kid2') if n in globals()))"), _REPORT], _kid2.id, 1)
+    check("0319: ... and where the turn kept no cell of the chain's own, the state is the one the earlier chain ended in: what that chain made is there",
+          _under is not None and BAMBOO._kernel is _kk2 and _kk2.last_goto["replayed"] == [] and _under.cells()[-1].stdout.strip() == "sees: ['par']",
+          (_under and _under.cells()[-1].stdout, _kk2.last_goto))
+    BAMBOO._drop_kernel(); _code, _par.cells()[0].code = _par.cells()[0].code, "raise ValueError('lost')"
+    _no_path = _refused(_kid.id, 1); _par.cells()[0].code = _code
+    BAMBOO._drop_kernel(); _code, _kid.cells()[0].code = _kid.cells()[0].code, "raise ValueError('gone')"
+    _no_cell = _refused(_kid.id, 1); _kid.cells()[0].code = _code
+    check("0319: where the state cannot be rebuilt - a cell of the earlier chain, or a kept cell, fails when run again - the person is told which, and nothing starts: "
+          "no chain is announced, no run is made",
+          _no_path == "The analysis cannot go on from turn 1: restoring the earlier analysis stopped after 0 of 1 cells: cell 1 failed on replay: ValueError: lost."
+          and _no_cell == "The analysis cannot go on from turn 1: cell 2 failed when run again: ValueError: gone.", (_no_path, _no_cell))
+    said = {"turn": _refused(_first.id, 5), "hint": _refused(_first.id, 2, "  "), "thread": _refused("999999", 1)}
+    _first.status = "running"; said["running"] = _refused(_first.id, 2); _first.status = "answered"
+    _first.figure_asked = True; said["figure"] = _refused(_first.id, 2); _first.figure_asked = False
+    _car = [t.carry for t in _first.turns]
+    for t in _first.turns: t.carry = {}
+    said["before"] = _refused(_first.id, 2)
+    for t, c in zip(_first.turns, _car): t.carry = c
+    _rec = _first.data
+    _first.data = {**_rec, "name": "trial.csv"}; BAMBOO.df, BAMBOO.df_id = df.head(50), "d2"; said["data"] = _refused(_first.id, 2)
+    _first.data = {**_rec, "name": ""}; said["unnamed"] = _refused(_first.id, 2); BAMBOO.df, BAMBOO.df_id = df, "d1"; _first.data = _rec
+    _dat, _first.data = _first.data, {"source": "none", "df_id": None, "aux": []}; said["no data"] = _refused(_first.id, 2); _first.data = _dat
+    check("0319: what cannot be gone on from is said, and nothing starts: the report's turn, no hint, a chain that is not in the thread, an analysis that has not ended, "
+          "one asked about a plot, one from before 2.9, other data loaded - the data it ran on named where it has a name -, data loaded where it ran on none",
+          said == {"turn": "Turn 5 cannot be gone on from: this analysis can go on from turns 1 to 4.",
+                   "hint": "Say how the analysis should go on from turn 2: a branch needs a hint.",
+                   "thread": "The analysis to go on from is not in this thread.",
+                   "running": "This analysis has not ended: stop it, or wait for its report, then go on from one of its turns.",
+                   "figure": "An analysis that was asked about a plot cannot be gone on from yet.",
+                   "before": "This analysis cannot be gone on from: it was made before version 2.9, or it is a routine's run.",
+                   "data": "Load the data this analysis ran on first: trial.csv.", "unnamed": "Load the data this analysis ran on first.",
+                   "no data": "This analysis ran with no data loaded: remove the dataset, then go on from its turn."}, said)
+    BAMBOO.output_manager.add_user_input("a brief that was started before"); _was = BAMBOO.chain_id
+    BAMBOO.pd_agent_converse(thread_id="2909", chain_id=_b.id, run_id=_b.id)        # a brief that can no longer be started: refused too
+    _no_brief = BAMBOO.chain_id == _was and any("can no longer be started" in json.loads(m).get("error", "") for m in list(q.queue))
+    state.update(i=0, script=FOLLOW[1:]); BAMBOO.output_manager.add_user_input("and after the refusals?")
+    BAMBOO.pd_agent_converse(thread_id="2909", chain_id=_b.id, mode="quick")
+    while not q.empty(): q.get()
+    _next = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    check("0319: a refusal leaves nothing behind for the next question - what was typed for a branch, or for a brief that can no longer be started, is not asked in "
+          "its place - and a chain asked from a branch follows it as any chain",
+          _no_brief and _next.question == "and after the refusals?" and _next.parent == _b.id and _next.branch == {} and _next.hints == [], (_no_brief, _next.question, _next.parent))
+    _luck = _chain([_cell("import random\nluck = random.random()\nprint('luck', round(luck, 6))"), _REPORT], _talk.id)
+    _k9 = BAMBOO._kernel
+    BAMBOO.df_id = "d9"                                      # the same file loaded again under another id: the same data, another frame
+    _again, _, _ = _go_on([_cell("print('luck now', round(luck, 6))"), _REPORT], _luck.id, 1)
+    BAMBOO.df_id = "d1"
+    check("0319: the same data loaded again under another id is the data the analysis ran on: the branch starts - in a new kernel, which holds that frame, its kept "
+          "cell run again there - and its record names the data loaded now",
+          _again is not None and _again.status == "answered" and BAMBOO._kernel is not _k9 and _again.cells()[0].kept == "differs"
+          and _again.cells()[-1].stdout.strip() == "luck now " + _again.cells()[0].stdout.split()[1] and _again.data.get("df_id") == "d9" and _luck.data.get("df_id") == "d1",
+          (_again and _again.status, _again and [c.kept for c in _again.cells()], _again and _again.data.get("df_id")))
+    _talk.next_questions = [{"level": 1, "questions": [{"title": "t", "text": "x"}]}]
+    _fr = str(BAMBOO.open_framing("a brief still to be started", thread_id="2909", chain_id=_b.id)["chain_id"])
+    _only, _, _ = _go_on([_REPORT], _first.id, 2, run_id=_fr, candidate=(0, 0))
+    check("0319: a branch takes the chain, the turn and the hint, and nothing else a request may carry: a brief still to be started stays to be started, and no "
+          "proposed question is marked as run",
+          _only is not None and _only.id != _fr and _only.branch == {"of": _first.id, "turn": 2} and BAMBOO.notebook.runs[_fr].status == "framing"
+          and "ran" not in _talk.next_questions[0]["questions"][0], (_only and _only.id, _fr, _talk.next_questions))
+    _talk.next_questions = []
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("0319: a branch through the instance: the checks ran", False, traceback.format_exc()[-1500:])
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

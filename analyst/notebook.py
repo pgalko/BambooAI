@@ -6,6 +6,12 @@ root to its parent. A TURN is one action inside a run - a cell, a shown cell, a
 search, a question to the user, the report, the rewrite - together
 with the note as the analyst rewrote it that turn.
 
+A BRANCH (2.9, docs/BRANCH_DESIGN.md) is a run that goes on from a turn of
+another, under a hint from the person: a chain of its own beside the one it
+left, with a copy of that chain's turns up to the turn, then its own. Each
+working turn keeps what the loop carried out of it (`Turn.carry`), so the loop
+takes up exactly where the turn kept ended.
+
 Cells are numbered along the path (1, 2, 3 ...) so the analyst and the report
 can refer to them; the numbering restarts only at the root.
 
@@ -21,6 +27,7 @@ Persistence is one JSON file per thread, rewritten after every turn.
 """
 from __future__ import annotations
 
+import copy
 import json
 import mmap
 import os
@@ -153,6 +160,11 @@ class Turn:
     recheck: List[int] = field(default_factory=list)     # REVIEW: cells it asked to see again at the next review
     elapsed: float = 0.0            # CELL: seconds the kernel took to run it
     step: str = ""                  # "figures" for the cells of the figures step after the report (2026-10-11); "" for a turn of the analysis
+    carry: dict = field(default_factory=dict)   # a working turn of the analysis (2.9): what the loop carried out of it into the next - {turn: its
+                                    # number, extra: what it handed to the next prompt, spent, failures: failed cells in a row, lost_at}.
+                                    # A branch goes on from a turn that has it; the report, a question to the person, a review have none
+    kept: str = ""                  # in a branch: "kept" for a turn copied from the chain it went on from; "differs" where its cell, run again
+                                    # to rebuild the kernel, printed something else than there - the output here is then the new one
     created: float = field(default_factory=_now)
 
 
@@ -183,6 +195,12 @@ class Run:
                                                   # [{code, keys: the figures whose draft is this cell's}]; the plots are files beside the record
     next_questions: List[dict] = field(default_factory=list)   # the sets of questions proposed to follow this run, as they were asked for (analyst/next_questions.py):
                                                   # [{level, questions: [{title, text, from: [{kind, text}], ran: the chain it started}], cost, at, chain}]
+    budget: dict = field(default_factory=dict)    # the limits the run was given (session.Budget's fields; 2.9): a branch of it runs under them
+    figure_asked: bool = False                    # asked about a figure (the Plots tab's Ask AI): the picture rode with every prompt and is not on
+                                                  # the record, so no branch can be given it
+    branch: dict = field(default_factory=dict)    # a branch (docs/BRANCH_DESIGN.md): {of: the chain whose turn it went on from, turn: that turn}
+    hints: List[dict] = field(default_factory=list)   # what the person said when they went on from a turn, in order: [{turn, text}] - this
+                                                  # branch's, and those the turns it keeps were made under
 
     @property
     def note(self) -> str:
@@ -198,6 +216,39 @@ class Run:
         return [t for t in self.turns if t.kind == "cell" and t.cell_no is not None]
 
 
+def branch_points(run: Run) -> List[int]:
+    """The turns of a run a branch can go on from: each working turn the loop left a carry for. Not the report or a
+    question to the person, which end the run; none in a run made before 2.9, or by a routine."""
+    return [t.carry["turn"] for t in run.turns if t.carry]
+
+
+def kept_turns(run: Run, turn: int) -> List[Turn]:
+    """A run's turns up to its working turn `turn`, that one included: what a branch that goes on from it keeps."""
+    cut = next(i for i, t in enumerate(run.turns) if (t.carry or {}).get("turn") == turn)
+    return run.turns[:cut + 1]
+
+
+def same_load(ran_on: Optional[dict], now: Optional[dict]) -> bool:
+    """Whether what is loaded now is what a run ran on: the same data, or - neither with a frame - the same files
+    beside none, no files at all included (a branch goes on only on the data its turns were computed on)."""
+    a, b = ran_on or {}, now or {}
+    return same_data(a, b) or (not a.get("df_id") and not b.get("df_id") and list(a.get("aux") or []) == list(b.get("aux") or []))
+
+
+def hint_block(run: Run) -> str:
+    """The person's hints as the analyst and the reviewer read them, '' for a run without one."""
+    hints = run.hints or []
+    if not hints:
+        return ""
+    if len(hints) == 1:
+        return f"HINT FROM THE PERSON (given after turn {hints[0]['turn']}; it holds from there to the report):\n{hints[0]['text']}"
+    return ("HINTS FROM THE PERSON (each given after the turn named; each holds from there to the report):\n"
+            + "\n".join(f"- after turn {h['turn']}: {h['text']}" for h in hints))
+
+
+AGAIN_LINE = "(run again to rebuild the kernel: it printed something else than the first time, and this is the new output)\n"
+
+
 class Notebook:
     """All runs of one thread, as a tree."""
 
@@ -211,6 +262,33 @@ class Notebook:
             raise KeyError(f"parent run {parent!r} not in thread {self.thread_id}")
         run = Run(id=str(run_id) if run_id else new_id(), parent=parent, question=question)
         self.runs[run.id] = run
+        return run
+
+    def branch(self, of: str, turn: int, hint: str = "", run_id: Optional[str] = None) -> Run:
+        """A branch of run `of` after its turn `turn`: a run beside it - the same parent, question, brief (with the
+        conversation that made it and the drafts of its figures), budget, mode and data - with a copy of its turns up
+        to that one, each marked kept; a turn that run kept with the mark of a cell run again keeps the mark. It
+        records the chain that turn is a turn of its own (owner). The hint joins those the kept turns were made
+        under: a branch of a branch carries both where it goes on from a turn after the first hint's. ValueError
+        where the run has no such turn to go on from."""
+        src = self.runs[str(of)]
+        if turn not in branch_points(src):
+            raise ValueError(f"run {src.id} has no turn {turn} to go on from")
+        run = self.new_run(src.question, src.parent, run_id=run_id)
+        run.turns = [copy.deepcopy(t) for t in kept_turns(src, turn)]
+        for t in run.turns:
+            t.kept = t.kept or "kept"
+        run.brief, run.framing, run.drafts = copy.deepcopy(src.brief), copy.deepcopy(src.framing), copy.deepcopy(src.drafts)
+        run.budget, run.mode, run.data = dict(src.budget), src.mode, copy.deepcopy(src.data)
+        run.branch = {"of": self.owner(src, turn).id, "turn": turn}
+        run.hints = [dict(h) for h in src.hints or [] if h["turn"] < turn] + ([{"turn": turn, "text": hint.strip()}] if (hint or "").strip() else [])
+        return run
+
+    def owner(self, run: Run, turn: int) -> Run:
+        """The chain a turn of `run` is a turn of its own: a branch's kept turns are those of the chain it went on
+        from, or of one before that."""
+        while run.branch and turn <= run.branch["turn"]:
+            run = self.runs[run.branch["of"]]
         return run
 
     def path(self, run_id: str) -> List[Run]:
@@ -320,7 +398,7 @@ class Notebook:
             out = "RESULT: " + turn.results[0].get("text", "")[:110]
         else:
             out = next((ln.strip() for ln in (turn.stdout or "").splitlines() if ln.strip()), "")[:90]
-        line = f"[cell {turn.cell_no}] {what}  ->  {out}"
+        line = f"[cell {turn.cell_no}] " + ("(run again: output changed) " if turn.kept == "differs" else "") + f"{what}  ->  {out}"
         return line[:width]
 
     REPORT_VIEW_CHARS = 160_000   # the report turn's total for outputs (~40k tokens); only a pathological print reaches it
@@ -361,7 +439,7 @@ class Notebook:
             code_lines = code.splitlines()
             if not is_last and len(code_lines) > 14:                 # earlier recent cells: the head of the code only
                 code = "\n".join(code_lines[:14]) + f"\n# ... {len(code_lines) - 14} more lines (SHOW {t.cell_no} for the whole cell)"
-            body = f"--- cell {t.cell_no} ---\n```python\n{code}\n```\n"
+            body = f"--- cell {t.cell_no} ---\n" + (AGAIN_LINE if t.kept == "differs" else "") + f"```python\n{code}\n```\n"
             body += ("ERROR:\n" + t.error.strip() + "\n") if t.error else ("OUTPUT:\n" + (out if out.strip() else "(no output)") + "\n")
             if t.figures:
                 body += f"(saved {len(t.figures)} figure(s): [fig {t.cell_no}])\n"
@@ -412,7 +490,7 @@ class Notebook:
             code_lines = t.code.rstrip().splitlines()
             code = "\n".join(code_lines[:14]) + (f"\n# ... {len(code_lines) - 14} more lines" if len(code_lines) > 14 else "")
             out = outs[t.cell_no]
-            body = f"--- cell {t.cell_no} ---\n```python\n{code}\n```\n"
+            body = f"--- cell {t.cell_no} ---\n" + (AGAIN_LINE if t.kept == "differs" else "") + f"```python\n{code}\n```\n"
             body += ("ERROR:\n" + t.error.strip() + "\n") if t.error else ("OUTPUT:\n" + (out if out.strip() else "(no output)") + "\n")
             if t.figures:
                 body += f"(saved {len(t.figures)} figure(s): [fig {t.cell_no}])\n"

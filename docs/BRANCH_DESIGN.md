@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.1 (2026-11-20; for 2.9; built: 0318, the kernel's states)
+# Branching an analysis — design v0.2 (2026-11-20; for 2.9; built: 0318, the kernel's states; 0319, the engine)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -55,7 +55,8 @@ seed, or took a minute, holds what it held.
 **What a snapshot holds.** Every name the cells made: data, functions, lambdas, classes and their instances. The
 modules the cells loaded. The random generators (numpy's, Python's). numpy's print options, the pandas options and
 matplotlib settings a cell changed, the working directory. **Not:** the files a cell wrote; what a cell changed
-inside a library, or in the environment variables.
+inside a library, or in the environment variables; the tie between an array and a view of it - `x = a[:, 0]` and
+`a` come back as two arrays with the same values, so a later change of one in place no longer shows in the other.
 
 **How** (`delve/kernel.py`; the executor image's copy differs by one import line).
 
@@ -109,32 +110,70 @@ failed leaves nothing behind for the next one.
 kernel that holds one falls back to running cells again. Not tested where this was built: statsmodels was not
 there.
 
-## 4. To build
+## 4. The branch in the engine (0319, built)
 
-- **The record of a branch (0319).** A branch is a chain of its own: a copy of the turns kept, then its own; it
-  records the chain it left, the turn, and the hint. Report, figures, replay check, code map, routines and export
-  read it as any chain. Each turn keeps what it handed to the next prompt, so the loop takes up exactly where the
-  turn kept ended; a run keeps its limits.
-- **The prompt (0319).** The hint stands in every prompt from that turn to the report, and the reviewer gets it. A
-  branch of a branch carries both hints. The Analyst sees the turns kept and the hint, and nothing of the turns
-  that were left. Where a cell kept had to be run again and printed something else, the turn is marked and the
-  Analyst is told.
+**The record.** A branch is a run of its own beside the one it goes on from: the same parent, question, brief (with
+the conversation that made it and the drafts of its figures), limits (`Run.budget`), mode and data. Its turns are
+copies of that run's turns up to the turn, each marked `kept`, then its own. `Run.branch` names the chain whose
+turn it goes on from, and the turn; a turn that chain itself kept from another is the other chain's, and so is
+the branch (`Notebook.owner`). `Run.hints` holds what the person said, each with its turn: this branch's, and
+those the turns it keeps were made under. Report, figures, replay check, code map, routines and export read it as
+any chain. The chain it left is not touched.
+
+**What a turn carries.** Each working turn keeps what the loop carried out of it (`Turn.carry`): its number, what
+it handed to the next prompt, what was spent by then, the failed cells in a row. The loop of a branch takes up from
+the kept turn's carry (`Session.go_on`, `_loop`). So going on without a hint gives the very prompt the first run
+had at the next turn: that is the suite's test of it. A turn with a carry can be gone on from (`branch_points`):
+every working turn, not the report, not a question to the person. A run made before 0319 has none.
+
+**Limits.** The branch runs under the limits and in the mode of the run it goes on from. The kept turns count as
+used: the turn numbers go on, and so does what was spent. The person pays for the new calls only: the kept turns
+make none. A review due before the next turn is made again, with the hint; a review among the kept turns is kept.
+
+**The prompt.** The hint stands in every prompt from the next turn to the report, above the task line
+(`hint_block`), and the contract gains a section, *A hint from the person* (`analyst/contract_hint.md`). The
+reviewer and the figures step are given it too. A branch of a branch carries both hints where it goes on from a
+turn made under the first; from a turn the first branch kept - the one it went on from included - it carries its
+own alone. The Analyst sees the turns kept and the hint, and nothing of the turns that were left.
+
+**The kernel** (`BambooAI._kernel_at`; before the new chain is announced). The kernel goes back to the state
+after the last cell kept (§3); with no cell kept, to the state the chain started from. Where it is gone, or holds
+another frame, or had to run cells again to get there and one printed something else, a fresh kernel runs the
+earlier chains' cells again, then the kept ones (`replay.again`). A kept cell that printed something else is
+marked (`Turn.kept == "differs"`): the branch's record takes the new output and results, the Analyst reads under
+the cell's header that it was run again, and a branch of that branch keeps the mark. A cell that fails when run
+again leaves no state to go on from: the person is told which, and nothing starts.
+
+**The host and the route.** `pd_agent_converse(chain_id=<the chain>, after=<the turn>)`, the text typed being the
+hint; `/query` takes `branch: {turn}`. A branch takes these and nothing else of a request: it starts no brief and
+marks no proposed question. Refused, with a sentence for the person: an analysis that is running, one asked about
+a plot, one from before 2.9 or a routine's run, a turn that cannot be gone on from (a request that names none
+included), other data loaded, no hint. A stopped analysis can be gone on from. The Architect is not called. The
+page is sent the new chain with `branch_of` and `branch_turn`, the run's card with the branch and its hint, and
+the kept turns' cards first, each marked `kept`; the closing card's time is that of the branch's own turns.
+
+## 5. To build
+
 - **The page (0320).** The turn map in the thread map's drawer; going back; the hint in the composer, with the mode
   buttons and the Architect switch away; moving between branches; one box for an analysis on the thread map.
 - **Save, memory, usage (0321).** Decisions 2, 13 and 14.
+- **Open.** A hint that departs from what the brief fixes: nothing says which holds.
 
-## 5. The build
+## 6. The build
 
 | Patch | What | State |
 |---|---|---|
 | 0318 | The kernel keeps its state after every cell and goes back to any; executor image v75; cloudpickle. | built |
-| 0319 | Engine: a branch after a turn, with a hint. | |
+| 0319 | Engine: a branch after a turn, with a hint. | built |
 | 0320 | Page: the turn map, going back, the hint, moving between branches; the Git branch icon. | |
 | 0321 | Save, memory, usage. | |
 | 0322 | Release 2.9.0. | |
 
-## 6. Tests
+## 7. Tests
 
 `tests/analyst/test_kernel_snapshots.py`: the kernel on its own, through the executor's service, through the
-client, and the record. `tests/analyst/test_app_path.py` (0318): the host's use of the states. `test_analyst.py`:
-a cell's record.
+client, and the record. `tests/analyst/test_app_path.py` (0318): the host's use of the states; (0319) a branch
+through the instance - the kernel going back, the cells run again, the marks, what is refused. `test_analyst.py`:
+a cell's record; (0319) the branch in the engine - the carry, the prompt that is the first run's, the hint, the
+reviewer, the kept turns' events. The walk (`tests/e2e/test_stack.py`): a chain asked from an earlier chain;
+branches started through the route - the kernel going back, the kept cells run again, a request that names no turn.

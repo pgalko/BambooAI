@@ -26,7 +26,8 @@ from analyst import context as context_mod
 from analyst import profile as profile_mod
 from analyst import reach as reach_mod
 from analyst import tools
-from analyst.replay import rehydrate
+from analyst.notebook import branch_points, has_data, kept_turns, same_load
+from analyst.replay import rehydrate, went_back, again as cells_again
 from logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -329,6 +330,55 @@ class BambooAI:
                 self.output_manager.display_system_messages(
                     f"Restoring the earlier analysis stopped after {n} of {len(cells)} cells: {err}", chain_id=self.chain_id)
         return self._kernel
+
+    def _kernel_at(self, src, turn, data_record):
+        """The kernel for a branch that goes on from turn `turn` of run `src` (docs/BRANCH_DESIGN.md), at the state the
+        kept turns left: (kernel, reran, error). Where the kernel still holds that state it goes back to it - nothing
+        runs again, or the kept cells that had to printed what their records show - and `reran` is empty. Otherwise
+        a fresh kernel: the earlier chains' cells are run again as for any follow-up, then the cells the branch
+        keeps, and `reran` says what each of those printed this time (the session marks a cell that printed
+        something else). A cell that fails when run again leaves no state to go on from: the error says which."""
+        kept = [t for t in kept_turns(src, turn) if t.kind == "cell" and t.cell_no is not None]
+        before = self.notebook.computed_cells(src.parent, data=data_record) if src.parent is not None else []
+        cells = before + kept
+        self._kernel_tip = None                                # the kernel leaves the chain's end it stood at
+        if self._kernel is not None and self._same_frame(src.id):
+            try:
+                if tools.goto(self._kernel, cells[-1].snap if cells else tools.snap(self._kernel, 0)) and went_back(self._kernel, kept):
+                    logger.info("The kernel went back to the state after turn %s of chain %s", turn, src.id)
+                    return self._kernel, {}, ""
+                logger.info("The kernel does not hold the state after turn %s of chain %s as the record has it", turn, src.id)
+            except Exception as exc:                           # noqa: BLE001
+                logger.info("Warm kernel gone (%s)", exc)
+        logger.info("A fresh kernel for the branch: the %d cells before chain %s and the %d it keeps of it are run again", len(before), src.id, len(kept))
+        self._drop_kernel()
+        self._kernel = self._new_kernel()
+        if before:
+            n, err = rehydrate(self._kernel, before)
+            if err:
+                return self._kernel, {}, f"restoring the earlier analysis stopped after {n} of {len(before)} cells: {err}"
+        reran, err = cells_again(self._kernel, kept)
+        return self._kernel, reran, err
+
+    def _no_branch(self, src, turn, data_now):
+        """Why no branch can go on from turn `turn` of run `src` - '' when one can (docs/BRANCH_DESIGN.md §2)."""
+        if src is None:
+            return "The analysis to go on from is not in this thread."
+        if src.status == "running":
+            return "This analysis has not ended: stop it, or wait for its report, then go on from one of its turns."
+        if src.figure_asked:
+            return "An analysis that was asked about a plot cannot be gone on from yet."
+        points = branch_points(src)
+        if not points:
+            return "This analysis cannot be gone on from: it was made before version 2.9, or it is a routine's run."
+        if turn not in points:
+            return f"Turn {turn} cannot be gone on from: this analysis can go on from turns {points[0]} to {points[-1]}."
+        if not same_load(src.data, data_now):
+            if not has_data(src.data):
+                return "This analysis ran with no data loaded: remove the dataset, then go on from its turn."
+            name = (src.data or {}).get("name") or ""
+            return "Load the data this analysis ran on first" + (f": {name}." if name else ".")
+        return ""
 
     def _same_frame(self, run_id):
         """Whether the frame loaded now is the frame a run ran on (by its id - the kernel's key: a kernel holds one
@@ -1156,12 +1206,13 @@ class BambooAI:
                 model = ""
             # a quiet card shows nothing while its reply streams (the figures step's code, 2026-10-11); the attempt names a correction
             self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=model, review=bool(ev.get("review")),
-                       quiet=bool(ev.get("quiet")), attempt=ev.get("attempt"))
+                       quiet=bool(ev.get("quiet")), attempt=ev.get("attempt"), **({"kept": True} if ev.get("kept") else {}))   # kept: a turn a branch keeps
         elif kind == "turn_end":
             th = (ev.get("thinking") or "").strip()
             peek = ev.get("peek") or (th.split(". ")[0][:140] if th else "")     # a step's own line first (the figures step says what it drew)
             self._pane('pane_turn_end', turn=ev.get("turn"), kind=ev.get("kind"), peek=peek, elapsed=ev.get("elapsed"),
-                       cost=ev.get("cost"), thinking=th[:4000], note=ev.get("note") or "", code=ev.get("code") or "")
+                       cost=ev.get("cost"), thinking=th[:4000], note=ev.get("note") or "", code=ev.get("code") or "",
+                       **({"kept": True} if ev.get("kept") else {}))
         elif kind == "heartbeat":
             self._pane('pane_heartbeat', turn=ev.get("turn"), of=ev.get("of"), spent=round(float(ev.get("spent") or 0), 3),
                        dollars=ev.get("dollars"), estimate=ev.get("estimate") or "", mode=self._mode_label)
@@ -1175,11 +1226,11 @@ class BambooAI:
             peek = (f'not run: restricted operation ({refused})' if refused else
                     ('not run: figures are drawn after the report' if skipped else next((ln.strip() for ln in out.splitlines() if ln.strip()), ''))) if ok else ''
             from analyst.tools import exception_line
-            t = next((x for x in reversed(run.turns) if x.kind == kind), None)
-            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, skipped=skipped, refused=refused, peek=peek[:160], elapsed=(None if skipped or refused else (t.elapsed if t else None)),
+            self._pane('pane_cell', cell_no=ev.get('cell_no'), ok=ok, skipped=skipped, refused=refused, peek=peek[:160], elapsed=(None if skipped or refused else ev.get('elapsed')),
                        chars=len(ev.get('stdout') or ''), figs=len(ev.get('figures') or []),
                        error_line=exception_line(ev.get('error') or '')[:220] if not ok else '',
-                       reach=reach_mod.chip(ev.get('reaches') or []))          # the row's tag when the cell reached outside the data
+                       reach=reach_mod.chip(ev.get('reaches') or []),          # the row's tag when the cell reached outside the data
+                       **({"kept": ev.get("kept")} if ev.get("kept") else {}))  # kept, or differs: run again, it printed something else
             self._tab('plan', self._notebook_view(run))
         elif kind == "lookup_start":
             # a READ or SEARCH is under way: the pane shows a pending row until the digest replaces it (2026-10-03,
@@ -1550,7 +1601,9 @@ class BambooAI:
 
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
                           image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, brief=None,
-                          run_id=None, candidate=None, step=None):
+                          run_id=None, candidate=None, step=None, after=None):
+        # after: a branch (docs/BRANCH_DESIGN.md) - go on from turn `after` of chain `chain_id`, another way: the question
+        # is the person's hint; the branch is a chain of its own beside that one, under its limits, mode and brief
         # brief: what the person agreed before this run (analyst/brief.py); the analyst is held to it (docs/ARCHITECT_DESIGN.md §2.5)
         # run_id: the framing run the brief was written in (open_framing); the analysis continues it, under its id
         # step: the step of that run's conversation on the person's screen when they started it (analyst/steps.py): the
@@ -1574,8 +1627,29 @@ class BambooAI:
         # thread and position
         self._on_thread(thread_id if thread_id is not None else utils.next_thread_id())
         self._sync_documents()                       # the thread's documents into the kernel's folder
+        if question is None and self.webui:
+            # read before anything below can refuse the request: left waiting, it became the next question's text
+            question = self.output_manager.get_user_input()
         parent = str(chain_id) if chain_id is not None and str(chain_id) in self.notebook.runs else None
         parent_for_ui = chain_id if parent is not None else None      # the browser's own value, same type
+        src, hint, data_now, reran = None, "", None, {}
+        if after is not None:
+            run_id = candidate = None                          # a branch starts no brief and no proposed question: it takes the chain, the turn, the hint
+            hint = (question or "").strip()                    # what the person typed is the hint; the question is the chain's own
+            src, data_now = (self.notebook.runs.get(str(chain_id)) if chain_id is not None else None), self._data_record()
+            why = self._no_branch(src, after, data_now) or ("" if hint else f"Say how the analysis should go on from turn {after}: a branch needs a hint.")
+            if why:
+                self.output_manager.display_error(why, chain_id=chain_id)
+                return None
+            question = src.question
+            parent = src.parent                                # the branch stands beside the chain it goes on from
+            parent_for_ui = int(parent) if parent and str(parent).isdigit() else parent
+            # the kernel at the state the kept turns left, before the new chain is announced: where it cannot get there,
+            # nothing has started
+            kernel, reran, lost = self._kernel_at(src, after, data_now)
+            if lost:
+                self.output_manager.display_error(f"The analysis cannot go on from turn {after}: {lost}.", chain_id=chain_id)
+                return None
         framed = self.notebook.runs.get(str(run_id)) if run_id is not None else None
         if run_id is not None and (framed is None or framed.status != "framing"):
             # started before (a second tab): not run again, and no run takes its place without the brief
@@ -1592,8 +1666,6 @@ class BambooAI:
         else:
             self.chain_id = utils.next_chain_id()
 
-        if question is None and self.webui:
-            question = self.output_manager.get_user_input()
         if framed is not None:
             question = (brief or {}).get("question") or question      # a framed run is analysed under the question its brief holds, whatever the page sent
         if synthesis:
@@ -1620,16 +1692,23 @@ class BambooAI:
             budget = Budget(turns=self.turns_deep, dollars=1.5)
         else:
             budget = Budget(turns=self.turns_quick, dollars=0.3)
+        if src is not None:
+            budget, mode = Budget(**src.budget), (src.mode or mode).lower()      # the limits and the mode of the run it goes on from
         self._last_budget = budget
 
-        logger.info("Analyst run: thread %s, new chain %s, parent %s (%s), preset %s (%d turns)", self.thread_id, self.chain_id,
-                    parent, "fresh kernel" if (self._kernel is None or parent is None) else "warm kernel" if parent == self._kernel_tip else "the kernel goes back, or a fresh one",
+        logger.info("Analyst run: thread %s, new chain %s, parent %s (%s), preset %s (%d turns)", self.thread_id, self.chain_id, parent,
+                    f"a branch of chain {src.id} after turn {after}: the kernel goes back, or a fresh one" if src is not None
+                    else "fresh kernel" if (self._kernel is None or parent is None) else "warm kernel" if parent == self._kernel_tip else "the kernel goes back, or a fresh one",
                     mode, budget.turns)
         self._mode_label = {"quick": "Quick", "deep": "Deep", "adaptive": "Adaptive"}.get(mode, mode)
+        own = self.notebook.owner(src, after).id if src is not None else None       # the chain that turn is a turn of its own: the map draws the branch from it
+        branch = {"of": int(own) if str(own).isdigit() else own, "turn": after, "hint": hint} if src is not None else None
         if self.webui:
-            # the browser draws the map from this one record: the new chain and where it attached
-            self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui)
-            self._pane('pane_run_start', mode=self._mode_label, of=budget.turns, dollars=budget.dollars)
+            # the browser draws the map from this one record: the new chain and where it attached - and, for a branch, the
+            # chain and the turn it goes on from
+            self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui,
+                                              **({"branch_of": branch["of"], "branch_turn": after} if branch else {}))
+            self._pane('pane_run_start', mode=self._mode_label, of=budget.turns, dollars=budget.dollars, **({"branch": branch} if branch else {}))
             # the Data tab, as before (the Query tab is retired: the question is the chain's own text)
             if self.df is not None or self.df_id:
                 try:
@@ -1638,8 +1717,9 @@ class BambooAI:
                 except Exception:                              # noqa: BLE001
                     logger.warning("Data preview skipped", exc_info=True)
 
-        data_record = self._data_record()                   # what this run runs on, kept on the run (2026-10-10, routines)
-        kernel = self._kernel_for(parent, data_record)       # ... and what decides which earlier cells it continues (2026-10-12)
+        data_record = data_now if src is not None else self._data_record()   # what this run runs on, kept on the run (2026-10-10, routines)
+        if src is None:
+            kernel = self._kernel_for(parent, data_record)   # ... and what decides which earlier cells it continues (2026-10-12)
         self._kernel_tip = None                              # the kernel now holds a run that has not ended: stopped or failed, it leaves the kernel at
                                                              # no chain's end, and the next run goes to the state of its own parent (2.9); a run that
                                                              # ends is the kernel's tip
@@ -1651,7 +1731,10 @@ class BambooAI:
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
                           replay_runner=self._run_replay, map_inputs=self._map_inputs, saved=self._saved_analysis)
         try:
-            run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label, brief=brief)
+            if src is not None:
+                run = session.go_on(src.id, after, hint, run_id=str(self.chain_id), data=data_record, reran=reran)
+            else:
+                run = session.run(question, parent=parent, budget=budget, run_id=str(self.chain_id), data=data_record, image=figure, mode=self._mode_label, brief=brief)
         except ExecutionInterrupted:
             self.output_manager.display_system_messages("Stopped.", chain_id=self.chain_id)
             run = self.notebook.runs.get(str(self.chain_id))
@@ -1701,7 +1784,7 @@ class BambooAI:
                    cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error and not getattr(t, 'refused', '')),
                    refused=sum(1 for t in run.turns if t.kind == 'cell' and getattr(t, 'refused', '')),     # not run, not failed (2026-10-28)
                    cost=round(self._chain_cost(), 3),
-                   seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns), 1),
+                   seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns if not t.kept), 1),   # a branch's own turns
                    replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
                    reaches=reach_mod.summary(run))                 # the reach report: what the cells touched outside the data (2026-10-28)
         if run.status == "asked":

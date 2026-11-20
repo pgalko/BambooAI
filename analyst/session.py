@@ -2,6 +2,7 @@
 
     session = Session(kernel, notebook, llm, store, emit=..., search=...)
     run = session.run(question, parent=None, budget=Budget(turns=15, dollars=1.0))
+    branch = session.go_on(run.id, 3, "the person's hint")     # from turn 3 of that run, another way (docs/BRANCH_DESIGN.md)
 
 Each turn: build the prompt (contract + data + question + note + cells + task),
 call the model, parse ONE action, carry it out, store the turn, emit it to the
@@ -20,11 +21,11 @@ import logging
 import os
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Callable, Dict, List, Optional
 
 from . import tools, report as rep, reach, brief as briefs, draft as drafts
-from .notebook import Notebook, NotebookStore, Run, Turn, has_data
+from .notebook import Notebook, NotebookStore, Run, Turn, has_data, hint_block
 from .replay import verify
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,8 @@ CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="ut
 # the brief's section and its parts of the report ride only when the run has a brief (docs/ARCHITECT_DESIGN.md §2.5): how
 # the result stands against it where the brief gives something to hold it against (brief.held), what did not fit always
 CONTRACT_BRIEF = open(os.path.join(_HERE, "contract_brief.md"), encoding="utf-8").read()
+# the hint's section rides only in a branch (docs/BRANCH_DESIGN.md): the person went back to a turn and said how to go on
+CONTRACT_HINT = open(os.path.join(_HERE, "contract_hint.md"), encoding="utf-8").read()
 BRIEF_AGAINST = ("- against the brief, under the heading `## Against the brief`: for what the person expects to see, a line\n"
                  "  `Expected:` with `met`, `not met` or `cannot tell` and the number that says so; for what would change their\n"
                  "  mind, a line `Would change their mind:` with `seen`, `not seen` or `cannot tell`; then one line for each Also\n"
@@ -59,15 +62,19 @@ REVIEWER_WORDS_LINE = "- Words: ...\n"
 REVIEWER_BRIEF_ITEM = ("- BRIEF: what the person fixed with the question before the run - the comparison, the measure, the period,\n"
                        "  what they expect and what else to check. The analyst is held to it: judge the analysis against it, and\n"
                        "  recommend no TEST that puts something else in the place of what it fixes\n")
+# the hint among what the reviewer receives, present only in a branch: the turns since it are judged against it
+REVIEWER_HINT_ITEM = ("- HINT: what the person said when they went back to a turn of this analysis and had it go on from there.\n"
+                      "  The analyst is held to it from that turn on: judge the turns since against it\n")
 
 
-def reviewer(context: bool = False, brief: bool = False) -> str:
+def reviewer(context: bool = False, brief: bool = False, hint: bool = False) -> str:
     """The reviewer's prompt; with context, the Words lens among the perspectives and its line in the format; with a
-    brief, the brief among what it receives."""
+    brief, the brief among what it receives; in a branch, the person's hint."""
     return (_REVIEWER_TEMPLATE.replace("{LENSES}", "six" if context else "five")
                               .replace("{WORDS_LENS}", REVIEWER_WORDS_LENS if context else "")
                               .replace("{WORDS_LINE}", REVIEWER_WORDS_LINE if context else "")
-                              .replace("{BRIEF_ITEM}", REVIEWER_BRIEF_ITEM if brief else ""))
+                              .replace("{BRIEF_ITEM}", REVIEWER_BRIEF_ITEM if brief else "")
+                              .replace("{HINT_ITEM}", REVIEWER_HINT_ITEM if hint else ""))
 
 
 REVIEWER = reviewer(False)
@@ -85,12 +92,13 @@ def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
-def contract(documents: bool = False, review_every: int = 0, context: bool = False, brief: bool = False, held: bool = True) -> str:
+def contract(documents: bool = False, review_every: int = 0, context: bool = False, brief: bool = False, held: bool = True,
+             hint: bool = False) -> str:
     """The contract as the model reads it: one page, each rule once; with documents, the Documents section before
     Format and the READ row in the actions table; with context (the words written beside the data), the Context
     section after it and the READ CTX row; with reviews during the run, the Reviews section after Results; with a
     brief, The brief after How you work and its parts among the report's - how the result stands against it only
-    where the report is `held` to something (brief.held)."""
+    where the report is `held` to something (brief.held); in a branch, A hint from the person after those."""
     sections = ("\n" + CONTRACT_DOCUMENTS if documents else "") + ("\n" + CONTRACT_CONTEXT if context else "")
     rows = (READ_ROW if documents else "") + (READ_ROW_CONTEXT if context else "")
     return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", sections)
@@ -98,6 +106,7 @@ def contract(documents: bool = False, review_every: int = 0, context: bool = Fal
                               .replace("{REVIEWS}", "\n" + CONTRACT_REVIEWS.replace("{ordinal}", _ordinal(review_every))
                                        if review_every else "")
                               .replace("{BRIEF}", "\n" + CONTRACT_BRIEF if brief else "")
+                              .replace("{HINT}", "\n" + CONTRACT_HINT if hint else "")
                               .replace("{BRIEF_PARTS}", ((BRIEF_AGAINST if held else "") + BRIEF_MISFIT) if brief else ""))
 
 CONTRACT = contract(False)
@@ -885,6 +894,9 @@ class Session:
             parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17] or [C.417]):\n" + "\n".join(passages))
         if extra:
             parts.append(extra)
+        hint = hint_block(run)
+        if hint:
+            parts.append(hint)                      # the person's hint stands above the task line from its turn to the report
         block = self._review_block(run)
         if block:
             parts.append(block)                     # the latest review stands above the task line until the next one
@@ -912,6 +924,8 @@ class Session:
         # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in
         run.brief = briefs.agreed(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
         run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
+        run.budget = asdict(budget)                   # its limits: a branch of this run runs under them (2.9)
+        run.figure_asked = bool(image)
         run.sandbox = tools.sandbox(self.kernel)      # the box the cells run on, for the reach report (2026-10-28)
         if data:
             run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
@@ -919,13 +933,61 @@ class Session:
         self._image = image or None                   # a figure the person asks about (the Plots tab's Ask AI): with every turn
                                                       # of the analysis, as a picture beside the prompt (2026-10-13)
         self._save()
-        spent, extra, failures = 0.0, "", 0
-        lost_at = ""                                   # the effort a reply that came back empty or cut short was asked at
+        return self._loop(run, budget)
+
+    def go_on(self, of: str, turn: int, hint: str, run_id: Optional[str] = None, data: Optional[dict] = None,
+              reran: Optional[Dict[int, dict]] = None) -> Run:
+        """A branch (docs/BRANCH_DESIGN.md): go on from turn `turn` of run `of`, another way. The branch is a run of its
+        own that keeps that run's turns up to there, its question, brief, limits and mode; the loop takes up after the
+        kept turn with what that turn carried, and the person's hint stands in every prompt from there to the report.
+        The kernel is already at the state the kept turns left (the host's work). `reran`: where it got there by
+        running the kept cells again, what each printed this time, by cell number ({stdout, results, snap}) - a cell
+        that printed something else is marked, and its record here holds the new output and results."""
+        run = self.nb.branch(of, turn, hint, run_id=run_id)
+        if data:
+            run.data = dict(data)
+        run.sandbox = tools.sandbox(self.kernel)
+        self._image = None                            # no figure rides with a branch: a run asked about one cannot be gone on from
+        for t in run.cells():
+            again = (reran or {}).get(t.cell_no)
+            if again:
+                t.snap = again.get("snap") or ""
+                if (again.get("stdout") or "") != (t.stdout or ""):
+                    t.kept, t.stdout, t.results = "differs", again.get("stdout") or "", list(again.get("results") or [])
+        self._save()
+        budget = Budget(**run.budget)
+        self._emit_kept(run, budget)
+        return self._loop(run, budget, carry=run.turns[-1].carry)
+
+    def _emit_kept(self, run: Run, budget: Budget) -> None:
+        """The turns a branch keeps, to the pane, as they were emitted the first time - each marked kept."""
+        for t in run.turns:
+            if t.kind == "review":
+                self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True, "kept": True})
+                self.emit({"type": "turn_end", "run": run.id, "turn": "review", "kind": "review", "thinking": t.thinking, "note": t.note,
+                           "code": "", "elapsed": (t.usage or {}).get("elapsed"), "cost": (t.usage or {}).get("cost", 0.0), "kept": True})
+                continue
+            no = t.carry["turn"]
+            self.emit({"type": "turn_start", "run": run.id, "turn": no, "of": budget.turns, "kept": True})
+            self.emit({"type": "turn_end", "run": run.id, "turn": no, "kind": t.kind, "thinking": t.thinking, "note": t.note,
+                       "code": t.code if t.kind == "cell" else "", "elapsed": (t.usage or {}).get("elapsed"),
+                       "cost": (t.usage or {}).get("cost", 0.0), "estimate": _estimate_line(t.note), "kept": True})
+            self._emit_turn(run, t)
+        last = run.turns[-1].carry
+        self.emit({"type": "heartbeat", "run": run.id, "turn": last["turn"], "of": budget.turns, "spent": last["spent"],
+                   "dollars": budget.dollars, "estimate": _estimate_line(run.note)})
+
+    def _loop(self, run: Run, budget: Budget, carry: Optional[dict] = None) -> Run:
+        """The turns of a run to its report: from the first - or, in a branch, from the turn after the one whose `carry`
+        is given: what was spent by then, what that turn handed to the next prompt, the failed cells in a row."""
+        carry = carry or {}
+        spent, extra, failures = float(carry.get("spent") or 0.0), carry.get("extra") or "", int(carry.get("failures") or 0)
+        lost_at = carry.get("lost_at") or ""           # the effort a reply that came back empty or cut short was asked at
         self.system = contract(self.documents, budget.review_every, context=self.context, brief=bool(run.brief),    # the Reviews section only when a reviewer runs, The brief only with one
-                               held=briefs.held(run.brief, has_data(run.data)))
+                               held=briefs.held(run.brief, has_data(run.data)), hint=bool(run.hints))                # ... the hint's only in a branch
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
-        for turn_no in range(1, budget.turns + 1):
+        for turn_no in range(int(carry.get("turn") or 0) + 1, budget.turns + 1):
             if self.is_review(budget, turn_no):
                 # the reviewer: its own prompt and input, no actions; its review rides in the analyst's next prompts, and a
                 # REPORT verdict ends the analysis (2026-10-05: the self-review had been the analyst's own turn with one
@@ -994,6 +1056,7 @@ class Session:
                     if budget.max_failures and failures >= budget.max_failures:
                         # five in a row is a model looping, not analysing: close with what stands
                         logger.warning("Analyst: %d consecutive failed cells; forcing the report", failures)
+                        turn.carry = dict(turn=turn_no, extra=extra, spent=spent, failures=failures, lost_at=lost_at)
                         run.turns.append(turn)
                         self._emit_turn(run, turn)
                         self.emit({"type": "heartbeat", "run": run.id, "turn": turn_no, "of": budget.turns, "spent": spent,
@@ -1135,6 +1198,8 @@ class Session:
             if held:
                 extra = (extra + "\n\n" + held) if extra else held
 
+            # what the loop carries out of this turn: a branch that goes on from it takes up exactly here (2.9)
+            turn.carry = dict(turn=turn_no, extra=extra, spent=spent, failures=failures, lost_at=lost_at)
             run.turns.append(turn)
             self._emit_turn(run, turn)
             self.emit({"type": "heartbeat", "run": run.id, "turn": turn_no, "of": budget.turns, "spent": spent,
@@ -1378,7 +1443,8 @@ class Session:
         code = "\n\n".join(f"--- cell {t.cell_no} ---\n```python\n{t.code.rstrip()}\n```" for t in cells)
         results = result_lines(run)
         agreed = [f"{k}. {line}" for k, line in enumerate(briefs.figure_lines(run.brief), 1)]
-        parts = [f"QUESTION:\n{run.question.strip()}"] + ([FIGURES_AGREED + "\n" + "\n".join(agreed)] if agreed else [])
+        parts = ([f"QUESTION:\n{run.question.strip()}"] + ([hint_block(run)] if run.hints else [])      # a hint may be about the drawing
+                 + ([FIGURES_AGREED + "\n" + "\n".join(agreed)] if agreed else []))
         for d in drafts.agreed(run):                  # the cell that drew them before the run: the figure follows its draft
             drew = ", ".join(f'"{t}"' for t in d["titles"]) + (" - on made-up numbers: " + ", ".join(f'"{t}"' for t in d["made_up"]) if d["made_up"] else "")
             parts.append(f"{FIGURES_DRAFT} (it drew {drew}):\n```python\n{d['code'].rstrip()}\n```")
@@ -1511,7 +1577,8 @@ class Session:
         """What the reviewer reads, fixed material first: the question, the data, the thread; then the note (or the report),
         the ledger, what earlier reviews checked, the earlier reviews with the analyst's answer to each, the turns since
         the last review, the cells to check now, and where the run stands. Returns (text, cells sent)."""
-        parts = [f"QUESTION:\n{run.question.strip()}"] + ([self._brief(run)] if run.brief else []) + [f"DATA:\n{self.data_description}"]
+        parts = ([f"QUESTION:\n{run.question.strip()}"] + ([self._brief(run)] if run.brief else []) + ([hint_block(run)] if run.hints else [])
+                 + [f"DATA:\n{self.data_description}"])
         anc = self.nb.render_ancestry(run.id)
         if anc:
             parts.append(anc)
@@ -1585,7 +1652,7 @@ class Session:
         self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
         t0 = time.time()
         user, sent = self._review_input(run, budget, after_turn, report)
-        text, usage_r = self.llm(reviewer(self.context, brief=bool(run.brief)), user, review=True)    # the Words lens only with context, the brief only with one
+        text, usage_r = self.llm(reviewer(self.context, brief=bool(run.brief), hint=bool(run.hints)), user, review=True)    # the Words lens only with context, the brief only with one, the hint only in a branch
         cost = float((usage_r or {}).get("cost", 0.0) or 0.0)
         usage = {"cost": cost, "elapsed": round(time.time() - t0, 1)}
         rv = parse_review(text)
@@ -1620,7 +1687,8 @@ class Session:
         ev = {"type": turn.kind, "run": run.id, "note": turn.note}
         if turn.kind == "cell":
             ev.update(code=turn.code, stdout=turn.stdout, error=turn.error, cell_no=turn.cell_no, figures=turn.figures,
-                      reaches=list(turn.reaches or []), refused=turn.refused or "")       # the reach record (2026-10-28)
+                      reaches=list(turn.reaches or []), refused=turn.refused or "",       # the reach record (2026-10-28)
+                      elapsed=turn.elapsed, kept=turn.kept)
         elif turn.kind in ("read", "search"):
             # the digest is the text; the query rides beside it (2026-10-03: the query had been sent as the text, so the
             # pane's row showed the query twice)

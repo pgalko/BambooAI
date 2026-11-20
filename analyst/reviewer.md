@@ -5,7 +5,7 @@ has established and judge it against the question; your review goes into the ana
 ## What you receive
 
 - the person's question, verbatim
-{BRIEF_ITEM}- DATA: the dataset's schema, and a map of each attached document
+{BRIEF_ITEM}{HINT_ITEM}- DATA: the dataset's schema, and a map of each attached document
 - in a thread, the earlier chains' questions and conclusions
 - the analyst's working note as it stands
 - RESULTS SO FAR: every estimate the analyst's cells recorded with `RESULT(...)`, with its cell; a line

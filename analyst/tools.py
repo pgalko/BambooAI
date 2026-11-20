@@ -22,11 +22,16 @@ def run_cell(kernel, code: str) -> Tuple[str, str, List[dict], List[dict], dict]
     the restricted word it was refused for, {"reaches": [...], "refused": ""} (2026-10-28; an older kernel gives
     neither). A failed cell is rolled back by the kernel; nothing of it survives except the traceback we show."""
     stdout, error, plots = kernel.execute(code)
+    reach = {"reaches": list(getattr(kernel, "last_reaches", []) or []), "refused": str(getattr(kernel, "last_refused", "") or "")}
+    return shown(stdout), (error or ""), list(plots or []), list(getattr(kernel, "last_results", []) or []), reach
+
+
+def shown(stdout) -> str:
+    """A cell's output as the record keeps it: whole up to MAX_OUTPUT_CHARS."""
     stdout = (stdout or "")
     if len(stdout) > MAX_OUTPUT_CHARS:
         stdout = stdout[:MAX_OUTPUT_CHARS].rstrip() + f"\n... [output truncated at {MAX_OUTPUT_CHARS} characters]"
-    reach = {"reaches": list(getattr(kernel, "last_reaches", []) or []), "refused": str(getattr(kernel, "last_refused", "") or "")}
-    return stdout, (error or ""), list(plots or []), list(getattr(kernel, "last_results", []) or []), reach
+    return stdout
 
 
 def snap(kernel, step=None) -> str:

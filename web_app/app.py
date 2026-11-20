@@ -1308,6 +1308,7 @@ def query():
     synthesis = request.json.get('synthesis', False)
     run_id = request.json.get('run_id')      # the framing run this analysis continues (architect_routes.py): it runs under that run's brief
     step = request.json.get('step')          # ... under the brief of the step of its conversation on the person's screen when they started; none: the one in use
+    branch = request.json.get('branch')      # {turn}: a branch (docs/BRANCH_DESIGN.md) - go on from that turn of chain `chain_id`, the query being the hint
 
     # NEW: Auto-explore parameters
     auto_explore = request.json.get('auto_explore', False)
@@ -1346,6 +1347,8 @@ def query():
             run_id=run_id,
             step=step if isinstance(step, int) and not isinstance(step, bool) else None,
             candidate=(candidate.get('set'), candidate.get('k')) if isinstance(candidate, dict) else None,
+            # a turn that is no number is no turn: the branch is refused, the hint never runs as a question
+            after=(branch.get('turn') if isinstance(branch.get('turn'), int) and not isinstance(branch.get('turn'), bool) else 0) if isinstance(branch, dict) else None,
         )
 
     thread = threading.Thread(target=run_bamboo_ai)

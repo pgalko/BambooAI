@@ -3795,5 +3795,278 @@ check("the instructions for next questions: what the model does and does not, th
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", nq.SYSTEM),
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ntexts.items() if _DOMAIN.search(t)}, len(nq.SYSTEM)))
 
+# ---- a branch (0319, docs/BRANCH_DESIGN.md): go on from a turn of an analysis, another way, under a hint from the person.
+# ---- The first run: a cell, a cell that fails, a cell, NAMES, a cell, the report - so a branch can go on after each kind.
+from dataclasses import asdict as _asdict
+from analyst import tools as _tools
+from analyst.notebook import branch_points, hint_block, AGAIN_LINE
+from analyst.session import CONTRACT_HINT, REVIEWER_HINT_ITEM
+
+def _seat(system, user):
+    return "rewrite" if user.startswith("Rewrite") else "figures" if system.startswith("You are drawing the figures") else "review" if system.startswith("You are the reviewer") else "analyst"
+
+def _scripted(replies, seen, cost=0.01, review="###REVIEW###\n- The question requires: x\n- Established: nothing yet\n- Most consequential problem: none\n- Verdict: TEST check the second step"):
+    """A model that plays `replies` on the analyst's seat, one a call, and keeps what each seat was sent."""
+    left = list(replies)
+    def llm(system, user, **hints):
+        seat = _seat(system, user)
+        seen.append((seat, system, user))
+        if seat == "rewrite": return "plain", {"cost": 0}
+        if seat == "figures": return "NONE", {"cost": 0}
+        if seat == "review": return review, {"cost": cost}
+        return left.pop(0), {"cost": cost}
+    return llm
+
+def _asked(seen, seat="analyst"):
+    return [(s, u) for who, s, u in seen if who == seat]
+
+_FIRST = [act6("CELL\n```python\nbase = 10\nprint('base', base)\n```"),
+          act6("CELL\n```python\nraise ValueError('slip')\n```"),
+          act6("CELL\n```python\npooled = base * 2\nprint('pooled', pooled)\n```"),
+          act6("NAMES"),
+          act6("CELL\n```python\nzz_after = pooled + 1\nprint('zz_after', zz_after)\n```"),
+          act6("REPORT\n## The pooled figure\n\nThe pooled figure is 20 [cell 2].")]
+_BUDGET = Budget(turns=8, dollars=1.0)
+kb = PersistentKernel(df=df); nbb = Notebook("tb"); seen_a, ev_b = [], []
+try:
+    root_b = nbb.new_run("an earlier question"); root_b.status, root_b.report = "answered", "## Earlier\n\nDone."
+    sb = Session(kb, nbb, _scripted(_FIRST, seen_a), data_description="d", emit=ev_b.append, kernel_factory=lambda: PersistentKernel(df=df))
+    ra_ = sb.run("How do the two blocks compare?", parent=root_b.id, budget=_BUDGET, run_id="a", mode="Deep")
+    work = [t for t in ra_.turns if t.kind not in ("rewrite", "review") and not t.step]
+    check("branch: every working turn of a run keeps what the loop carried out of it - its number, what it handed to the next prompt, what was spent by then, "
+          "the failed cells in a row; the report keeps none; the run keeps its limits; the turns to go on from are its working turns",
+          [t.carry.get("turn") for t in work] == [1, 2, 3, 4, 5, None] and work[1].carry["extra"].startswith("YOUR LAST CELL FAILED") and work[1].carry["failures"] == 1
+          and work[2].carry["failures"] == 0 and work[2].carry["extra"] == "" and work[3].carry["extra"].startswith("NAMES IN THE KERNEL:")
+          and [round(t.carry["spent"], 2) for t in work[:5]] == [0.01, 0.02, 0.03, 0.04, 0.05] and ra_.budget == _asdict(_BUDGET) and branch_points(ra_) == [1, 2, 3, 4, 5]
+          and ra_.branch == {} and ra_.hints == [] and not ra_.figure_asked, ([t.carry for t in work], ra_.budget))
+    first_prompts = _asked(seen_a)
+    # the invariant: going on without a hint, the loop is exactly where the first run was
+    same = {}
+    for k in (2, 3, 4):
+        seen_k = []
+        Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_k), data_description="d").go_on("a", k, "", run_id=f"same{k}")
+        same[k] = _asked(seen_k)[0] == first_prompts[k]
+    check("branch: going on from a turn without a hint, the first prompt is the very prompt the first run had at the next turn - instructions and all - after a failed "
+          "cell (its traceback), after a cell, after a NAMES view: the loop takes up exactly where the kept turn ended", same == {2: True, 3: True, 4: True}, same)
+    # the branch: after turn 3 (a cell, the failed one, a cell), the kernel at the state the kept cells left
+    seen_h, ev_h = [], []
+    went = _tools.goto(kb, ra_.cells()[1].snap)
+    sh = Session(kb, nbb, _scripted([act6("CELL\n```python\napart = pooled - base\nprint('apart', apart, 'zz_after' in globals())\n```"),
+                                     act6("REPORT\n## Apart\n\nKept apart, the difference is 10 [cell 3].")], seen_h),
+                 data_description="d", emit=ev_h.append, kernel_factory=lambda: PersistentKernel(df=df))
+    rb_ = sh.go_on("a", 3, "  keep the two blocks apart  ", run_id="b1")
+    hp = _asked(seen_h)
+    _HINT = "HINT FROM THE PERSON (given after turn 3; it holds from there to the report):\nkeep the two blocks apart"
+    check("branch: the hint stands in every prompt of the branch, above the task line, and the instructions gain its section; the first prompt is the first run's "
+          "at that turn with the hint added; nothing of the turn that was left is in any of them; the figures step is given the hint too, after the question",
+          len(hp) == 2 and all(_HINT + "\n\nTASK: turn " in u for _, u in hp) and all(s == contract(False, 0, hint=True) and "## A hint from the person" in s for s, _ in hp)
+          and hp[0][1] == first_prompts[3][1].replace("\n\nTASK: turn 4;", "\n\n" + _HINT + "\n\nTASK: turn 4;") and not any("zz_after = " in u for _, u in hp)
+          and contract(False, 0, hint=True).replace("\n" + CONTRACT_HINT, "", 1) == CONTRACT
+          and _asked(seen_h, "figures")[0][1].startswith("QUESTION:\nHow do the two blocks compare?\n\n" + _HINT + "\n\nTHE REPORT, AS WRITTEN:\n")
+          and not any("HINT FROM THE PERSON" in u for _, u in _asked(seen_a, "figures")), [u[-400:] for _, u in hp])
+    check("branch: it is a chain of its own beside the one it left - the same parent, question, limits and mode - that records the chain, the turn and the hint; "
+          "its kept turns are copies marked kept, its own follow with the next numbers, and its cell takes the next cell number",
+          rb_.id == "b1" and rb_.parent == root_b.id and rb_.question == ra_.question and rb_.budget == ra_.budget and rb_.mode == "Deep" and rb_.branch == {"of": "a", "turn": 3}
+          and rb_.hints == [{"turn": 3, "text": "keep the two blocks apart"}] and [t.kept for t in rb_.turns[:3]] == ["kept"] * 3 and not any(t.kept for t in rb_.turns[3:])
+          and [t.carry.get("turn") for t in rb_.turns if t.kind not in ("rewrite",)] == [1, 2, 3, 4, None] and [c.cell_no for c in rb_.cells()] == [1, 2, 3]
+          and rb_.cells()[2].code.startswith("apart") and rb_.turns[0] is not ra_.turns[0], (rb_.branch, rb_.hints, [t.kept for t in rb_.turns]))
+    check("branch: the chain it left is as it was - its turns, its cells, none marked", len(ra_.turns) == len(work) + 1 and [c.cell_no for c in ra_.cells()] == [1, 2, 3]
+          and not any(t.kept for t in ra_.turns) and ra_.cells()[2].code.startswith("zz_after") and ra_.status == "answered")
+    check("branch: the kernel was at the state the kept turns left - the new cell finds what the kept cells made and nothing of the turn that was left - and the "
+          "branch ends as any chain does: its report, its replay over the kept cells and its own, its code map",
+          went and rb_.cells()[2].stdout.strip() == "apart 10 False" and rb_.status == "answered" and rb_.replay_status == "reproduced"
+          and all(f"# --- cell {n} ---" in rb_.replay_script for n in (1, 2, 3)) and "zz_after = " not in rb_.replay_script and "error" not in (rb_.code_map or {"error": 1}),
+          (went, rb_.cells()[2].stdout, rb_.replay_status))
+    starts = [(e.get("turn"), bool(e.get("kept"))) for e in ev_h if e["type"] == "turn_start" and isinstance(e.get("turn"), int)]
+    kept_cells = [(e.get("cell_no"), e.get("kept"), bool(e.get("error"))) for e in ev_h if e["type"] == "cell"]
+    beat = next(e for e in ev_h if e["type"] == "heartbeat")
+    check("branch: the pane is sent the kept turns first, each marked kept - their cards, their cells, the failed one too - then what was spent by then, then the new turns",
+          starts == [(1, True), (2, True), (3, True), (4, False), (5, False)] and kept_cells[:3] == [(1, "kept", False), (None, "kept", True), (2, "kept", False)]
+          and kept_cells[3][:2] == (3, "") and (beat["turn"], round(beat["spent"], 2)) == (3, 0.03)
+          and [e["type"] for e in ev_h[:3]] == ["turn_start", "turn_end", "cell"] and ev_h[1].get("kept") is True, (starts, kept_cells, beat))
+    # a branch of a branch carries both hints where it goes on from a turn made under the first; from a turn the first branch kept, only its own
+    seen_2, seen_3, seen_s = [], [], []
+    rb2 = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_2), data_description="d").go_on("b1", 4, "and say which is larger", run_id="b2")
+    rb3 = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_3), data_description="d").go_on("b1", 2, "start over from the slip", run_id="b3")
+    rbs = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_s), data_description="d").go_on("b1", 3, "another way from the same turn", run_id="bs")
+    rbd = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], []), data_description="d").go_on("b2", 4, "from the second branch's kept turn", run_id="bd")
+    check("branch: a branch of a branch carries both hints where it goes on from a turn made under the first one's, each with its turn; from a turn the first "
+          "branch itself kept - the very turn it went on from included - its own alone: it is another branch of the chain that turn belongs to, and is recorded "
+          "as that chain's",
+          rb3.branch == {"of": "a", "turn": 2} and rbs.branch == {"of": "a", "turn": 3} and rbs.hints == [{"turn": 3, "text": "another way from the same turn"}]
+          and "keep the two blocks apart" not in _asked(seen_s)[0][1] and rbd.branch == {"of": "b1", "turn": 4}
+          and rbd.hints == [{"turn": 3, "text": "keep the two blocks apart"}, {"turn": 4, "text": "from the second branch's kept turn"}] and nbb.owner(rb2, 5) is rb2 and nbb.owner(rbd, 2) is ra_
+          and rb2.hints == [{"turn": 3, "text": "keep the two blocks apart"}, {"turn": 4, "text": "and say which is larger"}] and rb2.branch == {"of": "b1", "turn": 4}
+          and "HINTS FROM THE PERSON (each given after the turn named; each holds from there to the report):\n- after turn 3: keep the two blocks apart\n- after turn 4: and say which is larger\n\nTASK: turn 5;" in _asked(seen_2)[0][1]
+          and rb2.hints[0] is not rb_.hints[0] and rb3.hints == [{"turn": 2, "text": "start over from the slip"}] and "keep the two blocks apart" not in _asked(seen_3)[0][1]
+          and "YOUR LAST CELL FAILED" in _asked(seen_3)[0][1] and "TASK: turn 3;" in _asked(seen_3)[0][1], (rb2.hints, rb3.hints))
+    # the kept cells run again (the kernel no longer held their states): a cell that printed something else
+    seen_r = []
+    rr_ = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_r), data_description="d").go_on(
+        "a", 3, "keep them apart", run_id="b4", data={"df_id": "loaded now"},
+        reran={1: {"stdout": "base 10\n", "results": [], "snap": "new:1"}, 2: {"stdout": "pooled 99\n", "results": [{"text": "pooled, 2 blocks: +99"}], "snap": "new:2"}})
+    c1, c2 = rr_.cells()[0], rr_.cells()[1]
+    seen_q = []
+    rq2 = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_q), data_description="d").go_on("b4", 3, "and once more", run_id="b6")
+    check("branch: a kept cell that was run again and printed something else is marked, holds what it printed this time and the results it recorded, and the analyst "
+          "is told under its header - in the report turn's view too; one that printed the same only names its new state; the chain it came from keeps its own "
+          "output; the branch's data record is that of the data loaded now; a branch of that branch keeps the mark with the turn",
+          (c1.kept, c1.snap, c1.stdout) == ("kept", "new:1", "base 10\n") and (c2.kept, c2.snap, c2.stdout) == ("differs", "new:2", "pooled 99\n")
+          and c2.results == [{"text": "pooled, 2 blocks: +99"}] and ("--- cell 2 ---\n" + AGAIN_LINE + "```python\npooled = base * 2") in _asked(seen_r)[0][1]
+          and AGAIN_LINE not in _asked(seen_r)[0][1].split("--- cell 2 ---")[0] and ra_.cells()[1].stdout == "pooled 20\n" and "(run again: output changed)" in nbb.headline(c2)
+          and "(run again" not in nbb.headline(c1) and nbb._render_everything("b4").count("--- cell 2 ---\n" + AGAIN_LINE) == 1 and nbb._render_everything("b4").count(AGAIN_LINE) == 1
+          and rr_.data == {"df_id": "loaded now"} and ra_.data == {} and [t.kept for t in rq2.turns[:3]] == ["kept", "kept", "differs"]
+          and ("--- cell 2 ---\n" + AGAIN_LINE) in _asked(seen_q)[0][1], (c1.kept, c2.kept, c2.stdout, rr_.data, [t.kept for t in rq2.turns[:3]]))
+    # the failed cells in a row go on counting; the effort a lost reply was asked at is carried too
+    seen_f = []
+    Session(kb, nbb, _scripted([act6("CELL\n```python\nraise ValueError('again')\n```"), act6("REPORT\n## r\n\nDone.")], seen_f), data_description="d").go_on("a", 2, "try once more", run_id="b5")
+    asked_l, efforts_l = [], []
+    def lost_llm(system, user, **hints):
+        if _seat(system, user) != "analyst":
+            return ("plain" if _seat(system, user) == "rewrite" else "NONE"), {"cost": 0}
+        asked_l.append(user); efforts_l.append(hints.get("effort"))
+        return ("" if len(asked_l) == 1 else act6("REPORT\n## r\n\nDone.")), {"cost": 0.01, "effort": "high"}
+    rl_ = Session(kb, nbb, lost_llm, data_description="d").run("a reply is lost", budget=Budget(turns=4, dollars=1.0), run_id="l")
+    n_l = len(asked_l)
+    Session(kb, nbb, lost_llm, data_description="d").go_on("l", 1, "", run_id="l2")
+    seen_m, seen_n = [], []
+    _SLIP = act6("CELL\n```python\nraise ValueError('slip')\n```")
+    rm_ = Session(kb, nbb, _scripted([_SLIP, _SLIP, act6("REPORT\n## r\n\nNothing stands.")], seen_m), data_description="d").run(
+        "it gives up", budget=Budget(turns=6, dollars=1.0, max_failures=2), run_id="m")
+    Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone.")], seen_n), data_description="d").go_on("m", 2, "the name is base", run_id="n")
+    check("branch: what else the loop carried goes on with it - a cell that fails right after a kept failed cell is the second in a row, and the call after a kept "
+          "turn whose reply was lost asks for the lower effort the first run asked for; the turn at which an analysis gave up - too many failed cells in a row - "
+          "can be gone on from like any other",
+          branch_points(rm_) == [1, 2] and rm_.turns[1].carry["failures"] == 2 and "TASK: turn 3;" in _asked(seen_n)[0][1]
+          and "2 attempts in a row have failed." in _asked(seen_n)[0][1] and "the name is base" in _asked(seen_n)[0][1]
+          and "YOUR LAST CELL FAILED" in _asked(seen_f)[1][1] and "2 attempts in a row have failed." in _asked(seen_f)[1][1]
+          and rl_.turns[0].kind == "error" and rl_.turns[0].carry["lost_at"] == "high" and efforts_l[1] == ("medium", "low", "minimal", "none", "high")
+          and efforts_l[n_l] == efforts_l[1] and asked_l[n_l] == asked_l[1], (efforts_l, _asked(seen_f)[1][1][-200:]))
+    # what cannot be gone on from
+    refusals = []
+    old_ = nbb.new_run("asked before 2.9"); old_.turns = [Turn(kind="cell", cell_no=1, code="x = 1"), Turn(kind="report", text="r")]
+    for of, turn in (("a", 6), ("a", 0), ("a", 9), (old_.id, 1)):
+        try:
+            nbb.branch(of, turn, "x"); refusals.append("made")
+        except ValueError as exc:
+            refusals.append(str(exc))
+    back = Notebook.from_dict(json.loads(json.dumps(nbb.to_dict())))
+    check("branch: the report's turn, a turn the run never had and a run whose turns carry nothing (one from before 2.9) cannot be gone on from; the record goes "
+          "through the thread's file whole - the carry, the marks, the limits, the branch and its hints",
+          refusals == ["run a has no turn 6 to go on from", "run a has no turn 0 to go on from", "run a has no turn 9 to go on from", f"run {old_.id} has no turn 1 to go on from"]
+          and branch_points(old_) == [] and back.runs["b2"].hints == rb2.hints and back.runs["b1"].branch == rb_.branch and back.runs["a"].budget == ra_.budget
+          and [t.kept for t in back.runs["b4"].turns[:3]] == ["kept", "kept", "differs"] and back.runs["a"].turns[1].carry == ra_.turns[1].carry and branch_points(back.runs["b1"]) == [1, 2, 3, 4],
+          refusals)
+    # the kept turns count as used: turns, and dollars
+    seen_c, seen_d = [], []
+    rc_ = Session(kb, nbb, _scripted(_FIRST, seen_c, cost=0.1), data_description="d").run("How do the two blocks compare?", budget=Budget(turns=8, dollars=0.5), run_id="c")
+    rd_ = Session(kb, nbb, _scripted([act6("REPORT\n## r\n\nDone [cell 3].")], seen_d, cost=0.1), data_description="d").go_on("c", 5, "write it up", run_id="d")
+    from analyst.session import LAST_TURNS_LINE as _LAST
+    check("branch: the kept turns count as used - the branch goes on at the next turn number with what was spent by then, so where the money was nearly gone its "
+          "first turn is asked for the report, every cell in view",
+          "TASK: turn 6; up to 8 turns and $0.50 (spent $0.50).\n" + _LAST in _asked(seen_d)[0][1] and "EVERY CELL OF THIS RUN" in _asked(seen_d)[0][1]
+          and rd_.status == "answered" and [t.carry.get("turn") for t in rd_.turns if t.kind != "rewrite"] == [1, 2, 3, 4, 5, None], _asked(seen_d)[0][1][-300:])
+finally:
+    kb.cleanup()
+
+# the reviewer: a branch that goes on from the turn before a review has it made again, with the hint; from a turn after it, the review is kept
+kv = PersistentKernel(df=df); nbv = Notebook("tv"); seen_v = []
+try:
+    _CELLS = [act6("CELL\n```python\nprint('step %d')\n```" % n) for n in (1, 2, 3)]
+    rv_ = Session(kv, nbv, _scripted(_CELLS + [act6("REPORT\n## r\n\nDone [cell 3].")], seen_v), data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=2), run_id="v")
+    seen_w, seen_x = [], []
+    rw_ = Session(kv, nbv, _scripted([act6("REPORT\n## r\n\nDone [cell 2].")], seen_w), data_description="d").go_on("v", 2, "look at the second step only", run_id="w")
+    ev_x = []
+    rx_ = Session(kv, nbv, _scripted([act6("REPORT\n## r\n\nDone [cell 3].")], seen_x), data_description="d", emit=ev_x.append).go_on("v", 3, "look at the third step only", run_id="x")
+    kept_x = [(e["type"], e.get("turn"), bool(e.get("review")), bool(e.get("kept"))) for e in ev_x if e["type"] in ("turn_start", "turn_end")][:8]
+    rev_w, rev_x = _asked(seen_w, "review"), _asked(seen_x, "review")
+    check("branch: going on from the turn before a review, the review is made again and the reviewer is given the hint - after the question, with its line among what "
+          "it receives; going on from a turn after it, that review is kept with the turns - sent to the pane as a review, marked kept - and stands in the prompt, "
+          "the hint above it",
+          [t.kind for t in rv_.turns[:4]] == ["cell", "cell", "review", "cell"] and [t.kind for t in rw_.turns[:3]] == ["cell", "cell", "review"] and rw_.turns[2].kept == ""
+          and rev_w[0][1].startswith("QUESTION:\nq\n\nHINT FROM THE PERSON (given after turn 2; it holds from there to the report):\nlook at the second step only\n\nDATA:\n")
+          and rev_w[0][0] == reviewer_text(False, hint=True) and REVIEWER_HINT_ITEM in rev_w[0][0] and reviewer_text(False, hint=True).replace(REVIEWER_HINT_ITEM, "", 1) == REVIEWER
+          and [t.kind for t in rx_.turns[:4]] == ["cell", "cell", "review", "cell"] and rx_.turns[2].kept == "kept" and "REVIEW (after turn 2 - answer it in your STEP):" in _asked(seen_x)[0][1]
+          and _asked(seen_x)[0][1].index("HINT FROM THE PERSON") < _asked(seen_x)[0][1].index("REVIEW (after turn 2") and not any(u.startswith("QUESTION:") and "TURN: after turn 2" in u for _, u in rev_x)
+          and kept_x == [("turn_start", 1, False, True), ("turn_end", 1, False, True), ("turn_start", 2, False, True), ("turn_end", 2, False, True),
+                         ("turn_start", "review", True, True), ("turn_end", "review", False, True), ("turn_start", 3, False, True), ("turn_end", 3, False, True)],
+          ([t.kind for t in rw_.turns], [t.kind for t in rx_.turns], rev_w[0][1][:200] if rev_w else None, kept_x))
+finally:
+    kv.cleanup()
+
+# a run asked about a figure says so on its record, and the figure rides with that run alone
+kq = PersistentKernel(df=df); pics = []
+_plain = _scripted([act6("CELL\n```python\nprint('one')\n```")] + [act6("REPORT\n## r\n\nDone.")] * 3, [])
+def _pic_llm(system, user, **hints):
+    if _seat(system, user) == "analyst":
+        pics.append(hints.get("image"))
+    return _plain(system, user, **hints)
+try:
+    sq = Session(kq, Notebook("tq"), _pic_llm, data_description="d")
+    sq.run("a question with no plot", budget=Budget(turns=3, dollars=1.0), run_id="p")
+    rq_ = sq.run("what does this plot show?", budget=Budget(turns=3, dollars=1.0), image="AAAA")
+    sq.go_on("p", 1, "another way")
+finally:
+    kq.cleanup()
+check("branch: a run asked about a figure says so on its record (no branch can be given the picture), and a branch started in the same session is sent none",
+      rq_.figure_asked is True and pics == [None, None, "AAAA", None], pics)
+from analyst.notebook import same_load, kept_turns
+from analyst import draft as _draft_mod
+_fig = {"title": "B against A", "kind": "bar", "x": "regime", "y": "yield"}
+_nbr = Notebook("tbr"); _src = _nbr.new_run("q"); _src.brief = {"question": "q", "expects": "B above A", "figures": [_fig]}; _src.budget = _asdict(_BUDGET); _src.mode = "Quick"
+_src.framing = {"versions": [{"n": 1, "by": "person", "changed": [], "brief": dict(_src.brief)}], "drafts": {_draft_mod.key("q", _fig): {"basis": _draft_mod.COMPUTED}}}
+_src.drafts = [{"code": "c1", "keys": [_draft_mod.key("q", _fig)]}]
+_src.data = {"df_id": "f1", "name": "trial.csv", "aux": []}
+_src.turns = [Turn(kind="cell", cell_no=1, code="x = 1", carry={"turn": 1}), Turn(kind="review", text="after turn 1"), Turn(kind="cell", cell_no=2, code="y = 2", carry={"turn": 2}), Turn(kind="report", text="r")]
+_br = _nbr.branch(_src.id, 2, "hint")
+check("branch: the brief the person agreed stays - the branch runs under a copy of it, with the conversation that made it and the drafts of its figures, so the "
+      "step that draws them follows the same drafts - and so do the mode and the data record; the turns it keeps are those up to the turn, a review between "
+      "them included, the report never",
+      _br.brief == _src.brief and _br.brief is not _src.brief and _br.framing == _src.framing and _br.framing is not _src.framing and _br.drafts == _src.drafts
+      and _br.drafts is not _src.drafts and _draft_mod.agreed(_br) == [{"code": "c1", "titles": ["B against A"], "made_up": []}]
+      and _br.mode == "Quick" and _br.data == _src.data and _br.data is not _src.data
+      and [t.kind for t in _br.turns] == ["cell", "review", "cell"] and [t.kind for t in kept_turns(_src, 1)] == ["cell"] and len(_src.turns) == 4, [t.kind for t in _br.turns])
+_load = {"df_id": "f1", "name": "trial.csv", "rows": 92, "columns": [{"name": "plot"}, {"name": "yield_t"}]}
+check("branch: the data a branch needs is the data its turns were computed on - the same frame, or the same content under another id; with no frame, the same files "
+      "beside none, none at all included; a frame where there was none, or another one, is not it",
+      same_load({"df_id": "f1"}, {"df_id": "f1"}) and same_load(_load, dict(_load, df_id="f1-again")) and same_load({"source": "none", "aux": []}, {"source": "none"})
+      and same_load({"aux": ["notes.csv"]}, {"aux": ["notes.csv"]}) and not same_load({"aux": ["notes.csv"]}, {"aux": ["other.csv"]})
+      and not same_load({"source": "none"}, {"df_id": "f1"}) and not same_load({"df_id": "f1"}, {"df_id": "f2"}) and not same_load({"df_id": "f1"}, {}))
+from analyst.replay import went_back, again as _again
+kz = PersistentKernel(df=df)
+try:
+    _cz = [Turn(kind="cell", cell_no=4, code="zed = 3\nRESULT('zed, doubled', zed * 2)"), Turn(kind="cell", cell_no=5, code="print(zed + 1)"),
+           Turn(kind="cell", cell_no=6, code="raise ValueError('gone')"), Turn(kind="cell", cell_no=7, code="print('never')")]
+    out_z, err_z = _again(kz, _cz)
+    at_z = f"{kz.uid}:{kz.last_step}"
+finally:
+    kz.cleanup()
+check("branch: the cells a branch keeps, run again in a kernel that does not hold their states - what each printed this time, the results it recorded and the "
+      "state after it, by cell number; it stops at a cell that fails and says which; the records - the first chain's - are not touched",
+      sorted(out_z) == [4, 5] and out_z[4]["stdout"].startswith("RESULT: zed, doubled") and len(out_z[4]["results"]) == 1 and out_z[5]["results"] == []
+      and out_z[5]["stdout"] == "4\n" and out_z[5]["snap"] == at_z and out_z[4]["snap"] not in ("", at_z) and sorted(out_z[4]) == ["results", "snap", "stdout"]
+      and err_z == "cell 6 failed when run again: ValueError: gone" and not any(t.snap or t.stdout for t in _cz), (out_z, err_z))
+class _Kern:
+    uid, last_step = "k2", 7
+    def __init__(self, replayed): self.last_goto = {"step": 3, "from": 1, "replayed": replayed}
+def _ran(out, err="", step=3):
+    return [{"step": step, "stdout": out, "error": err}]
+_old, _now = Turn(kind="cell", cell_no=1, stdout="one\n", snap="k1:3"), Turn(kind="cell", cell_no=2, stdout="two\n", snap="k2:3")
+_much = "x" * (_tools.MAX_OUTPUT_CHARS + 10)
+_long = Turn(kind="cell", cell_no=3, stdout=_tools.shown(_much), snap="k2:3")
+check("branch: whether the kernel went back to what the record shows is read from what its goto ran again - nothing, or cells that printed what their records "
+      "have, an output the record cut short compared as the record keeps it; a cell is known by the state its record names in this kernel, whatever step "
+      "another kernel gave another cell; a cell that printed something else, or a step that raised, and it did not",
+      went_back(_Kern([]), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_now, _old])
+      and went_back(_Kern(_ran(_much)), [_long]) and not went_back(_Kern(_ran("2\n")), [_old, _now]) and not went_back(_Kern(_ran("", "boom", step=5)), [_old, _now])
+      and went_back(_Kern(_ran("a step that is no cell's", step=2)), [_old, _now]) and went_back(object(), [_now]))
+_hint_run = Notebook("th").new_run("q"); _hint_run.hints = [{"turn": 2, "text": "one"}, {"turn": 5, "text": "two"}]
+_htexts = {"contract (hint)": contract(False, 0, hint=True), "reviewer (hint)": reviewer_text(False, hint=True), "the hint's section": CONTRACT_HINT, "the block": hint_block(_hint_run), "run again": AGAIN_LINE}
+check("branch: the standing rules hold for its texts too - none of the tested tasks' vocabulary, and no section named for thinking or reasoning, in the contract with "
+      "a hint, the reviewer's prompt with one, the block's own words and the mark of a cell run again; a run without a hint has no block",
+      not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)}
+      and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in _htexts.values()) and hint_block(Notebook("tn0").new_run("q")) == "",
+      {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)})
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

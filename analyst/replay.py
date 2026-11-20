@@ -157,10 +157,36 @@ def rehydrate(kernel, cells: Iterable[Turn]) -> Tuple[int, str]:
     for c in cells:
         _, err, _ = kernel.execute(c.code)
         if err:
-            return n, f"cell {c.cell_no} failed on replay: {err.strip().splitlines()[-1]}"
+            return n, f"cell {c.cell_no} failed on replay: {tools.exception_line(err)}"
         c.snap = tools.snap(kernel)
         n += 1
     return n, ""
+
+
+def went_back(kernel, cells: Iterable[Turn]) -> bool:
+    """Whether the kernel's last goto left it holding what the record shows (a branch goes on from there): no step had
+    to be run again to get to the state, or each cell that was run again printed what its record has. A step run
+    again that raised, or a cell that printed something else, and it did not: the record and the kernel disagree."""
+    by_state = {c.snap: c for c in cells if c.snap}
+    for again in (getattr(kernel, "last_goto", None) or {}).get("replayed") or []:
+        cell = by_state.get(tools.snap(kernel, again.get("step")))
+        if again.get("error") or (cell is not None and tools.shown(again.get("stdout")) != (cell.stdout or "")):
+            return False
+    return True
+
+
+def again(kernel, cells: Iterable[Turn]) -> Tuple[Dict[int, dict], str]:
+    """Run the cells a branch keeps again, in a kernel that does not hold their states. Returns (by cell number: what
+    the cell printed this time, the results it recorded, the state after it; error or ''). Stops at a cell that
+    fails: the branch cannot go on from a state the kernel could not rebuild. The records are not touched - they are
+    the first chain's."""
+    out: Dict[int, dict] = {}
+    for c in cells:
+        stdout, err, _, results, _ = tools.run_cell(kernel, c.code)
+        if err:
+            return out, f"cell {c.cell_no} failed when run again: {tools.exception_line(err)}"
+        out[c.cell_no] = {"stdout": stdout, "results": results, "snap": tools.snap(kernel)}
+    return out, ""
 
 
 def compare(cells: List[Turn], report: str, stdout: str, err: str = "", n_cells: int = 0) -> Tuple[str, str]:

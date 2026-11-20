@@ -48,7 +48,7 @@ means something narrower or different, write that reading into your note where t
 ask them. A correction from the person goes under the note's standing instructions, and every later
 answer follows it. In a thread, the ledger of earlier chains rides with every turn - their questions,
 conclusions and the names they left - the two newest whole; SHOW RUN opens any of them.
-{BRIEF}
+{BRIEF}{HINT}
 ## Results
 
 Every time a cell computes an estimate - provisional or final - record it in that cell with the
