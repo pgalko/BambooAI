@@ -10,7 +10,8 @@ sandbox that cannot install packages:
   * pandas.read_csv / read_parquet fall back to the default engine when pyarrow is absent
     (the executor's /upload_dataset asks for engine='pyarrow').
 The kernel worker is a separate interpreter started by the executor's own PersistentKernel;
-it imports only pandas, numpy and matplotlib, so it runs unshimmed.
+it imports only pandas, numpy and matplotlib - and cloudpickle, for its snapshots, where that is
+installed - so it runs unshimmed.
 """
 import argparse
 import os

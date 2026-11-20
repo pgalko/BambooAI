@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
 
+from . import tools
 from .notebook import Turn
 from .report import cited_cells as _cited, referenced_figures, _numbers, _present
 
@@ -149,12 +150,15 @@ def assemble(cells: List[Turn], report: str, own: Optional[List[Turn]] = None) -
 
 def rehydrate(kernel, cells: Iterable[Turn]) -> Tuple[int, str]:
     """Run committed cells in order in `kernel`. Returns (cells run, error or '').
-    Stops at the first failure so the caller knows exactly where the record broke."""
+    Stops at the first failure so the caller knows exactly where the record broke.
+    Each cell's record then names its state in this kernel (snap): the kernel that
+    held it before is gone, and this one can come back to it."""
     n = 0
     for c in cells:
         _, err, _ = kernel.execute(c.code)
         if err:
             return n, f"cell {c.cell_no} failed on replay: {err.strip().splitlines()[-1]}"
+        c.snap = tools.snap(kernel)
         n += 1
     return n, ""
 

@@ -2630,4 +2630,79 @@ except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("the reader of the saved analyses through the instance: the checks ran", False, traceback.format_exc()[-1200:])
 
+# the kernel keeps the state of every cell (2.9, patch 0318): a chain asked from an earlier chain goes back to the state that
+# chain ended in, in the kernel the thread has - no cell is run again; a run that was stopped leaves nothing behind for
+# the next one; where the kernel is gone, the cells are run again as before, and their records name the new kernel's states
+try:
+    def _chain(script, parent, stop_after_first=False):
+        """One chain of the thread, asked from `parent`; with stop_after_first the person stops it after its first reply."""
+        state.update(i=0, script=script); BAMBOO.output_manager.add_user_input("q")
+        if stop_after_first:
+            _stream = BAMBOO.llm_stream
+            def _then_stop(*a, **kw):
+                reply = _stream(*a, **kw)
+                BAMBOO.kill_signal = True
+                return reply
+            BAMBOO.llm_stream = _then_stop
+        try:
+            BAMBOO.pd_agent_converse(thread_id="2909", chain_id=parent, mode="deep")
+        finally:
+            if stop_after_first:
+                BAMBOO.llm_stream = _stream
+        while not q.empty(): q.get()
+        return BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+
+    def _makes(name):
+        """A chain whose one cell makes `name` and prints which of the other chains' names its kernel holds."""
+        return ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\n" + name + " = 1\nprint('here:', sorted(n for n in ('m', 'left', 'right', 'half') if n in globals()))\n```",
+                "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone.\n"]
+
+    def _here(run):
+        return run.cells()[-1].stdout.strip() if run.cells() else None
+
+    BAMBOO.df, BAMBOO.df_id = df, "d1"
+    _talk = _chain(["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nNothing computed.\n"], None)
+    _slip = "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nprint(no_such_name)\n```"      # a cell that fails, between the two that run
+    _base = _chain([SCRIPT[0], _slip, SCRIPT[1], SCRIPT[2]], _talk.id)
+    _k = BAMBOO._kernel
+    _worker = _k._proc.pid
+    _left = _chain(_makes("left"), _base.id)
+    check("0318: a chain asked from the chain the kernel ended at goes on in the warm kernel, as before - the same worker, no state loaded again; each cell's record names its state there",
+          BAMBOO._kernel is _k and _k._proc.pid == _worker and _here(_left) == "here: ['left', 'm']" and [c.snap.split(":")[0] for c in _base.cells() + _left.cells()] == [_k.uid] * 3, (_here(_left), [c.snap for c in _base.cells()]))
+    _right = _chain(_makes("right"), _base.id)
+    check("0318: a chain asked from an earlier chain: the thread's kernel goes back to the state that chain ended in - it is not replaced, no cell is run again, and what the other chain made is not there",
+          BAMBOO._kernel is _k and _k.last_goto["replayed"] == [] and f"{_k.uid}:{_k.last_goto['step']}" == _base.cells()[-1].snap and _here(_right) == "here: ['m', 'right']" and _right.cells()[0].cell_no == 3,
+          (_here(_right), _k.last_goto, _base.cells()[-1].snap))
+    _more = _chain(_makes("more"), _left.id)
+    check("0318: ... and one asked from the other chain goes back to that one's", BAMBOO._kernel is _k and _k.last_goto["replayed"] == [] and _here(_more) == "here: ['left', 'm']" and _more.cells()[0].cell_no == 4, (_here(_more), _k.last_goto))
+    _none = _chain(_makes("apart"), _talk.id)
+    check("0318: a chain asked from one whose path computed nothing: the kernel goes back to its state at the start", BAMBOO._kernel is _k and _k.last_goto["step"] == 0 and _here(_none) == "here: []" and _none.cells()[0].cell_no == 1, (_here(_none), _k.last_goto))
+    _stopped = _chain(_makes("half"), _none.id, stop_after_first=True)
+    check("0318: a chain asked from the chain the kernel ended at, and stopped after its first cell, keeps that cell - and the kernel is then at no chain's end",
+          _stopped.status == "stopped" and _here(_stopped) == "here: ['half']" and BAMBOO._kernel_tip is None, (_stopped.status, _here(_stopped), BAMBOO._kernel_tip))
+    _again = _chain(_makes("again"), _none.id)
+    check("0318: the next chain asked from the same parent does not find what the stopped one made (a warm kernel would hold it): the kernel went back to the parent's state",
+          BAMBOO._kernel is _k and _here(_again) == "here: []" and _k.last_goto["replayed"] == [] and _again.cells()[0].cell_no == 2, (_here(_again), _k.last_goto))
+    _on = _chain(_makes("on"), _stopped.id)
+    check("0318: a chain asked from the stopped one goes on from the cell it kept", BAMBOO._kernel is _k and _here(_on) == "here: ['half']" and _on.cells()[0].cell_no == 3, (_here(_on), _k.last_goto))
+    BAMBOO._drop_kernel()                                    # the kernel is gone: the executor reaped it, or the web app restarted
+    _late = _chain(_makes("late"), _right.id)
+    check("0318: with the kernel gone the chain's cells are run again in a new one, as before - and their records name their states in that one",
+          BAMBOO._kernel is not _k and _here(_late) == "here: ['m', 'right']" and [c.snap.split(":")[0] for c in _base.cells() + _right.cells() + _late.cells()] == [BAMBOO._kernel.uid] * 4
+          and _left.cells()[0].snap.startswith(_k.uid + ":"), (_here(_late), [c.snap for c in _base.cells() + _right.cells()]))
+    _k2 = BAMBOO._kernel
+    _back = _chain(_makes("back"), _base.id)
+    check("0318: ... so the new kernel goes back to them in its turn", BAMBOO._kernel is _k2 and _k2.last_goto["replayed"] == [] and _here(_back) == "here: ['m']", (_here(_back), _k2.last_goto))
+    _k2.cleanup()                                            # the kernel died under the instance, which still holds it
+    _dead = _chain(_makes("dead"), _right.id)                # a chain whose state that kernel held
+    check("0318: a kernel that died cannot go back: the cells are run again in a new one, and the run goes on", BAMBOO._kernel is not _k2 and _here(_dead) == "here: ['m', 'right']" and _dead.status == "answered", (_here(_dead), _dead.status))
+    _k2 = BAMBOO._kernel
+    BAMBOO.df_id = "d9"                                      # the same file loaded again: a new frame id, and the kernel holds the old frame
+    _other = _chain(_makes("other"), _base.id)
+    check("0318: the same data loaded again under another id: the kernel is the other frame's and is not gone back to - a fresh one, the cells run again, as before", BAMBOO._kernel is not _k2 and _here(_other) == "here: ['m']", _here(_other))
+    BAMBOO.df_id = "d1"
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("0318: the kernel's states through the instance: the checks ran", False, traceback.format_exc()[-1200:])
+
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

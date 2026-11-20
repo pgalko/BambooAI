@@ -106,6 +106,7 @@ class _Session:
             "age_s": round(time.time() - self.created, 1),
             "idle_s": round(time.time() - self.last_used, 1),
             "history_len": len(self.kernel.history),
+            "step": self.kernel.last_step,        # the state the kernel is at (image v75)
         }
 
 
@@ -286,6 +287,7 @@ def start():
     return jsonify({"session_id": session_id, "reused": False,
                     "shape": shape, "schema": schema,
                     "step_timeout": kernel.step_timeout,
+                    "step": kernel.last_step,
                     # the box as the kernel sees it from inside, for the reach report (2026-10-28)
                     "sandbox": getattr(kernel, "sandbox", None) or {}})
 
@@ -330,7 +332,38 @@ def execute():
         "plots": plots,
         "registry": registry,
         "history_len": len(session.kernel.history),
+        # the state the kernel is at - the number /kernel/goto takes to come back to it (image v75)
+        "step": session.kernel.last_step,
     })
+
+
+@kernel_bp.route("/goto", methods=["POST"])
+def goto():
+    """Bring a session's kernel to the state after one of its committed steps: the `step` an execute returned, 0 for
+    the state at the start. `reached` is false when the kernel has no such step, or could not get there. `replayed`
+    lists the steps that had to be run again to get there - none when the state was saved - with what each printed
+    this time."""
+    data = request.json or {}
+    session, err = _session_or_404(data)
+    if err:
+        return err
+    try:
+        step = int(data.get("step"))
+    except (TypeError, ValueError):
+        return jsonify({"error": "step required"}), 400
+    with session.lock:
+        try:
+            reached = session.kernel.goto(step)
+        except Exception as exc:                            # noqa: BLE001
+            log(f"session {session.id} raised on goto: {exc}")
+            return jsonify({"error": str(exc), "fatal": True}), 500
+        how = session.kernel.last_goto if reached else {}
+        registry = session.kernel.registry
+    log(f"session {session.id}: at step {session.kernel.last_step}"
+        + (f" from the state after step {how.get('from')}, {len(how.get('replayed') or [])} step(s) run again" if reached else f"; step {step} not reached"))
+    return jsonify({"reached": bool(reached), "step": session.kernel.last_step, "from": how.get("from"),
+                    "replayed": how.get("replayed") or [], "registry": registry,
+                    "history_len": len(session.kernel.history)})
 
 
 @kernel_bp.route("/namespace", methods=["POST"])

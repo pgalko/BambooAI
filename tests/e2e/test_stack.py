@@ -2569,6 +2569,29 @@ def main():
                 .map(([u, m]) => window.authService.fetch(u, { method: m, headers: { 'Content-Type': 'application/json' }, body: m === 'POST' ? '{}' : undefined }).then(r => r.status)))""")
             check("its routes are gone: the rating, the memory review and its action, the single-favourite save all answer 404", gone == [404, 404, 404, 404], gone)
 
+            # a chain asked from an earlier chain (0318, docs/BRANCH_DESIGN.md §3): the kernel keeps the state of every cell, so
+            # it goes back to the state that chain ended in - nothing is run again - and what the chain asked after it made is
+            # not there. Chain 7 is the earlier one; the kernel is at the end of chain 8, whose cell made `calls`
+            for _ in range(8):
+                if page.evaluate("() => document.getElementById('nextResponse').disabled"):
+                    break
+                page.click("#nextResponse")
+                page.wait_for_timeout(400)
+            page.click("#prevResponse")
+            wait_text(page, "#chainPosition", "chain 7 of 8", 10000)
+            page.fill("#queryInput", mod.BACK_QUESTION)
+            page.click("#submitQuery")
+            wait_text(page, "#chainPosition", "chain 9 of 9", 60000)
+            wait_run_end(page, 9)
+            row9 = page.evaluate("() => [...document.querySelectorAll('#streamOutput .sp-row')].map(e => e.textContent).join(' | ')")
+            logs = {name: open(os.path.join(workdir, "logs", name + ".log"), encoding="utf-8", errors="replace").read() if os.path.exists(os.path.join(workdir, "logs", name + ".log")) else ""
+                    for name in ("webapp", "executor")}
+            went = re.findall(r"at step (\d+) from the state after step (\d+), (\d+) step\(s\) run again", logs["executor"])
+            check("a chain asked from an earlier chain (0318): its cell finds what the first analysis made and nothing of the chain asked after it - the kernel went back to the state the earlier chain ended in, "
+                  "the app says so, and the executor says it got there from that state's own snapshot with no step run again",
+                  "PLOTS=" in row9 and "LATER=0" in row9 and "The kernel went back to the state chain" in logs["webapp"]
+                  and (compute == "local" or (bool(went) and went[-1][0] == went[-1][1] and went[-1][2] == "0")), (row9[:200], went[-2:], compute))
+
             # ---- the Usage dialog (docs/USAGE_DESIGN.md, step 3): what it shows against the rows the logger wrote ----
             rows = usage_rows(wa, edition, USER)
             by_chain = {}

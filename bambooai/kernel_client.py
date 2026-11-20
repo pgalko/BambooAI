@@ -8,10 +8,10 @@ delv-e already exposes:
     kernel = RemoteKernel(base_url=executor_url, df_id=df_id)
     log, kernel, nav, briefing = run_investigation(..., kernel=kernel)
 
-What is deliberately NOT here: checkpointing, restart-and-replay, transactional
-rollback, the security blacklist, the worker protocol. All of that stays inside
-PersistentKernel, in the container, where it already works and where the
-checkpoint file lives. This class is transport.
+What is deliberately NOT here: the snapshots, the rollback, the security
+blacklist, the worker protocol. All of that stays inside PersistentKernel, in
+the container, where it already works and where the snapshot files live. This
+class is transport.
 
 Error model - the distinction matters:
 
@@ -73,6 +73,9 @@ class RemoteKernel:
         self.registry = {"namespace": [], "columns": []}
         self._history = []
         self.last_results, self.last_reaches, self.last_refused, self.sandbox = [], [], "", {}
+        # The state the kernel is at, as the executor last said it - at the start, after an execution, after a goto:
+        # the number goto takes. None from an executor that keeps no snapshot per step (an image before v75).
+        self.last_step, self.last_goto = None, {}
 
         payload = {
             "session_id": session_id,
@@ -132,6 +135,7 @@ class RemoteKernel:
             self.registry = reg
 
         self.session_id = started["session_id"]
+        self.last_step = started.get("step")
         self.shape = started.get("shape")
         # Built container-side at start, before the cache copy is evicted. The
         # driver runs in the web app process, which never holds the frame, so
@@ -223,7 +227,24 @@ class RemoteKernel:
         self.last_results = list(res.get("results") or [])            # RESULT(...) records of this step
         self.last_reaches = list(res.get("reaches") or [])            # what the step touched outside the data (2026-10-28)
         self.last_refused = str(res.get("refused") or "")             # the restricted word a refused step was refused for
+        self.last_step = res.get("step")
         return res.get("stdout"), res.get("error"), res.get("plots") or []
+
+    @property
+    def uid(self):
+        """What tells this kernel's step numbers from another's: its session in the executor."""
+        return self.session_id
+
+    def goto(self, step):
+        """PersistentKernel.goto, in the executor: True when the kernel is at the state after that step, False when it
+        has no such step or could not get there. The history is then that state's, and is fetched again."""
+        res = self._sync(self._post("/kernel/goto", {"session_id": self.session_id, "step": step}))
+        if not res.get("reached"):
+            return False
+        self.last_step = res.get("step")
+        self.last_goto = {"step": res.get("step"), "from": res.get("from"), "replayed": list(res.get("replayed") or [])}
+        self._history = self._fetch_history()
+        return True
 
     def _fetch_history(self):
         try:

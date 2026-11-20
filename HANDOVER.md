@@ -684,6 +684,46 @@
   story 67 shots (`architect_step_back`, `tutor_step_back`, `tutor_map`, `tutor_map_hover`, `tutor_way_left`).
   Not run against a live model, where it was built: whether the Architect takes "instead" without asking what
   was left is the live test's to show.
+- **2.9, branching an analysis** (`docs/BRANCH_DESIGN.md`: the design, the decisions, the build patch by patch). The
+  product owner's idea of 2026-11-20: go back to a turn of an analysis, give the Analyst a hint, and go on from there
+  another way, with a map of the turns - what 0316 gave the Architect's conversation. Four patches and the release;
+  until the release the series goes to the private repository and the dev box only.
+  **0318 (2026-11-20): the kernel keeps its whole state after every cell, and goes back to any of them.** The
+  product owner chose to build it properly and rebuild the image. Found on the way: the kernel's one checkpoint
+  stopped at the first cell that defined a function (plain pickle cannot save one), so from then on every failed
+  cell had the cells since run again - and a step that drew random numbers without a seed came back with other
+  numbers than the record showed. `delve/kernel.py` (the image's copy with it): the worker saves a snapshot after
+  every committed step - every name the cells made, functions and classes by value (cloudpickle) and bound to the
+  live namespace on restore, what the kernel owns linked and not copied (`DS` and `RESULT` its own at every worker
+  start), a large buffer written once under its content's hash, the dataset as loaded named and not written while `df`
+  holds it unchanged; the modules loaded since the worker started, imported again by the worker that takes over
+  (so `import a.b` in one cell and `a.b.f()` in a later one work after a rollback); the random generators,
+  numpy's print options, the pandas options and matplotlib settings a cell changed, the working directory. Whole
+  or not at all: an object that cannot be saved, or a disk that does not take it, leaves the step without a
+  snapshot and nothing on disk, and the kernel warns of it once (`was not saved (<names>)`: the line to look for
+  in the executor's log, where the kernel logs warnings only). The parent:
+  a step record per committed step (`last_step`, a number given once; `uid` for the kernel), `goto(step)`,
+  `_restore` in the place of `_restart_and_replay` (the state's own snapshot, else the nearest saved one before it
+  and the steps between run again; a snapshot that does not load sends it one saved state further back; a step
+  that fails when run again sends it to the old full replay in a clean worker, at once; where even that hangs or
+  dies the kernel has no worker, `goto` returns False and the next step starts one), `last_goto` (which state it
+  started from, what each step run again printed), the cap `KERNEL_SNAPSHOT_MB` (2048; the oldest go, the state
+  the kernel is at keeps its own whatever its size). `kernel_service.py`: `step` in `/kernel/execute`, `/kernel/goto`.
+  `kernel_client.py`: `last_step`, `goto`, `uid`. The record: `Turn.snap`, `"<kernel>:<step>"`
+  (`tools.snap`, `tools.goto`); `replay.rehydrate` renews it. `BambooAI._kernel_for`: a chain asked from an earlier
+  chain goes back to that chain's state in the thread's kernel, nothing run again; the kernel is at no chain's
+  end while a run is under way, so a stopped or failed run leaves nothing for the next. **Executor image v75**
+  - rebuild and roll out; `cloudpickle==3.1.2` in the image, `cloudpickle>=3.0` in the package (install it where
+  the battery runs). Measured on a million rows by six columns: a step 0.1 to 0.8 s (0.15 to 0.6 before: after the
+  first function it saved nothing), a failed cell rolled back in about 1 s (3.3 s before, by replay). Tests: `test_kernel_snapshots.py` 79 (new),
+  `test_app_path.py` 287 (+11), `test_analyst.py` 378 (+1), the stamp checks v75; the battery 2,514;
+  the walk 221 (+1: a chain asked from an earlier chain, through the executor), and 214 of 218 in the local
+  edition; 118 deliberate breaks of the new code, each caught by a test. Not tested where it was built: the
+  image's own versions (Python 3.11, pandas 2.3, numpy 2.3 - built on 3.13, 3.0, 2.5). The snapshot suite imports
+  nothing the image lacks, so it can be run inside it - `docker run --rm -v "$PWD":/src:ro -w /src <image> python
+  tests/analyst/test_kernel_snapshots.py` - which was not done where this was built: there was no Docker. Nor
+  tested: a statsmodels fit made from a formula, which is expected not to be saved (patsy refuses pickling) and
+  then falls back to running cells again.
 - **Published.** 2.8.1 (2026-11-20): the conversation with the Architect in steps, with a map of them - go back to any step, with the arrows or on the map, and go on from it: another way, of which the Architect reads the conversation up to that step and nothing after; the way that was left stays, to go back to; both panes show the step on screen, an analysis starts from it, and the run and memory keep the way that ran (0316); the OpenAI adapter reporting an API error without a JSON body as that error (the public pull request 65, taken between the two releases); the release (0317; the tag sits on it). Image v74 stands; no migration. 2.8.0 (2026-11-16, tagged 2026-11-19): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306); what the product owner's live tests brought - the question the coach takes and what the Analyst gets (0307), one question that changes as the talk goes and the brief without empty parts (0308), the figures of the brief and their drafts (0309-0311), what the report says against the brief on the Brief tab and out of the Answer (0312), the question read as the Analyst will read it and the closing card (0313), Next questions as a panel in the card (0314), the README cut back (0315; the tag sits on it). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per
@@ -3647,9 +3687,9 @@ no reviewer call (2026-10-05).
 
 ## Behaviour to know
 
-- A follow-up standing on the kernel's current tip reuses the warm kernel; a branch or a new
-  thread gets a fresh kernel rehydrated from the parent's path (the same mechanism replays the
-  assembled script at the end of every run).
+- A follow-up standing on the kernel's current tip reuses the warm kernel; a branch goes back to its
+  parent's state in the same kernel (2.9: the kernel keeps a snapshot of every cell's state); a new
+  thread, or a kernel that is gone, gets a fresh kernel rehydrated from the parent's path.
 - ASK ends the run with the question as the answer; the person's reply is the next run.
 - Cells compute; the figures are drawn once, after the report, by the figures step (2026-10-11): a cell that
   draws during the analysis is not run, and the report's `## Figures` section cites the one cell that drew.

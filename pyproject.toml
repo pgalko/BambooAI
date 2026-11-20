@@ -43,6 +43,7 @@ dependencies = [
     "statsmodels",
     "scipy",
     "scikit-learn",
+    "cloudpickle>=3.0",      # the kernel saves its state after every cell, the functions and classes a cell defines among it (2.9)
     "ipython",
     "nbformat",
     "cryptography",

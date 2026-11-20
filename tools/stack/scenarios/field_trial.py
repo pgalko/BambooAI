@@ -31,6 +31,9 @@ REVIEW_QUESTION = "Walk through ten small checks of the data, one per turn."    
 # the reach report (2026-10-28): a chain whose first cell the executor refuses (the blacklist) and whose second reaches the
 # fake integrations service - which the question does not name - so the card, the pane and the map show the record
 REACH_QUESTION = "Is the integrations service answering right now?"
+# a chain asked from an earlier chain (docs/BRANCH_DESIGN.md §3): the kernel goes back to the state that chain ended in, so its
+# cell finds what the first analysis made and nothing of the chain asked after it (the reach chain's `calls`)
+BACK_QUESTION = "How many plots stand behind the comparison?"
 
 # a question that needs no data (docs/ROUTINES_DESIGN.md §24): asked in a workflow with nothing loaded, its cell computes from
 # values written into it - the routine made from it has those values as its inputs and runs without data
@@ -753,6 +756,12 @@ class Scenario:
             if forced or turn >= 3:
                 return self.report_reach(user, q)
             return {1: self.t_reach_refused, 2: self.t_reach_fetch}[turn](q)
+        if q == BACK_QUESTION:
+            if forced or turn >= 2:
+                return self.report_back(user, q)
+            return _cell("The plot means are in the kernel from the first analysis; count them.",
+                         _note(q, plan="count the plots, then report", names="df, plot_means"),
+                         "print(f\"PLOTS={len(plot_means)} LATER={int('calls' in globals())}\")")
         if q == ALONE_QUESTION:
             if forced or turn >= 2:
                 return self.report_alone(user, q)
@@ -982,6 +991,13 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         return _report("The service answered; that is the answer.", _note(q, est="answering", plan="report"),
                        f"## The service answers\n\nThe integrations service answered its health route [cell {cell}]; it had taken {n} calls at the time. "
                        "The box's process list could not be read: the executor does not run that operation.")
+
+    def report_back(self, user, q):
+        nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]
+        cell = max(nos) if nos else 1
+        plots = _grab(user, "PLOTS", int)
+        return _report("The cell printed the count; that is the answer.", _note(q, est=f"{plots} plots", plan="report", names="df, plot_means"),
+                       f"## The plots\n\n{plots} plots stand behind the comparison [cell {cell}].")
 
     def report_alone(self, user, q):
         nos = [int(n) for n in re.findall(r"^--- cell (\d+) ---", user, re.M)]

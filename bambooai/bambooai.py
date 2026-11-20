@@ -25,6 +25,7 @@ from analyst import Session, Budget, Notebook, NotebookStore
 from analyst import context as context_mod
 from analyst import profile as profile_mod
 from analyst import reach as reach_mod
+from analyst import tools
 from analyst.replay import rehydrate
 from logger_config import get_logger
 
@@ -290,8 +291,11 @@ class BambooAI:
 
     def _kernel_for(self, parent_run_id, data_record=None):
         """The kernel the run works in. Continuing from the tip the kernel already
-        holds, with the frame it holds still the one loaded: reuse it. Anything
-        else (a branch, a new thread, a dead kernel, the frame replaced since): a
+        holds, with the frame it holds still the one loaded: reuse it. Continuing
+        from an earlier chain whose state the kernel still holds (2.9: it keeps a
+        snapshot of every cell's): the kernel goes back to it, and nothing runs
+        again. Anything else (a new thread, a dead kernel, the frame replaced
+        since, a chain from before the kernel kept its states): a
         fresh kernel rehydrated from the cells of the parent's path that ran on
         the same data as `data_record`, the record of the data loaded now - the
         same frame, or the same data loaded again under a new id (2026-10-12: a
@@ -299,27 +303,31 @@ class BambooAI:
         warm kernel with `df` and the names of the earlier window, while the DATA
         block described the new one; a favourite continued in a new session with
         its file uploaded again is the same data and is rehydrated as before)."""
-        if self._kernel is not None and parent_run_id is not None and parent_run_id == self._kernel_tip:
+        cells = self.notebook.computed_cells(parent_run_id, data=data_record if data_record is not None else {"df_id": self.df_id}) if parent_run_id is not None else []
+        if self._kernel is not None and parent_run_id is not None:
             if not self._same_frame(parent_run_id):
                 logger.info("The frame loaded is not the one the chain in the kernel ran on; a fresh kernel for the follow-up")
             else:
                 try:
-                    _, err, _ = self._kernel.execute("pass")          # is the warm kernel still alive (the executor reaps idle sessions)?
-                    if not err:
+                    if parent_run_id == self._kernel_tip:
+                        _, err, _ = self._kernel.execute("pass")      # is the warm kernel still alive (the executor reaps idle sessions)?
+                        if not err:
+                            return self._kernel
+                        logger.info("Warm kernel unusable (%s); rehydrating from the parent's path", err.strip()[:80])
+                    elif tools.goto(self._kernel, cells[-1].snap if cells else tools.snap(self._kernel, 0)):
+                        # the state that chain ended in: after the last cell computed on its path, or - a path that
+                        # computed nothing - the kernel's state at the start
+                        logger.info("The kernel went back to the state chain %s ended in", parent_run_id)
                         return self._kernel
-                    logger.info("Warm kernel unusable (%s); rehydrating from the parent's path", err.strip()[:80])
                 except Exception as exc:                           # noqa: BLE001
                     logger.info("Warm kernel gone (%s); rehydrating from the parent's path", exc)
         self._drop_kernel()
         self._kernel = self._new_kernel()
-        if parent_run_id is not None:
-            cells = self.notebook.computed_cells(parent_run_id, data=data_record if data_record is not None else {"df_id": self.df_id})
-            if cells:
-                n, err = rehydrate(self._kernel, cells)
-                if err:
-                    self.output_manager.display_system_messages(
-                        f"Restoring the earlier analysis stopped after {n} of {len(cells)} cells: {err}", chain_id=self.chain_id)
-        self._kernel_tip = parent_run_id
+        if cells:
+            n, err = rehydrate(self._kernel, cells)
+            if err:
+                self.output_manager.display_system_messages(
+                    f"Restoring the earlier analysis stopped after {n} of {len(cells)} cells: {err}", chain_id=self.chain_id)
         return self._kernel
 
     def _same_frame(self, run_id):
@@ -1615,7 +1623,7 @@ class BambooAI:
         self._last_budget = budget
 
         logger.info("Analyst run: thread %s, new chain %s, parent %s (%s), preset %s (%d turns)", self.thread_id, self.chain_id,
-                    parent, "warm kernel" if (self._kernel is not None and parent == self._kernel_tip) else "fresh kernel",
+                    parent, "fresh kernel" if (self._kernel is None or parent is None) else "warm kernel" if parent == self._kernel_tip else "the kernel goes back, or a fresh one",
                     mode, budget.turns)
         self._mode_label = {"quick": "Quick", "deep": "Deep", "adaptive": "Adaptive"}.get(mode, mode)
         if self.webui:
@@ -1632,6 +1640,9 @@ class BambooAI:
 
         data_record = self._data_record()                   # what this run runs on, kept on the run (2026-10-10, routines)
         kernel = self._kernel_for(parent, data_record)       # ... and what decides which earlier cells it continues (2026-10-12)
+        self._kernel_tip = None                              # the kernel now holds a run that has not ended: stopped or failed, it leaves the kernel at
+                                                             # no chain's end, and the next run goes to the state of its own parent (2.9); a run that
+                                                             # ends is the kernel's tip
         figure = self._figure_for_analyst(image) if image else None
         session = Session(kernel, self.notebook, self._llm, store=self.store, emit=self._emit,
                           search=self._search,

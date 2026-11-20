@@ -144,6 +144,8 @@ class Turn:
     reaches: List[dict] = field(default_factory=list)   # CELL: what the cell touched outside the data, each marked asked (analyst/reach.py, 2026-10-28)
     refused: str = ""               # CELL: the restricted word the executor refused the cell for; it did not run and this is not an error of the code (2026-10-28)
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
+    snap: str = ""                  # CELL: the kernel's state after it, "<kernel>:<step>" (tools.snap; 2.9) - where a kernel that still
+                                    # holds that state goes back to; "" from a kernel that keeps none, or a record from before
     text: str = ""                  # ask/report/rewrite: the analyst's text
     usage: dict = field(default_factory=dict)            # tokens, cost, elapsed for the model call
     shown: List[int] = field(default_factory=list)       # REVIEW: the cells handed to this review, code and output

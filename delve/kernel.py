@@ -8,14 +8,23 @@ each step can stay small because its prerequisites already
 live in the namespace.
 
 Crash isolation: the worker is itself a killable subprocess. If a step hangs
-(timeout) or the worker dies (OOM/segfault), the parent kills/restarts it and
-replays the history of previously-successful steps to reconstruct the
-namespace. Determinism of the replayed steps is the caller's responsibility
-(seed your RNG).
+(timeout), fails, or the worker dies (OOM/segfault), the parent starts a new
+one from the snapshot of the last committed step.
+
+Snapshots: after every committed step the worker saves its whole state - the
+names the cells made (data, functions, classes), the random generators, the
+settings a cell changed. Each committed step is a state the kernel can go back
+to (`last_step`, `goto`): nothing is run again, so what a step computed is
+what it holds. A state that could not be saved (an open file in the
+namespace), or whose snapshot went at the cap, is reached from the nearest
+saved one before it by running the steps between again; determinism of those
+steps is then the caller's responsibility (seed your RNG).
 
 Contract:
     kernel = PersistentKernel(df=df, analysis_root="output/exploration")
     stdout, error, plots = kernel.execute(code, analysis_dir=".../01")
+    here = kernel.last_step              # the state this step made ...
+    kernel.goto(here)                    # ... and the way back to it, after later steps
     print(kernel.describe_namespace())   # registry for prompts
     kernel.cleanup()
 
@@ -28,10 +37,12 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+import uuid
 
 from logger_config import get_logger
 
@@ -45,6 +56,11 @@ logger = get_logger(__name__)
 # Set to give a correctly vectorized simulation comfortable headroom; a scalar
 # per-sample loop will still blow past it, which is the intended signal.
 STEP_TIMEOUT = 600
+
+# What one kernel's snapshots may take on disk, in megabytes. Over it the oldest
+# go; a state whose snapshot went is still reached, from the nearest saved one
+# before it.
+SNAPSHOT_MB = int(os.getenv("KERNEL_SNAPSHOT_MB", "2048"))
 
 # Token the worker prints on its real stdout after each step completes. User
 # code output is captured in-worker and written to a result file, so the only
@@ -71,7 +87,11 @@ _INTERNAL_NAMES = {
 # JSON, then prints the done token.
 _WORKER_SCRIPT = r'''
 import ast, inspect, io, json, os, re, sys, traceback, warnings
-import pickle as _pickle, types as _types, importlib as _importlib
+import pickle as _pickle, types as _types, hashlib as _hashlib, random as _random, importlib as _importlib
+try:
+    import cloudpickle as _cloudpickle      # saves the functions and classes a cell defines; without it no state is saved
+except Exception:
+    _cloudpickle = None
 warnings.filterwarnings("ignore")
 
 import matplotlib
@@ -106,10 +126,10 @@ _generated_dir = sys.argv[4] if len(sys.argv) > 4 else ""     # where DS.save pu
 G = {}
 G["os"] = os
 # The standard aliases are part of the namespace, not something a cell must
-# import (2026-09-05): a checkpoint restore rebuilds G, and names listed in
-# _INTERNAL are never checkpointed - so a `pd` a cell had imported vanished
-# after the first rolled-back attempt and every later cell failed with
-# NameError. They are set here, at every worker start, unconditionally.
+# import (2026-09-05): a restore rebuilt G without the names listed in
+# _INTERNAL - so a `pd` a cell had imported vanished after the first
+# rolled-back attempt and every later cell failed with NameError. They are set
+# here, at every worker start, unconditionally.
 G["pd"] = pd
 G["np"] = np
 G["plt"] = plt
@@ -205,7 +225,8 @@ class _Source:
 G["_generated_dir"] = _generated_dir or None
 if _df_path:
     G["df"] = _load_df(_df_path)
-G["DS"] = _Source(_df_path or None, G.get("df"))      # set at every worker start, never checkpointed, like the aliases
+_SOURCE = G.get("df")                                 # the dataset as loaded: a snapshot names it while `df` holds it unchanged
+G["DS"] = _Source(_df_path or None, _SOURCE)          # set at every worker start, never saved, like the aliases
 
 
 def _decimals_for(values):
@@ -290,13 +311,16 @@ def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None
     return estimate
 
 
-G["RESULT"] = RESULT                           # set at every worker start, never checkpointed
+G["RESULT"] = RESULT                           # set at every worker start, never saved
 
 # ---- Worker arguments: argv[2] is the package directory (the worker runs from
-# a temp file), argv[3] the checkpoint path. (The vetted-toolkit preload that
+# a temp file), argv[3] the snapshot this worker starts from ("" for a fresh
+# state), argv[5] the kernel's snapshot folder. (The vetted-toolkit preload that
 # lived here was retired 2026-09-05: the analyst chooses its own methods.)
 _pkg_dir = sys.argv[2] if len(sys.argv) > 2 else ""
-_ckpt_path = sys.argv[3] if len(sys.argv) > 3 else ""
+_snap_from = sys.argv[3] if len(sys.argv) > 3 else ""
+_snap_dir = sys.argv[5] if len(sys.argv) > 5 else ""
+_snap_bufs = os.path.join(_snap_dir, "b") if _snap_dir else ""     # the large buffers, each once, under the hash of its content
 if _pkg_dir and _pkg_dir not in sys.path:
     sys.path.insert(0, _pkg_dir)
 
@@ -797,106 +821,241 @@ _INTERNAL = {
 }
 
 
-_df_fp_cache = None      # fingerprint of df at the last checkpointed state
-_df_blob_cache = None    # pickled df bytes matching _df_fp_cache
+# ---- Snapshots: the whole state after a committed step ---------------------
+# One per committed step, so the kernel can go back to any of them: a failed
+# attempt is rolled back to the last, a follow-up from an earlier chain starts
+# from that chain's. A snapshot holds every name the cells made - data,
+# functions, classes - and what a later cell would otherwise find changed:
+# the modules loaded since the worker started (imported again on restore: a
+# submodule reached through its package, an import made for what it
+# registers), the random generators, numpy's print options, the pandas options
+# and the matplotlib settings a cell set, the working directory. It does not
+# hold the files a cell wrote, or what a cell changed inside a library.
+#
+# A function or a class a cell defined is saved by value (cloudpickle); on
+# restore its globals are the live namespace again, so a name a later cell
+# rebinds is seen by it as it would have been. What the kernel itself owns -
+# G, RESULT, its hooks, the process environment - is named in the snapshot and
+# linked on restore, never copied; DS and RESULT are the kernel's own at every
+# worker start, whatever a cell bound those names to. A large buffer (an array, a block of a frame) is written once,
+# under the hash of its content, and shared by every snapshot that holds it.
+# The dataset as loaded is not written at all while `df` holds it unchanged.
+#
+# A state is saved whole or not at all: one object that cannot be saved (an
+# open file, a generator) leaves the step without a snapshot, and the parent
+# reaches that state from the nearest saved one before it.
+_OWN = globals()
+_NOT_SAVED = {_n for _n in _INTERNAL if _n.startswith("_")} | {"DS", "RESULT", "__builtins__"}
+_SNAP_INLINE = 1 << 16      # a buffer under this many bytes stays in the snapshot's own file
+_failed = {}                # the last save that failed: its error and the names that stood in the way
 
 
-def _df_fingerprint():
-    """A cheap content fingerprint of df, used to avoid re-pickling it on every
-    checkpoint when nothing changed (the common case: steps mostly create
-    derived objects). Any failure returns a unique object — 'always changed' —
-    which is safe: the blob is simply rebuilt."""
-    _df = G.get("df")
-    if _df is None:
-        return None
+def _df_fingerprint(_df):
+    """A cheap fingerprint of a frame's content. A frame that cannot be hashed gets an object of its own, equal to
+    nothing: it is then saved like any other value."""
     try:
         _h = int(pd.util.hash_pandas_object(_df, index=True).sum())
-        return (_h, _df.shape, tuple(map(str, _df.columns)),
-                tuple(str(_t) for _t in _df.dtypes))
+        return (_h, _df.shape, tuple(map(str, _df.columns)), tuple(repr(_t) for _t in _df.dtypes),
+                tuple(map(str, _df.index.names)), repr(_df.attrs))
     except Exception:
         return object()
 
 
-def _checkpoint_save(path):
-    """Pickle the derived DATA objects in G to `path` atomically. Modules are
-    recorded by import name (re-imported on load) and do not count against
-    completeness. Returns (ok, skipped): ok is True only when every non-module
-    derived object serialized. If anything is skipped (a function, lambda, or
-    otherwise unpicklable object), the previous complete checkpoint is left
-    untouched and the caller replays the tail from it instead.
-
-    df IS included, despite being 'internal': step code mutates it in place
-    (new columns, dropped rows), and those mutations belong to committed
-    steps. A checkpoint restore skips replaying the steps it covers, so if df
-    were left to the startup parquet reload — the ORIGINAL data — every
-    committed in-place edit inside the covered range would silently vanish
-    from any restore (crash recovery, timeout recovery, and the transactional
-    rollback of failed attempts). Its blob is rebuilt only when the content
-    fingerprint changes; on unpicklable df the checkpoint reports incomplete
-    and the caller falls back to full replay, which reapplies the mutations."""
-    blobs, modules, skipped = {}, {}, []
-    for _name, _val in list(G.items()):
-        if _name in _INTERNAL or _name.startswith("_"):
-            continue
-        if isinstance(_val, _types.ModuleType):
-            modules[_name] = getattr(_val, "__name__", None)
-            continue
-        try:
-            blobs[_name] = _pickle.dumps(_val, protocol=_pickle.HIGHEST_PROTOCOL)
-        except Exception:
-            skipped.append(_name)
-    global _df_fp_cache, _df_blob_cache
-    if G.get("df") is not None:
-        _fp = _df_fingerprint()
-        if _df_blob_cache is None or _fp != _df_fp_cache:
-            try:
-                _df_blob_cache = _pickle.dumps(G["df"],
-                                               protocol=_pickle.HIGHEST_PROTOCOL)
-                _df_fp_cache = _fp
-            except Exception:
-                _df_blob_cache = None
-                _df_fp_cache = None
-                skipped.append("df")
-        if _df_blob_cache is not None:
-            blobs["df"] = _df_blob_cache
-    if skipped:
-        return False, skipped
-    _tmp = path + ".tmp"
+def _source_fingerprint():
+    """The fingerprint of the dataset as loaded. The kernel's first worker takes it before its first cell runs and
+    leaves it beside the snapshots; the workers that follow read it there."""
+    _p = os.path.join(_snap_dir, "source.fp")
     try:
-        with open(_tmp, "wb") as _cf:
-            _pickle.dump({"blobs": blobs, "modules": modules}, _cf,
-                         protocol=_pickle.HIGHEST_PROTOCOL)
-        os.replace(_tmp, path)
+        with open(_p, "rb") as _f:
+            return _pickle.load(_f)
     except Exception:
+        pass
+    _fp = _df_fingerprint(_SOURCE)
+    try:
+        with open(_p + ".tmp", "wb") as _f:
+            _pickle.dump(_fp, _f)
+        os.replace(_p + ".tmp", _p)
+    except Exception:
+        pass
+    return _fp
+
+
+_source_fp = None           # taken before the first cell runs (the serving loop)
+
+
+def _holds_source():
+    """Whether `df` holds the dataset as loaded, unchanged."""
+    _df = G.get("df")
+    if not isinstance(_source_fp, tuple) or not isinstance(_df, pd.DataFrame) or _df.shape != _source_fp[1]:
+        return False
+    return _df_fingerprint(_df) == _source_fp
+
+
+def _owned():
+    """id -> what a snapshot writes in place of the object: what the kernel owns is found again by name."""
+    _out = {id(G): ("ns",), id(os.environ): ("environ",)}
+    for _name, _val in _OWN.items():
+        if isinstance(_val, (_types.FunctionType, type)) and getattr(_val, "__module__", None) == "__main__":
+            _out[id(_val)] = ("own", _name)
+    if _holds_source():
+        _out[id(G["df"])] = ("source",)
+    return _out
+
+
+if _cloudpickle is not None:
+    class _Saver(_cloudpickle.Pickler):
+        def __init__(self, _file, _ids, _keep):
+            super().__init__(_file, protocol=5, buffer_callback=_keep)
+            self._ids = _ids
+            self.globals_ref[id(G)] = G      # a function of the namespace keeps the namespace as its globals
+
+        def persistent_id(self, _obj):
+            return self._ids.get(id(_obj))
+
+
+class _Loader(_pickle.Unpickler):
+    def persistent_load(self, _pid):
+        _kind = _pid[0]
+        if _kind == "ns":
+            return G
+        if _kind == "own":
+            return _OWN[_pid[1]]
+        if _kind == "environ":
+            return os.environ
+        if _kind == "source":
+            return _SOURCE
+        raise _pickle.UnpicklingError("a snapshot names %r, which this kernel does not have" % (_pid,))
+
+
+class _Nowhere:
+    """A file that keeps nothing: for finding the names that cannot be saved."""
+    def write(self, _data):
+        return len(_data)
+
+
+def _pd_options():
+    try:
+        _keys = list(pd._config.config._registered_options)
+    except Exception:
+        return {}
+    _out = {}
+    for _k in _keys:
         try:
-            os.remove(_tmp)
+            _out[_k] = pd.get_option(_k)
         except Exception:
             pass
-        return False, ["<write-failed>"]
-    return True, []
+    return _out
 
 
-def _checkpoint_load(path):
-    """Restore a checkpoint into G: re-import recorded modules, unpickle data.
-    Best-effort and silent; a missing or unreadable checkpoint leaves G empty."""
-    if not (path and os.path.exists(path) and os.path.getsize(path) > 0):
-        return
+def _changed(_now, _base):
+    """The settings that are not as the worker started with them. One that cannot be compared counts as changed."""
+    _out = {}
+    for _k, _v in _now.items():
+        try:
+            if _k not in _base or bool(_v != _base[_k]):
+                _out[_k] = _v
+        except Exception:
+            _out[_k] = _v
+    return _out
+
+
+def _state():
+    """What is not a name and a later cell would find changed."""
+    return {"np_random": np.random.get_state(), "random": _random.getstate(), "np_print": np.get_printoptions(),
+            "pd": _changed(_pd_options(), _PD0), "mpl": _changed(dict(matplotlib.rcParams), _MPL0), "cwd": os.getcwd()}
+
+
+def _state_set(_s):
+    np.random.set_state(_s["np_random"])
+    _random.setstate(_s["random"])
+    np.set_printoptions(**_s["np_print"])
+    for _k, _v in _s["pd"].items():
+        try:
+            pd.set_option(_k, _v)
+        except Exception:
+            pass
+    for _k, _v in _s["mpl"].items():
+        try:
+            matplotlib.rcParams[_k] = _v
+        except Exception:
+            pass
     try:
-        with open(path, "rb") as _cf:
-            _snap = _pickle.load(_cf)
+        os.chdir(_s["cwd"])
     except Exception:
-        return
-    for _name, _modpath in (_snap.get("modules") or {}).items():
-        if _modpath:
+        pass
+
+
+def _snapshot_save(_path):
+    """Save the state to `_path`: its large buffers under the buffers folder, its list of them and of the modules
+    loaded beside it. Returns {"ok", "skipped", "bytes", "buffers"}: ok only when every name was saved, skipped the
+    names that could not be. A save that fails - an object that cannot be saved, a disk that is full - leaves
+    nothing on disk."""
+    if _cloudpickle is None:
+        return {"ok": False, "skipped": ["<cloudpickle is not installed>"]}
+    _names = {_k: _v for _k, _v in G.items() if _k not in _NOT_SAVED}
+    _ids, _bufs, _new = _owned(), [], []
+
+    def _keep(_buf):
+        _raw = _buf.raw()
+        if _raw.nbytes < _SNAP_INLINE:
+            return True
+        _h = _hashlib.blake2b(_raw, digest_size=16).hexdigest()
+        _p = os.path.join(_snap_bufs, _h)
+        if not os.path.exists(_p):
+            _new.append(_p)
+            with open(_p + ".tmp", "wb") as _bf:
+                _bf.write(_raw)
+            os.replace(_p + ".tmp", _p)
+        _bufs.append([_h, _raw.nbytes])
+        return False
+
+    try:
+        with open(_path + ".tmp", "wb") as _sf:
+            _Saver(_sf, _ids, _keep).dump({"names": _names, "state": _state()})
+        with open(_path + ".json", "w", encoding="utf-8") as _mf:
+            json.dump({"buffers": _bufs, "modules": sorted(set(sys.modules) - _MODS0)}, _mf)
+        _size = os.path.getsize(_path + ".tmp")
+        os.replace(_path + ".tmp", _path)
+    except Exception as _exc:
+        for _left in [_path + ".tmp", _path + ".json"] + _new + [_b + ".tmp" for _b in _new]:
             try:
-                G[_name] = _importlib.import_module(_modpath)
-            except Exception:
+                os.unlink(_left)
+            except OSError:
                 pass
-    for _name, _blob in (_snap.get("blobs") or {}).items():
+        _why = "%s: %s" % (type(_exc).__name__, _exc)
+        if _failed.get("error") != _why:      # the names are looked for once per error, not at every step it lasts
+            _failed.update(error=_why, skipped=[])
+            for _k, _v in _names.items():
+                try:
+                    _Saver(_Nowhere(), _ids, lambda _b: False).dump(_v)
+                except Exception:
+                    _failed["skipped"].append(_k)
+        return {"ok": False, "skipped": sorted(_failed["skipped"]) or ["<%s>" % _why[:120]]}
+    _failed.clear()
+    return {"ok": True, "skipped": [], "bytes": _size, "buffers": _bufs}
+
+
+def _snapshot_load(_path):
+    """Make the namespace the state saved at `_path`. Raises when it cannot be read whole."""
+    with open(_path + ".json", "r", encoding="utf-8") as _mf:
+        _meta = json.load(_mf)
+    for _m in _meta["modules"]:
         try:
-            G[_name] = _pickle.loads(_blob)
+            _importlib.import_module(_m)
         except Exception:
             pass
+    _buffers = []
+    for _h, _n in _meta["buffers"]:
+        with open(os.path.join(_snap_bufs, _h), "rb") as _bf:
+            _buffers.append(bytearray(_bf.read()))      # writable, as the arrays were
+    _own = {_k: G[_k] for _k in _NOT_SAVED if _k in G}
+    with open(_path, "rb") as _sf:
+        _snap = _Loader(_sf, buffers=_buffers).load()
+    for _k in [_k for _k in G if _k not in _NOT_SAVED and _k not in _snap["names"]]:
+        del G[_k]                   # a name the state did not have: `df` after a cell deleted it
+    G.update(_snap["names"])
+    G.update(_own)                  # the kernel's own names stay its own: a restored function brings the globals it read
+    _state_set(_snap["state"])
 
 
 _ALIAS_RE = re.compile(r"^([A-Za-z_]\w*)__s(\d+)$")
@@ -973,7 +1132,7 @@ def _namespace_summary():
     """Compact description of user-defined names currently in G."""
     internal = _INTERNAL
     # Which steps bound each name? Derived from the aliases themselves, so no
-    # extra state has to survive a checkpoint restore.
+    # extra state has to survive a restore.
     bound_by = {}
     for name in G:
         m = _ALIAS_RE.match(name)
@@ -1035,8 +1194,17 @@ def _df_columns():
         return []
 
 
-# ---- Restore checkpoint (only non-empty on a restart), then signal ready ----
-_checkpoint_load(_ckpt_path)
+# ---- Start from a snapshot when given one, then signal ready ----------------
+# The settings and the modules as this worker starts with them: a snapshot
+# keeps what the cells changed and loaded since. A snapshot that does not load
+# ends the worker before it says it is ready: the parent starts from an
+# earlier one, never from half a state.
+_PD0, _MPL0, _MODS0 = _pd_options(), dict(matplotlib.rcParams), set(sys.modules)
+if _snap_from:
+    try:
+        _snapshot_load(_snap_from)
+    except Exception:
+        sys.exit(3)
 
 # ---- Signal ready, then serve steps ---------------------------------------
 sys.stdout.write(_READY + "\n")
@@ -1066,6 +1234,8 @@ for _line in sys.stdin:
     if os.path.realpath(G["_analysis_dir"]) not in _REACH_ROOTS:
         _REACH_ROOTS = _reach_roots()              # the plots folder moves with the step
 
+    if _source_fp is None and _SOURCE is not None:
+        _source_fp = _source_fingerprint()         # before the first cell can change the frame
     _stdout = None
     _error = None
     _step_no = _req.get("step")
@@ -1092,12 +1262,12 @@ for _line in sys.stdin:
         G["_IN_CELL"] = False
         plt.close("all")
 
-    _ckpt_ok, _ckpt_skipped = False, []
-    if _error is None and _ckpt_path and not _req.get("no_ckpt"):
+    _snap = {"ok": False, "skipped": []}
+    if _error is None and _req.get("snap"):
         try:
-            _ckpt_ok, _ckpt_skipped = _checkpoint_save(_ckpt_path)
-        except Exception:
-            _ckpt_ok, _ckpt_skipped = False, ["<checkpoint-exception>"]
+            _snap = _snapshot_save(_req["snap"])
+        except Exception as _exc:
+            _snap = {"ok": False, "skipped": ["<%s>" % type(_exc).__name__]}
 
     _payload = {
         "stdout": _stdout,
@@ -1108,8 +1278,7 @@ for _line in sys.stdin:
         "reaches": _reaches_out(),
         "namespace": _namespace_summary(),
         "columns": _df_columns(),
-        "checkpoint_ok": _ckpt_ok,
-        "checkpoint_skipped": _ckpt_skipped,
+        "snapshot": _snap,
     }
     try:
         with open(_result_path, "w", encoding="utf-8") as _f:
@@ -1347,15 +1516,21 @@ class PersistentKernel:
         self._worker_script_path = _write_temp_text(
             _WORKER_SCRIPT, suffix=".py", prefix="delve_kernel_"
         )
-        # Ordered list of code blocks that previously executed without error.
-        # On a restart the namespace is restored from a checkpoint and only the
-        # tail not covered by it is replayed (see _restart_and_replay).
-        # _snapshot_through is the number of history steps the last COMPLETE
-        # checkpoint covers; 0 means no usable checkpoint yet (full replay).
+        # The code of the committed steps that led to the state the worker holds, in order.
         self._history = []
-        _cfd, self._ckpt_path = tempfile.mkstemp(suffix=".pkl", prefix="delve_ckpt_")
-        os.close(_cfd)  # leaves a 0-byte file; the worker skips an empty checkpoint
-        self._snapshot_through = 0
+        # Every committed step is a state the kernel can go back to (goto). A step keeps the step it followed, its
+        # code, the registry as it stood, and whether its state is saved: a snapshot file in _snap_dir, written by
+        # the worker after the step. A state that is not saved - an object that cannot be, a snapshot that went at
+        # the cap - is reached from the nearest saved one before it, by running the steps between again. Step 0 is
+        # the state at the start: a fresh worker. A number is given out once, and `uid` tells this kernel's numbers
+        # from another's.
+        self.uid = uuid.uuid4().hex[:12]
+        self._snap_dir = tempfile.mkdtemp(prefix="delve_snap_")
+        os.makedirs(os.path.join(self._snap_dir, "b"))
+        self._steps = {0: self._step(None, None, {}, {"ok": True})}
+        self._at = 0                  # the step whose state the worker holds
+        self._seq = 0                 # the last number given out
+        self.last_goto = {}           # how the last goto got there: {"step", "from", "replayed": [{"step", "stdout", "error"}]}
         # Latest namespace registry from the worker.
         self.registry = {"namespace": [], "columns": []}
         # Registry as of the last COMMITTED step. Every failed attempt is rolled
@@ -1363,7 +1538,7 @@ class PersistentKernel:
         # advertises objects a failed attempt created and then lost.
         self._good_registry = {"namespace": [], "columns": []}
         # True while the live worker holds state from a commit=False execution
-        # (chart rendering). Cleared by any rollback/replay.
+        # (chart rendering). Cleared by any restore.
         self._uncommitted = False
         self._proc = None
         self._reader = None
@@ -1374,12 +1549,15 @@ class PersistentKernel:
 
     # ----- worker lifecycle ------------------------------------------------
 
-    def _start_worker(self, load_ckpt=True):
+    def _start_worker(self, snap=None):
+        """Start a worker: fresh, or from the snapshot file `snap`. A worker that cannot load its snapshot ends
+        before it says it is ready (KernelDead)."""
         self._proc = subprocess.Popen(
             [sys.executable, "-u", self._worker_script_path, self._df_path or "",
              os.path.dirname(os.path.abspath(__file__)),
-             self._ckpt_path if load_ckpt else "",
-             self.generated_dir or ""],
+             snap or "",
+             self.generated_dir or "",
+             self._snap_dir],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
@@ -1393,8 +1571,8 @@ class PersistentKernel:
             target=self._read_stdout, args=(self._proc, self._q), daemon=True
         )
         self._reader.start()
-        # Wait for the ready token.
-        if not self._await_token(_READY, timeout=60):
+        # Wait for the ready token; a large snapshot takes its time to load.
+        if not self._await_token(_READY, timeout=max(60, self.step_timeout) if snap else 60):
             raise RuntimeError("Persistent kernel worker failed to start.")
 
     @staticmethod
@@ -1426,6 +1604,9 @@ class PersistentKernel:
             # Any other stray line is ignored (shouldn't happen; user output is
             # captured in-worker).
 
+    def _alive(self):
+        return self._proc is not None and self._proc.poll() is None
+
     def _kill_worker(self):
         if self._proc and self._proc.poll() is None:
             try:
@@ -1439,56 +1620,145 @@ class PersistentKernel:
             pass
         self._proc = None
 
-    def _restart_and_replay(self, reason=None):
-        """Rebuild the namespace to the last COMMITTED state. Restore the last
-        complete checkpoint (loaded by the fresh worker on startup), then replay
-        only the committed steps after it. If that tail fails (a step errors or
-        the worker dies), fall back to a full replay from a clean worker, which
-        is the original O(n) behavior.
+    # ----- the states the kernel can go back to ------------------------------
 
-        Used both for crash/timeout recovery (no `reason`, logged as a WARNING)
-        and as the TRANSACTIONAL ROLLBACK after a failed or uncommitted
-        execution (`reason` given, logged as INFO — routine, not alarming).
-        Either way the worker ends at the last committed step: the checkpoint
-        file is only ever written after a successful committed step, so it can
-        never contain a failed attempt's partial mutations or uncommitted chart
-        state. On exit the visible registry is restored to the committed one
-        and any uncommitted-state flag is cleared."""
-        n = self._snapshot_through
-        tail = self._history[n:]
-        if reason:
-            logger.info("Persistent kernel: %s — restoring checkpoint through "
-                        "step %d, replaying %d tail step(s).", reason, n, len(tail))
-        else:
-            logger.warning(
-                "Persistent kernel restarting; restoring checkpoint through step %d, "
-                "replaying %d tail step(s).", n, len(tail))
-        self._kill_worker()
-        self._start_worker(load_ckpt=(n > 0))
-        replayed = False
-        for i, code in enumerate(tail):
-            res = self._run_once(code, analysis_dir=None)
-            if res is None or res.get("_timeout") or res.get("error"):
-                logger.warning("Checkpoint tail replay failed at tail step %d; "
-                               "falling back to full replay.", i)
+    @staticmethod
+    def _step(prev, code, registry, saved):
+        """The record of a committed step: the step it followed, its code, the registry as it stood, and what the
+        worker said of its snapshot ({"ok", "skipped", "bytes", "buffers"}; skipped: the names that could not be
+        saved, when the state was not)."""
+        saved = saved or {}
+        return {"prev": prev, "code": code, "saved": bool(saved.get("ok")), "bytes": int(saved.get("bytes") or 0),
+                "buffers": [list(b) for b in saved.get("buffers") or []], "skipped": list(saved.get("skipped") or []),
+                "registry": {"namespace": list(registry.get("namespace") or []),
+                             "columns": list(registry.get("columns") or [])}}
+
+    def _snap_path(self, step):
+        return os.path.join(self._snap_dir, f"{step}.snap")
+
+    def _chain(self, step):
+        """The steps from the start to `step`, in order."""
+        out = []
+        while step:
+            out.append(step)
+            step = self._steps[step]["prev"]
+        return out[::-1]
+
+    def _commit(self, code, result):
+        """A committed step: the next number, the state it made, and the snapshot the worker saved of it, if it
+        could. A state that could not be saved is said once, when what stood in the way appears."""
+        self._seq += 1
+        self.registry = {"namespace": result.get("namespace", []), "columns": result.get("columns", [])}
+        self._good_registry = {"namespace": list(self.registry["namespace"]),
+                               "columns": list(self.registry["columns"])}
+        rec = self._steps[self._seq] = self._step(self._at, code, self.registry, result.get("snapshot"))
+        if not rec["saved"] and rec["skipped"] != self._steps[self._at]["skipped"]:
+            logger.warning("Persistent kernel: the state after step %d was not saved (%s); the kernel gets back to it "
+                           "by running steps again.", self._seq, ", ".join(rec["skipped"][:6]))
+        self._at = self._seq
+        self._history.append(code)  # only successful committed steps are replayable
+        self._prune()
+
+    def _forget(self, step):
+        """A step's snapshot goes: its file, and the buffers no other snapshot holds. The step stays a state the
+        kernel can reach, from the nearest saved one before it."""
+        rec = self._steps[step]
+        gone = {h for h, _ in rec["buffers"]}
+        rec.update(saved=False, bytes=0, buffers=[], skipped=[])
+        held = {h for other in self._steps.values() if other["saved"] for h, _ in other["buffers"]}
+        _cleanup_files(self._snap_path(step), self._snap_path(step) + ".json",
+                       *[os.path.join(self._snap_dir, "b", h) for h in gone - held])
+
+    def _prune(self):
+        """Keep the snapshots under the cap (SNAPSHOT_MB): the oldest go first, the current state's never."""
+        def size():
+            held = {h: n for rec in self._steps.values() if rec["saved"] for h, n in rec["buffers"]}
+            return sum(rec["bytes"] for rec in self._steps.values() if rec["saved"]) + sum(held.values())
+        for step in sorted(self._steps):
+            if size() <= SNAPSHOT_MB * 1024 * 1024:
                 break
-        else:
-            replayed = True  # tail replayed cleanly: namespace is whole
+            if step and step != self._at and self._steps[step]["saved"]:
+                self._forget(step)
 
-        if not replayed:
-            # Fallback: clean worker, ignore the checkpoint, replay the whole history.
+    def _restore(self, step, reason=None):
+        """Bring the worker to the state after committed step `step`. It starts from the nearest saved state on the
+        way there - `step` itself when its state is saved, and then nothing is run again - and runs the steps after
+        that one again. A snapshot that does not load sends it one saved state further back. A step that raises,
+        hangs or dies when run again sends it to the last resort: a clean worker and the whole history, the
+        kernel's behaviour before it kept a snapshot per step, where a step that raises is passed over and the
+        namespace may be partial. Where the history hangs or dies even there, the kernel is left without a worker:
+        goto says it is not there, and the next step it is given comes here again.
+
+        Rolls back a failed or uncommitted execution and recovers from a timeout or a dead worker (`step` is then
+        the step the kernel was at, and `reason` says which; without one it is logged as a WARNING), and serves
+        goto. A snapshot is only ever written after an error-free committed step, so it never holds a failed
+        attempt's partial changes or uncommitted chart state. On return the history, the registry and the step the
+        kernel is at are those of `step`, and last_goto says how it got there."""
+        chain = self._chain(step)
+
+        def run_again(steps, pass_over):
+            """Run committed steps again: what each printed, and whether the last of them was reached. A step
+            that raises ends it, unless it is passed over; a step whose state was not saved is saved now."""
+            out = []
+            for sid in steps:
+                rec = self._steps[sid]
+                res = self._run_once(rec["code"], None, snap=None if rec["saved"] else self._snap_path(sid))
+                if res is None or res.get("_timeout") or (res.get("error") and not pass_over):
+                    return out, False
+                if res.get("error"):
+                    logger.warning("Step %d raised when run again; passed over.", sid)
+                elif not rec["saved"]:
+                    rec.update(self._step(rec["prev"], rec["code"], rec["registry"], res.get("snapshot")))
+                out.append({"step": sid, "stdout": res.get("stdout"), "error": res.get("error")})
+            return out, True
+
+        for covered in [k for k in range(len(chain), 0, -1) if self._steps[chain[k - 1]]["saved"]] + [0]:
+            origin, tail = (chain[covered - 1] if covered else 0), chain[covered:]
+            (logger.info if reason else logger.warning)(
+                "Persistent kernel: %s - from the state after step %d, running %d step(s) again%s.",
+                reason or "restarting", origin, len(tail),
+                f" (not saved: {', '.join(self._steps[tail[0]]['skipped'][:6])})" if tail and self._steps[tail[0]]["skipped"] else "")
             self._kill_worker()
-            self._start_worker(load_ckpt=False)
-            for j, code in enumerate(self._history):
-                res = self._run_once(code, analysis_dir=None)
-                if res is None or (res and res.get("_timeout")):
-                    logger.error("Kernel could not complete full replay at step %d; "
-                                 "namespace partial.", j)
-                    break
+            try:
+                self._start_worker(self._snap_path(origin) if origin else None)
+                break
+            except (KernelDead, RuntimeError):
+                if not origin:
+                    raise
+                logger.warning("The snapshot of step %d did not load; going further back.", origin)
+                self._forget(origin)
+        replayed, reached = run_again(tail, pass_over=not origin)
+        if not reached and origin:
+            logger.warning("The steps after step %d could not be run again; a clean worker runs the whole history.", origin)
+            origin = 0
+            self._kill_worker()
+            self._start_worker()
+            replayed, reached = run_again(chain, pass_over=True)
+        if not reached:
+            logger.error("The kernel could not run its whole history again; it has no worker.")
 
-        self.registry = {"namespace": list(self._good_registry.get("namespace", [])),
-                         "columns": list(self._good_registry.get("columns", []))}
+        self._at = step
+        self._history = [self._steps[s]["code"] for s in chain]
+        reg = self._steps[step]["registry"]
+        self.registry = {"namespace": list(reg["namespace"]), "columns": list(reg["columns"])}
+        self._good_registry = {"namespace": list(reg["namespace"]), "columns": list(reg["columns"])}
         self._uncommitted = False
+        self.last_goto = {"step": step, "from": origin, "replayed": replayed}
+        self._prune()
+
+    def goto(self, step):
+        """Bring the kernel to the state after committed step `step` - a number `last_step` gave in this kernel; 0
+        is the state at the start. True when the kernel is there. False when it has no such step, or could not
+        get there: its history hangs or dies when run again.
+        Nothing is run again when that state is saved. Otherwise the steps after the nearest saved state are, and
+        last_goto["replayed"] holds what each printed this time, for a caller that compares it with the first."""
+        if step not in self._steps:
+            return False
+        if step == self._at and not self._uncommitted and self._alive():
+            self.last_goto = {"step": step, "from": step, "replayed": []}
+            return True
+        self._restore(step, reason=f"going to step {step}")
+        return self._alive()
 
     # ----- execution -------------------------------------------------------
 
@@ -1516,15 +1786,18 @@ class PersistentKernel:
             )
         return None
 
-    def _run_once(self, code, analysis_dir, step=None, no_ckpt=False):
+    def _run_once(self, code, analysis_dir, step=None, snap=None):
         """One round-trip to the worker. Returns the result dict, or None if the
         worker died (caller decides whether to restart). Does NOT itself restart.
-        With no_ckpt=True the worker skips its post-step checkpoint save, so an
-        uncommitted (chart) execution can never enter the checkpoint file."""
+        `snap` is the file the worker saves its state to after an error-free
+        step; without one it saves nothing, so an uncommitted (chart) execution
+        can never enter a snapshot."""
         # NOTE: analysis_dir is NOT created here. The folder is made lazily, only
         # when a plot is actually written (see the worker plot patch), so steps
         # that produce no plots — which is all of them, since step cutor is told
         # not to plot — never leave behind an empty NN/ folder.
+        if not self._alive():
+            return None      # no worker: it died, or a restore could not finish
         code_path = _write_temp_text(code, suffix=".py", prefix="delve_step_")
         fd, result_path = tempfile.mkstemp(suffix=".json", prefix="delve_res_")
         os.close(fd)
@@ -1534,7 +1807,7 @@ class PersistentKernel:
                 "result_path": result_path,
                 "analysis_dir": analysis_dir or "",
                 "step": step,
-                "no_ckpt": bool(no_ckpt),
+                "snap": snap or "",
             })
             try:
                 self._proc.stdin.write(req + "\n")
@@ -1547,7 +1820,7 @@ class PersistentKernel:
             except KernelDead:
                 return None
             if not alive:
-                # Hung: kill so the caller can restart+replay.
+                # Hung: kill so the caller can restore the last committed state.
                 self._kill_worker()
                 return {"_timeout": True}
 
@@ -1567,22 +1840,22 @@ class PersistentKernel:
         (minus the df argument — df lives in the kernel).
 
         Commit semantics: a step is COMMITTED only when it runs without error
-        and commit=True; only committed code enters the replayable history.
-        Ordinary Python exceptions can mutate objects before raising (an
-        in-place df edit on line 1, a raise on line 3), so a failed attempt
-        leaves the worker dirty even though nothing was committed — and a
-        retry, or a later --resume/--extend replay of the committed history,
-        would otherwise see a state the committed record never produced. Every
-        failed attempt is therefore ROLLED BACK: the worker is rebuilt from the
-        last committed checkpoint + tail (see _restart_and_replay) before
-        control returns, and the error string says so, matching what the
-        next turn's traceback context relies on.
+        and commit=True; only committed code enters the replayable history, and
+        a committed step is a state the kernel can go back to (last_step is its
+        number; see goto). Ordinary Python exceptions can mutate objects before
+        raising (an in-place df edit on line 1, a raise on line 3), so a failed
+        attempt leaves the worker dirty even though nothing was committed — and
+        a retry would otherwise see a state the committed record never
+        produced. Every failed attempt is therefore ROLLED BACK: the worker is
+        brought back to the last committed state (see _restore) before control
+        returns, and the error string says so, matching what the next turn's
+        traceback context relies on.
 
         commit=False runs the code against the live namespace WITHOUT
-        committing it: no history append, no checkpoint (the worker is told to
-        skip its save), no registry update. Used for chart rendering, whose
-        code must see the analytical objects but must never become analytical
-        state; call discard_uncommitted() afterwards to restore the worker."""
+        committing it: no history append, no snapshot, no registry update. Used
+        for chart rendering, whose code must see the analytical objects but
+        must never become analytical state; call discard_uncommitted()
+        afterwards to restore the worker."""
         # what the step touched outside the data and whether it was refused, read by the caller after each step
         # (2026-10-28): a refused step is not run and not an error of the code; a step that reached out and then
         # failed still reached out, so the records stand beside the error
@@ -1592,11 +1865,12 @@ class PersistentKernel:
             self.last_refused = self._security_word(code) or "restricted"
             return None, refusal, []
 
-        result = self._run_once(code, analysis_dir, step=step, no_ckpt=not commit)
+        result = self._run_once(code, analysis_dir, step=step,
+                                snap=self._snap_path(self._seq + 1) if commit else None)
 
         # Timeout → roll back to the last committed state, then report.
         if result is not None and result.get("_timeout"):
-            self._restart_and_replay()
+            self._restore(self._at)
             return None, (
                 f"Execution killed: exceeded {self.step_timeout}s time limit. "
                 "Simplify the step (fewer iterations, aggregate before fitting, "
@@ -1606,7 +1880,7 @@ class PersistentKernel:
 
         # Worker died (OOM/segfault) → roll back to the last committed state.
         if result is None:
-            self._restart_and_replay()
+            self._restore(self._at)
             return None, (
                 "Execution killed by the OS (likely out of memory) or the worker "
                 "crashed. Reduce memory use (sample/aggregate first, avoid large "
@@ -1622,12 +1896,11 @@ class PersistentKernel:
 
         if error is not None:
             # TRANSACTIONAL ROLLBACK. The exception may have fired after part of
-            # the code already mutated the namespace; rebuild the worker from
-            # the committed record so the retry (and any later replay) sees
-            # exactly the pre-step state. The checkpoint file is safe to load:
-            # the worker only saves it after error-free steps.
-            self._restart_and_replay(
-                reason=f"rolling back failed attempt{f' (step {step})' if step else ''}")
+            # the code already mutated the namespace; bring the worker back to
+            # the last committed state so the retry sees exactly the pre-step
+            # state. Its snapshot is safe to load: the worker only saves one
+            # after an error-free step.
+            self._restore(self._at, reason=f"rolling back failed attempt{f' (step {step})' if step else ''}")
             return stdout, (error + "\n[delv-e: the failed attempt was rolled "
                             "back — the namespace is exactly as it was before "
                             "this attempt]"), plots
@@ -1640,17 +1913,7 @@ class PersistentKernel:
             self._uncommitted = True
             return stdout, None, plots
 
-        self.registry = {
-            "namespace": result.get("namespace", []),
-            "columns": result.get("columns", []),
-        }
-        self._good_registry = {"namespace": list(self.registry["namespace"]),
-                               "columns": list(self.registry["columns"])}
-        self._history.append(code)  # only successful committed steps are replayable
-        if result.get("checkpoint_ok"):
-            # The checkpoint now captures state through this step, so a future
-            # restart restores from here and skips replaying everything before.
-            self._snapshot_through = len(self._history)
+        self._commit(code, result)
         return stdout, None, plots
 
     def discard_uncommitted(self, reason="discarding uncommitted state"):
@@ -1661,7 +1924,7 @@ class PersistentKernel:
         --resume/--extend replay."""
         if not self._uncommitted:
             return False
-        self._restart_and_replay(reason=reason)
+        self._restore(self._at, reason=reason)
         return True
 
     # ----- introspection / lifecycle --------------------------------------
@@ -1717,18 +1980,23 @@ class PersistentKernel:
         return "\n".join(lines)
 
     def reset(self):
-        """Clear the namespace and history; start a fresh worker (df reloaded)."""
+        """Clear the namespace, the history and the snapshots; start a fresh worker (df reloaded)."""
         self._kill_worker()
+        shutil.rmtree(os.path.join(self._snap_dir, "b"), ignore_errors=True)
+        os.makedirs(os.path.join(self._snap_dir, "b"))
+        _cleanup_files(*[p for s in self._steps for p in (self._snap_path(s), self._snap_path(s) + ".json")])
+        self._steps = {0: self._steps[0]}
+        self._at = 0
         self._history = []
         self.registry = {"namespace": [], "columns": []}
         self._good_registry = {"namespace": [], "columns": []}
         self._uncommitted = False
-        self._snapshot_through = 0
-        try:
-            open(self._ckpt_path, "wb").close()  # truncate so no stale state loads
-        except Exception:
-            pass
-        self._start_worker(load_ckpt=False)
+        self._start_worker()
+
+    @property
+    def last_step(self):
+        """The state the kernel is at: the number of its last committed step, 0 at the start. What goto takes."""
+        return self._at
 
     @property
     def history(self):
@@ -1741,18 +2009,12 @@ class PersistentKernel:
         on a fresh worker. Used by --resume and --extend. Best-effort: a step that
         fails to replay is logged and skipped."""
         for code in history or []:
-            res = self._run_once(code, analysis_dir=None)
+            res = self._run_once(code, None, snap=self._snap_path(self._seq + 1))
             if res is None:                      # worker died mid-replay
-                self._restart_and_replay()
-                res = self._run_once(code, analysis_dir=None)
+                self._restore(self._at)
+                res = self._run_once(code, None, snap=self._snap_path(self._seq + 1))
             if res and not res.get("error") and not res.get("_timeout"):
-                self._history.append(code)
-                if res.get("checkpoint_ok"):
-                    self._snapshot_through = len(self._history)
-                self.registry = {"namespace": res.get("namespace", []),
-                                 "columns": res.get("columns", [])}
-                self._good_registry = {"namespace": list(self.registry["namespace"]),
-                                       "columns": list(self.registry["columns"])}
+                self._commit(code, res)
             else:
                 logger.warning("restore_history: a step failed to replay; namespace may be partial.")
 
@@ -1767,7 +2029,8 @@ class PersistentKernel:
                     self._kill_worker()
         finally:
             self._kill_worker()
-            _cleanup_files(self._worker_script_path, self._df_path, self._ckpt_path)
+            _cleanup_files(self._worker_script_path, self._df_path)
+            shutil.rmtree(self._snap_dir, ignore_errors=True)
             self._worker_script_path = None
             self._df_path = None
 

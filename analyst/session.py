@@ -980,6 +980,7 @@ class Session:
                 turn.reaches, turn.refused = reach.mark(rc["reaches"], self._questions(run)), rc["refused"]   # 2026-10-28
                 if not err:
                     turn.cell_no = self.nb.next_cell_no(run.id)
+                    turn.snap = tools.snap(self.kernel)        # the state the kernel can come back to (2.9)
                     turn.registry = registry_delta(before, tools.namespace(self.kernel))   # what the cell made or changed (the code map, 2026-10-20)
                     failures = 0
                 else:

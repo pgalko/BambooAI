@@ -149,6 +149,8 @@ cells = run.cells()
 check("loop: only committed cells get numbers (the syntax error did not), numbering along the path",
       [c.cell_no for c in cells] == [1, 2] and run.turns[1].error and run.turns[1].cell_no is None)
 check("loop: the kernel state persisted across cells (cell 2 used g from cell 1)", "n units 4" in cells[1].stdout)
+check("loop: a committed cell's record names the kernel's state after it - which kernel, which step (2.9: the kernel goes back to it) - and a cell that failed, or a turn that ran none, names no state",
+      [c.snap for c in cells] == [f"{kernel.uid}:1", f"{kernel.uid}:2"] and [t.snap for t in run.turns if t.cell_no is None] == [""] * 5, [t.snap for t in run.turns])
 check("loop: SHOW re-opened cell 1 into the next prompt", any("SHOWN:" in p and "means" in p for p in calls["prompts"]))
 check("loop: the prompt carries the contract's seven-heading note and collapses nothing while under the recent window",
       all("YOUR NOTE" in p for p in calls["prompts"][1:6]))
@@ -962,7 +964,7 @@ check("replay: without the kernel's display options the plain executor elides th
 check("replay: the assembled script sets the kernel's display options, so the replay's output is the kernel's and the check says reproduced",
       _same == _wout and _compare(_wcell, "see [cell 1]", _same)[0] == "reproduced", (_wout, _same))
 import ast as _ast_k
-_kopts = sorted(ln.strip() for ln in open(os.path.join(ROOT, "delve", "kernel.py")).read().splitlines() if ln.strip().startswith("pd.set_option("))
+_kopts = sorted(ln.strip() for ln in open(os.path.join(ROOT, "delve", "kernel.py")).read().splitlines() if ln.strip().startswith('pd.set_option("display.'))   # the ones the worker starts with, by name
 _ropts = sorted(ln.strip() for ln in _wscript.splitlines() if ln.strip().startswith("pd.set_option("))
 check("replay: the script's display options are the kernel's, option for option (delve/kernel.py is the one source)",
       len(_kopts) == 5 and [x.replace("'", '"') for x in _ropts] == [x.replace("'", '"') for x in _kopts], (_kopts, _ropts))

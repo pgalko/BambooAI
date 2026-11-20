@@ -685,7 +685,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
                             ├── bambooai/    model adapters (models/), log manager, config builder,
                             │                the local store (db/local_store.py, SQLite), the hosts
                             │                of routines and of the context's coding pass
-                            ├── delve/       the persistent kernel: a subprocess with a checkpoint per
+                            ├── delve/       the persistent kernel: a subprocess with a snapshot per
                             │                committed cell and rollback of a failed one
                             └── containers/executor/   the executor image
 ```
@@ -693,8 +693,8 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - [`analyst/session.py`](analyst/session.py) drives the turn loop using
   [`analyst/contract.md`](analyst/contract.md). Reports, replay, the code map and routines are
   implemented under `analyst/`.
-- [`delve/kernel.py`](delve/kernel.py) runs code in a checkpointed subprocess; successful cells persist
-  and failed cells roll back.
+- [`delve/kernel.py`](delve/kernel.py) runs code in a subprocess and keeps a snapshot of every
+  successful cell; failed cells roll back.
 - [`bambooai/models/`](bambooai/models/) provides model adapters, reasoning-effort mapping and prompt
   caching. `bambooai/db/local_store.py` uses SQLite behind the same interface as the hosted Supabase
   store.

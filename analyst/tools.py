@@ -29,6 +29,24 @@ def run_cell(kernel, code: str) -> Tuple[str, str, List[dict], List[dict], dict]
     return stdout, (error or ""), list(plots or []), list(getattr(kernel, "last_results", []) or []), reach
 
 
+def snap(kernel, step=None) -> str:
+    """Where the kernel is, as a cell's record keeps it: "<kernel>:<step>", the state after its last committed step
+    (kernel.last_step) in that kernel (kernel.uid) - or the state after `step`; 0 is the kernel's state at the
+    start. "" from a kernel that keeps no snapshot per step."""
+    uid, at = getattr(kernel, "uid", None), getattr(kernel, "last_step", None)
+    return f"{uid}:{at if step is None else step}" if uid and isinstance(at, int) else ""
+
+
+def goto(kernel, state: str) -> bool:
+    """Bring the kernel to the state a record names (snap). False when the record names none, or another kernel, or
+    a state this kernel does not have or cannot get to: the caller then rebuilds the state by running the cells
+    again."""
+    uid, _, step = str(state or "").rpartition(":")
+    if not uid or not step.isdigit() or uid != getattr(kernel, "uid", None):
+        return False
+    return bool(kernel.goto(int(step)))
+
+
 def sandbox(kernel) -> dict:
     """The box the kernel runs on as it sees itself (kernel.sandbox_facts), {} when the kernel does not say."""
     return dict(getattr(kernel, "sandbox", None) or {})

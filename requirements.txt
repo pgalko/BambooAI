@@ -26,6 +26,7 @@ google-cloud-storage
 statsmodels
 scipy
 scikit-learn
+cloudpickle
 geopandas
 yfinance
 sweatstack
