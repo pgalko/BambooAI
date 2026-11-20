@@ -9,6 +9,11 @@
 #streamOutput .sp-strip .bar i { display: block; height: 100%; background: var(--accent-color); transition: width .3s; }
 #streamOutput .sp-strip .live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); animation: sp-pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
 #streamOutput .sp-strip .live.idle { animation: none; opacity: .35; }
+/* the way to the Turn map, beside the count of turns: the Git branch mark, and how many branches the analysis has */
+#streamOutput .sp-strip .sp-turnmap { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 24px; min-width: 24px; box-sizing: border-box; padding: 0 5px; margin-left: -6px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
+#streamOutput .sp-strip .sp-turnmap:hover { border-color: var(--c-model); color: var(--c-model); }
+#streamOutput .sp-strip .sp-turnmap svg { display: block; width: 14px; height: 14px; }
+#streamOutput .sp-strip .sp-turnmap .n:empty { display: none; }
 @keyframes sp-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 #streamOutput .sp-ids { display: flex; align-items: center; gap: 14px; padding: 4px 10px 6px; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
 #streamOutput .sp-ids .k { color: var(--accent-color); margin-right: 4px; }
@@ -29,6 +34,12 @@
 #streamOutput .sp-turn.live > summary .peek { color: var(--text-secondary); }
 #streamOutput .sp-turn.live > summary { background: linear-gradient(90deg, transparent, rgba(80, 250, 123, .06), transparent); background-size: 200% 100%; animation: sp-shimmer 2.2s linear infinite; }
 #streamOutput .sp-turn.lost { opacity: .6; }
+/* a branch (2.9, docs/BRANCH_DESIGN.md): the turns it keeps from the chain it went on from, faint; the hint it goes on under, where its own turns begin */
+#streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }
+#streamOutput .sp-row.differs .t { color: var(--yaml-key); }
+#streamOutput .sp-hint { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-left: 2px solid var(--accent-color); font-family: Arial, sans-serif; font-size: 12px; color: var(--text-primary); }
+#streamOutput .sp-hint svg { align-self: center; flex-shrink: 0; width: 13px; height: 13px; color: var(--accent-color); }
+#streamOutput .sp-hint b { font-weight: 600; white-space: nowrap; color: var(--accent-color); }
 @keyframes sp-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 #streamOutput .sp-think { padding: 4px 12px 10px 30px; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.55; color: var(--text-primary); white-space: pre-wrap; }
 #streamOutput .sp-think .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent-color); vertical-align: -2px; margin-left: 2px; animation: sp-pulse .9s steps(2) infinite; }

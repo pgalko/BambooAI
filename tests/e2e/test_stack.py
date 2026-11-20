@@ -162,6 +162,36 @@ def composer(page):
         framing: document.body.classList.contains('ar-framing'), save: getComputedStyle(document.getElementById('saveButton')).display, position: document.getElementById('chainPosition').textContent }; }""")
 
 
+def left_pane(page):
+    """The left pane as the person sees it, with a turn gone back to or without (docs/BRANCH_DESIGN.md §5): the numbered turn cards in sight - each with whether
+    the chain kept it from another -, how many cards the pane holds, the rows of hints in sight, whether the closing card is; the composer - the row of the turn
+    gone back to, its words, and whether the files' menu, the mode and the Architect's switch are in sight; the turn the page stands at; the arrows' count; the
+    number on the strip's button; how long the tabs' markup is, and the answer's text."""
+    return page.evaluate("""() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null;
+        const s = document.querySelector('#streamOutput .sp-stream'), cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn]')];
+        return { turns: cards.filter(e => /^\\d+$/.test(e.getAttribute('data-turn')) && vis(e)).map(e => [Number(e.getAttribute('data-turn')), e.classList.contains('kept')]),
+                 cards: cards.length, hidden: cards.filter(e => !vis(e)).length, hints: [...s.querySelectorAll(':scope > .sp-hint')].filter(vis).map(e => e.textContent), done: vis(s.querySelector('.sp-done')),
+                 chip: (document.getElementById('branchChip') || {}).textContent || '', words: document.getElementById('queryInput').placeholder,
+                 controls: ['.attach-menu-container', '#modeSliderPopup', '#architectSwitch'].map(q => vis(document.querySelector('.left-panel ' + q))),
+                 standing: BranchUI.standing(), position: document.getElementById('chainPosition').textContent, badge: (s.parentNode.querySelector('.sp-turnmap .n') || {}).textContent || '',
+                 tabs: document.getElementById('contentOutput').innerHTML.length, answer: ((document.querySelector('#content-answer .markdown-content') || {}).textContent || '').length }; }""")
+
+
+def open_turn_map(page):
+    """The Turn map of the analysis on screen, opened with the button on the left pane's strip, as the person sees it."""
+    page.click("#streamOutput .sp-turnmap")
+    page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none' && document.getElementById('workflowMapModal').classList.contains('turns')", timeout=10000)
+    page.wait_for_timeout(200)
+    return conversation_map(page)
+
+
+def turn_box(page, keep):
+    """Click the Turn map's first box that `keep` - a JS test of (its second line, its mark) - says yes to."""
+    page.evaluate("(keep) => { const f = eval(keep); [...document.querySelectorAll('#workflowMapModal .wf-node')].find(x => f(x.querySelector('.wf-node-chain').textContent, "
+                  "(x.querySelector('.wf-node-made') || {}).textContent || '')).click(); }", keep)
+    page.wait_for_timeout(300)
+
+
 def thread_run(wa, user, thread_id, run_id):
     path = os.path.join(wa, "storage", user, "threads", f"{thread_id}.json")
     return (json.load(open(path, encoding="utf-8"))["runs"] if os.path.exists(path) else {}).get(str(run_id)) or {}
@@ -1628,6 +1658,35 @@ def walk_draft(page, st, mod, wa, edition, user):
           == [(boxes, False, True, keys[1], True, "draft · made-up numbers"), (line, False, True, keys[0], True, "draft · made-up numbers")],
           (prompt[:900], [d[:1500] for d in drew], steps, ran.get("report", "")[-400:], f6))
 
+    # a branch of this analysis (0320, docs/BRANCH_DESIGN.md §5): back to its first turn, a hint, with the Architect still switched on
+    rows3 = len(usage_rows(wa, edition, user))
+    open_turn_map(page)
+    turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
+    page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+    page.fill("#queryInput", mod.BRANCH_HINT)
+    page.click("#submitQuery")
+    wait_run_end(page, 2)
+    page.wait_for_function("() => responses.length === 2 && !responses[1].status", timeout=60000)
+    of_b = page.evaluate("""() => { const e = responses[currentResponseIndex], s = document.querySelector('#streamOutput .sp-stream'), brief = document.querySelector('#content-brief .ar-brief');
+        return { chain: e.chain_id, branch: e.branch, q: e.queryText, on: document.getElementById('architectSwitch').getAttribute('aria-pressed'),
+                 first: s.firstElementChild.className, fold: (s.querySelector(':scope > .ar-fold .kind') || {}).textContent || '',
+                 turns: [...s.querySelectorAll(':scope > .sp-turn[data-turn]')].filter(c => /^\\d+$/.test(c.getAttribute('data-turn'))).map(c => [Number(c.getAttribute('data-turn')), c.classList.contains('kept')]),
+                 hints: [...s.querySelectorAll(':scope > .sp-hint')].map(h => h.textContent), tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent.trim()),
+                 brief: brief ? [brief.dataset.state, brief.dataset.chain] : null, made: ArchitectUI.mark(e) }; }""")
+    ran_b = thread_run(wa, user, tid, of_b["chain"])
+    calls_b = [r["agent"] for r in usage_rows(wa, edition, user)[rows3:]]
+    check("a branch of a framed analysis (0320): the hint starts it at once - the Architect, switched on, is not asked, and no call reads the question again - and it runs under the same "
+          "brief: the brief's row stands above the run, the turn it keeps under that, then the hint and its own turns; the Brief tab is there for the new chain, to be read; the record "
+          "keeps the brief, with its figures and their drafts, and the question; the report follows the hint, and the figures agreed are drawn again",
+          of_b["on"] == "true" and calls_b and "Architect" not in calls_b and "Question check" not in calls_b
+          and of_b["branch"] == {"of": cid, "turn": 1, "hint": mod.BRANCH_HINT} and of_b["q"] == mod.FIGURES_QUESTION
+          and of_b["first"].startswith("sp-turn ar-fold") and of_b["fold"].startswith("brief · step ") and of_b["turns"][0] == [1, True] and all(not kept for _, kept in of_b["turns"][1:])
+          and len(of_b["turns"]) >= 3 and of_b["hints"] == ["From turn 1" + mod.BRANCH_HINT] and "Brief" in of_b["tabs"] and of_b["brief"] == ["run", str(of_b["chain"])] and of_b["made"] == "Architect"
+          and ran_b.get("status") == "answered" and ran_b.get("branch") == {"of": str(cid), "turn": 1} and ran_b.get("brief") == ran.get("brief") and ran_b.get("drafts") == ran.get("drafts")
+          and ran_b.get("question") == ran.get("question") and "## Each soil type on its own" in ran_b.get("report", "")
+          and [[f.get("title") for f in t.get("figures", []) if isinstance(f, dict)] for t in ran_b.get("turns", []) if t.get("step") == "figures" and t.get("kind") == "cell"][-1:] == [[boxes, line]],
+          (of_b, calls_b, ran_b.get("status"), ran_b.get("branch"), ran_b.get("report", "")[-300:]))
+
 
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
@@ -2592,63 +2651,162 @@ def main():
                   "PLOTS=" in row9 and "LATER=0" in row9 and "The kernel went back to the state chain" in logs["webapp"]
                   and (compute == "local" or (bool(went) and went[-1][0] == went[-1][1] and went[-1][2] == "0")), (row9[:200], went[-2:], compute))
 
-            # a branch (0319, docs/BRANCH_DESIGN.md §4): go on from a turn of an analysis, with a hint. The page has no control for
-            # it yet, so the route is called as the page will call it: the chain in view, the turn, and the hint as the query.
-            # First from the chain asked just before, whose state the thread's kernel holds: the kernel goes back, no cell is
-            # run again. Then from the turn of the first analysis that pooled the soil types - a chain on a frame loaded
-            # earlier, so a fresh kernel runs its kept cells again
-            def go_on(chain, turn):
-                stream = page.evaluate("""async (a) => { const r = await window.authService.fetch('/query', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: a.hint, thread_id: a.thread, chain_id: a.chain, branch: { turn: a.turn } }) }); return await r.text(); }""",
-                                       {"hint": mod.BRANCH_HINT, "thread": int(tid_b), "chain": int(chain), "turn": turn})
-                sent = []
-                for ln in stream.splitlines():
-                    try:
-                        sent.append(json.loads(ln))
-                    except ValueError:
-                        pass
-                made = thread_run(wa, USER, tid_b, str(next((m.get("chain_id") for m in sent if m.get("type") == "id"), ""))) or {}
-                logs = {name: open(os.path.join(workdir, "logs", name + ".log"), encoding="utf-8", errors="replace").read() if os.path.exists(os.path.join(workdir, "logs", name + ".log")) else ""
-                        for name in ("webapp", "executor")}
-                return sent, made, [t for t in made.get("turns", []) if t["kind"] == "cell" and t.get("cell_no") is not None and not t.get("step")], logs
-
+            # ---- branches on the page (0320, docs/BRANCH_DESIGN.md §4, §5) ----
+            # Go back to a turn of an analysis on its Turn map, type a hint, and the analysis goes on from there another way. First
+            # from the chain asked just before, whose state the thread's kernel holds: the kernel goes back, no cell is run again.
+            # Then from the turn of the first analysis that pooled the soil types - a chain on a frame loaded earlier, so a fresh
+            # kernel runs its kept cells again
             def runs_b():
                 with open(os.path.join(wa, "storage", USER, "threads", f"{tid_b}.json"), encoding="utf-8") as fh:
                     return json.load(fh)["runs"]
+
+            def logs_b():
+                return {name: open(os.path.join(workdir, "logs", name + ".log"), encoding="utf-8", errors="replace").read() if os.path.exists(os.path.join(workdir, "logs", name + ".log")) else ""
+                        for name in ("webapp", "executor")}
+
+            def cells_of(run):
+                return [t for t in run.get("turns", []) if t["kind"] == "cell" and t.get("cell_no") is not None and not t.get("step")]
+
+            def entry_b():
+                return page.evaluate("() => { const e = responses[currentResponseIndex] || {}; return { chain: e.chain_id, branch: e.branch || null, parent: e.parentChainId, q: e.queryText, n: responses.length }; }")
 
             tid_b = str(page.evaluate("() => currentData.thread_id"))
             thread_b = runs_b()
             first_b = min((r for r in thread_b.values() if r["question"] == mod.QUESTIONS[0] and not r.get("brief")), key=lambda r: r["created"])
             last_b = max((r for r in thread_b.values() if r["question"] == mod.BACK_QUESTION), key=lambda r: r["created"])
-            _, run_g, cells_g, logs_g = go_on(last_b["id"], 1)
+            n_b = entry_b()["n"]
+            page.wait_for_timeout(800)                       # the answer's own buttons settle a moment after the run ends
+            whole = left_pane(page)
+            map1 = open_turn_map(page)
+            check("the Turn map (0320): the button on the strip of a finished analysis opens the thread map's drawer as the map of its turns - its name, how many turns, the "
+                  "thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box",
+                  map1["title"] == "Turn map" and map1["sub"] == f"{len(map1['boxes'])} turns · click one to go back to it" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
+                  and re.fullmatch(r"Turn 1 · In \[\d+\]", map1["boxes"][0][1]) and map1["boxes"][-1][1] == f"Turn {len(map1['boxes'])} · report" and map1["on"] == [len(map1["boxes"])]
+                  and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)) and whole["badge"] == "", (map1, whole["badge"]))
+            turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
+            page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+            back1 = left_pane(page)
+            shut1 = page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display")
+            check("going back to a turn (0320): a click on its box shuts the drawer and ends the left pane at the turn - the later cards and the closing card are out of sight - while the "
+                  "tabs stay as they were; the composer asks for a hint, the row under it says from which turn and how many turns are left, and the files' menu, the mode and the "
+                  "Architect's switch are out of sight; the arrows' count is as it was",
+                  shut1 == "none" and back1["turns"] == [[1, False]] and back1["hidden"] == back1["cards"] - 1 >= 1 and back1["done"] is False and whole["done"] is True
+                  and re.fullmatch(r"From turn 1 · \d+ turns left×", back1["chip"]) and back1["words"] == "Say how the analysis should go on from turn 1" and back1["controls"] == [False, False, False]
+                  and whole["controls"] == [True, True, True] and back1["standing"] == {"chain": int(last_b["id"]), "turn": 1} and back1["tabs"] == whole["tabs"] and back1["position"] == whole["position"] == "chain 9 of 9",
+                  (shut1, back1, whole))
+            page.fill("#queryInput", mod.BRANCH_HINT)
+            page.click("#submitQuery")
+            wait_run_end(page, n_b + 1)
+            pane_g, entry_g = left_pane(page), entry_b()
+            run_g = thread_run(wa, USER, tid_b, str(entry_g["chain"])) or {}
+            cells_g, logs_g = cells_of(run_g), logs_b()
             went_g = re.findall(r"at step (\d+) from the state after step (\d+), (\d+) step\(s\) run again", logs_g["executor"])
-            check("a branch (0319) from a turn whose state the kernel holds: the kernel goes back to it - the app says so, the executor says it got there from that "
-                  "state's own snapshot with no step run again - and the branch's cell finds what the path made and nothing a later chain made",
-                  run_g.get("branch") == {"of": last_b["id"], "turn": 1} and run_g.get("status") == "answered" and [c.get("kept") for c in cells_g] == ["kept", ""]
+            check("a hint sent from a turn whose state the kernel holds (0320): the branch runs as a chain of its own - its pane has the kept turn first, marked, then the row of the "
+                  "hint, then its own turns and its closing card; the composer is its own again. It is its analysis's: the arrows count no new chain, and its entry keeps the chain, "
+                  "the turn and the hint. The kernel went back - the app says so, the executor says it got there from that state's own snapshot with no step run again - and "
+                  "the branch's cell finds what the path made and nothing a later chain made",
+                  pane_g["turns"][:2] == [[1, True], [2, False]] and pane_g["hints"] == ["From turn 1" + mod.BRANCH_HINT] and pane_g["done"] is True and pane_g["hidden"] == 0 and pane_g["chip"] == ""
+                  and pane_g["controls"] == [True, True, True] and pane_g["standing"] is None and pane_g["position"] == "chain 9 of 9" and pane_g["badge"] == "1" and entry_g["n"] == n_b + 1
+                  and entry_g["branch"] == {"of": int(last_b["id"]), "turn": 1, "hint": mod.BRANCH_HINT} and entry_g["q"] == mod.BACK_QUESTION and str(entry_g["parent"]) == str(last_b.get("parent"))
+                  and run_g.get("branch") == {"of": last_b["id"], "turn": 1} and run_g.get("status") == "answered" and [c.get("kept") for c in cells_g] == ["kept", ""]
                   and "KEPT=1 LATER=0" in cells_g[-1]["stdout"] and f"The kernel went back to the state after turn 1 of chain {last_b['id']}" in logs_g["webapp"]
                   and (compute == "local" or (bool(went_g) and went_g[-1][0] == went_g[-1][1] and went_g[-1][2] == "0")),
-                  (run_g.get("branch"), run_g.get("status"), [c.get("kept") for c in cells_g], went_g[-2:], compute))
-            sent_b, run_b, cells_b, logs_b = go_on(first_b["id"], mod.BRANCH_TURN)
-            id_b = next((m for m in sent_b if m.get("type") == "id"), {})
-            start_b = next((m for m in sent_b if m.get("type") == "pane_run_start"), {})
-            cards_b = [(m.get("turn"), bool(m.get("kept"))) for m in sent_b if m.get("type") == "pane_turn_start" and isinstance(m.get("turn"), int)]
-            check("a branch (0319) of the first analysis, after the turn that pooled the soil types: a chain of its own beside it, its four kept turns sent to the pane "
-                  "first and marked, then its own; a fresh kernel ran its kept cells again and they printed what they had, so none is marked; its cell finds what "
-                  "they made, the function among it; the report follows the hint and its replay reproduces; the first analysis is as it was",
-                  id_b.get("branch_of") == int(first_b["id"]) and id_b.get("branch_turn") == mod.BRANCH_TURN and start_b.get("branch", {}).get("hint") == mod.BRANCH_HINT
-                  and cards_b[:mod.BRANCH_TURN] == [(n, True) for n in range(1, mod.BRANCH_TURN + 1)] and cards_b[mod.BRANCH_TURN:] == [(5, False), (6, False)]
+                  (pane_g, entry_g, run_g.get("branch"), run_g.get("status"), [c.get("kept") for c in cells_g], went_g[-2:], compute))
+            map2 = open_turn_map(page)
+            tags2 = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(x => (x.querySelector('.wf-node-made') || {}).textContent || '')")
+            n1 = len(map1["boxes"])
+            check("the Turn map of an analysis with a branch (0320): the two ways from turn 1 - the first run's turns, and the branch's own joined to the turn it went on from, the first "
+                  "of them marked with its hint; the line under the name counts the branch; the branch's last turn is the open box and the way to it is lit, the way that was left faint",
+                  map2["sub"] == f"{len(map2['boxes'])} turns · 1 branch · click one to go back to it" and len(map2["boxes"]) == n1 + len(pane_g["turns"]) - 1 and tags2 == [""] * n1 + ["hint"] + [""] * (len(map2["boxes"]) - n1 - 1)
+                  and map2["boxes"][n1][1].startswith("Turn 2 · In [") and map2["on"] == [len(map2["boxes"])] and map2["lit"] == [1] + list(range(n1 + 1, len(map2["boxes"]) + 1)), (map2, tags2))
+            turn_box(page, f"(sub) => sub === 'Turn {n1} · report'")
+            page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=last_b["id"], timeout=10000)
+            first_way = left_pane(page)
+            check("moving between branches (0320): a click on the last turn of the way that was left brings that chain back, tabs and pane, whole; its strip says the analysis has a branch",
+                  first_way["turns"] == [[n, False] for n in range(1, n1 + 1)] and first_way["hidden"] == 0 and first_way["done"] is True and first_way["hints"] == [] and first_way["standing"] is None
+                  and first_way["answer"] == whole["answer"] > 0 and pane_g["answer"] != whole["answer"] and first_way["position"] == "chain 9 of 9" and first_way["badge"] == "1"
+                  and entry_b()["chain"] == int(last_b["id"]), (first_way, whole["answer"], pane_g["answer"]))
+
+            # the first analysis, after the turn that pooled the soil types
+            page.evaluate("(c) => navigateToChainId(c)", int(first_b["id"]))
+            page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=first_b["id"], timeout=10000)
+            at_first = left_pane(page)["position"]
+            open_turn_map(page)
+            turn_box(page, f"(sub) => sub.startsWith('Turn {mod.BRANCH_TURN} ·')")
+            page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+            back_b = left_pane(page)
+            page.fill("#queryInput", mod.BRANCH_HINT)
+            page.click("#submitQuery")
+            wait_run_end(page, n_b + 2)
+            pane_b, entry_b2 = left_pane(page), entry_b()
+            run_b = thread_run(wa, USER, tid_b, str(entry_b2["chain"])) or {}
+            cells_b, logs_2 = cells_of(run_b), logs_b()
+            check("a branch of the first analysis, after the turn that pooled the soil types (0320): the pane ended at that turn while the hint was typed; the branch's pane has its "
+                  "four kept turns first, marked, then the hint, then its own; a fresh kernel ran its kept cells again and they printed what they had, so none is marked; its "
+                  "cell finds what they made, the function among it; the report follows the hint and its replay reproduces; the first analysis is as it was",
+                  back_b["turns"] == [[n, False] for n in range(1, mod.BRANCH_TURN + 1)] and back_b["position"] == at_first
+                  and pane_b["turns"] == [[n, True] for n in range(1, mod.BRANCH_TURN + 1)] + [[5, False], [6, False]] and pane_b["hints"] == [f"From turn {mod.BRANCH_TURN}" + mod.BRANCH_HINT]
+                  and pane_b["position"] == at_first and entry_b2["branch"] == {"of": int(first_b["id"]), "turn": mod.BRANCH_TURN, "hint": mod.BRANCH_HINT} and entry_b2["q"] == mod.QUESTIONS[0]
                   and run_b.get("branch") == {"of": first_b["id"], "turn": mod.BRANCH_TURN} and run_b.get("hints") == [{"turn": mod.BRANCH_TURN, "text": mod.BRANCH_HINT}]
                   and run_b.get("parent") == first_b.get("parent") and run_b.get("status") == "answered" and run_b.get("replay_status") == "reproduced"
                   and [c.get("kept") for c in cells_b] == ["kept", "kept", ""] and "KEPT=1 LATER=0" in cells_b[-1]["stdout"] and "APART_LOAM=" in cells_b[-1]["stdout"]
                   and "## Each soil type on its own" in run_b.get("report", "") and (thread_run(wa, USER, tid_b, first_b["id"]) or {}).get("turns") == first_b["turns"]
-                  and f"a branch of chain {first_b['id']} after turn {mod.BRANCH_TURN}" in logs_b["webapp"]
-                  and f"A fresh kernel for the branch: the 0 cells before chain {first_b['id']} and the 2 it keeps of it are run again" in logs_b["webapp"],
-                  (id_b, start_b.get("branch"), cards_b, run_b.get("branch"), run_b.get("status"), run_b.get("replay_status"), [c.get("stdout", "")[-60:] for c in cells_b[-1:]]))
-            n_b = len(runs_b())
-            sent_n, _, _, _ = go_on(first_b["id"], None)
-            check("a branch (0319) whose request names no turn is refused: the person is told, and what they typed is not asked as a question - no chain is made",
-                  any(str(m.get("error", "")).startswith("Turn 0 cannot be gone on from: this analysis can go on from turns 1 to ") for m in sent_n)
-                  and not any(m.get("type") == "id" for m in sent_n) and len(runs_b()) == n_b, ([m for m in sent_n if m.get("error") or m.get("type") == "id"], n_b))
+                  and f"a branch of chain {first_b['id']} after turn {mod.BRANCH_TURN}" in logs_2["webapp"]
+                  and f"A fresh kernel for the branch: the 0 cells before chain {first_b['id']} and the 2 it keeps of it are run again" in logs_2["webapp"],
+                  (back_b, pane_b, entry_b2, run_b.get("branch"), run_b.get("status"), run_b.get("replay_status"), [c.get("stdout", "")[-60:] for c in cells_b[-1:]]))
+
+            # the thread map and the arrows count analyses
+            page.click("#railMapButton")
+            page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none' && document.querySelector('#workflowMapModal h2').textContent === 'Thread map'", timeout=10000)
+            thread_map = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), boxes = [...d.querySelectorAll('.wf-node')];
+                return { sub: document.getElementById('mapDrawerSub').textContent, boxes: boxes.length, branches: boxes.map(x => (x.querySelector('.wf-node-branches') || {}).textContent || '').filter(Boolean),
+                         on: boxes.filter(x => x.classList.contains('wf-node--active')).map(x => x.querySelector('.wf-node-chain').textContent), cls: d.className,
+                         buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none' }; }""")
+            page.click("#railMapButton")
+            page.click("#nextResponse")
+            page.wait_for_timeout(500)
+            stepped = left_pane(page)["position"]
+            page.click("#prevResponse")
+            page.wait_for_timeout(500)
+            came_back = [left_pane(page)["position"], entry_b()["chain"]]
+            check("the thread map and the arrows count analyses, not branches (0320): eleven chains in the thread, nine boxes - the two analyses that went on another way each saying "
+                  "so -, the open box that of the analysis on screen, showing the branch; the arrows step to the next analysis and back to the branch that was on screen",
+                  thread_map["boxes"] == 9 and entry_b2["n"] == n_b + 2 == 11 and thread_map["sub"] == "9 chains · 2 branches · click one to open it" and thread_map["branches"] == ["1 branch", "1 branch"]
+                  and thread_map["on"] == [f"Chain: {entry_b2['chain']}"] and thread_map["buttons"] is True and "turns" not in thread_map["cls"]
+                  and stepped != at_first and came_back == [at_first, entry_b2["chain"]], (thread_map, at_first, stepped, came_back))
+
+            # a branch the server does not start: the request is changed on its way so that it names a turn the analysis never had
+            open_turn_map(page)
+            turn_box(page, "(sub, mark) => mark === 'hint'")
+            page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+            runs_were = len(runs_b())
+            page.evaluate("""() => { const send = window.authService.fetch;
+                window.authService.fetch = function (url, o) { if (url === '/query') { const b = JSON.parse(o.body); if (b.branch) { b.branch.turn = 99; o = Object.assign({}, o, { body: JSON.stringify(b) }); window.authService.fetch = send; } }
+                                                               return send.call(window.authService, url, o); }; }""")
+            page.fill("#queryInput", "this one is refused")
+            page.click("#submitQuery")
+            page.wait_for_function("() => !queryRunning && BranchUI.standing() !== null && document.getElementById('queryInput').value === 'this one is refused'", timeout=60000)
+            page.wait_for_timeout(300)
+            refused = left_pane(page)
+            said_no = page.evaluate("() => document.getElementById('summaryContent').textContent")
+            check("a branch the server does not start (0320): it says why - the person reads it - and nothing is kept of the request: no chain on the page or on the record; the chain the "
+                  "hint was typed on is back at its turn, the hint in the composer to send again",
+                  "Turn 99 cannot be gone on from" in said_no and entry_b()["n"] == n_b + 2 and len(runs_b()) == runs_were and entry_b()["chain"] == entry_b2["chain"]
+                  and refused["standing"] == {"chain": entry_b2["chain"], "turn": 5} and refused["turns"] == pane_b["turns"][:5] and refused["chip"].startswith("From turn 5")
+                  and refused["position"] == at_first, (said_no[-200:], refused, entry_b()))
+            page.click("#branchChip button")
+            page.fill("#queryInput", "")
+            left_it = left_pane(page)
+            sent_n = page.evaluate("""async (a) => { const r = await window.authService.fetch('/query', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: a.hint, thread_id: a.thread, chain_id: a.chain, branch: { turn: null } }) }); return (await r.text()).split('\\n').filter(l => l.trim()).map(l => JSON.parse(l)); }""",
+                                   {"hint": mod.BRANCH_HINT, "thread": int(tid_b), "chain": int(first_b["id"])})
+            check("the cross on the composer's row leaves the turn: the pane is whole, the composer its own; and a request whose branch names no turn is refused by the server - what was "
+                  "typed is not asked as a question, no chain is made",
+                  left_it["standing"] is None and left_it["chip"] == "" and left_it["hidden"] == 0 and left_it["controls"] == [True, True, True]
+                  and any(str(m.get("error", "")).startswith("Turn 0 cannot be gone on from: this analysis can go on from turns 1 to ") for m in sent_n)
+                  and not any(m.get("type") == "id" for m in sent_n) and len(runs_b()) == runs_were, (left_it, [m for m in sent_n if m.get("error") or m.get("type") == "id"]))
+            page.evaluate("(c) => navigateToChainId(c)", int(last_b["id"]))      # the chain the walk goes on from
+            page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=last_b["id"], timeout=10000)
 
             # ---- the Usage dialog (docs/USAGE_DESIGN.md, step 3): what it shows against the rows the logger wrote ----
             rows = usage_rows(wa, edition, USER)

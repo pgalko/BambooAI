@@ -9,7 +9,10 @@
 //      sub(item, i)    a box's second line
 //      show(item, i)   what the drawer's foot says of the box under the pointer
 //      pick(item, i)   a box clicked
-//  and has the way to the box in use lit while no box is under the pointer.
+//      tag(item, i)    a mark on a box's corner, where the map has one
+//  and has the way to the box in use lit while no box is under the pointer. The turns of an analysis are a third map
+//  (branch.js; docs/BRANCH_DESIGN.md §5). The thread's own boxes are analyses: where one has branches its box says
+//  how many (`branches`), and a click opens the chain of it the box stands for (BranchUI.open).
 //--------------------
 
 window.WorkflowGraph = (function () {
@@ -313,14 +316,22 @@ window.WorkflowGraph = (function () {
             chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;
             div.appendChild(chainSpan);
 
-            // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Architect, or a brief not yet run
-            var made = !of && window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';
+            // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Architect, or a brief not yet run;
+            // on another map, that map's own mark
+            var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');
             if (made) {
                 var madeSpan = document.createElement('span');
                 madeSpan.className = 'wf-node-made';
                 madeSpan.textContent = made;
                 div.appendChild(madeSpan);
                 if (made === 'not run') div.classList.add('wf-node--notrun');
+            }
+            // an analysis that went on more than one way: how many branches it has (their turns are on its Turn map)
+            if (!of && resp && resp.branches) {
+                var branchSpan = document.createElement('span');
+                branchSpan.className = 'wf-node-branches';
+                branchSpan.textContent = resp.branches + (resp.branches === 1 ? ' branch' : ' branches');
+                div.appendChild(branchSpan);
             }
 
             // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
@@ -334,7 +345,7 @@ window.WorkflowGraph = (function () {
                 eye.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg>';
                 eye.addEventListener('click', function (e) {
                     e.stopPropagation();
-                    if (typeof navigateToChainId === 'function' && idx !== currentResponseIndex) navigateToChainId(resp.chain_id);
+                    if (typeof navigateToChainId === 'function' && String(resp.chain_id) !== String(currentData.chain_id)) navigateToChainId(resp.chain_id);
                     var drawer = document.getElementById('workflowMapModal');
                     if (drawer) drawer.style.display = 'none';
                     if (window.CodeMapUI && typeof window.CodeMapUI.open === 'function') window.CodeMapUI.open(resp.chain_id);
@@ -358,10 +369,13 @@ window.WorkflowGraph = (function () {
             // ── Click → navigate ──
             div.addEventListener('click', function () {
                 if (of) { of.pick(resp, idx); return; }
-                currentResponseIndex = idx;
-                lastActiveChainId = responses[idx].chain_id || null;
-                loadResponseContent(responses[idx]);
-                if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
+                if (window.BranchUI) window.BranchUI.open(resp);       // the box stands for a chain of its analysis: that chain opens
+                else {
+                    currentResponseIndex = idx;
+                    lastActiveChainId = responses[idx].chain_id || null;
+                    loadResponseContent(responses[idx]);
+                    if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
+                }
                 var drawer = document.getElementById('workflowMapModal');
                 if (drawer) drawer.style.display = 'none';       // the drawer closes on the way to the chain (2026-09-08)
             });
@@ -476,6 +490,7 @@ window.WorkflowGraph = (function () {
             var rows = '<div class="wf-info-row"><span>Chain</span><b>' + (index + 1) + ' of ' + responses.length + ' <span class="wf-info-id">' + esc(response.chain_id || '') + '</span></b></div>';
             rows += '<div class="wf-info-row"><span>Follows</span><b>' + (parentIdx >= 0 ? 'chain ' + (parentIdx + 1) : 'the thread\'s start') + '</b></div>';
             rows += '<div class="wf-info-row"><span>Follow-ups</span><b>' + (children ? children : 'none') + '</b></div>';
+            if (response.branches) rows += '<div class="wf-info-row"><span>Branches</span><b>' + response.branches + '</b></div>';
             if (conclusion) rows += '<div class="wf-info-row wf-info-conclusion"><span>Concluded</span><b>' + esc(conclusion) + '</b></div>';
             plotEl.innerHTML = '<div class="wf-info">' + rows + '</div>';
         }

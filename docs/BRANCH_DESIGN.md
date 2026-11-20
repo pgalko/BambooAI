@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.2 (2026-11-20; for 2.9; built: 0318, the kernel's states; 0319, the engine)
+# Branching an analysis — design v0.3 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -152,28 +152,74 @@ included), other data loaded, no hint. A stopped analysis can be gone on from. T
 page is sent the new chain with `branch_of` and `branch_turn`, the run's card with the branch and its hint, and
 the kept turns' cards first, each marked `kept`; the closing card's time is that of the branch's own turns.
 
-## 5. To build
+## 5. The page (0320, built)
 
-- **The page (0320).** The turn map in the thread map's drawer; going back; the hint in the composer, with the mode
-  buttons and the Architect switch away; moving between branches; one box for an analysis on the thread map.
+`web_app/static/js/branch.js`, with the left pane (`stream-pane.js`) and the thread map's drawing
+(`workflowGraph.js`).
+
+**The Turn map.** Its button, the Git branch mark, stands on the left pane's strip beside the count of turns, once
+the run has ended with turns to go on from (`turn_map` on the closing card; a stopped run now has a closing card
+too). Beside the mark is the number of branches the analysis has. The map opens in the thread map's drawer: every
+turn of the analysis and of its branches is a box, joined to the turn it follows. A box says what the turn did,
+and under that its number and its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The
+first turn of a branch carries the mark *hint*. The way to the turn on screen is lit. Under the pointer the
+drawer's foot says what the turn did, the hint its branch was given, how many ways the analysis went on from it
+and what its cell printed. The map does not open while an analysis runs.
+
+**Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by
+a rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the
+hint: its words ask for one, and the row under it says *From turn 4 · 11 turns left* in the place of the mode,
+the Architect's switch and the files. The cross on that row, Escape in the composer, or another chain coming on
+screen leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain
+back whole. The turn a run was stopped in ended nothing: it has no box.
+
+**The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
+chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
+keeps `branch` ({of, turn, hint}), its question is the analysis's, and it attaches where the analysis did. Its
+left pane shows the turns kept first - faint, shut, marked *kept*, a cell that printed something else when it was
+run again saying so - then a row with the hint (*From turn 4*), then its own turns. A framed analysis's branch has
+the brief's fold and its Brief tab. Where the server starts no branch, nothing of the request stays: the chain is
+back at its turn, the hint is in the composer again, and the server's sentence is shown.
+
+**Moving between branches.** On the map a turn on the way of the chain on screen keeps that chain; a turn of
+another branch brings that branch on screen, tabs and pane.
+
+**The thread map and the arrows** count analyses. A box, or a step of the arrows, is an analysis, shown as the
+chain of it that was last on screen (the newest where none was). The box says how many branches it has; a chain
+asked from a branch hangs under its analysis's box.
+
+**The icon.** The Git branch mark is on the Turn map's button and on the conversation map's; the thread map keeps
+its own.
+
+**Until 0321.** A saved thread opened again shows a branch as a chain of its own: what is stored does not say yet
+which chains are branches.
+
+## 6. To build
+
 - **Save, memory, usage (0321).** Decisions 2, 13 and 14.
-- **Open.** A hint that departs from what the brief fixes: nothing says which holds.
+- **Open.** A hint that departs from what the brief fixes: nothing says which holds. A run that failed has no
+  closing card, so no Turn map, though the engine could go on from its last turn.
 
-## 6. The build
+## 7. The build
 
 | Patch | What | State |
 |---|---|---|
 | 0318 | The kernel keeps its state after every cell and goes back to any; executor image v75; cloudpickle. | built |
 | 0319 | Engine: a branch after a turn, with a hint. | built |
-| 0320 | Page: the turn map, going back, the hint, moving between branches; the Git branch icon. | |
+| 0320 | Page: the Turn map, going back, the hint, moving between branches; the Git branch icon. | built |
 | 0321 | Save, memory, usage. | |
 | 0322 | Release 2.9.0. | |
 
-## 7. Tests
+## 8. Tests
 
 `tests/analyst/test_kernel_snapshots.py`: the kernel on its own, through the executor's service, through the
 client, and the record. `tests/analyst/test_app_path.py` (0318): the host's use of the states; (0319) a branch
 through the instance - the kernel going back, the cells run again, the marks, what is refused. `test_analyst.py`:
 a cell's record; (0319) the branch in the engine - the carry, the prompt that is the first run's, the hint, the
-reviewer, the kept turns' events. The walk (`tests/e2e/test_stack.py`): a chain asked from an earlier chain;
-branches started through the route - the kernel going back, the kept cells run again, a request that names no turn.
+reviewer, the kept turns' events; (0320) the closing card's `turn_map`, a stopped run's card.
+`tests/analyst/test_branch.js` (0320): the page's part on the mini DOM - the left pane of a branch, the Turn map,
+going back, the hint sent and the branch the server did not start, the analyses the arrows and the thread map
+count. The walk (`tests/e2e/test_stack.py`): a chain asked from an earlier chain; (0320) branches in a browser -
+the Turn map, going back, a hint sent from a turn whose state the kernel holds and from one it must rebuild,
+moving between branches, the thread map and the arrows, a branch the server does not start, a request that names
+no turn, and a branch of a framed analysis with the Architect switched on.

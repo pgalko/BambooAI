@@ -221,6 +221,7 @@ async function saveCurrentResponse(explicitParentChainId = null) {
         simplifiedAnswer: data.simplifiedAnswer || null,
         summaryViewMode: data.summaryViewMode || 'technical',
         synthesisImage: data.synthesisImage || null,
+        branch: data.branch || null,                             // a branch (branch.js): the chain and the turn it went on from, and the hint
         reportHead: data.reportHead || null                      // the report's head, for the export (2026-10-17)
     };
     
@@ -555,10 +556,15 @@ function _reattachRestoredListeners() {
 
 function navigateResponses(direction) {
     if (window.RoutinesUI && typeof window.RoutinesUI.inRunView === 'function' && window.RoutinesUI.inRunView()) { window.RoutinesUI.navigateRuns(direction); return; }   // a routine's run in view (2026-10-10)
-    const prevIndex = currentResponseIndex;
-    currentResponseIndex += direction;
-    if (currentResponseIndex < 0) currentResponseIndex = 0;
-    if (currentResponseIndex >= responses.length) currentResponseIndex = responses.length - 1;
+    if (window.BranchUI) {
+        // the arrows count analyses: to the one before or after - the chain of it that was last on screen (branch.js)
+        const to = window.BranchUI.step(direction);
+        if (to) currentResponseIndex = responses.indexOf(to);
+    } else {
+        currentResponseIndex += direction;
+        if (currentResponseIndex < 0) currentResponseIndex = 0;
+        if (currentResponseIndex >= responses.length) currentResponseIndex = responses.length - 1;
+    }
 
     // Update lastActiveChainId when navigating
     if (responses[currentResponseIndex]) {
@@ -611,20 +617,21 @@ function showWorkflowMap() {
     var modal = document.getElementById('workflowMapModal');
     var container = document.getElementById('workflowMapContainer');
     modal.classList.remove('steps');                           // the drawer may last have held the map of a brief's conversation (architect.js): its title and its foot are the thread's again
+    modal.classList.remove('turns');                           // ... or the map of an analysis's turns (branch.js)
     modal.querySelector('h2').textContent = 'Thread map';
     document.getElementById('nodeTaskContent').innerHTML = 'Hover over a chain to see its question and where it sits';
     document.getElementById('nodePlotPreview').innerHTML = '';
     modal.style.display = 'flex';
     updateSynthesisButtonState();
     updateTrajectoryButtonState();
-    WorkflowGraph.render(container, responses, currentResponseIndex);
-    // the drawer's subtitle (2026-09-08): how many chains, how many branch points
+    // a box to an analysis: a branch is its analysis's, and the box shows the chain of it that was last on screen (branch.js)
+    var boxes = window.BranchUI ? window.BranchUI.items() : responses;
+    WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);
+    // the drawer's subtitle: how many chains, and how many branches their analyses have between them
     var sub = document.getElementById('mapDrawerSub');
     if (sub) {
-        var children = {};
-        (responses || []).forEach(function (r) { if (r.parentChainId) children[r.parentChainId] = (children[r.parentChainId] || 0) + 1; });
-        var branches = Object.keys(children).filter(function (k) { return children[k] > 1; }).length;
-        var n = (responses || []).length;
+        var branches = (boxes || []).reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);
+        var n = (boxes || []).length;
         sub.textContent = n ? (n + ' chain' + (n === 1 ? '' : 's') + (branches ? ' · ' + branches + ' branch' + (branches === 1 ? '' : 'es') : '') + ' · click one to open it') : 'no chains yet';
     }
 }

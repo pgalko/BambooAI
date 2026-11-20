@@ -387,14 +387,16 @@ function updateNavigationButtons() {
 
     if (!prevButton || !nextButton || !navContainer) return;
 
-    if (responses.length <= 1) {
+    // the arrows count analyses: a branch is its analysis's, and the Turn map is the way between branches (branch.js)
+    const at = window.BranchUI ? window.BranchUI.place() : { i: currentResponseIndex + 1, n: responses.length };
+    if (at.n <= 1) {
         navContainer.style.display = 'none';
     } else {
         navContainer.style.display = 'flex';
-        prevButton.disabled = currentResponseIndex <= 0;
-        nextButton.disabled = currentResponseIndex >= responses.length - 1;
+        prevButton.disabled = at.i <= 1;
+        nextButton.disabled = at.i >= at.n;
         const pos = document.getElementById('chainPosition');
-        if (pos) pos.textContent = 'chain ' + (currentResponseIndex + 1) + ' of ' + responses.length;
+        if (pos) pos.textContent = 'chain ' + at.i + ' of ' + at.n;
     }
 
     console.log('Navigation buttons updated:', {
@@ -409,6 +411,8 @@ function updateNavigationButtons() {
     if (window.CodeMapUI && typeof window.CodeMapUI.onChain === 'function') {
         window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id);
     }
+    // a turn gone back to on another chain is left, and the composer is no hint's (branch.js) - before the brief's hold reads it
+    if (window.BranchUI) window.BranchUI.onChain(responses[currentResponseIndex]);
     // a brief not yet run holds the composer while it is on screen (2026-11-15)
     if (window.ArchitectUI) window.ArchitectUI.onChain(responses[currentResponseIndex]);
 }

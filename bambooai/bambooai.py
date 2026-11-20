@@ -360,6 +360,25 @@ class BambooAI:
         reran, err = cells_again(self._kernel, kept)
         return self._kernel, reran, err
 
+    def _closing_card(self, run, budget, rep=None):
+        """The pane's closing card for a run that ended or was stopped: its counts, what its replay said, the datasets
+        it saved, what its cells reached - and whether it has turns to go on from, for the page's Turn map."""
+        rep = rep or {}
+        files = [{'path': f, 'name': str(f).split('/')[-1]} for f in (rep.get('datasets') or [])]
+        if files:
+            self._pane('pane_datasets', files=files)
+        replay_line = ''
+        if run.report and '> Replay' in run.report:
+            replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
+        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review') and not getattr(t, 'step', '')]),
+                   cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error and not getattr(t, 'refused', '')),
+                   refused=sum(1 for t in run.turns if t.kind == 'cell' and getattr(t, 'refused', '')),     # not run, not failed (2026-10-28)
+                   cost=round(self._chain_cost(), 3),
+                   seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns if not t.kept), 1),   # a branch's own turns
+                   replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
+                   reaches=reach_mod.summary(run),                 # the reach report: what the cells touched outside the data (2026-10-28)
+                   turn_map=bool(branch_points(run)) and not run.figure_asked)   # it has turns to go on from: the page offers its Turn map (2.9)
+
     def _no_branch(self, src, turn, data_now):
         """Why no branch can go on from turn `turn` of run `src` - '' when one can (docs/BRANCH_DESIGN.md §2)."""
         if src is None:
@@ -1741,6 +1760,7 @@ class BambooAI:
             if run is not None:
                 run.status = "stopped"
                 self.store.save(self.notebook)
+                self._closing_card(run, budget)                # what it kept, and whether it has turns to go on from (2.9)
             return None
         except Exception as exc:                               # noqa: BLE001
             logger.exception("Analyst session failed")
@@ -1774,19 +1794,7 @@ class BambooAI:
 
         # what the reader sees: the tabs the browser already has
         rep = self._replay.pop(run.id, {})
-        files = [{'path': f, 'name': str(f).split('/')[-1]} for f in (rep.get('datasets') or [])]
-        if files:
-            self._pane('pane_datasets', files=files)
-        replay_line = ''
-        if run.report and '> Replay' in run.report:
-            replay_line = run.report.rsplit('> ', 1)[-1].strip().splitlines()[0]
-        self._pane('pane_run_end', status=run.status, turns=len([t for t in run.turns if t.kind not in ('rewrite', 'review') and not getattr(t, 'step', '')]),
-                   cells_of=budget.turns, cells=len(run.cells()), failed=sum(1 for t in run.turns if t.kind == 'cell' and t.error and not getattr(t, 'refused', '')),
-                   refused=sum(1 for t in run.turns if t.kind == 'cell' and getattr(t, 'refused', '')),     # not run, not failed (2026-10-28)
-                   cost=round(self._chain_cost(), 3),
-                   seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns if not t.kept), 1),   # a branch's own turns
-                   replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
-                   reaches=reach_mod.summary(run))                 # the reach report: what the cells touched outside the data (2026-10-28)
+        self._closing_card(run, budget, rep)
         if run.status == "asked":
             asked = next((t.text for t in reversed(run.turns) if t.kind == "ask"), "")
             self.output_manager.display_results(chain_id=self.chain_id, answer=asked, plan=self._notebook_view(run))

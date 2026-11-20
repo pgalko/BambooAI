@@ -130,6 +130,13 @@
 .left-panel .icon-row .ar-switch:hover { color: var(--text-primary); }
 .left-panel .icon-row .ar-switch.on { color: var(--c-model); border-color: var(--chip-model-border); background: var(--accent-bg-hover); }
 .left-panel .icon-row .ar-switch svg { width: 14px; height: 14px; }
+/* a turn gone back to (branch.js; docs/BRANCH_DESIGN.md §5): the composer takes a hint. The row under it says from which turn, in the place
+   of the mode, the Architect's switch and the files - a branch takes those from the analysis it goes on from */
+body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-panel #modeSliderPopup, body.br-hint .left-panel .icon-row .ar-switch { display: none !important; }
+.left-panel .icon-row .br-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; box-sizing: border-box; padding: 0 4px 0 9px; margin: 0 0 0 2px; border: 1px solid var(--chip-model-border); border-radius: 7px; background: var(--accent-bg-hover); color: var(--c-model); font-family: var(--font-ui); font-size: var(--fs-meta); white-space: nowrap; }
+.left-panel .icon-row .br-chip svg { width: 13px; height: 13px; }
+.left-panel .icon-row .br-chip button { width: 18px; height: 18px; padding: 0; border: none; border-radius: 4px; background: none; color: inherit; font: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
+.left-panel .icon-row .br-chip button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 /* the send / stop button */
 .left-panel #submitQuery { position: absolute; right: 8px; bottom: 8px; top: auto; left: auto; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 6px; border: none; background: var(--c-model); color: var(--bg-primary); display: grid; place-items: center; cursor: pointer; transition: none; box-shadow: none; }
 .left-panel #submitQuery:hover { background: var(--accent-hover); color: var(--bg-primary); transform: none; }
@@ -243,8 +250,8 @@
 #workflowMapModal .details-plot-preview img { max-width: 100%; border-radius: var(--r-1); border: 1px solid var(--border-color); }
 #workflowMapModal .plot-preview-message { font-size: var(--fs-small); color: var(--text-quaternary); }
 #workflowMapModal .map-drawer-foot { display: flex; align-items: center; padding: 10px 14px; margin: 0; border: none; border-top: 1px solid var(--border-color); background: none; }
-#workflowMapModal.steps .map-drawer-foot { display: none; }      /* the drawer as the map of a brief's conversation (architect.js): the thread's buttons are not its own */
-#workflowMapModal.steps .wf-node-chain { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }      /* ... and a box's second line is words - what the step changed: one line, in the page's type */
+#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }      /* the drawer as the map of a brief's conversation (architect.js), or of an analysis's turns (branch.js): the thread's buttons are not its own */
+#workflowMapModal.steps .wf-node-chain, #workflowMapModal.turns .wf-node-chain { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }      /* ... and a box's second line is words - what the step changed, which turn it is: one line, in the page's type */
 #workflowMapModal .workflow-actions-container { display: flex; gap: 8px; width: 100%; }
 #workflowMapModal .workflow-actions-container .ui-btn { flex: 1; justify-content: center; }
 #workflowMapModal .workflow-actions-container .ui-btn:disabled { opacity: .4; cursor: default; }
@@ -276,6 +283,7 @@
 #workflowMapModal .wf-path-active .wf-node:not(.wf-node--ancestor):not(.wf-node--active) { opacity: .45; }
 /* how a box's question was made (docs/ARCHITECT_DESIGN.md §2.9, 2026-11-15): a tag on the box's top edge - Architect, or a brief not yet run */
 #workflowMapModal .wf-node-made { position: absolute; top: -8px; right: 8px; padding: 0 6px; border: 1px solid var(--chip-model-border); border-radius: 8px; background: var(--bg-primary); font-family: var(--font-ui); font-size: 9.5px; line-height: 14px; color: var(--c-model); }
+#workflowMapModal .wf-node-branches { position: absolute; top: -8px; left: 8px; padding: 0 6px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); font-family: var(--font-ui); font-size: 9.5px; line-height: 14px; color: var(--text-secondary); }      /* an analysis that went on more than one way: how many branches (branch.js) */
 #workflowMapModal .wf-node--notrun { border-style: dashed; }
 #workflowMapModal .wf-node--notrun .wf-node-label { color: var(--text-tertiary); }
 #workflowMapModal .wf-node--notrun .wf-node-made { border-color: var(--border-color); color: var(--text-tertiary); }

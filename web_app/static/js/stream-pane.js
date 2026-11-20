@@ -10,18 +10,20 @@
 //
 // Server events handled here (all carry chain_id):
 //   id               -> paneIds
-//   pane_run_start   -> paneRunStart     {mode, of}
-//   pane_turn_start  -> paneTurnStart    {turn, of, seat, model}
+//   pane_run_start   -> paneRunStart     {mode, of, branch:{of, turn, hint}}    branch: the run goes on from a turn of another (2.9)
+//   pane_turn_start  -> paneTurnStart    {turn, of, seat, model, kept}           kept: a turn a branch keeps from the chain it went on from
 //   text (token)     -> paneToken        content tokens of the live turn
 //   thought (token)  -> paneThought      reasoning-channel tokens of the live turn
-//   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code}
-//   pane_cell        -> paneCell         {cell_no, ok, skipped, refused, peek, elapsed, chars, figs, error_line, reach:{text,tag,title}}
+//   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code, kept}
+//   pane_cell        -> paneCell         {cell_no, ok, skipped, refused, peek, elapsed, chars, figs, error_line, reach:{text,tag,title}, kept}
+//                                        kept: 'kept', or 'differs' - run again in a new kernel, it printed something else
 //   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row
 //   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote,original}]}
 //   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
-//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded}}
+//   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded},
+//                                         turn_map}    turn_map: it has turns to go on from - the strip gets the button to its Turn map (branch.js)
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -87,6 +89,9 @@
     }
     const ICON_SEARCH = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
     const ICON_MAP = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.2"/><rect x="14" y="15" width="7" height="6" rx="1.2"/><path d="M10 6h5a3 3 0 0 1 3 3v6"/></svg>';
+    // a branch: the Git branch mark (the Turn map's button, the row of a hint)
+    const ICON_BRANCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
+        '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
     const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
 
     // ------------------------------------------------------------ builders (pure: return HTML)
@@ -107,9 +112,19 @@
             return '<span class="live"></span>' +
                 (h.mode ? '<span class="mode">' + esc(h.mode) + '</span>' : '') +
                 '<span>turn <b>' + esc(h.turn || 0) + '</b>' + (h.of ? ' of ' + esc(h.of) : '') + '</span>' +
+                (h.turnMap ? build.turnMap() : '') +
                 '<span class="bar"><i style="width:' + pct + '%"></i></span>' +
                 '<span>' + fmtCost(h.spent) + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
+        },
+        // the way to the map of an analysis's turns (branch.js), beside their count: the Architect's steps have theirs beside
+        // the arrows. The number is how many branches the analysis has - branch.js writes it when the chain comes on screen
+        turnMap() {
+            return '<button type="button" class="sp-turnmap" title="Turn map" aria-label="Turn map" onclick="if(window.BranchUI)BranchUI.openMap()">' + ICON_BRANCH + '<span class="n"></span></button>';
+        },
+        // what the person said when they went back to a turn: the row stands where the branch's own turns begin
+        hint(b) {
+            return '<div class="sp-hint">' + ICON_BRANCH + '<b>From turn ' + esc(b.turn) + '</b><span>' + esc(b.hint) + '</span></div>';
         },
         runIds(d) {
             const v = (k, val) => '<span><span class="k">' + k + '</span><span class="v">' + esc(val || 'N/A') + '</span></span>';
@@ -120,12 +135,12 @@
             const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' :
                           (t.turn === 'figures' ? 'Figures' + (t.attempt > 1 ? ' · correction ' + esc(t.attempt - 1) : '') : esc(t.turn))))));
             const seatModel = t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : '';
-            return '<details class="sp-turn live' + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
+            return '<details class="sp-turn live' + (t.kept ? ' kept' : '') + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet || t.kept ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
                 (t.review ? ' data-review="1" data-seat-model="' + seatModel + '"' : '') + '>' +
                 '<summary><span class="chev"></span><span class="n">' + label + (t.review && t.turn !== 'review' ? ' · review' : '') + '</span>' +
                 '<span class="kind">' + (t.quiet ? 'working…' : 'thinking…') + '</span><span class="peek"></span>' +
                 '<span class="meta">' + (t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : 'streaming') + '</span>' +
-                (t.seat && t.chain_id ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt this turn received (run log)" data-agent="' + esc(t.seat) + '" data-chain="' + esc(t.chain_id) + '" data-call="' + esc(t.call || 1) + '" onclick="event.preventDefault();">⌘</button>' : '') +
+                (t.seat && t.chain_id && !t.kept ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt this turn received (run log)" data-agent="' + esc(t.seat) + '" data-chain="' + esc(t.chain_id) + '" data-call="' + esc(t.call || 1) + '" onclick="event.preventDefault();">⌘</button>' : '') +
                 '</summary>' +
                 '<div class="sp-think"><span class="cursor"></span></div>' +
                 '<details class="sp-reasoning"><summary><span class="chev"></span>reasoning</summary><pre class="sp-reasoning-body"></pre></details>' +
@@ -144,14 +159,15 @@
             // a cell the session did not run (2026-10-11: a figure cell during the analysis - figures come after the report)
             const skipped = ok && !!c.skipped;
             const badge = skipped || refused ? 'In&nbsp;[&ndash;]' : (ok ? 'In&nbsp;[' + esc(c.cell_no) + ']' : 'In&nbsp;[&times;]');
-            const meta = [c.elapsed != null ? fmtSecs(c.elapsed) : '', ok && !skipped && c.chars != null ? Number(c.chars).toLocaleString() + ' chars' : '',
+            const again = c.kept === 'differs';      // a cell a branch keeps, run again in a new kernel: it printed something else than the first time
+            const meta = [again ? 'run again: output changed' : '', c.elapsed != null ? fmtSecs(c.elapsed) : '', ok && !skipped && c.chars != null ? Number(c.chars).toLocaleString() + ' chars' : '',
                           ok && c.figs ? c.figs + ' fig' : '', !ok && !refused ? 'rolled back' : '', skipped || refused ? 'not run' : ''].filter(Boolean).join(' · ');
             // what the cell touched outside the data, as one tag after the peek (2026-10-28); the kernel's colour when the question did not ask for it
             const reach = c.reach && c.reach.text ? '<span class="reach' + (c.reach.tag === 'asked' ? '' : ' unasked') + '" title="' + esc(c.reach.title || '') + '">' + esc(c.reach.text) + '</span>' : '';
-            return '<div class="sp-row' + (ok || refused ? '' : ' fail') + (skipped ? ' skipped' : '') + (refused ? ' restricted' : '') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
+            return '<div class="sp-row' + (ok || refused ? '' : ' fail') + (skipped ? ' skipped' : '') + (refused ? ' restricted' : '') + (c.kept ? ' kept' : '') + (again ? ' differs' : '') + '"' + (ok && c.cell_no ? ' data-cell="' + esc(c.cell_no) + '" title="open on the Investigation tab" onclick="if(typeof paneOpenCell===\'function\')paneOpenCell(' + esc(c.cell_no) + ')"' : '') + '>' +
                 '<span>' + (skipped ? '–' : (refused ? '⊘' : (ok ? '✓' : '✗'))) + '</span><span class="in">' + badge + '</span>' +
                 '<span class="out">' + esc(refused ? ('not run: restricted operation (' + c.refused + ')') : (ok ? (c.peek || '(no output)') : (c.error_line || 'failed'))) + '</span>' + reach +
-                '<span class="t">' + esc(meta) + '</span></div>';
+                '<span class="t"' + (again ? ' title="Run again in a new kernel, this cell printed something else than the first time. The Analyst is told."' : '') + '>' + esc(meta) + '</span></div>';
         },
         lookupStart(l) {
             // a READ or SEARCH in progress (2026-10-03): the row pulses until paneLookup replaces it
@@ -264,6 +280,7 @@
     let lastStrip = null;          // the last heartbeat, so the strip can be re-rendered
     let liveCard = null;           // the open turn card, while streaming
     let liveRaw = '';              // its content tokens so far
+    let hint = null;               // a branch's hint, until its row is written: {turn, hint}
     let noteSeen = false;          // the reply reached its structured part
     const TOOL_CALL = /<(?:invoke|function_calls)\b/;     // a tool call in a model's own markup (analyst/session.py, 2026-10-18)
 
@@ -301,13 +318,17 @@
         lastStrip = Object.assign({}, lastStrip || {}, h);
         strip.style.display = '';
         strip.innerHTML = build.strip(lastStrip);
+        if (lastStrip.of) strip.setAttribute('data-of', lastStrip.of);      // the run's limit of turns, for the page (branch.js: how many are left after a turn)
     }
     window.paneRunStart = function (ev) {
         lastStrip = null;
         Object.keys(unitPassages).forEach(k => delete unitPassages[k]);
         renderStrip({ mode: ev.mode, turn: 0, of: ev.of, spent: 0, dollars: ev.dollars, estimate: '' });
         liveCard = null; liveRaw = ''; noteSeen = false;
+        hint = ev.branch && ev.branch.hint ? { turn: ev.branch.turn, hint: ev.branch.hint } : null;
     };
+    // the hint's row, once: under the turns the branch keeps, over its own
+    function hinted() { if (hint) { append(build.hint(hint)); hint = null; } }
     window.paneHeartbeat = function (h) { renderStrip(h); };
     // a routine's run in the pane (S4): its id line, its strip, its closing card
     window.paneRunIds = function (d) {
@@ -324,6 +345,7 @@
     };
     window.paneTurnStart = function (t) {
         window.paneTurnEnd({ turn: -1 });            // a card left open by a lost turn closes quietly
+        if (!t.kept) hinted();
         if (typeof t.turn === 'number' && lastStrip) renderStrip({ turn: t.turn });
         // which call of this seat this card is, within the chain (2026-09-10): the prompt button asks the run log
         // for exactly this call, not the seat's first one; cards and log entries are appended in the same order
@@ -365,8 +387,9 @@
         const card = liveCard; liveCard = null;
         card.classList.remove('live');
         if (t.turn === -1) { card.classList.add('lost'); card.removeAttribute('open'); return; }
-        // a reply with a tool call in it: its step is the one the session read, not the stream (the call and its code)
-        if (TOOL_CALL.test(liveRaw)) {
+        // a reply with a tool call in it: its step is the one the session read, not the stream (the call and its code);
+        // a kept turn streamed nothing here: its step is the one on the record
+        if (t.kept || TOOL_CALL.test(liveRaw)) {
             const th = card.querySelector('.sp-think'); if (th) th.textContent = t.thinking || '';
         }
         const kind = card.querySelector('summary .kind'); if (kind) kind.textContent = kindLabel(t.kind);
@@ -374,8 +397,8 @@
         if (peek) peek.textContent = t.peek || stepSentence(t.thinking, 120) || firstCodeLine(t.code);
         const meta = card.querySelector('summary .meta');
         // a self-review turn keeps its seat and model on the finished card (2026-09-10): the Reviewer's model is visible
-        if (meta) meta.textContent = [t.elapsed != null ? fmtSecs(t.elapsed) : '', t.cost != null ? fmtCost(t.cost) : '',
-                                      card.dataset.review === '1' ? (card.dataset.seatModel || '') : ''].filter(Boolean).join(' · ');
+        if (meta) meta.textContent = t.kept ? 'kept' : [t.elapsed != null ? fmtSecs(t.elapsed) : '', t.cost != null ? fmtCost(t.cost) : '',
+                                                        card.dataset.review === '1' ? (card.dataset.seatModel || '') : ''].filter(Boolean).join(' · ');
         const think = card.querySelector('.sp-think');
         if (think) { const c = think.querySelector('.cursor'); if (c) c.remove(); if (!think.textContent.trim()) think.remove(); }
         const detail = card.querySelector('.sp-detail');
@@ -457,7 +480,8 @@
     window.paneRunEnd = function (r) {
         window.paneTurnEnd({ turn: -1 });
         const p = ensure(); if (!p) return;
-        if (lastStrip) renderStrip({ turn: r.turns, spent: r.cost != null ? r.cost : lastStrip.spent });
+        hinted();                                    // a branch that ended before a turn of its own: its hint is said all the same
+        if (lastStrip) renderStrip({ turn: r.turns, spent: r.cost != null ? r.cost : lastStrip.spent, turnMap: !!r.turn_map });
         const strip = p.querySelector('.sp-strip');
         if (strip) { const live = strip.querySelector('.live'); if (live) live.classList.add('idle'); }
         append(build.runEnd(r));

@@ -758,18 +758,25 @@ BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, image=_png)
 _evs = []
 while not q.empty(): _evs.append(json.loads(q.get()))
 _sys = [e.get("system_message") for e in _evs if e.get("system_message")]
+_map_blind = next((e for e in _evs if e.get("type") == "pane_run_end"), {}).get("turn_map")
 check("Ask AI about a plot with a model that does not take images: no image part in any call, the question goes alone, and the pane says the model does not take images",
       state["images"] and not any(state["images"]) and any("does not take images" in m for m in _sys) and "THE FIGURE THE PERSON ASKS ABOUT" not in state["calls"][-len(PLOTQ) - 1][1], (state["images"], _sys))
 FakeModels.multimodal = "true"
 state.update(i=0, script=PLOTQ, images=[]); BAMBOO.output_manager.add_user_input("What is the blue line?")
 BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, image=_png)
-while not q.empty(): q.get()
+_map_seen = None
+while not q.empty():
+    _ev = json.loads(q.get())
+    if _ev.get("type") == "pane_run_end": _map_seen = _ev.get("turn_map")
 _turns = [(a, "THE FIGURE THE PERSON ASKS ABOUT is attached" in u, i) for (a, u), i in zip(state["calls"][-len(state["images"]):], state["images"])]
 check("...with a model that takes images: the picture rides as an image part on each analysis turn, named in the prompt; the rewrite and the figures request go without it",
       [t[1:] for t in _turns if "TASK: turn" in state["calls"][-len(state["images"]):][_turns.index(t)][1]] == [(True, True)] * 2
       and all(not img for (a, u), img in zip(state["calls"][-len(state["images"]):], state["images"]) if "TASK: turn" not in u), (_turns, [u[:60] for a, u in state["calls"][-len(state["images"]):]]))
 _last = json.load(open(_runlog))[-1]
 check("...the run log keeps a placeholder for the picture, never the base64", not any(_png in json.dumps(e.get("messages")) for e in json.load(open(_runlog))[-4:]) and "<image, " in json.dumps(json.load(open(_runlog))[-3:]), json.dumps(_last.get("messages"))[-300:])
+check("the closing card says whether the analysis has turns to go on from (0320: the page offers its Turn map): not where the picture rode with the question - "
+      "no branch can be given it -, but where the model did not take it",
+      _map_seen is False and _map_blind is True, (_map_seen, _map_blind))
 FakeModels.multimodal = "false"
 
 # the search tool: the seam's structured links become the pills, intact (the grounding redirects break if a quote rides along)
@@ -2649,7 +2656,8 @@ try:
         finally:
             if stop_after_first:
                 BAMBOO.llm_stream = _stream
-        while not q.empty(): q.get()
+        _chain.sent = []                                     # what the page was sent for it
+        while not q.empty(): _chain.sent.append(json.loads(q.get()))
         return BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 
     def _makes(name):
@@ -2761,7 +2769,8 @@ try:
           and _start.get("branch") == {"of": int(_first.id), "turn": 2, "hint": "keep the two apart"} and (_start.get("mode"), _start.get("of")) == ("Deep", _first.budget["turns"])
           and _cards == [(1, True), (2, True), (3, False), (4, False)] and _ends == [True, True, False, False] and _rows == [(1, "kept"), (2, "kept"), (3, None)]
           and [m.get("elapsed") for m in _sent if m.get("type") == "pane_cell"] == [c.elapsed for c in _b.cells()]
-          and (_end.get("turns"), _end.get("cells")) == (4, 3) and _end.get("seconds") < 7, (_id, _start, _cards, _ends, _rows, _end.get("turns"), _end.get("seconds")))
+          and (_end.get("turns"), _end.get("cells")) == (4, 3) and _end.get("seconds") < 7 and _end.get("turn_map") is True,
+          (_id, _start, _cards, _ends, _rows, _end.get("turns"), _end.get("seconds"), _end.get("turn_map")))
     _bb, _sent_bb, _ = _go_on([_REPORT], _b.id, 1, "from a turn the branch kept")
     _id_bb = next((m for m in _sent_bb if m.get("type") == "id"), {})
     check("0319: a branch that goes on from a turn its chain kept from another is a branch of that other chain: its record says so, and the page is told so",
@@ -2809,9 +2818,14 @@ try:
           _s is not None and BAMBOO._kernel is _ks and _ks.last_goto["step"] == 0 and _s.cells()[-1].stdout.strip() == "made there: False"
           and "YOUR LAST CELL FAILED" in _ps[0] and _s.turns[0].kept == "kept", (_s and _s.cells()[-1].stdout, _ks.last_goto))
     _halt = _chain([_cell("half = 1\nprint('half')"), _cell("rest = 1\nprint('rest')"), _REPORT], _talk.id, stop_after_first=True)
+    _map_halt = next((m for m in _chain.sent if m.get("type") == "pane_run_end"), {}).get("turn_map")
     _h, _, _ = _go_on([_cell("print('goes on:', 'half' in globals(), 'rest' in globals())"), _REPORT], _halt.id, 1)
     check("0319: an analysis the person stopped can be gone on from a turn it kept", _halt.status == "stopped" and _h is not None and _h.status == "answered"
           and _h.cells()[-1].stdout.strip() == "goes on: True False", (_halt.status, _h and _h.cells()[-1].stdout))
+    _chain([_REPORT], _talk.id)
+    _map_none = next((m for m in _chain.sent if m.get("type") == "pane_run_end"), {}).get("turn_map")
+    check("0320: the closing card of a stopped analysis that kept a turn offers the Turn map; one whose first reply was its report has no turn to go on from, and offers none",
+          _map_halt is True and _map_none is False, (_map_halt, _map_none))
     _two = _chain([_cell("aa = 1\nprint('aa')"), _cell("bb = 2\nprint('bb')"), _REPORT], _talk.id)
     _send = BAMBOO.output_manager.send_chain_id
     def _no_page(*a, **kw):

@@ -36,7 +36,8 @@ function initializeMainQuerySubmission() {
 
 // options.typed: the composer's own send; options.framed: the chain whose brief is being started (architect.js), with
 // options.step, the step of its conversation on screen, from which the analysis starts - under the brief that stands there;
-// options.next: the next question the analysis is started from (next-questions.js) - run as it stands, with no brief
+// options.next: the next question the analysis is started from (next-questions.js) - run as it stands, with no brief.
+// With a turn gone back to (branch.js) what is typed is a hint: the analysis on screen goes on from that turn, another way
 function handleQuerySubmit(options = {}) {
     const { synthesis, image, typed, framed, next, step } = options;
     const queryInput = document.getElementById('queryInput');
@@ -60,7 +61,11 @@ function handleQuerySubmit(options = {}) {
     }
     if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;      // a set of next questions is being written: nothing starts beside it
 
-    if (window.ArchitectUI && !framed) {
+    // a turn gone back to: the branch the hint starts - in the mode, under the limits and the brief of the analysis it
+    // goes on from, so the Architect is not asked
+    const branch = typed && window.BranchUI ? window.BranchUI.hint(query) : null;
+
+    if (window.ArchitectUI && !framed && !branch) {
         // a brief not yet run is on screen: what is typed is said to the Architect, and nothing else starts from it
         if (window.ArchitectUI.framingInView()) {
             answerTabSynthesis = false;
@@ -96,8 +101,9 @@ function handleQuerySubmit(options = {}) {
     if (synthesis) {
         currentData.queryText = 'Synthesis of exploration results';
     } else {
-        currentData.queryText = query;
+        currentData.queryText = branch ? branch.question : query;      // a branch is its analysis's question, asked another way
     }
+    currentData.branch = branch ? { of: branch.of, turn: branch.turn, hint: query } : null;      // kept with the chain (saveCurrentResponse)
 
     if (typeof liveState !== 'undefined' && liveState.running && liveState.away) liveComeBack();   // a new run takes the view
     const streamOutputDiv = document.getElementById('streamOutput');
@@ -106,6 +112,7 @@ function handleQuerySubmit(options = {}) {
         clearAllTabs();
     }
     if (typeof beginLiveChain === 'function') beginLiveChain(framed);   // the running chain is navigable from now on (2026-09-09)
+    if (branch) window.BranchUI.started(branch);
     if (framed) window.ArchitectUI.started(framed);
     if (next) window.NextQuestionsUI.started(next);
 
@@ -134,6 +141,7 @@ function handleQuerySubmit(options = {}) {
     if (image) requestBody.image = image;
     if (framed) requestBody.run_id = framed.chain_id;   // the analysis continues the run its brief was written in
     if (framed && step) requestBody.step = step;               // ... from the step of its conversation on screen
+    if (branch) requestBody.branch = { turn: branch.turn };    // the chain on screen goes on from that turn; the query is the hint
 
     let streaming = false;      // the server has started the run
 
@@ -164,6 +172,7 @@ function handleQuerySubmit(options = {}) {
                 setQueryRunning(false);
             }
             if (framed) window.ArchitectUI.notStarted(framed);      // the chain is a brief again
+            if (branch) window.BranchUI.notStarted();               // the chain is at its turn again, the hint in the composer
             return;
         }
         
@@ -188,9 +197,8 @@ function handleQuerySubmit(options = {}) {
                         setQueryRunning(false);
                     }
         
-                    if (typeof saveCurrentResponse === 'function') {
-                        saveCurrentResponse();
-                    }
+                    if (branch && window.BranchUI.unstarted()) window.BranchUI.notStarted();      // the server started no branch, and said why: nothing of the request is kept
+                    else if (typeof saveCurrentResponse === 'function') saveCurrentResponse();
                     return;
                 }
                 const chunk = decoder.decode(value);
@@ -217,6 +225,7 @@ function handleQuerySubmit(options = {}) {
             setQueryRunning(false);
         }
         if (framed && !streaming) window.ArchitectUI.notStarted(framed, error.message);      // the server did not start it: a brief again
+        if (branch && !streaming) window.BranchUI.notStarted(error.message);
     });
 }
 
@@ -249,6 +258,7 @@ function processChunk(chunk) {
                     // map is drawn from the record instead of a parent computed here.
                     if ('parent_chain_id' in data) lastActiveChainId = data.parent_chain_id;
                     if (typeof paneIds === 'function') paneIds(data);
+                    if (window.BranchUI) window.BranchUI.announced(data);      // a branch asked for: the server has started it
                     if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);      // the run is on: the question that started it is marked on its card
                 }
                 else if (data.type === "html") { /* the search seam's SERP preview: retired, nothing renders it (2026-09-06) */ }
@@ -308,6 +318,7 @@ function processChunk(chunk) {
                     showSystemMessage(data.system_message);
                     if (typeof paneSystem === 'function') paneSystem(data.system_message);
                 } else if (data.error) {
+                    if (window.BranchUI) window.BranchUI.heard(data.error);      // why a branch was not started, where one was asked for
                     if (typeof paneSystem === 'function') paneSystem(data.error, 'error');
                     else streamOutputDiv.innerHTML += '<div class="sp-sys error">' + escapeHtml(String(data.error)) + '</div>';
                 } else if (data.type && data.type !== 'end' && data.type !== 'id') {

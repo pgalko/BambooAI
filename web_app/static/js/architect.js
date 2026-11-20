@@ -101,9 +101,10 @@
         pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
         ok: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
         x: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-        // the thread map's own mark (index.html, the rail): boxes joined by lines
-        map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/>' +
-            '<rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg>'
+        // the Git branch mark, as on the button to an analysis's Turn map (stream-pane.js): a map of ways gone, where the
+        // thread map keeps its own - boxes joined by lines (2.9, the product owner's choice)
+        map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
+            '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>'
     };
 
     // ------------------------------------------------------------ helpers
@@ -1016,6 +1017,7 @@
         const words = all.map(s => stepWords(framing, s, held[s.k]));
         const forks = all.filter(s => all.filter(x => x.from === s.k).length > 1).length;
         const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
+        drawer.classList.remove('turns');                      // the drawer may last have held the map of an analysis's turns (branch.js)
         drawer.classList.add('steps');                         // the thread's own buttons are not this map's
         drawer.setAttribute('data-chain', st.chain);
         drawer.querySelector('h2').textContent = WORDS.map;

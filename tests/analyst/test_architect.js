@@ -940,6 +940,14 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('the analysis begins: the framing is one row above the run, which names the step it started from; the Brief tab is made again to be read, with its framing',
     rows.length === 1 && el(rows[0]).querySelector('details.ar-fold .kind').textContent === 'brief · step ' + entry.framing.versions.length && tabs[0][0] === 'brief' && stays.getAttribute('data-state') === 'run'
     && !stays.querySelector('.pen') && !stays.querySelector('[data-ar="start"]') && same(JSON.parse(stays.getAttribute('data-framing')), entry.framing), rows);
+  // a branch of this analysis (branch.js) runs under the same brief: its chain is given the framing as the Brief tab keeps it, with its own ids and the question
+  const r0 = rows.length, t0 = tabs.length;
+  A.started({ framing: JSON.parse(stays.getAttribute('data-framing')), chain_id: 72, thread_id: 7, queryText: entry.queryText });
+  const ofBranch = { fold: el(rows[r0]).querySelector('details.ar-fold'), tab: el(tabs[t0][1]).querySelector('.ar-brief') };
+  rows.length = r0; tabs.length = t0;
+  check('a branch of a framed analysis: from the framing its Brief tab keeps, the new chain and the question, the fold stands above the branch\'s run and the Brief tab is made for that chain, to be read',
+    ofBranch.fold.querySelector('.kind').textContent === 'brief · step ' + entry.framing.versions.length && ofBranch.fold.querySelector('.peek').textContent === entry.queryText
+    && ofBranch.tab.getAttribute('data-state') === 'run' && ofBranch.tab.getAttribute('data-chain') === '72' && same(JSON.parse(ofBranch.tab.getAttribute('data-framing')), entry.framing));
   updateNavigationButtons();
   check('the composer is free once the brief runs (its send is the run\'s Stop)', same(locks[locks.length - 1], ['unlock']));
   // the server did not start it
@@ -1817,7 +1825,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);
   const graph = js('workflowGraph.js');
   check('the thread map: a box says how its question was made; a brief not yet run has no code map to open',
-    graph.includes("var made = !of && window.ArchitectUI ? window.ArchitectUI.mark(resp) : '';") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
+    graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
     && graph.includes("if (!of && resp && resp.chain_id && made !== 'not run') {"));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
   check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and - on it since 0312, in the answer no more - the card of what the '
@@ -1875,9 +1883,9 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     + 'foot; the button is styled in tabs.css beside the arrows, and the thread\'s buttons are out of the drawer while it holds the steps; the drawing is told what is the map\'s own in its '
     + 'last argument, and the thread map tells it nothing; the words are plain ones; the module gives go() and the steps, and nothing of 0308\'s use()',
     ['id="workflowMapModal"', '<h2>Thread map</h2>', 'id="mapDrawerSub"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t))
-    && wm.includes("modal.classList.remove('steps');") && wm.includes("modal.querySelector('h2').textContent = 'Thread map';") && wm.includes('WorkflowGraph.render(container, responses, currentResponseIndex);')
-    && tabsCss.includes('#content-brief .ar-ver .ar-map {') && tabsCss.includes('#content-brief .ar-ver button:disabled {') && shell.includes('#workflowMapModal.steps .map-drawer-foot { display: none; }')
-    && /#workflowMapModal\.steps \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
+    && wm.includes("modal.classList.remove('steps');") && wm.includes("modal.querySelector('h2').textContent = 'Thread map';") && wm.includes('WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);')
+    && tabsCss.includes('#content-brief .ar-ver .ar-map {') && tabsCss.includes('#content-brief .ar-ver button:disabled {') && shell.includes('#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }')
+    && /#workflowMapModal\.steps \.wf-node-chain, #workflowMapModal\.turns \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
     && graph.includes('function render(container, responses, activeIndex, of) {') && graph.includes('if (of) { of.pick(resp, idx); return; }')
     && graph.includes('if (of) of.show(resp, idx); else updateDetailPane(idx, resp, nodeContents, nodePlots, responses);') && graph.includes("chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;")
     && ["map: 'Conversation map',", "mapHover: 'Hover over a step to read what was said', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',",

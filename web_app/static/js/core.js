@@ -319,6 +319,11 @@ function continueAppInitialization() {
         window.ArchitectUI.initialize();
     }
 
+    // Branches (docs/BRANCH_DESIGN.md §5): the Turn map behind the strip's button, the composer as a hint's
+    if (typeof window.BranchUI !== 'undefined' && typeof window.BranchUI.initialize === 'function') {
+        window.BranchUI.initialize();
+    }
+
     // Next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on a finished analysis' closing card, the cards under it
     if (typeof window.NextQuestionsUI !== 'undefined' && typeof window.NextQuestionsUI.initialize === 'function') {
         window.NextQuestionsUI.initialize();
