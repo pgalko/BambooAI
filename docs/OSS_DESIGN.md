@@ -311,7 +311,15 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-17: 2.8.0 (patches 0294-0306).** The Architect and memory from saved analyses
+- **Status 2026-11-20: 2.8.1 (patches 0316-0317).** The conversation with the Architect in steps, with a map of
+  them (docs/ARCHITECT_DESIGN.md §2.25). What the person says or changes, with the Architect's reply, is a step.
+  They go back to any step - with the arrows on the Brief tab, or on a map of the steps in the thread map's
+  drawer - and go on from it: another way, of which the Architect reads the conversation up to that step and
+  nothing after. The way that was left stays on the map, to go back to and to go on from. Both panes show the
+  step on screen; an analysis starts from it, and the run - and memory, once it is saved - keep the way that ran.
+  Also in it: the OpenAI adapter reports an API error that has no JSON body - a timeout, a dropped connection - as
+  that error (the public pull request 65). Image v74 stands; no migration.
+- **Status 2026-11-19: 2.8.0 (patches 0294-0315).** The Architect and memory from saved analyses
   (docs/ARCHITECT_DESIGN.md). An optional step before an analysis frames the question with the person: it talks as
   a tutor would, says the question back in plain words (0306), and writes a brief - the decision, what they think
   and expect, what the view rests on, other explanations, what is fixed. It checks what the brief rests on against
@@ -322,7 +330,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   analyses, with the brief and the conversation of a framed one, read by a model with code in a sandbox and by a
   second model on pieces, quoted exactly and checked against the record, and reached through the Architect; the
   Analyst opens only what the person ticked. Save as favourite is one click. Three optional seats (`Architect`,
-  `Memory Reader`, `Memory Pieces`). Image v74 stands; no migration.
+  `Memory Reader`, `Memory Pieces`). Image v74 stands; no migration. From the product owner's live tests before
+  the tag (0307-0315): the question changes as the conversation goes and the brief shows only the parts that hold
+  something; a saved analysis is built on by answering the Architect; the figures of a brief are drafted before
+  the run; what the report says against the brief is on the Brief tab and not in the Answer; the question is read
+  as the Analyst will read it before an analysis starts; next questions are a panel in the closing card.
 - **Status 2026-11-14: 2.7.4 (patches 0291-0293).** Routines across athletes and without data
   (docs/ROUTINES_DESIGN.md §23, §24). The Summary's *All athletes* sets each athlete's run of one week, month or set
   of dates side by side and offers the run where there is none; the position by the arrows counts the athlete's own
