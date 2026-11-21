@@ -309,12 +309,12 @@ function continueAppInitialization() {
         window.CodebookUI.initialize();
     }
 
-    // The code map (docs/CODEMAP_DESIGN.md): the modal behind the closing card's button and the Workflow map's eye
+    // The code trace (docs/CODEMAP_DESIGN.md): the modal behind the closing card's button and the Workflow map's eye
     if (typeof window.CodeMapUI !== 'undefined' && typeof window.CodeMapUI.initialize === 'function') {
         window.CodeMapUI.initialize();
     }
 
-    // The Architect (docs/ARCHITECT_DESIGN.md §2.8): the switch beside the mode control, the Brief tab's clicks
+    // The Pathfinder (docs/ARCHITECT_DESIGN.md §2.8): the switch beside the mode control, the Brief tab's clicks
     if (typeof window.ArchitectUI !== 'undefined' && typeof window.ArchitectUI.initialize === 'function') {
         window.ArchitectUI.initialize();
     }

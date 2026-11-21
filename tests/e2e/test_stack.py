@@ -68,7 +68,7 @@ def usage_rows(wa, edition, user):
     return [dict(r) for r in c.execute("select * from usage where bamboo_user_id = ?", (user,))]
 
 
-# ---- the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14): the helpers of its section ----
+# ---- the Pathfinder (docs/ARCHITECT_DESIGN.md §2.11-§2.14): the helpers of its section ----
 def brief_on_screen(page):
     """The Brief tab as the coach sees it: the step on screen of how many on its way and the name of the button to the map beside the arrows, the parts that hold something - a part with nothing in it has no line - and what can be changed; each line the brief
     rests on with its mark, the fact beside it and whether the fact is in red; each other explanation with what it would show, its box - ticked, unticked or none - and who brought it in; the one
@@ -106,12 +106,12 @@ def brief_type(page, path, text):
 
 
 def talk_on_screen(page, within="#streamOutput"):
-    """The conversation as the coach sees it: who said what, the choices on offer, the buttons to the Architect's prompts, and the rows that say the question was updated, and at which step -
+    """The conversation as the coach sees it: who said what, the choices on offer, the buttons to the Pathfinder's prompts, and the rows that say the question was updated, and at which step -
     each with what stands above it and under it."""
     return page.evaluate("""(within) => { const s = document.querySelector(within);
         const words = m => { const c = m.cloneNode(true); c.querySelectorAll('.who, .ar-choices').forEach(x => x.remove()); return c.textContent; };
         const cls = x => x ? x.className : '';
-        return { said: [...s.querySelectorAll('.ar-msg')].map(m => [m.classList.contains('arch') ? 'Architect' : 'You', words(m)]), choices: [...s.querySelectorAll('.ar-choice')].map(c => c.textContent),
+        return { said: [...s.querySelectorAll('.ar-msg')].map(m => [m.classList.contains('arch') ? 'Pathfinder' : 'You', words(m)]), choices: [...s.querySelectorAll('.ar-choice')].map(c => c.textContent),
                  notes: [...s.querySelectorAll('.sp-row.tool.read')].filter(r => /^(QUESTION|BRIEF)$/.test(r.children[1].textContent))
                      .map(r => [...r.children].slice(1).map(c => c.textContent).concat([cls(r.previousElementSibling), cls(r.nextElementSibling)])),
                  waiting: !!s.querySelector('.ar-msg.wait'), prompts: s.querySelectorAll('.ar-msg.arch .sp-prompt').length }; }""", within)
@@ -169,12 +169,12 @@ def steps_of(framing):
 
 
 def architect_said(page, n):
-    """Wait until the Architect has replied n times in the brief on screen and the composer is the coach's again."""
+    """Wait until the Pathfinder has replied n times in the brief on screen and the composer is the coach's again."""
     page.wait_for_function("(n) => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length === n && !document.getElementById('queryInput').disabled", arg=n, timeout=30000)
 
 
 def tell(page, text=None, choice=None, replies=1):
-    """Say something to the Architect as a coach does - type it and send it, or click a choice - and wait for its reply:
+    """Say something to the Pathfinder as a coach does - type it and send it, or click a choice - and wait for its reply:
     two of them where it has the data looked up and goes on."""
     n = page.evaluate("() => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length")
     if choice is not None:
@@ -198,7 +198,7 @@ def composer(page):
 def left_pane(page):
     """The left pane as the person sees it, with a turn gone back to or without (docs/BRANCH_DESIGN.md §5): the numbered turn cards in sight - each with whether
     the chain kept it from another -, how many cards the pane holds, the rows of hints in sight, whether the closing card is; the composer - the row of the turn
-    gone back to, its words, and whether the files' menu, the mode and the Architect's switch are in sight; the turn the page stands at; the arrows' count;
+    gone back to, its words, and whether the files' menu, the mode and the Pathfinder's switch are in sight; the turn the page stands at; the arrows' count;
     how long the tabs' markup is, and the answer's text."""
     return page.evaluate("""() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null;
         const s = document.querySelector('#streamOutput .sp-stream'), cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn]')];
@@ -228,15 +228,15 @@ def thread_run(wa, user, thread_id, run_id):
 
 
 def walk_architect(page, st, mod, wa, edition, user):
-    """A question typed with the Architect on opens its brief and runs nothing. The Architect fills the brief from the question
+    """A question typed with the Pathfinder on opens its brief and runs nothing. The Pathfinder fills the brief from the question
     and asks for what is missing, one question a message; the coach answers with a click or in words, and adds lines by hand.
-    With nothing left to ask the Architect has the data looked up and marks what the brief rests on: a line that does not
+    With nothing left to ask the Pathfinder has the data looked up and marks what the brief rests on: a line that does not
     hold (the planted false premise), one that holds, one that cannot be checked. With the marks it proposes another
     explanation, which the coach ticks. The coach keeps the view, asks for a change in words, and changes lines by hand;
     the arrows go through the steps of the conversation, and both panes show the one on screen.
     Start analysis runs the same chain under the brief. First with a measure the
     data does not have: the analyst stops and asks. The answer, typed with the switch still on, opens a brief that starts from
-    the last one; the Architect takes the answer into it, the analysis runs, and its report says how the result stands
+    the last one; the Pathfinder takes the answer into it, the analysis runs, and its report says how the result stands
     against the brief."""
     page.evaluate("handleNewConversation()")
     page.wait_for_url("**/?new=true", timeout=60000)
@@ -251,7 +251,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     counted = [month_queries(page)]             # the month's queries, read as the section goes
     asks = [ask for _, ask in mod.ARCHITECT_ASKS]
 
-    # the switch, then the question: its brief, the Architect's first turn, and nothing run
+    # the switch, then the question: its brief, the Pathfinder's first turn, and nothing run
     off = page.evaluate("() => document.getElementById('architectSwitch').getAttribute('aria-pressed')")
     page.click("#architectSwitch")
     page.fill("#queryInput", mod.BRIEF_QUESTION)
@@ -269,12 +269,12 @@ def walk_architect(page, st, mod, wa, edition, user):
     tid, cid = p1["thread"], p1["chain"]
     rec1 = thread_run(wa, user, tid, cid)
     new1 = usage_rows(wa, edition, user)[rows0:]
-    check("the Architect's switch, off until it is pressed; a question typed with it on opens its brief and runs nothing: one tab - Brief - with the question as its title and, beside it, which step "
-          "of the conversation is on screen: Step, 1 of 1, between its arrows, and nothing after them (the conversation's map is the maps drawer's, 0327) - the pane's strip names none. The Architect takes its first turn at once: it writes what the question states - the two regimes compared - as a version of its own, and "
+    check("the Pathfinder's switch, off until it is pressed; a question typed with it on opens its brief and runs nothing: one tab - Brief - with the question as its title and, beside it, which step "
+          "of the conversation is on screen: Step, 1 of 1, between its arrows, and nothing after them (the conversation's map is the maps drawer's, 0327) - the pane's strip names none. The Pathfinder takes its first turn at once: it writes what the question states - the two regimes compared - as a version of its own, and "
           "asks the first thing missing, with the two courses the question names as choices. The brief shows the parts that hold something and no other - here what is compared; + Add opens the list "
           "of the parts not there, each under its plain name, and closes again; one line says what a run on data always tests",
-          off == "false" and p1["on"] == "true" and re.fullmatch(r"Architect(\$\d+\.\d\d)?", p1["strip"]) and p1["tabs"] == ["Brief"] and p1["n"] == 1 and p1["status"] == "framing" and not p1["running"] and p1["typed"] == ""
-          and t1["said"] == [["You", mod.BRIEF_QUESTION], ["Architect", asks[0]]] and t1["choices"] == ["Switch to regime C", "Keep regime A"] and not t1["waiting"] and t1["notes"] == []
+          off == "false" and p1["on"] == "true" and re.fullmatch(r"Pathfinder(\$\d+\.\d\d)?", p1["strip"]) and p1["tabs"] == ["Brief"] and p1["n"] == 1 and p1["status"] == "framing" and not p1["running"] and p1["typed"] == ""
+          and t1["said"] == [["You", mod.BRIEF_QUESTION], ["Pathfinder", asks[0]]] and t1["choices"] == ["Switch to regime C", "Keep regime A"] and not t1["waiting"] and t1["notes"] == []
           and b1["state"] == "framing" and (b1["label"], b1["v"], b1["beside"]) == ("Step", "1 of 1", "step,step") and b1["title"] == mod.BRIEF_QUESTION and b1["compare"] == "regime C against regime A"
           and b1["changed"] == ["fixed.comparison"] and [b1[k] for k in ("decision", "thinks", "expects", "would", "measure", "period")] == [None] * 6
           and b1["asked"] == "What the Analyst will be asked" and b1["gets"] == "This is what the Analyst gets. Change any line before you start."
@@ -282,13 +282,13 @@ def walk_architect(page, st, mod, wa, edition, user):
           and kinds == ["What it is for", "What you think", "Why you think so", "What you expect to see", "What would change your mind", "Another explanation to test", "Measured by", "Period"]
           and brief_on_screen(page)["kinds"] == [] and b1["start"] == "Start analysis", (off, p1, t1, b1, kinds))
     f1 = rec1.get("framing", {})
-    check("the brief is a run on the thread's record before any analysis: status framing, the question, the versions - the Architect's saying it was made from the question - and the conversation, which is one step so far (0316): the question, "
-          "with the Architect's first turn and the version it made; its one model call "
-          "is on the usage record as the Architect's, under the brief's own chain; the composer is the conversation's, and there is nothing to save",
+    check("the brief is a run on the thread's record before any analysis: status framing, the question, the versions - the Pathfinder's saying it was made from the question - and the conversation, which is one step so far (0316): the question, "
+          "with the Pathfinder's first turn and the version it made; its one model call "
+          "is on the usage record as the Pathfinder's, under the brief's own chain; the composer is the conversation's, and there is nothing to save",
           rec1.get("status") == "framing" and rec1.get("question") == mod.BRIEF_QUESTION and rec1.get("turns") == [] and [(v["n"], v["by"], v.get("why")) for v in f1.get("versions", [])] == [(1, "person", None), (2, "architect", "question")]
           and [(t["who"], t["text"], t.get("choices"), t.get("call")) for t in f1.get("turns", [])] == [("architect", asks[0], ["Switch to regime C", "Keep regime A"], 1)] and f1.get("calls") == 1
           and steps_of(f1) == [(1, 0, 2, [1, 2], 1)] and (f1.get("step"), f1.get("tip")) == (1, 1)
-          and [(r["agent"], str(r["chain_id"])) for r in new1] == [("Architect", str(cid))]
+          and [(r["agent"], str(r["chain_id"])) for r in new1] == [("Pathfinder", str(cid))]
           and not c1["locked"] and not c1["send"] and c1["placeholder"] == "Answer, or say what to change" and c1["framing"] and c1["save"] == "none", (rec1.get("status"), f1, new1, c1))
 
     # the conversation: a choice clicked, an answer typed, two lines added by hand; the last answer, and the check against the data
@@ -312,34 +312,34 @@ def walk_architect(page, st, mod, wa, edition, user):
     its = [mod.ARCHITECT_PROPOSES["text"], mod.ARCHITECT_PROPOSES["shows"]]
     check("a choice clicked is the coach's answer: it is said in the pane, written into the part that was asked for - which the brief now shows, under its name - as one more version, the exchange the conversation's second step - and the next "
           "question follows - one to a message, no choices where the question names none",
-          t2["said"][2:] == [["You", "Switch to regime C"], ["Architect", asks[1]]] and t2["choices"] == [] and b2["v"] == "2 of 2"
+          t2["said"][2:] == [["You", "Switch to regime C"], ["Pathfinder", asks[1]]] and t2["choices"] == [] and b2["v"] == "2 of 2"
           and b2["decision"] == "Switch to regime C" and b2["changed"] == ["decision"] and b2["heads"] == ["What it is for", "What is compared"], (t2, b2))
     check("an answer typed in the composer goes the same way, in the coach's words: what they think and what it rests on from one answer - a line not yet checked, with no mark",
           b3["v"] == "3 of 3" and b3["thinks"] == "C does better than A." and b3["rests"] == rain and b3["changed"] == ["thinks", "rests_on.0"] and b3["anchors"] == [[rain, "", "", False]], b3)
-    check("with nothing left to ask the Architect checks what the brief rests on: it says so, the data is looked up - one row in the conversation, the two things looked up, what each found on hover - the "
+    check("with nothing left to ask the Pathfinder checks what the brief rests on: it says so, the data is looked up - one row in the conversation, the two things looked up, what each found on hover - the "
           "saved analyses are read - a row of their own: the one that is saved holds nothing on this, so nothing is found and the brief gains nothing - and it goes on at once, with no word from the coach. The premise planted in the answer does not hold, and the brief shows it before any analysis: the mark, and in red the numbers the data gave; a line "
-          "that holds has its fact too; a line nothing loaded records cannot be checked, and says why. The answer and all the Architect did with it are one step - the sixth: each line the coach added by hand was a step "
+          "that holds has its fact too; a line nothing loaded records cannot be checked, and says why. The answer and all the Pathfinder did with it are one step - the sixth: each line the coach added by hand was a step "
           "of its own - and the tab marks every line that step changed",
           b4["v"] == "6 of 6" and b4["changed"] == ["rests_on.0", "rests_on.1", "rests_on.2", "expects", "also_check.0"] and b4["expects"] == expects and b4["would"] is None
           and b4["anchors"] == [[rain, "does not hold", rain_fact, True], [same, "holds", same_fact, False], [green, "cannot be checked", mod.ARCHITECT_UNRECORDED, False]]
-          and t4["said"] == [["You", mod.BRIEF_QUESTION], ["Architect", asks[0]], ["You", "Switch to regime C"], ["Architect", asks[1]], ["You", because], ["Architect", asks[2]], ["You", expects],
-                             ["Architect", mod.ARCHITECT_CHECKING], ["Architect", not_held]] and t4["prompts"] == 5 and t4["choices"] == mod.ARCHITECT_KEEP and not t4["waiting"]
+          and t4["said"] == [["You", mod.BRIEF_QUESTION], ["Pathfinder", asks[0]], ["You", "Switch to regime C"], ["Pathfinder", asks[1]], ["You", because], ["Pathfinder", asks[2]], ["You", expects],
+                             ["Pathfinder", mod.ARCHITECT_CHECKING], ["Pathfinder", not_held]] and t4["prompts"] == 5 and t4["choices"] == mod.ARCHITECT_KEEP and not t4["waiting"]
           and row4["n"] == 2 and row4["text"][:3] == ["✓", "CHECK data", "2 things looked up"] and re.fullmatch(r"\d+ s", row4["text"][3]) and row4["title"] == rain_fact + "\n" + same_fact
           and row4["savedClass"] == "sp-row tool read" and row4["saved"][:3] == ["✓", "MEMORY", "nothing found · 1 saved"] and re.fullmatch(r"\d+ s", row4["saved"][3])
           and row4["before"] == "ar-msg arch" and row4["after"] == "ar-msg arch" and row4["last"], (b4, t4, row4))
     tell(page, choice=0)
     b_kept, t_kept = brief_on_screen(page), talk_on_screen(page)
     check("the coach keeps the view: nothing in the brief changes - the line stays, with its mark that it does not hold; the exchange is a step that changed nothing, so the tab marks no line "
-          "as changed - and the Architect says the brief is ready, and that what it proposed can be ticked",
-          b_kept["v"] == "7 of 7" and b_kept["changed"] == [] and b_kept["anchors"] == b4["anchors"] and t_kept["said"][-2:] == [["You", "Keep it"], ["Architect", mod.ARCHITECT_READY + mod.ARCHITECT_TICK]] and t_kept["choices"] == []
+          "as changed - and the Pathfinder says the brief is ready, and that what it proposed can be ticked",
+          b_kept["v"] == "7 of 7" and b_kept["changed"] == [] and b_kept["anchors"] == b4["anchors"] and t_kept["said"][-2:] == [["You", "Keep it"], ["Pathfinder", mod.ARCHITECT_READY + mod.ARCHITECT_TICK]] and t_kept["choices"] == []
           and t_kept["prompts"] == 6, (b_kept, t_kept))
     page.click('#content-brief .ar-line[data-path="also_check.0"] .tick')
     page.wait_for_function("() => { const r = document.querySelector('#content-brief .ar-brief'); return r && JSON.parse(r.dataset.framing).versions.length === 9; }", timeout=15000)
     b_tick = brief_on_screen(page)
-    check("with its marks the Architect proposed another explanation, from a column the data has: in the brief as its own - its mark, what it would show - with an empty box, nothing accepted. The coach "
+    check("with its marks the Pathfinder proposed another explanation, from a column the data has: in the brief as its own - its mark, what it would show - with an empty box, nothing accepted. The coach "
           "ticks it: one more version, theirs, the box ticked",
-          b4["rivals"] == [its + ["unticked", "Architect"]] and b_kept["rivals"] == b4["rivals"]
-          and b_tick["v"] == "8 of 8" and b_tick["changed"] == ["also_check.0"] and b_tick["rivals"] == [its + ["ticked", "Architect"]], (b4["rivals"], b_tick))
+          b4["rivals"] == [its + ["unticked", "Pathfinder"]] and b_kept["rivals"] == b4["rivals"]
+          and b_tick["v"] == "8 of 8" and b_tick["changed"] == ["also_check.0"] and b_tick["rivals"] == [its + ["ticked", "Pathfinder"]], (b4["rivals"], b_tick))
     tell(page, "The measure is protein content of the grain.")
     b5, t_measure = brief_on_screen(page), talk_on_screen(page)
     typed = [("would_change", "a gap under 0.1 t/ha"), ("also_check.+", "Rainfall differed between the C and A plots."), ("fixed.comparison", "regime C against regime A, within soil type")]
@@ -350,19 +350,19 @@ def walk_architect(page, st, mod, wa, edition, user):
     f9 = rec9.get("framing", {})
     last = (f9.get("versions") or [{}])[-1]
     check("a change asked for in words is made, and no other; the coach's own changes follow by hand, a version and a step each, the last change marked - a part the brief did not show is added through "
-          "+ Add - on top of what the Architect wrote",
+          "+ Add - on top of what the Pathfinder wrote",
           b5["v"] == "9 of 9" and b5["measure"] == "protein content of the grain" and b5["changed"] == ["fixed.measure"] and b5["decision"] == "Switch to regime C"
-          and b5["expects"] == expects and b5["anchors"] == b4["anchors"] and b5["rivals"] == b_tick["rivals"] and t_measure["said"][-1] == ["Architect", mod.ARCHITECT_READY]
+          and b5["expects"] == expects and b5["anchors"] == b4["anchors"] and b5["rivals"] == b_tick["rivals"] and t_measure["said"][-1] == ["Pathfinder", mod.ARCHITECT_READY]
           and b9["v"] == "12 of 12" and b9["changed"] == ["fixed.comparison"] and b9["would"] == typed[0][1] and b9["compare"] == typed[2][1]
-          and b9["rivals"] == [its + ["ticked", "Architect"], [typed[1][1], "", "", ""]]
+          and b9["rivals"] == [its + ["ticked", "Pathfinder"], [typed[1][1], "", "", ""]]
           and b9["thinks"] == "C does better than A." and b9["measure"] == "protein content of the grain" and b9["period"] is None
-          and re.fullmatch(r"Architect(\$\d+\.\d\d)?", page.inner_text("#streamOutput .sp-strip").replace("\n", "").replace(" ", "")), (b5, b9))
+          and re.fullmatch(r"Pathfinder(\$\d+\.\d\d)?", page.inner_text("#streamOutput .sp-strip").replace("\n", "").replace(" ", "")), (b5, b9))
     arch_rows = [r for r in usage_rows(wa, edition, user)[rows0:]]
     counted.append(month_queries(page))         # seven exchanges later
     found9 = next((t.get("found", []) for t in f9.get("turns", []) if t["who"] == "check"), [])
     check("the record keeps every version with who made it and from what, the lines as the coach gave them with what the check found, and the conversation in order - the round of lookups a turn of its own, "
           "each lookup under its number with the line it was made for, the reading of the saved analyses after it; the steps of the conversation (0316) - an exchange each, with the versions it made and the turns that are its own, and each change by "
-          "hand a step that holds no turn - one way, the last step in use; the run is still a brief - seven calls of the Architect's, the reader's two under the same chain, and none of the "
+          "hand a step that holds no turn - one way, the last step in use; the run is still a brief - seven calls of the Pathfinder's, the reader's two under the same chain, and none of the "
           "analyst's",
           rec9.get("status") == "framing"
           and [(v["by"], v.get("why")) for v in f9["versions"]] == [("person", None), ("architect", "question")] + [("architect", "answer")] * 2 + [("person", None)] * 2
@@ -379,7 +379,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           and [t.get("call") for t in f9["turns"] if t["who"] == "architect"] == [1, 2, 3, 4, 5, 6, 7] and f9.get("calls") == 7
           and steps_of(f9) == [(1, 0, 2, [1, 2], 1), (2, 1, 3, [3], 2), (3, 2, 4, [4], 2), (4, 3, 5, [5], 0), (5, 4, 6, [6], 0), (6, 5, 8, [7, 8], 5), (7, 6, 8, [], 2), (8, 7, 9, [9], 0),
                                (9, 8, 10, [10], 2), (10, 9, 11, [11], 0), (11, 10, 12, [12], 0), (12, 11, 13, [13], 0)] and (f9.get("step"), f9.get("tip")) == (12, 12) and "aside" not in f9
-          and [(r["agent"], str(r["chain_id"])) for r in arch_rows] == [("Architect", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Architect", str(cid))] * 3,
+          and [(r["agent"], str(r["chain_id"])) for r in arch_rows] == [("Pathfinder", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Pathfinder", str(cid))] * 3,
           (rec9.get("status"), f9.get("versions"), f9.get("turns"), arch_rows))
     page.click('#content-brief [data-ar="step"][data-step="-1"]')
     b8 = brief_on_screen(page)
@@ -394,9 +394,9 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.keyboard.press("Escape")
     back = brief_on_screen(page)
     f_walked = thread_run(wa, user, tid, cid).get("framing", {})
-    check("the arrows go through the steps of the conversation (0316): the one before shows the comparison as the Architect wrote it, with its pencils, the line that step changed marked, and "
+    check("the arrows go through the steps of the conversation (0316): the one before shows the comparison as the Pathfinder wrote it, with its pencils, the line that step changed marked, and "
           "Start analysis names the step - the analysis would start from the step on screen. Three steps further back, before the coach named the measure, both panes are that step's: the "
-          "brief without the measure, the box just ticked, and the conversation up to there - its last message the Architect's word that the brief is ready, and nothing of what was said "
+          "brief without the measure, the box just ticked, and the conversation up to there - its last message the Pathfinder's word that the brief is ready, and nothing of what was said "
           "after. Stepping alone changes nothing on the record. Forward again to the last step the conversation is whole and the button names no step; Escape leaves a line as it was",
           b8["v"] == "11 of 12" and b8["compare"] == "regime C against regime A" and b8["pens"] > 0 and b8["start"] == "Start analysis from step 11" and b8["changed"] == ["also_check.1"]
           and (b_at8["v"], b_at8["measure"], b_at8["changed"], b_at8["start"]) == ("8 of 12", None, ["also_check.0"], "Start analysis from step 8") and b_at8["rivals"] == b_tick["rivals"]
@@ -407,8 +407,8 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000)
     read = {"system": page.inner_text("#systemInstructions"), "user": page.inner_text("#userInstructions")}
     page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
-    check("what the Architect read for its first message, through the message's button: its instructions, then the data's description, the question, the brief as it stood and the conversation - nothing yet",
-          read["system"].startswith("You are the Architect.") and read["user"].startswith("DATA:\n") and ("QUESTION:\n" + mod.BRIEF_QUESTION + "\n\nBRIEF (version 1):\ndecision: (empty)") in read["user"]
+    check("what the Pathfinder read for its first message, through the message's button: its instructions, then the data's description, the question, the brief as it stood and the conversation - nothing yet",
+          read["system"].startswith("You are the Pathfinder.") and read["user"].startswith("DATA:\n") and ("QUESTION:\n" + mod.BRIEF_QUESTION + "\n\nBRIEF (version 1):\ndecision: (empty)") in read["user"]
           and "fixed.comparison: (empty)" in read["user"] and "CONVERSATION:\n(nothing yet)" in read["user"] and "EARLIER" not in read["user"], (read["system"][:80], read["user"][-500:]))
 
     # nothing else starts from a brief not yet run; its box on the Workflow map
@@ -421,7 +421,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     box = page.evaluate("""() => { const n = document.querySelector('#workflowMapModal .wf-node'); return { made: (n.querySelector('.wf-node-made') || {}).textContent, notrun: n.classList.contains('wf-node--notrun'),
         eye: !!n.querySelector('.wf-node-map'), nodes: document.querySelectorAll('#workflowMapModal .wf-node').length }; }""")
     page.evaluate("MapsUI.shut()")
-    check("a brief not yet run: nothing else starts from it, and the page says so; on the Workflow map it is one box, marked 'not run', with no code map to open",
+    check("a brief not yet run: nothing else starts from it, and the page says so; on the Workflow map it is one box, marked 'not run', with no code trace to open",
           not held["running"] and held["n"] == 1 and "This brief has not been run" in held["toast"] and box == {"made": "not run", "notrun": True, "eye": False, "nodes": 1}, (held, box))
 
     # Start analysis: the same chain runs under the brief - and stops on its question, the measure not being in the data
@@ -444,12 +444,12 @@ def walk_architect(page, st, mod, wa, edition, user):
     prompt1 = turn_prompt(page, 1)
     check("Start analysis runs the brief's own chain - still one chain, under the same id - with the framing folded to one row above the run, which names the step the analysis started from - the thirteenth - the conversation inside it, to be read - its last row "
           "the question's check (0313): read before the analysis started, it stands on its own, and is that thirteenth step; the analyst, held to a measure the data does not have, puts nothing in its place: it looks, then asks",
-          a1["n"] == 1 and str(a1["chain"]) == str(cid) and a1["first"] == "sp-turn ar-fold" and a1["fold"].startswith("Architectbrief · step 13") and a1["cards"] == ["cell", "question"]
-          and len(folded["said"]) == 13 and folded["said"][0] == ["You", mod.BRIEF_QUESTION] and folded["said"][-1] == ["Architect", mod.ARCHITECT_READY] and folded["choices"] == [] and folded["prompts"] == 7
+          a1["n"] == 1 and str(a1["chain"]) == str(cid) and a1["first"] == "sp-turn ar-fold" and a1["fold"].startswith("Pathfinderbrief · step 13") and a1["cards"] == ["cell", "question"]
+          and len(folded["said"]) == 13 and folded["said"][0] == ["You", mod.BRIEF_QUESTION] and folded["said"][-1] == ["Pathfinder", mod.ARCHITECT_READY] and folded["choices"] == [] and folded["prompts"] == 7
           and a1["checked"] == 3 and a1["read"][:4] == ["sp-row tool read", "✓", "CHECK question", "stands on its own"] and a1["read"][5:] == ["⌘"]
           and "the data records none" in a1["answer"] and "Shall I use yield?" in a1["answer"] and a1["tabs"][0] == "Brief" and "Answer" in a1["tabs"], (a1, folded))
     check("the analyst read the brief under the question - what was agreed, what each line it rests on is worth after the check, the explanation the coach ticked with what it would show beside their own, the "
-          "parts that were fixed and no line for one that was not - through its own first turn's button, the Architect's calls counted apart; the run keeps the version it was started with, the question asked, every version of "
+          "parts that were fixed and no line for one that was not - through its own first turn's button, the Pathfinder's calls counted apart; the run keeps the version it was started with, the question asked, every version of "
           "the framing, and the read of its question as the conversation's last turn (0313) - a step of its own, which the analysis started from (0316)",
           "QUESTION:\n" + mod.BRIEF_QUESTION + "\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: Switch to regime C\n" in prompt1
           and "Fixed before the run:\n- comparison: regime C against regime A, within soil type\n- measure: protein content of the grain\n\n" in prompt1 and "left to you" not in prompt1 and "not said" not in prompt1
@@ -466,7 +466,7 @@ def walk_architect(page, st, mod, wa, edition, user):
           and not c2["locked"] and not c2["framing"]
           and c2["placeholder"] == own, (kept, c2))
 
-    # the answer, typed with the switch still on: a brief of its own, from the last one, and the Architect takes the answer into it
+    # the answer, typed with the switch still on: a brief of its own, from the last one, and the Pathfinder takes the answer into it
     page.fill("#queryInput", mod.BRIEF_ANSWER)
     page.click("#submitQuery")
     wait_text(page, "#chainPosition", "chain 2 of 2", 15000)
@@ -477,17 +477,17 @@ def walk_architect(page, st, mod, wa, edition, user):
     cid2 = page.evaluate("() => currentData.chain_id")
     rec_f2 = thread_run(wa, user, tid, cid2)
     v2 = rec_f2.get("framing", {}).get("versions", [{}, {}])
-    check("the coach's answer, typed with the switch on, opens a brief of its own under the analysis it answers: it starts from the last brief and says so, with the answer as its title. The Architect, which reads "
+    check("the coach's answer, typed with the switch on, opens a brief of its own under the analysis it answers: it starts from the last brief and says so, with the answer as its title. The Pathfinder, which reads "
           "what the analyst asked, changes the part the answer settles - the measure - and nothing else, and says the brief is ready",
           f2["v"] == "1 of 1" and f2["title"] == mod.BRIEF_ANSWER and f2["decision"] == "Switch to regime C" and f2["expects"] == expects and f2["rivals"] == b9["rivals"]
-          and f2["compare"] == typed[2][1] and f2["measure"] == "yield" and f2["changed"] == ["fixed.measure"] and f2["start"] and t5["said"] == [["You", mod.BRIEF_ANSWER], ["Architect", mod.ARCHITECT_READY]]
+          and f2["compare"] == typed[2][1] and f2["measure"] == "yield" and f2["changed"] == ["fixed.measure"] and f2["start"] and t5["said"] == [["You", mod.BRIEF_ANSWER], ["Pathfinder", mod.ARCHITECT_READY]]
           and rec_f2.get("status") == "framing" and str(rec_f2.get("parent")) == str(cid) and v2[0].get("changed") == ["from the last brief"] and v2[0]["brief"]["fixed"]["measure"] == "protein content of the grain"
           and (v2[1].get("by"), v2[1].get("why")) == ("architect", "question"), (f2, t5, rec_f2.get("parent"), v2))
     page.click("#streamOutput .sp-stream > .ar-msg.arch .sp-prompt")
     page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /CONVERSATION:/.test(u.textContent); }", timeout=15000)
     read2 = page.inner_text("#userInstructions")
     page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
-    check("on a follow-up the Architect is given the analyses the question follows: the first question, and that the analyst stopped and asked - with what it asked - then the answer as the question and the "
+    check("on a follow-up the Pathfinder is given the analyses the question follows: the first question, and that the analyst stopped and asked - with what it asked - then the answer as the question and the "
           "last brief as the one that stands",
           "EARLIER (the analyses this question follows, oldest first):\n[1] Q: " + mod.BRIEF_QUESTION + "\nThe analyst stopped and asked: The brief fixes the measure as protein content" in read2
           and "QUESTION:\n" + mod.BRIEF_ANSWER + "\n\nBRIEF (version 1):\ndecision: Switch to regime C\n" in read2 and "fixed.measure: protein content of the grain" in read2, read2[-900:])
@@ -529,7 +529,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     rows = rep["rows"] or []
     check("the report says how the result stands against the brief, and the page shows it as a card at the foot of the run's Brief tab, under How it turned out (0312; it stood in the answer): what "
           "was expected with its verdict - the one the kernel's interval gives against the 0.3 the coach expected - and what would change their mind; then a row for each Also check - the "
-          "explanation the Architect proposed and the coach ticked, the coach's own, and the three standing ones - 'cannot tell' marked where the report says so; the cell citations stay chips. "
+          "explanation the Pathfinder proposed and the coach ticked, the coach's own, and the three standing ones - 'cannot tell' marked where the report says so; the cell citations stay chips. "
           "The rows ride in the brief's own markup",
           rep["label"] == "How it turned out" and rep["cards"] == [0, 1] and rep["last"] and rep["kept"] and len(rows) == 7 and rows[0][0] == "You expected" and rows[0][2] == want and f"{d:.3f}" in rows[0][1]
           and rows[1][0] == "Would change your mind" and rows[1][2] == seen and rows[2][0] == "Also checked" and rows[2][1].startswith(f"{its[0]}: the gap is ") and f"{d:.3f} within soil type" in rows[2][1]
@@ -544,11 +544,11 @@ def walk_architect(page, st, mod, wa, edition, user):
           and "Replay reproduced" in rep["done"], (rep["heads"], rep["done"][:200], said, rep["text"][:600]))
     card = rep["card"]
     check("the closing card (0313, the product owner's choice of three mockups): its title, and on the same line, beside it and out to the card's right, the run's numbers - turns, cells, cost, time, a "
-          "dot between each; then what was reproduced, the line that nothing was reached, and one row of what can be done next: Next questions and Code map, two buttons alike, side by side, in that "
+          "dot between each; then what was reproduced, the line that nothing was reached, and one row of what can be done next: Next questions and Code trace, two buttons alike, side by side, in that "
           "order. No link to a tab and no arrow: the tabs are the way to the answer and to the brief",
           card["parts"][:4] == ["head", "rep ok", "reaches quiet", "acts"] and card["title"] == "Run complete" and bool(re.fullmatch(r"\d+(?: of \d+)? turns? · \d+ cells?(?: \([^)]*\))?(?: · \d+ plots?)? · \$\d+\.\d\d · (?:\d+ min )?[\d.]+ s", card["nums"]))
           and card["line"] and card["beside"] and card["right"] and card["links"] == 0 and "→" not in rep["done"] and "Simplified" not in rep["done"] and "Brief" not in rep["done"]
-          and [b[0] for b in card["buttons"]] == ["Next questions", "Code map"] and [b[1] for b in card["buttons"]] == ["sp-act sp-next", "sp-act sp-codemap"]
+          and [b[0] for b in card["buttons"]] == ["Next questions", "Code trace"] and [b[1] for b in card["buttons"]] == ["sp-act sp-next", "sp-act sp-codemap"]
           and [b[2] for b in card["buttons"]] == ["solid", "solid"] and card["buttons"][0][3] == card["buttons"][1][3], card)
     page.click("#tab-answer")
     page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
@@ -592,14 +592,14 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.click('#content-brief [data-ar="step"][data-step="1"]')
     page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '2 of 2'", timeout=5000)
     check("the Brief tab after the run, read by the coach (0312): under the brief the analysis ran under, the card of how it turned out shows at the tab's foot, a grid across it. A citation "
-          "in it is the chip it was in the answer - it looks like one, and a click opens the code map on its cell. The arrow back shows the step before - the last step was the question's "
+          "in it is the chip it was in the answer - it looks like one, and a click opens the code trace on its cell. The arrow back shows the step before - the last step was the question's "
           "read, which changed nothing - with the same brief, so the card stands under it too (0316); the arrow forward shows the last step again, from the tab's own markup",
           under2 == ["2 of 2", "grid", 7, True, True] and under1 == ["1 of 2", "grid", 7, True, True] and turned() == under2
           and bool(chip) and re.fullmatch(r"cell \d+", chip[0]) and chip[1:] == ["inline-block", "8px", "solid", "pointer"] and mapped["open"] and chip[0] in mapped["kicker"].lower(),
           (under2, under1, turned(), chip, mapped))
     done2 = thread_run(wa, user, tid, cid2)
     prompt2 = turn_prompt(page, 1)
-    check("the Brief tab holds the brief the run was started with, to be read: the step it started from - the question's read, which changed no line - with the measure as the Architect changed "
+    check("the Brief tab holds the brief the run was started with, to be read: the step it started from - the question's read, which changed no line - with the measure as the Pathfinder changed "
           "it; the record keeps that version on the run, with what the report said against it and the one result it said did not fit",
           ran2["state"] == "run" and ran2["v"] == "2 of 2" and ran2["measure"] == "yield" and ran2["changed"] == [] and ran2["pens"] == 0 and not ran2["start"]
           and done2.get("status") == "answered" and done2.get("brief", {}).get("version") == 2 and done2["brief"]["fixed"]["measure"] == "yield"
@@ -632,14 +632,14 @@ def walk_architect(page, st, mod, wa, edition, user):
           and (kept_old["shown"]["answer"], kept_old["shown"]["tab"], kept_old["shown"]["label"], kept_old["shown"]["last"], kept_old["shown"]["rides"], kept_old["shown"]["same"]) == (0, 1, "How it turned out", True, True, True)
           and kept_old["shown"]["chips"] >= 4 and "Did not fit" in kept_old["shown"]["heads"] and "ar-against" not in kept_old["shown"]["raw"]
           and not any(x in kept_old["shown"]["text"] for x in ["Against the brief", "You expected", "Would change your mind"]) and kept_old["back"] == [0, 7, True], kept_old)
-    # a closing card kept before 0313 - its numbers in a grid, a row of links with the code map's button last, the Next questions button under them - shown again, and put back
+    # a closing card kept before 0313 - its numbers in a grid, a row of links with the code trace's button last, the Next questions button under them - shown again, and put back
     kept_card = page.evaluate("""async () => { const e = responses[currentResponseIndex], was = e.streamOutput;
         const d = document.createElement('div'); d.innerHTML = e.streamOutput;
         const c = [...d.querySelectorAll('.sp-done')].pop(), chain = c.querySelector('.sp-codemap').dataset.chain, tele = c.querySelector('.sp-telemetry'), old = document.createElement('div');
         old.className = 'sp-done';
         old.innerHTML = '<div class="title">Run complete</div><div class="grid"><span>Turns <b>2</b></span><span>Cells <b>1</b></span><span>Cost <b>$0.05</b></span><span>Time <b>2.6 s</b></span></div>' +
             '<div class="rep ok">✓ Replay reproduced.</div><div class="reaches quiet"><span class="h">No reaches outside the data</span></div>' +
-            '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><button class="sp-codemap" data-chain="' + chain + '">Code map →</button></div>' +
+            '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><button class="sp-codemap" data-chain="' + chain + '">Code trace →</button></div>' +
             '<div class="nq-open"><button type="button" class="sp-next" data-nq="open" title="Questions that could follow this analysis">Next questions</button></div>';
         if (tele) old.appendChild(tele.cloneNode(true));
         c.replaceWith(old); e.streamOutput = d.innerHTML;
@@ -654,10 +654,10 @@ def walk_architect(page, st, mod, wa, edition, user):
         return { shown, back: [...[...document.querySelectorAll('#streamOutput .sp-done')].pop().querySelectorAll('.acts > button')].map(b => b.textContent) }; }""")
     kc = kept_card["shown"]
     check("a closing card kept from before 0313, shown again, comes to today's shape: its title and its numbers on one line; no link and no arrow; one row of what can be done next - Next questions "
-          "and Code map, two buttons alike, side by side, the code map's with its chain; the telemetry last",
+          "and Code trace, two buttons alike, side by side, the code trace's with its chain; the telemetry last",
           kc["parts"] == ["head", "rep ok", "reaches quiet", "acts"] + (["sp-telemetry"] if "sp-telemetry" in kc["parts"] else []) and kc["links"] == 0 and not kc["arrows"] and kc["line"] and kc["chain"]
-          and kc["nums"].startswith("Turns 2") and [b[0] for b in kc["buttons"]] == ["Next questions", "Code map"] and [b[1] for b in kc["buttons"]] == ["solid", "solid"]
-          and kc["buttons"][0][2] == kc["buttons"][1][2] and kept_card["back"] == ["Next questions", "Code map"], kept_card)
+          and kc["nums"].startswith("Turns 2") and [b[0] for b in kc["buttons"]] == ["Next questions", "Code trace"] and [b[1] for b in kc["buttons"]] == ["solid", "solid"]
+          and kc["buttons"][0][2] == kc["buttons"][1][2] and kept_card["back"] == ["Next questions", "Code trace"], kept_card)
 
     # the Workflow map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
     open_maps(page, "workflow")
@@ -677,16 +677,16 @@ def walk_architect(page, st, mod, wa, edition, user):
     by_chain = {}
     for r in usage_rows(wa, edition, user)[rows0:]:
         by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
-    check("the Workflow map: two questions, two boxes - an Architect run and its analysis share one - each marked Architect, each with its code map; the switch off again, a typed question runs at once, "
-          "as before: no brief on the page or on the run. On the usage record each framed chain holds the Architect's calls, the one call that read its question before the analysis (0313) and its analysis' "
-          "own, under the one chain; the plain one holds no call of the Architect's",
-          boxes == [["Architect", False, True], ["Architect", False, True]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
+    check("the Workflow map: two questions, two boxes - a Pathfinder run and its analysis share one - each marked Pathfinder, each with its code trace; the switch off again, a typed question runs at once, "
+          "as before: no brief on the page or on the run. On the usage record each framed chain holds the Pathfinder's calls, the one call that read its question before the analysis (0313) and its analysis' "
+          "own, under the one chain; the plain one holds no call of the Pathfinder's",
+          boxes == [["Pathfinder", False, True], ["Pathfinder", False, True]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
           and "Brief" not in plain["done"] and third.get("status") == "answered" and third.get("brief") == {} and third.get("framing") == {}
-          and by_chain.get(str(cid), [])[:10] == ["Architect"] * 4 + ["Memory Reader"] * 2 + ["Architect"] * 3 + ["Question check"] and "Architect" not in by_chain.get(str(cid), [])[9:]
+          and by_chain.get(str(cid), [])[:10] == ["Pathfinder"] * 4 + ["Memory Reader"] * 2 + ["Pathfinder"] * 3 + ["Question check"] and "Pathfinder" not in by_chain.get(str(cid), [])[9:]
           and "Question check" not in by_chain.get(str(cid), [])[10:] and len(by_chain.get(str(cid), [])) > 10
-          and by_chain.get(str(cid2), [])[:2] == ["Architect", "Question check"] and "Architect" not in by_chain.get(str(cid2), [])[1:] and len(by_chain.get(str(cid2), [])) > 2
-          and all("Architect" not in v for k, v in by_chain.items() if k not in (str(cid), str(cid2))), (boxes, plain, third.get("brief"), by_chain))
-    check("a framed question is one query of the month's: counted when its brief opens - not at each exchange with the Architect, and not again when its analysis starts; a plain question counts when it runs "
+          and by_chain.get(str(cid2), [])[:2] == ["Pathfinder", "Question check"] and "Pathfinder" not in by_chain.get(str(cid2), [])[1:] and len(by_chain.get(str(cid2), [])) > 2
+          and all("Pathfinder" not in v for k, v in by_chain.items() if k not in (str(cid), str(cid2))), (boxes, plain, third.get("brief"), by_chain))
+    check("a framed question is one query of the month's: counted when its brief opens - not at each exchange with the Pathfinder, and not again when its analysis starts; a plain question counts when it runs "
           "(the self-hosted edition counts none)",
           steps == ([1, 0, 0, 1, 0, 1] if edition == "hosted" else [0] * 6), (counted, steps))
     walk_next_questions(page, mod, wa, edition, user, tid, cid2)
@@ -727,7 +727,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     """A finished analysis carries a Next questions button on its closing card: it opens a panel in the card - what the questions are, and the five ways to go, a sentence each. A way picked brings
     up to five questions in the list's place, each from a line the analysis left - the way's own lines first: at Follow emergence the misfit the report planted, at Test boundaries the lines the
     brief rests on that did not hold or could not be checked. The list again says how many questions a way has, and that way shows them with no call; more of a way are written on request. A
-    question is changed and run with the Architect's switch on: a new analysis at once, under the one it follows, with no brief; its row is marked, and its box on the map says how it was made."""
+    question is changed and run with the Pathfinder's switch on: a new analysis at once, under the one it follows, with no brief; its row is marked, and its box on the map says how it was made."""
     rows0, month0 = len(usage_rows(wa, edition, user)), month_queries(page)
     bare = lambda s: {k: v for k, v in s.items() if k != "shown"}
     page.click("#prevResponse")
@@ -766,7 +766,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
         heads: document.querySelectorAll('#streamOutput .nq-head').length })""")
     first = s0[0]["cards"][0] if s0 and s0[0]["cards"] else {}
     check("Follow emergence: five questions in the panel, in the list's place, the answer's side of the page as it was: over them the way back to the list and the way's name and sentence, under "
-          "them how many there are, the button to what the Architect read, and Write more. The first comes from the misfit the report planted - the gap by soil, which the coach's frame does not "
+          "them how many there are, the button to what the Pathfinder read, and Write more. The first comes from the misfit the report planted - the gap by soil, which the coach's frame does not "
           "explain: its row says From what did not fit, the report's own line behind the label, and asks about the soil where the gap is widest; the others come from the other lines of the brief "
           "and the report, each saying which",
           len(s0) == 1 and s0[0]["level"] == "emergence" and s0[0]["shown"] and s0[0]["prompt"] and re.fullmatch(r"5 questions( · \$\d+\.\d\d)?", s0[0]["foot"]) and len(s0[0]["cards"]) == 5
@@ -796,7 +796,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     page.wait_for_function("() => { const u = document.getElementById('userInstructions'); return u && /SOURCES:/.test(u.textContent); }", timeout=15000)
     read, instructions = page.inner_text("#userInstructions"), page.evaluate("() => document.getElementById('systemInstructions').textContent")
     page.evaluate("() => { const m = document.getElementById('agentInstructionsModal'); if (m) m.style.display = 'none'; const u = document.getElementById('userInstructions'); if (u) u.textContent = ''; }")
-    check("what the Architect read for the second set, through the button under it: its instructions for next questions, then the data, the analyses before, the question, the report whole, the brief "
+    check("what the Pathfinder read for the second set, through the button under it: its instructions for next questions, then the data, the analyses before, the question, the report whole, the brief "
           "as the analyst received it, the questions proposed before, the level, and the lines numbered - what the brief rests on first, then the others",
           instructions.lstrip().startswith("You propose the questions to analyse next.") and read.startswith("DATA:\n") and "\n\nEARLIER (the analyses this question follows, oldest first):\n[1] Q: " + mod.BRIEF_QUESTION in read and "\n\nREPORT:\n## Regime C is " in read and "\n## Did not fit\n" in read
           and "\n\nBRIEF (agreed with the person before this run):\n" in read and "\n\nPROPOSED BEFORE:\n- " + first.get("q", "?") + "\n" in read
@@ -840,14 +840,14 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
         by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
     month1 = month_queries(page)
     check("the four sets are kept with the analysis they follow, on its record: the level, each question with the lines it comes from, the chain its call was logged under. Each set was one call of "
-          "the Architect's under a chain of its own, which is no run of the thread - and a query of the month's (the self-hosted edition counts none)",
+          "the Pathfinder's under a chain of its own, which is no run of the thread - and a query of the month's (the self-hosted edition counts none)",
           [s.get("level") for s in rec] == ["emergence", "test", "blend", "blend"] and [len(s.get("questions", [])) for s in rec] == [5, 5, 5, len(more)]
           and rec[0]["questions"][0] == {"title": f"The {wide.group(1)} plots", "text": first.get("q"), "from": [{"kind": "misfit", "text": misfit}]}
           and [q["from"][0]["kind"] for q in rec[1]["questions"][:3]] == ["anchor", "anchor", "would_change"] and not any("ran" in q for s in rec for q in s["questions"])
-          and sorted(by_chain) == sorted(str(s.get("chain")) for s in rec) and all(v == ["Architect"] for v in by_chain.values())
+          and sorted(by_chain) == sorted(str(s.get("chain")) for s in rec) and all(v == ["Pathfinder"] for v in by_chain.values())
           and not any(thread_run(wa, user, tid, s.get("chain")) for s in rec) and month1 - month0 == (4 if edition == "hosted" else 0), (rec[:1], by_chain, month0, month1))
 
-    # a question changed, then run - with the Architect's switch on: an analysis at once, as it stands
+    # a question changed, then run - with the Pathfinder's switch on: an analysis at once, as it stands
     changed = f"Is regime C above regime A on {wide.group(1)} plots alone, season by season?"
     page.click("#architectSwitch")
     page.fill("#queryInput", "typed by the coach, not sent")
@@ -864,7 +864,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     cid4 = page.evaluate("() => currentData.chain_id")
     fourth, followed = thread_run(wa, user, tid, cid4), thread_run(wa, user, tid, cid2)
     month2 = month_queries(page)
-    check("a question changed and run: a new analysis at once, though the Architect's switch is on - no brief on the page, none on the run - under the analysis it follows, asking what the coach made of "
+    check("a question changed and run: a new analysis at once, though the Pathfinder's switch is on - no brief on the page, none on the run - under the analysis it follows, asking what the coach made of "
           "the question. Its pane opens on the row that says it was a next question and which way it went - not what it came from; what the coach was typing in the composer is still there; the new "
           "analysis has a Next questions button of its own, and no panel until it is asked for. On the record the question is marked with the chain it started, and it is a query of the month's as "
           "any analysis is",
@@ -884,7 +884,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     back, pback = sets_on_screen(page), panel_on_screen(page)
     check("the Workflow map gained one box - the questions are none, the one that was run is one, under the analysis it follows - and it says next question; no box is a fork. Back on the analysis the "
           "panel is as it was left, open on the way the question was run from, and the sets are as they were kept: the question as the coach changed it, without the title it came with, marked as run",
-          boxes == [["Architect", False], ["Architect", False], ["", False], ["next question", False]] and len(back) == 4 and (pback["n"], pback["open"], pback["show"], pback["within"]) == (1, True, "emergence", True)
+          boxes == [["Pathfinder", False], ["Pathfinder", False], ["", False], ["next question", False]] and len(back) == 4 and (pback["n"], pback["open"], pback["show"], pback["within"]) == (1, True, "emergence", True)
           and back[0]["cards"][0] == {"from": "From what did not fit", "lines": misfit, "title": "", "q": changed, "ran": str(cid4)} and back[0]["cards"][1:] == s0[0]["cards"][1:]
           and [bare(s) for s in back[1:]] == [bare(s) for s in s2[1:]] and [s["shown"] for s in back] == [True, False, False, False], (boxes, back[0]["cards"][:1], pback))
 
@@ -940,7 +940,7 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
     check("the mark on the question that was run opens the analysis it started", page.evaluate("() => String(currentData.chain_id)") == str(cid4), page.evaluate("() => String(currentData.chain_id)"))
 
 
-# ---- the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7): the helpers of its section ----
+# ---- the saved analyses in the Pathfinder (docs/ARCHITECT_DESIGN.md §3.7): the helpers of its section ----
 def saved_on_screen(page):
     """The saved analyses the readings found, as the coach sees them: under a reading's row in the conversation an analysis to a line - the day and what was asked then, View; under the brief
     each in full - its passages, the reader's notes, the tag of one the brief builds on; in the brief the analyses it builds on, each with View and its cross. Whether anything of it can be
@@ -969,9 +969,9 @@ def as_written(iso):
 
 
 def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
-    """The analysis a brief started is saved, and a question it bears on is framed in a workflow of its own. The Architect is told how many analyses are saved; with nothing left to ask it has
+    """The analysis a brief started is saved, and a question it bears on is framed in a workflow of its own. The Pathfinder is told how many analyses are saved; with nothing left to ask it has
     them read. A row of the conversation says how far the reading is, then what it found; the analyses found are listed under the row and, in full, under the brief - to read: nothing is ticked.
-    The coach views one whole, then answers the Architect - build on that one - and the brief says which analysis it builds on. A second reading, asked for in words, is skipped. The coach
+    The coach views one whole, then answers the Pathfinder - build on that one - and the brief says which analysis it builds on. A second reading, asked for in words, is skipped. The coach
     leaves the analysis out with its cross, goes back one step with the arrow and starts the analysis from there: the Analyst receives the passage of the analysis built on, and no other."""
     storage = os.path.join(wa, "storage", user)
     page.click("#prevResponse")
@@ -1024,10 +1024,10 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     mine = next((k for k, it in enumerate(s1["right"]) if it["view"] == [str(tid), str(cid2)]), 0)      # where the framed analysis stands among the two found
     asked = [mod.BRIEF_ANSWER, later.get("question")] if mine == 0 else [later.get("question"), mod.BRIEF_ANSWER]
     line = {"asked": f"{as_written(day)} · {mod.BRIEF_ANSWER}", "view": [str(tid), str(cid2)], "label": "View"}
-    check("a saved analysis is memory, and the Architect is told how many there are: SAVED, above the question, in what it read for its first message. With nothing left to ask - the coach skipped two "
+    check("a saved analysis is memory, and the Pathfinder is told how many there are: SAVED, above the question, in what it read for its first message. With nothing left to ask - the coach skipped two "
           "parts - it says that it is looking, and the saved analyses are read: a row of the conversation says that memory is being searched (0311) and how many the second model has read, with Skip; done, "
           "the row says how many analyses were found and how many of the saved ones were read, the passages a line each on hover with what was found across them, and under the row stand the "
-          "analyses found, a line each - the day, what was asked then, View. The Architect goes on at once: the brief is ready, and which analysis to build on - a choice to each, and one for none",
+          "analyses found, a line each - the day, what was asked then, View. The Pathfinder goes on at once: the brief is ready, and which analysis to build on - a choice to each, and one for none",
           str(cid2) in kept and framed.get("marks") == ["picked"] and framed.get("question") == mod.BRIEF_ANSWER and f"\n\nSAVED: {len(mem['runs'])}\n\nQUESTION:\n{mod.SAVED_QUESTION}\n" in told
           and before == {"left": [], "right": [], "head": "", "note": "", "built": [], "boxes": 0, "look": False}
           and live == [f"SEARCHING MEMORY · 0 of {len(mem['runs'])} read · Skip", "SEARCHING MEMORY · 2 of 2 read · Skip"]
@@ -1035,7 +1035,7 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           and sorted(row["title"].split("\n")[:2]) == sorted([f'{day} · {mod.BRIEF_ANSWER}: "{quote}"', f'{day} · {later.get("question")}: "{other}"'])
           and row["title"].split("\n")[2:] == ["What was compared: 2 × it reports a comparison"] and row["found"] and row["after"] == "ar-msg arch"
           and len(s1["left"]) == 2 and s1["left"][mine] == line and s1["left"][1 - mine]["asked"] == f"{as_written(later.get('when', '')[:10])} · {later.get('question')}"
-          and t1["said"][-4:] == [["Architect", mod.ARCHITECT_ASKS[2][1]], ["You", "skip"], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_READY + mod.ARCHITECT_FOUND]]
+          and t1["said"][-4:] == [["Pathfinder", mod.ARCHITECT_ASKS[2][1]], ["You", "skip"], ["Pathfinder", mod.ARCHITECT_LOOKING], ["Pathfinder", mod.ARCHITECT_READY + mod.ARCHITECT_FOUND]]
           and t1["choices"] == [mod.ARCHITECT_BUILD_ON.format(q) for q in asked] + mod.ARCHITECT_BUILD[1:] and not t1["waiting"], (told[:300], before, live, row, s1["left"], t1["said"][-4:], t1["choices"]))
     check("what the reading found stands under the brief too, in full, to read: Found in your saved analyses, and that the Analyst gets only what the coach builds on; an analysis to a block - the day "
           "and what was asked then, View, the passage word for word as the saved report has it, the reader's note - with nothing to tick, no tag yet, and no button that has them read. The brief "
@@ -1068,12 +1068,12 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           "passage in it, and folded under it the conversation its brief came from - the coach's messages under You - the brief it ran under and the code of its cells; its cross closes it, and "
           "the brief is as it was",
           dlg["title"] == mod.BRIEF_ANSWER and dlg["sub"] == f"{day} · {data} · picked" and "Against the brief" in dlg["heads"] and "Did not fit" in dlg["heads"] and quote in dlg["text"]
-          and dlg["folds"] == ["Conversation", "Brief", "Code"] and framed.get("conversation") == f"Person: {mod.BRIEF_ANSWER}\nArchitect: {mod.ARCHITECT_READY}"
-          and dlg["said"][0] == f"You: {mod.BRIEF_ANSWER}\nArchitect: {mod.ARCHITECT_READY}"
+          and dlg["folds"] == ["Conversation", "Brief", "Code"] and framed.get("conversation") == f"Person: {mod.BRIEF_ANSWER}\nPathfinder: {mod.ARCHITECT_READY}"
+          and dlg["said"][0] == f"You: {mod.BRIEF_ANSWER}\nPathfinder: {mod.ARCHITECT_READY}"
           and dlg["said"][1].startswith("What the answer is for: ") and "left to you" not in dlg["said"][1]
           and "BRIEF_DIFF" in dlg["code"] and dlg["folded"] and dlg["seen"] and dlg["chain"] == str(cid) and shut == "none" and brief_on_screen(page) == b1, (dlg, shut))
 
-    # the coach answers the Architect: build on that one. Its favourite keeps a picture of what it drew - put there by hand here: the stack's stand-in for Plotly makes none
+    # the coach answers the Pathfinder: build on that one. Its favourite keeps a picture of what it drew - put there by hand here: the stack's stand-in for Plotly makes none
     picture = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
     fav = os.path.join(storage, "favourites", str(tid), f"{cid2}.json")
     page_copy = json.load(open(fav, encoding="utf-8"))
@@ -1092,10 +1092,10 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           under["pictures"] == 0 and under["next"] != "ar-was" and previews == [], (under, previews))
     b2, t2, s2 = brief_on_screen(page), talk_on_screen(page), saved_on_screen(page)
     last2 = (thread_run(wa, user, tid3, cid).get("framing", {}).get("versions") or [{}])[-1]
-    check("the coach chooses by answering the Architect - the choice that names the analysis: the brief builds on it, as one more version - Builds on, with the day and what was asked then, View "
+    check("the coach chooses by answering the Pathfinder - the choice that names the analysis: the brief builds on it, as one more version - Builds on, with the day and what was asked then, View "
           "and a cross; under the brief that analysis carries the tag 'built on', the other none, and the line under the reading's row stands as it did. On the record the version is the "
-          "Architect's, made from the answer, and holds that analysis's passage - the other's is in no version",
-          t2["said"][-2:] == [["You", mod.ARCHITECT_BUILD_ON.format(mod.BRIEF_ANSWER)], ["Architect", mod.ARCHITECT_BUILT]] and t2["choices"] == []
+          "Pathfinder's, made from the answer, and holds that analysis's passage - the other's is in no version",
+          t2["said"][-2:] == [["You", mod.ARCHITECT_BUILD_ON.format(mod.BRIEF_ANSWER)], ["Pathfinder", mod.ARCHITECT_BUILT]] and t2["choices"] == []
           and b2["v"] == "5 of 5" and b2["changed"] == ["builds"] and b2["heads"] == ["What it is for", "What is compared", "Builds on", "Found in your saved analyses"]
           and s2["built"] == [{**line, "cross": True}] and [it["tag"] for it in s2["right"]] == (["built on", ""] if mine == 0 else ["", "built on"]) and s2["left"] == s1["left"] and s2["boxes"] == 0
           and (last2.get("by"), last2.get("why"), last2.get("changed")) == ("architect", "answer", ["saved.0"])
@@ -1117,18 +1117,18 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     f3 = thread_run(wa, user, tid3, cid).get("framing", {})
     m3 = [t for t in f3.get("turns", []) if t["who"] == "memory"]
     rows = [(r["agent"], str(r["chain_id"])) for r in usage_rows(wa, edition, user)[rows0:]]
-    check("one more reading, asked for in words: the reading starts - its row under the coach's words while it goes, the composer held and saying why. Skip ends it: the Architect's message "
-          "that it is looking stands above the row, which says it was skipped, with nothing listed under it; the brief and what was found before stand as they were, and the Architect goes on. On "
-          "the usage record the brief's chain holds the Architect's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
+    check("one more reading, asked for in words: the reading starts - its row under the coach's words while it goes, the composer held and saying why. Skip ends it: the Pathfinder's message "
+          "that it is looking stands above the row, which says it was skipped, with nothing listed under it; the brief and what was found before stand as they were, and the Pathfinder goes on. On "
+          "the usage record the brief's chain holds the Pathfinder's calls and the two models of the reading, in order - of the skipped reading no call, or the one that was on its way",
           mid == {"last": ["ar-msg you", mod.ARCHITECT_AGAIN], "wait": False, "row": ["SEARCHING MEMORY", f"0 of {len(mem['runs'])} read", "Skip"], "under": True,
                   "held": "Your saved analyses are being read"}
           and row2["n"] == 2 and row2["cls"] == "sp-row tool read skipped" and row2["text"][:3] == ["–", "MEMORY", "skipped"] and not row2["found"] and row2["after"] == "ar-msg arch"
-          and t3["said"][-3:] == [["You", mod.ARCHITECT_AGAIN], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_READY]] and s3 == s2
+          and t3["said"][-3:] == [["You", mod.ARCHITECT_AGAIN], ["Pathfinder", mod.ARCHITECT_LOOKING], ["Pathfinder", mod.ARCHITECT_READY]] and s3 == s2
           and b3 == {**b2, "v": "6 of 6", "changed": []}
           and [t["who"] for t in f3.get("turns", [])][-4:] == ["person", "architect", "memory", "architect"] and len(m3) == 2 and (m3[1]["failed"], m3[1]["found"]) == ("The person skipped it.", [])
           and len(f3.get("versions", [])) == 4 and len(f3.get("found", [])) == 2 and f3.get("calls") == 8
-          and rows[:11] == [("Architect", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Memory Pieces", str(cid)), ("Memory Reader", str(cid))] + [("Architect", str(cid))] * 3
-          and rows[11:] in ([("Architect", str(cid))], [("Memory Reader", str(cid)), ("Architect", str(cid))]), (mid, row2, t3["said"][-3:], rows, m3[1:], s3))
+          and rows[:11] == [("Pathfinder", str(cid))] * 4 + [("Memory Reader", str(cid))] * 2 + [("Memory Pieces", str(cid)), ("Memory Reader", str(cid))] + [("Pathfinder", str(cid))] * 3
+          and rows[11:] in ([("Pathfinder", str(cid))], [("Memory Reader", str(cid)), ("Pathfinder", str(cid))]), (mid, row2, t3["said"][-3:], rows, m3[1:], s3))
 
     # the coach leaves the analysis out with its cross, then goes back one step with the arrow
     page.click('#content-brief .ar-built [data-ar="unbuild"]')
@@ -1165,7 +1165,7 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
           and ran.get("status") == "answered" and ran.get("brief", {}).get("version") == 4 and [(x["run"], x["passage"], x["accepted"]) for x in ran.get("brief", {}).get("saved", [])] == [(str(cid2), quote, True)]
           and ran.get("framing", {}).get("at") == 4 and len(ran["framing"].get("versions", [])) == 5
           and steps_of(ran["framing"])[-2:] == [(7, 6, 5, [5], 0), (8, 6, 4, [], 1)] and (ran["framing"].get("step"), ran["framing"].get("tip")) == (8, 8)
-          and fold["head"].startswith("Architectbrief · step 7") and fold["rows"] == ["sp-row tool read", "sp-row tool read skipped", "sp-row tool read"]
+          and fold["head"].startswith("Pathfinderbrief · step 7") and fold["rows"] == ["sp-row tool read", "sp-row tool read skipped", "sp-row tool read"]
           and after["state"] == "run" and after["v"] == "7 of 7" and after["pens"] == 0 and not after["start"] and "Builds on" in after["heads"] and "Found in your saved analyses" not in after["heads"],
           (prompt[:900], ran.get("brief", {}).get("saved"), ran.get("framing", {}).get("at"), fold, after))
     opened = next((t for t in ran.get("turns", []) if t["kind"] == "show"), {})
@@ -1196,19 +1196,19 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     before2 = brief_on_screen(page)
     inside = talk_on_screen(page, "#streamOutput .ar-fold .sp-detail")
     check("a framed analysis saved and opened again from Saved workflows: its Brief tab comes with it, to be read - the step it started from, no pencil, no Start analysis - and goes back "
-          "through its steps: the first holds the same brief, with the line the Architect changed in it marked; the framing is folded above the run, the conversation inside",
+          "through its steps: the first holds the same brief, with the line the Pathfinder changed in it marked; the framing is folded above the run, the conversation inside",
           again["state"] == "run" and again["v"] == "2 of 2" and again["measure"] == "yield" and again["pens"] == 0 and not again["start"] and again["versions"] == 2
           and before2["v"] == "1 of 2" and before2["measure"] == "yield" and before2["changed"] == ["fixed.measure"] and before2["pens"] == 0 and not before2["start"]
-          and inside["said"] == [["You", mod.BRIEF_ANSWER], ["Architect", mod.ARCHITECT_READY]], (again, before2["v"], before2["measure"], inside))
+          and inside["said"] == [["You", mod.BRIEF_ANSWER], ["Pathfinder", mod.ARCHITECT_READY]], (again, before2["v"], before2["measure"], inside))
 
 
 def walk_tutor(page, mod, wa, edition, user):
-    """The Architect as a tutor (2026-11-17), with nothing loaded. A bare request: the Architect says what could be looked at, in a message of several lines with choices. It then words the
+    """The Pathfinder as a tutor (2026-11-17), with nothing loaded. A bare request: the Pathfinder says what could be looked at, in a message of several lines with choices. It then words the
     question, and its wording is the question at once: the box on the Brief tab shows it as one more version, and a row of the conversation says so; a wording the coach gives goes the same
-    way, and a question the Architect writes among the brief's parts is not kept. The coach steps back to an earlier step with the arrow and goes on from it: another way, with nothing of the way left in what
-    the Architect reads. The conversation's map shows both ways (0316): the coach goes to the end of the one that was left, goes on from there, comes back, and goes on by hand. The
+    way, and a question the Pathfinder writes among the brief's parts is not kept. The coach steps back to an earlier step with the arrow and goes on from it: another way, with nothing of the way left in what
+    the Pathfinder reads. The conversation's map shows both ways (0316): the coach goes to the end of the one that was left, goes on from there, comes back, and goes on by hand. The
     analysis then runs under what was agreed and nothing else: with no data there are no standing checks, and the report is not asked how it stands against a brief that expects nothing. A
-    question that follows it opens a brief with what the answer was for; the Architect has the saved analyses read, opens the report of the analysis before and speaks from it; told to build
+    question that follows it opens a brief with what the answer was for; the Pathfinder has the saved analyses read, opens the report of the analysis before and speaks from it; told to build
     on it, it brings that analysis into the brief."""
     page.evaluate("handleNewConversation()")
     page.wait_for_url("**/?new=true", timeout=60000)
@@ -1235,13 +1235,13 @@ def walk_tutor(page, mod, wa, edition, user):
     t1, b1, rec1 = talk_on_screen(page), brief_on_screen(page), thread_run(wa, user, tid, cid)
     asked1 = page.evaluate("() => responses[currentResponseIndex].queryText")
     v1 = rec1.get("framing", {}).get("versions", [])
-    check("a bare request: the Architect says what could be looked at, in a message of several lines with choices; the conversation shows the message as written, line for line, and the brief "
-          "stands at its one version, under the question as it was asked. The coach picks one, and the Architect words the question: its wording is the question at once - in the box on the Brief "
-          "tab, marked as changed, as version 2, a version of the Architect's made from the answer - and the run's question on the record; a row under the Architect's message says the question "
+    check("a bare request: the Pathfinder says what could be looked at, in a message of several lines with choices; the conversation shows the message as written, line for line, and the brief "
+          "stands at its one version, under the question as it was asked. The coach picks one, and the Pathfinder words the question: its wording is the question at once - in the box on the Brief "
+          "tab, marked as changed, as version 2, a version of the Pathfinder's made from the answer - and the run's question on the record; a row under the Pathfinder's message says the question "
           "was updated, and at which step. Nothing waits to be taken, and no button takes it: one call was made",
-          t0["said"] == [["You", mod.TUTOR_QUESTION], ["Architect", mod.TUTOR_FIRST]] and t0["choices"] == mod.TUTOR_CHOICES and lines[0] == "pre-wrap" and lines[1] >= 4 and t0["notes"] == []
+          t0["said"] == [["You", mod.TUTOR_QUESTION], ["Pathfinder", mod.TUTOR_FIRST]] and t0["choices"] == mod.TUTOR_CHOICES and lines[0] == "pre-wrap" and lines[1] >= 4 and t0["notes"] == []
           and (b0["v"], b0["title"], b0["heads"], b0["asked"]) == ("1 of 1", mod.TUTOR_QUESTION, [], "What the Analyst will be asked")
-          and t1["said"][-2:] == [["You", mod.TUTOR_CHOICES[0]], ["Architect", mod.ARCHITECT_BACK]] and t1["choices"] == mod.ARCHITECT_YES
+          and t1["said"][-2:] == [["You", mod.TUTOR_CHOICES[0]], ["Pathfinder", mod.ARCHITECT_BACK]] and t1["choices"] == mod.ARCHITECT_YES
           and t1["notes"] == [["QUESTION", "updated", "step 2", "ar-msg arch", ""]] and (b1["v"], b1["title"], b1["changed"]) == ("2 of 2", wording, ["question"])
           and rec1.get("question") == wording and asked1 == wording and page.evaluate("() => document.querySelectorAll('.ar-wording, .ar-use').length") == 0
           and [(v["by"], v.get("why"), v["changed"], v["brief"]["question"]) for v in v1] == [("person", None, [], mod.TUTOR_QUESTION), ("architect", "answer", ["question"], wording)]
@@ -1249,9 +1249,9 @@ def walk_tutor(page, mod, wa, edition, user):
     own = "Plot regime C beside regime A"
     tell(page, mod.ARCHITECT_OWN + own)
     t2, b2, rec2 = talk_on_screen(page), brief_on_screen(page), thread_run(wa, user, tid, cid)
-    check("a wording the coach gives: the Architect gives it as its own, and it is the question at once - one more version, and a row to each wording, under the message that gave it; the "
+    check("a wording the coach gives: the Pathfinder gives it as its own, and it is the question at once - one more version, and a row to each wording, under the message that gave it; the "
           "conversation still opens on the question as it was asked",
-          t2["said"][0] == ["You", mod.TUTOR_QUESTION] and t2["said"][-2:] == [["You", mod.ARCHITECT_OWN + own], ["Architect", mod.ARCHITECT_BACK]]
+          t2["said"][0] == ["You", mod.TUTOR_QUESTION] and t2["said"][-2:] == [["You", mod.ARCHITECT_OWN + own], ["Pathfinder", mod.ARCHITECT_BACK]]
           and t2["notes"] == [["QUESTION", "updated", "step 2", "ar-msg arch", "ar-msg you"], ["QUESTION", "updated", "step 3", "ar-msg arch", ""]]
           and (b2["v"], b2["title"], b2["changed"]) == ("3 of 3", own, ["question"]) and rec2.get("question") == own, (t2["said"][-2:], t2["notes"], b2, rec2.get("question")))
 
@@ -1265,31 +1265,31 @@ def walk_tutor(page, mod, wa, edition, user):
     read4 = read_last()
     f4 = rec4.get("framing", {})
     check("the arrow back (0316): step 2 of 3 is on screen, and both panes are that step's - the first wording in the box, with its pencil; the conversation up to there, its last message the "
-          "Architect's question whether that is meant, with its choices to click again, and nothing of the wording the coach gave after; Start analysis names the step. Nothing went to the "
+          "Pathfinder's question whether that is meant, with its choices to click again, and nothing of the wording the coach gave after; Start analysis names the step. Nothing went to the "
           "server. What the coach does next goes on from the step on screen: they click a choice, and the exchange is a step that follows step 2 - another way, and its third step. The "
-          "Architect reads the question and the brief as they stood at step 2 and the conversation up to there: not a word of the step that was left, and no word that the coach went back. Its "
+          "Pathfinder reads the question and the brief as they stood at step 2 and the conversation up to there: not a word of the step that was left, and no word that the coach went back. Its "
           "reply changes nothing, so no version is made: version 2 is the one in use - on the record, in the box - and its question is the run's. The record keeps the step that was left, "
           "with what was said in it, set aside",
           (b3["v"], b3["title"], b3["start"], b3["changed"]) == ("2 of 3", wording, "Start analysis from step 2", ["question"]) and b3["pens"] > 0 and stepped == [rows2, 3]
           and t3["said"] == t1["said"] and t3["choices"] == mod.ARCHITECT_YES and t3["notes"] == t1["notes"]
-          and t4["said"] == t1["said"] + [["You", mod.ARCHITECT_YES[0]], ["Architect", mod.ARCHITECT_WRITTEN]] and t4["notes"] == [["QUESTION", "updated", "step 2", "ar-msg arch", "ar-msg you"]]
+          and t4["said"] == t1["said"] + [["You", mod.ARCHITECT_YES[0]], ["Pathfinder", mod.ARCHITECT_WRITTEN]] and t4["notes"] == [["QUESTION", "updated", "step 2", "ar-msg arch", "ar-msg you"]]
           and (b4["v"], b4["title"], b4["start"], b4["changed"]) == ("3 of 3", wording, "Start analysis", [])
           and rec4.get("question") == wording and f4.get("at") == 2 and len(f4.get("versions", [])) == 3
           and steps_of(f4) == [(1, 0, 1, [1], 1), (2, 1, 2, [2], 2), (3, 2, 3, [3], 2), (4, 2, 2, [], 2)] and (f4.get("step"), f4.get("tip")) == (4, 4)
           and list(f4.get("aside", {})) == ["3"] and [t.get("text") for t in f4["aside"]["3"].get("turns", [])] == [mod.ARCHITECT_OWN + own, mod.ARCHITECT_BACK]
           and not any(t.get("who") == "version" for t in f4.get("turns", []))
           and f"QUESTION:\n{wording}\n(first asked as: {mod.TUTOR_QUESTION})\n\nBRIEF (version 2):" in read4
-          and f"Architect: {mod.ARCHITECT_BACK}\n(the question was written as: {wording})\n(choices offered: " in read4 and f"\nPerson: {mod.ARCHITECT_YES[0]}\n\nReply with the JSON object." in read4
+          and f"Pathfinder: {mod.ARCHITECT_BACK}\n(the question was written as: {wording})\n(choices offered: " in read4 and f"\nPerson: {mod.ARCHITECT_YES[0]}\n\nReply with the JSON object." in read4
           and own not in read4 and "went to version" not in read4,
           (b3, stepped, t3["said"][-2:], t4["said"][-2:], t4["notes"], b4["v"], rec4.get("question"), f4.get("at"), steps_of(f4), f4.get("aside"), read4[-600:]))
     tell(page, mod.ARCHITECT_UNREAD)
     b5, t5, rec5 = brief_on_screen(page), talk_on_screen(page), thread_run(wa, user, tid, cid)
     read = read_last()
-    check("a question the Architect writes among the brief's parts is not kept: the brief and the run's question stand. The Architect reads the question as it stands, with how it was first asked, "
+    check("a question the Pathfinder writes among the brief's parts is not kept: the brief and the run's question stand. The Pathfinder reads the question as it stands, with how it was first asked, "
           "the wording under the message that gave it - and, nothing being loaded, that there is no data",
           (b5["v"], b5["title"], rec5.get("question")) == ("4 of 4", wording, wording) and mod.ARCHITECT_UNREAD_WORDING not in json.dumps(rec5)
           and f"QUESTION:\n{wording}\n(first asked as: {mod.TUTOR_QUESTION})\n\nBRIEF (version 2):" in read and read.startswith("DATA:\n(no dataset attached")
-          and f"Architect: {mod.ARCHITECT_BACK}\n(the question was written as: {wording})\n(choices offered: " in read and "not taken yet" not in read and own not in read,
+          and f"Pathfinder: {mod.ARCHITECT_BACK}\n(the question was written as: {wording})\n(choices offered: " in read and "not taken yet" not in read and own not in read,
           (b5["v"], b5["title"], rec5.get("question"), read[:300]))
 
     # the conversation's map (0316; the maps drawer's Pathfinding level, 0327): a box to a step; the way that was left is there to go back to, and to go on from
@@ -1314,7 +1314,7 @@ def walk_tutor(page, mod, wa, edition, user):
     check("the conversation's map (0316; 0327): the maps drawer, its Pathfinding level pressed, holds the conversation's map - the level lit, saying how many steps and where they branch - "
           "with the thread's buttons out of it; the Analysis level is greyed, the brief not being run. A box to a step, joined to the step it follows: on it what the coach said - the question as it was asked on the first - and under it what the step changed. The "
           "step on screen is the open box and the way to it is lit; the step that was left is faint. Under the pointer that box lights its own way, and the drawer's foot says what was said "
-          "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the first sentence of the Architect's reply; the pointer gone, "
+          "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the first sentence of the Pathfinder's reply; the pointer gone, "
           "the way to the step on screen is lit again. A click on the box shuts the drawer, and both panes are that step's: the wording the coach gave in the box, the conversation of the way "
           "that was left - and nothing of the way taken since. Opened again, the map has that step open, its way lit and the other way faint, and its foot says what a click and the pointer do; its cross "
           "shuts it. Its head is the drawer's one head: the switch, then zoom, full screen and the close on one line - nothing on the map. "
@@ -1326,7 +1326,7 @@ def walk_tutor(page, mod, wa, edition, user):
                               [cut(mod.ARCHITECT_UNREAD), ""]]
           and (m0["on"], m0["lit"], m0["thread"], m0["buttons"]) == ([5], [1, 2, 4, 5], 0, False)
           and m_over["lit"] == [1, 2, 3, 5] and m_over["says"] == mod.ARCHITECT_OWN + own
-          and m_over["rows"] == [["Step", "3 of 3"], ["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Architect", mod.ARCHITECT_BACK.split(". ")[0] + "."]]
+          and m_over["rows"] == [["Step", "3 of 3"], ["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Pathfinder", mod.ARCHITECT_BACK.split(". ")[0] + "."]]
           and m_rest["lit"] == [1, 2, 4, 5] and m_rest["on"] == [5]
           and (b_left["v"], b_left["title"], b_left["start"]) == ("3 of 3", own, "Start analysis") and t_left["said"] == t2["said"] and t_left["notes"] == t2["notes"] and t_left["choices"] == mod.ARCHITECT_YES
           and (m_left["on"], m_left["lit"], m_left["says"], m_left["rows"]) == ([3], [1, 2, 3], "Click a step to go to it. Hover over one to read what was said.", [])
@@ -1339,11 +1339,11 @@ def walk_tutor(page, mod, wa, edition, user):
     page.click("#workflowMapModal .wf-node >> nth=4")       # and back to the step they had come from
     shut_map()
     b_home, t_home = brief_on_screen(page), talk_on_screen(page)
-    check("the way that was left, gone on from (0316): the coach answers at its end, and the exchange is a step that follows it - the Architect reads the wording the coach gave as the "
+    check("the way that was left, gone on from (0316): the coach answers at its end, and the exchange is a step that follows it - the Pathfinder reads the wording the coach gave as the "
           "question, the brief as it stood there and that way's conversation, with nothing of the other way. The map then has six steps, the new one open at the end of its way and the other "
           "way faint. A click on the step the coach had come from, and both panes are that step's again: its question, its conversation. On the record the step in use is still the last one "
           "spoken from: a step looked at is put in use by what is said or changed next",
-          t_on["said"] == t2["said"] + [["You", mod.ARCHITECT_YES[0]], ["Architect", mod.ARCHITECT_WRITTEN]] and (b_on["v"], b_on["title"]) == ("4 of 4", own)
+          t_on["said"] == t2["said"] + [["You", mod.ARCHITECT_YES[0]], ["Pathfinder", mod.ARCHITECT_WRITTEN]] and (b_on["v"], b_on["title"]) == ("4 of 4", own)
           and steps_of(f_on)[-1] == (6, 3, 3, [], 2) and (f_on.get("step"), f_on.get("tip")) == (6, 6) and sorted(f_on.get("aside", {})) == ["4", "5"] and "at" not in f_on
           and f"QUESTION:\n{own}\n(first asked as: {mod.TUTOR_QUESTION})\n\nBRIEF (version 3):" in read_on and mod.ARCHITECT_UNREAD not in read_on
           and (m1["sub"], m1["on"], m1["lit"]) == ("6 steps · 1 branch", [6], [1, 2, 3, 6]) and m1["boxes"][5] == [cut(mod.ARCHITECT_YES[0]), ""]
@@ -1351,7 +1351,7 @@ def walk_tutor(page, mod, wa, edition, user):
           and thread_run(wa, user, tid, cid).get("framing", {}).get("step") == 6,
           (t_on["said"][-2:], b_on["v"], steps_of(f_on), f_on.get("aside", {}).keys(), read_on[:300], m1, b_home["v"], b_home["title"]))
 
-    # the branch button on the Architect's cards (0325): the way to a step with no map opened
+    # the branch button on the Pathfinder's cards (0325): the way to a step with no map opened
     card_buttons = lambda: page.evaluate("""() => { const box = e => e.getBoundingClientRect(), mid = e => box(e).top + box(e).height / 2;
         return [...document.querySelectorAll('#streamOutput .ar-msg.arch')].map(m => { const b = m.querySelector('.sp-branch'), p = m.querySelector('.sp-prompt'), who = m.querySelector('.who');
             return b ? { says: b.title, lit: b.classList.contains('on'), green: getComputedStyle(b).borderTopColor === getComputedStyle(m).borderLeftColor,
@@ -1367,9 +1367,9 @@ def walk_tutor(page, mod, wa, edition, user):
     page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '4 of 4'", timeout=10000)
     page.hover("#tab-brief")
     b_whole, t_whole = brief_on_screen(page), talk_on_screen(page)
-    check("the branch button on the Architect's cards (0325): while the brief is not yet run, the Architect's card of every step of the way but its end has one - the Git branch mark, in "
+    check("the branch button on the Pathfinder's cards (0325): while the brief is not yet run, the Pathfinder's card of every step of the way but its end has one - the Git branch mark, in "
           "the card's head before the button of its prompt, level with it and of its size, the prompt's at the head's end - saying its step. A click, and both panes are that step's: "
-          "the conversation ends at that card, whose button is lit in the Architect's green, and the tab is the brief as it stood there. A click on the lit button brings the end of "
+          "the conversation ends at that card, whose button is lit in the Pathfinder's green, and the tab is the brief as it stood there. A click on the lit button brings the end of "
           "the way back. Nothing went to the server",
           cards0 == [plain(1), plain(2), plain(3), None]
           and cards1 == [plain(1), dict(plain(2), lit=True, green=True)] and (b_card["v"], b_card["start"]) == ("2 of 4", "Start analysis from step 2") and t_card["said"] == t_home["said"][:4]
@@ -1384,7 +1384,7 @@ def walk_tutor(page, mod, wa, edition, user):
     brief_type(page, "fixed.period", period)
     b6 = brief_on_screen(page)
 
-    # the question's check (0313): the coach words the question so that it points to an analysis the Analyst is not given. Start analysis has it read first - nothing runs, the Architect
+    # the question's check (0313): the coach words the question so that it points to an analysis the Analyst is not given. Start analysis has it read first - nothing runs, the Pathfinder
     # words it again - and the next Start runs at once
     pointed = wording + ", " + mod.COLD_POINTER
     brief_type(page, "question", pointed)
@@ -1417,7 +1417,7 @@ def walk_tutor(page, mod, wa, edition, user):
     held7 = page.evaluate("() => ({ running: queryRunning, n: responses.length, status: responses[0].status, input: [document.getElementById('queryInput').disabled, document.getElementById('queryInput').placeholder] })")
     check("the question's check (0313): the coach words the question so that it points to an analysis the Analyst is not given, and presses Start analysis. The question is read first - a row says "
           "so, the composer is held and says why - by a reader given what the Analyst will be given: the data's word that nothing is loaded, the question, the brief as agreed. Nothing runs: the "
-          "conversation holds the read - the words the Analyst cannot place, greyed and whole: the row wraps -, with its seconds and the button to what the reader was given - and under it the Architect's reply, which "
+          "conversation holds the read - the words the Analyst cannot place, greyed and whole: the row wraps -, with its seconds and the button to what the reader was given - and under it the Pathfinder's reply, which "
           "took them out: its wording is one more version, the question in the box and the run's. The record keeps the read as a turn, lists both versions as read, and the usage record holds "
           "the two calls, each under its name",
           checking == {"row": ["CHECKING THE QUESTION"], "hold": [True, "The question is being read as the Analyst will read it"], "running": False}
@@ -1425,12 +1425,12 @@ def walk_tutor(page, mod, wa, edition, user):
           and row7.get("n") == 1 and row7.get("cls") == "sp-row tool read skipped ar-unplaced" and row7["text"][:3] == ["–", "CHECK question", f"the Analyst cannot place “{mod.COLD_POINTER}”"]
           and row7["whole"]
           and re.fullmatch(r"\d+ s", row7["text"][3]) and row7["text"][4:] == ["⌘"] and row7["under"] == "ar-msg arch"
-          and t7["said"][-1] == ["Architect", mod.ARCHITECT_PLACED] and t7["notes"][-1][:2] == ["QUESTION", "updated"]
+          and t7["said"][-1] == ["Pathfinder", mod.ARCHITECT_PLACED] and t7["notes"][-1][:2] == ["QUESTION", "updated"]
           and (b7["v"], b7["title"], b7["start"]) == ("8 of 8", wording, "Start analysis") and rec7.get("question") == wording
           and [(v["by"], v["changed"], v["brief"]["question"]) for v in f7.get("versions", [])][5:] == [("person", ["question"], pointed), ("architect", ["question"], wording)]
           and [t["who"] for t in f7.get("turns", [])][-2:] == ["reader", "architect"]
           and {k: v for k, v in f7["turns"][-2].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": [mod.COLD_POINTER], "v": 6, "call": 1} and f7.get("read") == [6, 7]
-          and used7 == ["Question check", "Architect"]
+          and used7 == ["Question check", "Pathfinder"]
           and given7.startswith("DATA:\n(no dataset attached") and given7.rstrip().endswith("Reply with the JSON object.")
           and f"\n\nQUESTION:\n{pointed}\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: {what_for}\nFixed before the run:\n- period: {period}\n\nReply with" in given7,
           (checking, held7, row7, t7["said"][-1], t7["notes"][-1:], b7["v"], b7["title"], f7.get("read"), f7.get("turns", [])[-2:], used7, given7[-500:]))
@@ -1474,7 +1474,7 @@ def walk_tutor(page, mod, wa, edition, user):
           and [t.get("text") for t in kept_way["aside"]["3"]["turns"]] == [mod.ARCHITECT_OWN + own, mod.ARCHITECT_BACK] and steps_of(kept_way)[-1] == (10, 9, 7, [7], 2),
           (fold_head, folded["said"], steps_of(kept_way), list(kept_way.get("aside", {}))))
     fold7 = page.evaluate("""() => [...document.querySelectorAll('#streamOutput .ar-fold .sp-detail .sp-row.tool.read')].filter(r => r.children[1].textContent === 'CHECK question').map(r => r.children[2].textContent)""")
-    check("Start analysis again (0313): the version the Architect left runs at once - a read holds a start up once: no call of the question check's is made, and the analysis' own calls follow. "
+    check("Start analysis again (0313): the version the Pathfinder left runs at once - a read holds a start up once: no call of the question check's is made, and the analysis' own calls follow. "
           "What the reader was given is how the Analyst's own first prompt begins, the question apart; the conversation folded above the run keeps the read",
           "Question check" not in [r["agent"] for r in usage_rows(wa, edition, user)[rows_s:]] and len(usage_rows(wa, edition, user)) > rows_s
           and prompt.startswith(given7.rstrip()[:-len("Reply with the JSON object.")].rstrip().replace(pointed, wording) + "\n\nYOUR NOTE")
@@ -1496,32 +1496,32 @@ def walk_tutor(page, mod, wa, edition, user):
     read2 = read_last()
     saved_n = recf.get("saved") or 0
     check("a question that follows the analysis, typed with the switch on: its brief starts from what the last answer was for and says so - the period fixed for the question before is not in it. "
-          "The Architect has the saved analyses read on a follow-up too - their row, the analyses found listed under it, and it goes on at once - then opens the report of the analysis before: a "
+          "The Pathfinder has the saved analyses read on a follow-up too - their row, the analyses found listed under it, and it goes on at once - then opens the report of the analysis before: a "
           "row that says what was read and how long it is, and again it goes on at once, and speaks from what it read. The record keeps the reading and the part opened as turns of the "
           "conversation - of the part its name, never its text",
           recf.get("versions", [{}])[0] == {"n": 1, "by": "person", "changed": ["from the last brief"], "brief": {"decision": what_for, "question": mod.FOLLOW_QUESTION}}
           and f1["decision"] == what_for and f1["period"] is None and f1["title"] == mod.FOLLOW_QUESTION
           and [t["who"] for t in recf.get("turns", [])] == ["architect", "memory", "architect", "opened", "architect"]
           and recf["turns"][3] == {"who": "opened", "what": "report", "label": "the report", "chars": len(report)} and "## Did not fit" in report and "## Did not fit" not in json.dumps(recf)
-          and t5["said"] == [["You", mod.FOLLOW_QUESTION], ["Architect", mod.ARCHITECT_LOOKING], ["Architect", mod.ARCHITECT_OPENING], ["Architect", mod.ARCHITECT_OPENED + opens]]
+          and t5["said"] == [["You", mod.FOLLOW_QUESTION], ["Pathfinder", mod.ARCHITECT_LOOKING], ["Pathfinder", mod.ARCHITECT_OPENING], ["Pathfinder", mod.ARCHITECT_OPENED + opens]]
           and t5["choices"] == mod.ARCHITECT_BUILD and len(pane) == 7 and pane[2][:2] == ["✓", "MEMORY"] and pane[3] == "ar-found" and pane[5] == ["✓", "READ", "the report", f"{len(report):,} characters"]
           and [pane[k] for k in (1, 4, 6)] == ["ar-msg arch"] * 3 and len(s5["left"]) >= 1 and [it["asked"] for it in s5["right"]] == [it["asked"] for it in s5["left"]]
           and s5["built"] == [] and s5["boxes"] == 0, (recf.get("versions", [{}])[0], [t["who"] for t in recf.get("turns", [])], t5, pane, s5))
-    check("what the Architect read for the message it wrote from the report: the analysis before in a few lines, with what there is to open and a line to each of its cells; that no reading can be "
+    check("what the Pathfinder read for the message it wrote from the report: the analysis before in a few lines, with what there is to open and a line to each of its cells; that no reading can be "
           "made again before the coach has spoken; what it opened, named in the conversation; and the report itself, whole, in a block of its own under the conversation",
           f"EARLIER (the analyses this question follows, oldest first):\n[1] Q: {wording}\nFound: " in read2 and "\nTo open: its report, its conversation, its cells:\n[cell 1] " in read2      # the prompt's dialog drops a line's indent
           and f"\n\nSAVED: {saved_n} (no reading can be made now: they were read since the person last spoke)\n\nQUESTION:\n{mod.FOLLOW_QUESTION}\n" in read2 and saved_n >= 1
-          and f"Architect: {mod.ARCHITECT_OPENING}\nOpened: the report\n\nOPENED (in view until the person next speaks):\n--- the report ---\n{report.splitlines()[0]}\n" in read2
+          and f"Pathfinder: {mod.ARCHITECT_OPENING}\nOpened: the report\n\nOPENED (in view until the person next speaks):\n--- the report ---\n{report.splitlines()[0]}\n" in read2
           and "## Did not fit" in read2.split("OPENED (in view")[-1] and read2.rstrip().endswith("Reply with the JSON object."), read2[-1200:])
     tell(page, choice=0)
     f2, t6, s6 = brief_on_screen(page), talk_on_screen(page), saved_on_screen(page)
     last6 = (thread_run(wa, user, tid, cid2).get("framing", {}).get("versions") or [{}])[-1]
     read3 = read_last()
     first = s5["left"][0] if s5["left"] else {}
-    check("'Build on it', the coach's word: the Architect names the analysis, and the brief builds on it - a version of its own, made from the answer: Builds on, with View and a cross, and the tag "
-          "under the brief - so the Analyst will get its passages and can open it. The report the Architect opened is no longer in what it reads: the coach has spoken since, and the "
+    check("'Build on it', the coach's word: the Pathfinder names the analysis, and the brief builds on it - a version of its own, made from the answer: Builds on, with View and a cross, and the tag "
+          "under the brief - so the Analyst will get its passages and can open it. The report the Pathfinder opened is no longer in what it reads: the coach has spoken since, and the "
           "conversation says only that it was opened",
-          t6["said"][-2:] == [["You", mod.ARCHITECT_BUILD[0]], ["Architect", mod.ARCHITECT_BUILT]] and f2["changed"] == ["builds"] and s6["built"] == [{**first, "cross": True}]
+          t6["said"][-2:] == [["You", mod.ARCHITECT_BUILD[0]], ["Pathfinder", mod.ARCHITECT_BUILT]] and f2["changed"] == ["builds"] and s6["built"] == [{**first, "cross": True}]
           and [it["tag"] for it in s6["right"]] == ["built on"] + [""] * (len(s6["right"]) - 1) and len(s6["right"]) == len(s5["right"]) and s6["boxes"] == 0
           and (last6.get("by"), last6.get("why")) == ("architect", "answer") and {(x["thread"], x["run"]) for x in last6.get("brief", {}).get("saved", [])} == {tuple(first.get("view") or ())}
           and all(x.get("accepted") is True for x in last6.get("brief", {}).get("saved", []))
@@ -1546,9 +1546,9 @@ def figures_on_screen(page):
 
 
 def walk_draft(page, st, mod, wa, edition, user):
-    """The figures and their draft (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data. Asked to show the figures, the Architect describes them, and a draft of each is drawn in the
+    """The figures and their draft (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data. Asked to show the figures, the Pathfinder describes them, and a draft of each is drawn in the
     same exchange: a cell written by the model that drafts, run where no data is, each plot kept beside the thread's record and drawn on the Brief tab - on made-up numbers what the data will
-    give, computed what follows from a rule. Asked for another order, the Architect names the figures by their numbers and nothing is drawn again. The coach takes one out with its cross and
+    give, computed what follows from a rule. Asked for another order, the Pathfinder names the figures by their numbers and nothing is drawn again. The coach takes one out with its cross and
     goes back a step. The analysis then runs under the brief: the Analyst reads the figures that stand, the step that draws reads the same lines and the cell that drew their draft -
     its first reply leaves one out, and it is asked again before anything runs - and the report holds each agreed figure under its title."""
     page.evaluate("handleNewConversation()")
@@ -1593,7 +1593,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     tell(page, mod.ARCHITECT_SHOW)
     drawn(3)
     during = page.evaluate("() => window.__drawing")
-    check("while the draft is drawn (0311): the Architect's reply stands, the row under it says what is being done - DRAWING A DRAFT - and the composer is held with the same words. Each of "
+    check("while the draft is drawn (0311): the Pathfinder's reply stands, the row under it says what is being done - DRAWING A DRAFT - and the composer is held with the same words. Each of "
           "the three figures is its title over a grey window that shows, with one line in its middle - Drawing a draft… - that breathes; none is tagged as a draft, and nothing else is "
           "in its place",
           during == {"above": mod.ARCHITECT_DRAFTING, "row": ["DRAWING A DRAFT"], "hold": [True, "A draft of the figures is being drawn"],
@@ -1607,10 +1607,10 @@ def walk_draft(page, st, mod, wa, edition, user):
     plots = [json.load(open(p, encoding="utf-8")) if os.path.exists(p) else {} for p in kept]
     served = page.evaluate("(u) => window.authService.fetch(u).then(r => r.json().then(j => [r.status, j]))", f"/architect/draft/{tid}/{cid}/{keys[2]}")
     absent = page.evaluate("(u) => window.authService.fetch(u).then(r => r.status)", f"/architect/draft/{tid}/{cid}/000000000000")
-    check("asked to show the figures, the Architect describes them and a draft of each is drawn in the same exchange: the Brief tab has a part for them, under a plain heading - a panel to a "
+    check("asked to show the figures, the Pathfinder describes them and a draft of each is drawn in the same exchange: the Brief tab has a part for them, under a plain heading - a panel to a "
           "figure, numbered, as changed in this version, with a cross, each across the whole row. What the data will give is a draft on made-up numbers: the tag says so, a line under the "
           "figure says so, and the words stand across the plot; the target, which follows from its rule, is a draft with none of that. Each plot is drawn in its figure's place, under its "
-          "title; the grey window under it does not show, and nothing of how the Architect described the figure is on the page (0311). A row under the Architect's message says three were "
+          "title; the grey window under it does not show, and nothing of how the Pathfinder described the figure is on the page (0311). A row under the Pathfinder's message says three were "
           "drawn, with the seconds and the button to the draft's prompt, and the reply's choices can still be clicked. Before, the brief had no such part",
           f0["head"] == [] and f0["figs"] == [] and f1["head"] == ["What it will look like"]
           and [(f["n"], f["title"], f["tag"], f["changed"], f["cross"], f["drawn"], f["row"], f["window"]) for f in f1["figs"]]
@@ -1620,11 +1620,11 @@ def walk_draft(page, st, mod, wa, edition, user):
                                                  {"key": keys[2], "live": True, "head": target, "made": False, "across": []}]
           and [f["cap"] for f in f1["figs"]] == [made, made, ""] and not any(f["note"] in page.inner_text("#content-brief") for f in want)
           and len(f1["rows"]) == 1 and f1["rows"][0][:2] == ["FIGURES", "3 drawn"] and bool(re.fullmatch(r"\d+ s", f1["rows"][0][2])) and f1["rows"][0][3:] == ["⌘"]
-          and t1["said"][-2:] == [["You", mod.ARCHITECT_SHOW], ["Architect", mod.ARCHITECT_DRAFTING]] and t1["choices"] == mod.ARCHITECT_YES and (b1["v"], n1) == ("2 of 2", 3), (f0, f1, t1["said"][-2:], t1["choices"], b1["v"]))
-    check("the draft on the record and on disk: the figures are one more version of the Architect's, each named as changed, each a description and no more, with its key beside the version; "
+          and t1["said"][-2:] == [["You", mod.ARCHITECT_SHOW], ["Pathfinder", mod.ARCHITECT_DRAFTING]] and t1["choices"] == mod.ARCHITECT_YES and (b1["v"], n1) == ("2 of 2", 3), (f0, f1, t1["said"][-2:], t1["choices"], b1["v"]))
+    check("the draft on the record and on disk: the figures are one more version of the Pathfinder's, each named as changed, each a description and no more, with its key beside the version; "
           "the framing says of each key what its draft is - made up, made up, computed - and the round is the conversation's last turn. The cell that drew stands on the run's record with "
           "the keys it drew; each plot is a file of its own beside the thread's record, the target's with its rule's numbers and the word that it is computed. The page is served a plot by "
-          "its key, and none under a key that has no draft. Two calls were made and logged: the Architect's and the draft's",
+          "its key, and none under a key that has no draft. Two calls were made and logged: the Pathfinder's and the draft's",
           (v1.get("by"), v1.get("why"), v1.get("changed")) == ("architect", "answer", ["figures.0", "figures.1", "figures.2"]) and len(set(keys[:3])) == 3 and None not in keys[:3]
           and [f["title"] for f in v1.get("brief", {}).get("figures", [])] == [line, boxes, target] and "points" not in json.dumps(v1.get("brief", {}))
           and rec1.get("drafts") == {keys[0]: {"basis": "made up"}, keys[1]: {"basis": "made up"}, keys[2]: {"basis": "computed"}} and rec1.get("draft_calls") == 1
@@ -1636,7 +1636,7 @@ def walk_draft(page, st, mod, wa, edition, user):
           and [t.get("name") for t in plots[0]["data"]] == ["regime C", "regime A"] and served == [200, {"plot": plots[2]}] and absent == 404
           and len(usage_rows(wa, edition, user)) == rows0 + 2, (v1, rec1.get("drafts"), rec1.get("turns", [{}])[-1], ran1.get("drafts"), served, absent, len(usage_rows(wa, edition, user)) - rows0))
 
-    # the draft's prompt; then another order, asked for in words: the Architect names the figures by their numbers, and nothing is drawn again
+    # the draft's prompt; then another order, asked for in words: the Pathfinder names the figures by their numbers, and nothing is drawn again
     asked = read('#streamOutput .sp-stream > .sp-row .sp-prompt[data-agent="Draft"]', "FIGURES TO DRAW:")
     rows1 = len(usage_rows(wa, edition, user))
     tell(page, mod.ARCHITECT_SWAP)
@@ -1647,9 +1647,9 @@ def walk_draft(page, st, mod, wa, edition, user):
     rec2 = ran2.get("framing", {})
     v2 = (rec2.get("versions") or [{}])[-1]
     check("the draft was written from the question as it stands and the figures in words - the kind, what is on each axis, what it holds, what it is to make clear - and nothing of the data. "
-          "Asked for the second figure first, the Architect read the figures each under its number, and what the draft came to as a line of the conversation; its reply names the figures by "
+          "Asked for the second figure first, the Pathfinder read the figures each under its number, and what the draft came to as a line of the conversation; its reply names the figures by "
           "number, the first two the other way round: the panels change places with their drafts - each under the key it had - the two that moved marked as changed. One more version of "
-          "the Architect's, and one call: nothing was drawn again",
+          "the Pathfinder's, and one call: nothing was drawn again",
           asked.startswith(f"QUESTION:\n{mod.FIGURES_QUESTION}\n\nFIGURES TO DRAW:\n{lines_of(*want)}\nReply with the cell.") and "regime B" not in asked and "yield_t_ha" not in asked
           and f"\nfigures:\n{lines_of(*want)}".replace("\n1. ", "\n- [1] ").replace("\n2. ", "\n- [2] ").replace("\n3. ", "\n- [3] ") in read2 and "sketched" not in read2
           and f'\nDraft of the figures: drawn - "{line}" (on made-up numbers), "{boxes}" (on made-up numbers), "{target}" (computed)\nPerson: {mod.ARCHITECT_SWAP}' in read2
@@ -1717,7 +1717,7 @@ def walk_draft(page, st, mod, wa, edition, user):
           == [(boxes, False, True, keys[1], True, "draft · made-up numbers"), (line, False, True, keys[0], True, "draft · made-up numbers")],
           (prompt[:900], [d[:1500] for d in drew], steps, ran.get("report", "")[-400:], f6))
 
-    # a branch of this analysis (0320, docs/BRANCH_DESIGN.md §5): back to its first turn, a hint, with the Architect still switched on
+    # a branch of this analysis (0320, docs/BRANCH_DESIGN.md §5): back to its first turn, a hint, with the Pathfinder still switched on
     rows3 = len(usage_rows(wa, edition, user))
     open_turn_map(page)
     turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
@@ -1734,13 +1734,13 @@ def walk_draft(page, st, mod, wa, edition, user):
                  brief: brief ? [brief.dataset.state, brief.dataset.chain] : null, made: ArchitectUI.mark(e) }; }""")
     ran_b = thread_run(wa, user, tid, of_b["chain"])
     calls_b = [r["agent"] for r in usage_rows(wa, edition, user)[rows3:]]
-    check("a branch of a framed analysis (0320): the hint starts it at once - the Architect, switched on, is not asked, and no call reads the question again - and it runs under the same "
+    check("a branch of a framed analysis (0320): the hint starts it at once - the Pathfinder, switched on, is not asked, and no call reads the question again - and it runs under the same "
           "brief: the brief's row stands above the run, the turn it keeps under that, then the hint and its own turns; the Brief tab is there for the new chain, to be read; the record "
           "keeps the brief, with its figures and their drafts, and the question; the report follows the hint, and the figures agreed are drawn again",
-          of_b["on"] == "true" and calls_b and "Architect" not in calls_b and "Question check" not in calls_b
+          of_b["on"] == "true" and calls_b and "Pathfinder" not in calls_b and "Question check" not in calls_b
           and of_b["branch"] == {"of": cid, "turn": 1, "hint": mod.BRANCH_HINT} and of_b["q"] == mod.FIGURES_QUESTION
           and of_b["first"].startswith("sp-turn ar-fold") and of_b["fold"].startswith("brief · step ") and of_b["turns"][0] == [1, True] and all(not kept for _, kept in of_b["turns"][1:])
-          and len(of_b["turns"]) >= 3 and of_b["hints"] == ["From turn 1" + mod.BRANCH_HINT] and "Brief" in of_b["tabs"] and of_b["brief"] == ["run", str(of_b["chain"])] and of_b["made"] == "Architect"
+          and len(of_b["turns"]) >= 3 and of_b["hints"] == ["From turn 1" + mod.BRANCH_HINT] and "Brief" in of_b["tabs"] and of_b["brief"] == ["run", str(of_b["chain"])] and of_b["made"] == "Pathfinder"
           and ran_b.get("status") == "answered" and ran_b.get("branch") == {"of": str(cid), "turn": 1} and ran_b.get("brief") == ran.get("brief") and ran_b.get("drafts") == ran.get("drafts")
           and ran_b.get("question") == ran.get("question") and "## Each soil type on its own" in ran_b.get("report", "")
           and [[f.get("title") for f in t.get("figures", []) if isinstance(f, dict)] for t in ran_b.get("turns", []) if t.get("step") == "figures" and t.get("kind") == "cell"][-1:] == [[boxes, line]],
@@ -1852,7 +1852,7 @@ def walk_draft(page, st, mod, wa, edition, user):
           and len(os.listdir(os.path.join(storage, "favourites", str(tid)))) == 3,
           (third, ran_3.get("status"), ran_3.get("branch"), ran_3.get("hints"), sorted(mem_3), left_3, [l for l in log_3.splitlines() if "kernel for the branch" in l][-2:]))
 
-    # ---- the code map and the Investigation tab of a branch (0322, docs/BRANCH_DESIGN.md §6) ----
+    # ---- the code trace and the Investigation tab of a branch (0322, docs/BRANCH_DESIGN.md §6) ----
     # Both show the branch's whole way and now say what of it is the branch's: the step it kept is marked, the hint stands where the person gave it, and the
     # map's header says after which turn the analysis went on - under the number the arrows show for it, one analysis whatever its branches
     page.click("#streamOutput .sp-done .sp-codemap")
@@ -1873,7 +1873,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     inv = page.evaluate("""() => { const nb = document.querySelector('.briefing-content .nb'), kids = [...nb.children], hint = nb.querySelector('.nb-step--hint');
         return { hint: hint ? hint.textContent : '', metas: [...nb.querySelectorAll('.nb-cell-head .nb-cell-meta')].map(x => x.textContent),
                  before: hint ? kids.slice(0, kids.indexOf(hint)).filter(x => x.classList.contains('nb-cell')).length : -1, cells: nb.querySelectorAll('.nb-cell').length }; }""")
-    check("the code map of a branch (0322): its header says the analysis's number as the arrows count it - one analysis, whatever its branches - and after which turn it went on, "
+    check("the code trace of a branch (0322): its header says the analysis's number as the arrows count it - one analysis, whatever its branches - and after which turn it went on, "
           "and its line of facts how many turns it kept; the step it kept says kept under its turn and in its panel, its own step says nothing; the hint stands in a row of "
           "its own after the kept step, in the header's colour. The Investigation tab says the same: kept in the head of the kept cell, the hint in a row after it",
           cm_b["no"] == "chain 1" and cm_b["branch"] == "branch from turn 1" and " turns, 1 kept · " in cm_b["facts"]
@@ -2078,7 +2078,7 @@ def main():
             nums = page.evaluate("() => (document.querySelector('.sp-done .head .nums') || {}).textContent || ''")
             check("the replay captured both figures: the matplotlib PNG and the plotly JSON (the closing card counts 2 plots among the run's numbers)", " · 2 plots · " in nums, nums)
 
-            # the third way in (2026-10-24): a [cell n] chip in the report opens the code map on that cell's number - the diagram
+            # the third way in (2026-10-24): a [cell n] chip in the report opens the code trace on that cell's number - the diagram
             # with its recipe in the panel - and Escape closes it; the zoom controls sit at the diagram head's end
             page.evaluate("activateTab('answer')")
             page.wait_for_selector("#content-answer .cite.cell", timeout=5000)
@@ -2106,13 +2106,13 @@ def main():
             page.keyboard.press("Escape")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
 
-            # the code map (2026-10-20, M4): the closing card's button opens the modal on this chain, built at its end; a result's
+            # the code trace (2026-10-20, M4): the closing card's button opens the modal on this chain, built at its end; a result's
             # recipe; the diagram; the Workflow map's eye opens it too
-            check("the closing card carries the Code map button with this chain's id", page.evaluate("() => { const b = document.querySelector('.sp-done .sp-codemap'); return b && b.dataset.chain === String(responses[currentResponseIndex].chain_id); }"))
+            check("the closing card carries the Code trace button with this chain's id", page.evaluate("() => { const b = document.querySelector('.sp-done .sp-codemap'); return b && b.dataset.chain === String(responses[currentResponseIndex].chain_id); }"))
             page.click(".sp-done .sp-codemap")
             page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
             cm_head = page.evaluate("() => ({ chain: document.querySelector('#codeMapModal .cm-chain-no').textContent, built: document.querySelector('#codeMapModal .cm-facts').getAttribute('data-built'), facts: document.querySelector('#codeMapModal .cm-facts').textContent, line: document.querySelector('#codeMapModal .cm-head-line').textContent, rows: document.querySelectorAll('#codeMapModal .cm-row.step').length, failed: document.querySelectorAll('#codeMapModal .cm-row.failed').length, lanes: [...document.querySelectorAll('#codeMapModal .cm-lane .name')].map(e => e.textContent), results: document.querySelectorAll('#codeMapModal .cm-res.recorded').length, lanesHeight: document.querySelector('#codeMapModal .cm-lanes').getBoundingClientRect().height })")
-            check("the code map opens on chain 1, built when the chain ended (said in its data, not in words): the facts, its cells and the rolled-back attempt as rows, the dataset's lane as tall as its name, a recorded result",
+            check("the code trace opens on chain 1, built when the chain ended (said in its data, not in words): the facts, its cells and the rolled-back attempt as rows, the dataset's lane as tall as its name, a recorded result",
                   cm_head["chain"] == "chain 1" and cm_head["built"] == "end" and "cells" in cm_head["facts"] and "built" not in cm_head["line"] and cm_head["rows"] >= 3 and cm_head["failed"] == 1 and cm_head["lanes"] == ["field_trial.csv"]
                   and 70 < cm_head["lanesHeight"] < 160 and cm_head["results"] >= 1, cm_head)
             page.click("#codeMapModal .cm-res.recorded")
@@ -2138,7 +2138,7 @@ def main():
             page.hover("#workflowMapModal .wf-node")
             page.click("#workflowMapModal .wf-node .wf-node-map")
             page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
-            check("the Workflow map's eye opens the chain's code map and closes the drawer", page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'"))
+            check("the Workflow map's eye opens the chain's code trace and closes the drawer", page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'"))
             page.click("#codeMapModal .cm-head button.x")
             page.wait_for_timeout(200)
             # the lines behind a number (2026-10-24): Open in the notebook from a recipe lights the statements the number rests on
@@ -2523,9 +2523,9 @@ def main():
             unlocked = page.evaluate("() => ({ locked: document.body.classList.contains('composer-locked'), placeholder: document.getElementById('queryInput').placeholder, pos: document.getElementById('chainPosition').textContent, pill: getComputedStyle(document.getElementById('saveButton')).display })")
             check("loading a favourite leaves the run view: the composer is back with its own placeholder, the chains' navigation and the Save pill return",
                   not unlocked["locked"] and "open the analysis" not in unlocked["placeholder"] and "chain" in unlocked["pos"] and unlocked["pill"] != "none", unlocked)
-            # the code map from a restored chain (2026-10-20, M5): the card saved as HTML carries the chain id, so its button still opens the map
+            # the code trace from a restored chain (2026-10-20, M5): the card saved as HTML carries the chain id, so its button still opens the map
             restored_btn = page.evaluate("() => { const b = document.querySelector('#streamOutput .sp-done .sp-codemap'); return b ? b.dataset.chain : null; }")
-            check("a restored favourite's closing card keeps its Code map button with the chain's id", restored_btn and restored_btn == str(page.evaluate("() => responses[currentResponseIndex].chain_id")), restored_btn)
+            check("a restored favourite's closing card keeps its Code trace button with the chain's id", restored_btn and restored_btn == str(page.evaluate("() => responses[currentResponseIndex].chain_id")), restored_btn)
             page.click("#streamOutput .sp-done .sp-codemap")
             page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
             check("... and it opens that chain's map, built when the chain ended", page.evaluate("() => document.querySelector('#codeMapModal .cm-facts').getAttribute('data-built')") == "end")
@@ -2783,7 +2783,7 @@ def main():
                   and "The figure attached to the question was in view." in ans7, (p7["user"][:300], ans7[:300]))
             # the reach report (2026-10-28): a chain whose first cell the executor refuses (the blacklist) and whose second
             # fetches from the fake integrations service, which the question does not name - the pane's rows, the closing
-            # card, the Investigation tab, the code map and the record
+            # card, the Investigation tab, the code trace and the record
             page.fill("#queryInput", mod.REACH_QUESTION)
             page.click("#submitQuery")
             wait_text(page, "#chainPosition", "chain 8 of 8", 60000)
@@ -2817,7 +2817,7 @@ def main():
                 chip: [...m.querySelectorAll('.cm-reach-chip')].map(c => [c.className, c.textContent]),
                 section: [...m.querySelectorAll('.cm-check.reach')].map(c => [c.className, c.textContent, c.getAttribute('data-act'), c.getAttribute('data-cell')]),
                 heads: [...m.querySelectorAll('.cm-panel .cm-h')].map(h => h.textContent) }; }""")
-            check("the code map: the meta line says 1 cell not run; the refused attempt is its own row (not a failed row); the fetch step carries the reach chip; the summary's section lists the reach (a button to its step) and the refused attempt before 'Worth checking'",
+            check("the code trace: the meta line says 1 cell not run; the refused attempt is its own row (not a failed row); the fetch step carries the reach chip; the summary's section lists the reach (a button to its step) and the refused attempt before 'Worth checking'",
                   map8["meta"] and len(map8["restricted"]) == 1 and map8["restricted"][0].startswith("Not run · restricted operation (subprocess)") and map8["failedRows"] == 0
                   and len(map8["chip"]) == 1 and map8["chip"][0][0] == "cm-chip cm-reach-chip" and "127.0.0.1" in map8["chip"][0][1]
                   and len(map8["section"]) == 2 and map8["section"][0][0] == "cm-check reach unasked" and "not asked for" in map8["section"][0][1] and map8["section"][0][2] == "pick-s" and map8["section"][0][3]
@@ -2837,9 +2837,9 @@ def main():
                   and all((r["replay_status"] == "reproduced") == any(t_["kind"] == "cell" for t_ in r["turns"]) for r in runs),
                   [(r["status"], r["replay_status"], sum(1 for t_ in r["turns"] if t_["kind"] == "cell")) for r in runs])
             check("the second run's parent is the first", len(runs) >= 2 and runs[1]["parent"] == runs[0]["id"])
-            # the code map (2026-10-20, M3): built at each chain's end by the host, through the executor's columns call
+            # the code trace (2026-10-20, M3): built at each chain's end by the host, through the executor's columns call
             with_cells = [r for r in runs if any(t_["kind"] == "cell" and t_.get("cell_no") for t_ in r["turns"])]
-            check("every chain with cells carries its code map, built at its end with no error, its view naming the chain and the primary by its file",
+            check("every chain with cells carries its code trace, built at its end with no error, its view naming the chain and the primary by its file",
                   with_cells and all(r["code_map"].get("view") and "error" not in r["code_map"] and r["code_map"]["view"]["chain_id"] == r["id"]
                                      and r["code_map"]["inputs"][0]["kind"] == "primary" and r["code_map"]["inputs"][0]["name"].endswith(".csv") for r in with_cells),
                   [(r["id"], {k_: v for k_, v in r["code_map"].items() if k_ != "view"}) for r in with_cells][:2])
@@ -2936,7 +2936,7 @@ def main():
                   "full screen and the close on one line - none of them on the map; the foot says what a click and the pointer do",
                   head == {"scrolled": True, "buttons": 0, "goes_on": "1", "under": True, "line": True}
                   and map1["title"] == "Analysis" and map1["sub"] == f"{len(map1['boxes'])} turns" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
-                  and re.fullmatch(r"Workflow9 / Chain 9 / Pathfinding- \| Analysis" + str(len(map1["boxes"])) + r"\*", map1["switch"]) and map1["off"] == {"pathfinding": "Chain 9 was asked without the Architect"}
+                  and re.fullmatch(r"Workflow9 / Chain 9 / Pathfinding- \| Analysis" + str(len(map1["boxes"])) + r"\*", map1["switch"]) and map1["off"] == {"pathfinding": "Chain 9 was asked without the Pathfinder"}
                   and map1["head"] == map_head() and map1["says"] == "Click a turn to go back to it. Hover over one to see what it did."
                   and re.fullmatch(r"Turn 1 · In \[\d+\]", map1["boxes"][0][1]) and map1["boxes"][-1][1] == f"Turn {len(map1['boxes'])} · report" and map1["on"] == [len(map1["boxes"])]
                   and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)), (head, map1))
@@ -2957,7 +2957,7 @@ def main():
             shut1 = page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display")
             check("going back to a turn (0320): a click on its box shuts the drawer and ends the left pane at the turn - the later cards and the closing card are out of sight - while the "
                   "tabs stay as they were; the composer asks for a hint, the row under it says from which turn and how many turns are left, and the files' menu, the mode and the "
-                  "Architect's switch are out of sight; the arrows' count is as it was",
+                  "Pathfinder's switch are out of sight; the arrows' count is as it was",
                   shut1 == "none" and back1["turns"] == [[1, False]] and back1["hidden"] == back1["cards"] - 1 >= 1 and back1["done"] is False and whole["done"] is True
                   and re.fullmatch(r"From turn 1 · \d+ turns left×", back1["chip"]) and back1["words"] == "Say how the analysis should go on from turn 1" and back1["controls"] == [False, False, False]
                   and whole["controls"] == [True, True, True] and back1["standing"] == {"chain": int(last_b["id"]), "turn": 1} and back1["tabs"] == whole["tabs"] and back1["position"] == whole["position"] == "chain 9 of 9",
@@ -3290,16 +3290,16 @@ def main():
             page.evaluate("RoutinesUI.closeManager()")
             errs = errs + page.evaluate("window.__stackErrors || []")
 
-            # the Architect (2026-11-15, docs/ARCHITECT_DESIGN.md §2.11), last and in a workflow of its own
+            # the Pathfinder (2026-11-15, docs/ARCHITECT_DESIGN.md §2.11), last and in a workflow of its own
             framed = walk_architect(page, st, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
 
-            # the saved analyses in the Architect (2026-11-16, docs/ARCHITECT_DESIGN.md §3.7): the analysis it framed is saved,
+            # the saved analyses in the Pathfinder (2026-11-16, docs/ARCHITECT_DESIGN.md §3.7): the analysis it framed is saved,
             # and a question it bears on is framed in a workflow of its own
             walk_saved(page, st, mod, wa, edition, USER, *framed)
             errs = errs + page.evaluate("window.__stackErrors || []")
 
-            # the Architect as a tutor (2026-11-17): the question worked out in the conversation, with nothing loaded
+            # the Pathfinder as a tutor (2026-11-17): the question worked out in the conversation, with nothing loaded
             walk_tutor(page, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
 

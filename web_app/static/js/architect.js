@@ -1,40 +1,41 @@
-// architect.js - the Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11-§2.14, §2.18; 2026-11-17).
+// architect.js - the Pathfinder on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11-§2.14, §2.18; 2026-11-17).
+// The Pathfinder was the Architect until 2.9: the names in the code keep that word.
 // A question typed with the switch on is framed before it is analysed: the server opens a framing run on the thread's
 // record (POST /architect/open) and the page shows it as a chain of its own, the conversation in the left pane and
-// its brief on a Brief tab. The Architect fills the brief from the question and asks for what is missing, one
+// its brief on a Brief tab. The Pathfinder fills the brief from the question and asks for what is missing, one
 // exchange a call (POST /architect/say, a stream); while such a chain is on screen the composer is the conversation's
-// input. Where a reply had the data looked up, the round is a row of the conversation and the Architect goes on at
-// once, with the marks. The coach also changes the brief where it stands, and ticks what the Architect proposed;
+// input. Where a reply had the data looked up, the round is a row of the conversation and the Pathfinder goes on at
+// once, with the marks. The coach also changes the brief where it stands, and ticks what the Pathfinder proposed;
 // every change kept is one more version, stored by the server (POST /architect/brief). Start analysis continues the
 // same chain (/query with run_id), so the question is one box on the Workflow map.
 //
 // One rule holds the Brief tab together: what it shows is what the Analyst gets. The question is its top box, and
-// the Architect words it as the conversation goes: each wording is one more version, and a row of the conversation
+// the Pathfinder words it as the conversation goes: each wording is one more version, and a row of the conversation
 // says so. Under it stand the parts that hold something, and no other; + Add lists the ones a coach can add by hand.
 //
-// What the coach says or changes, with the Architect's reply, is a step of the conversation (§2.25; analyst/steps.py).
+// What the coach says or changes, with the Pathfinder's reply, is a step of the conversation (§2.25; analyst/steps.py).
 // The arrows step through the steps of the way being walked, and the one on screen is the one in use: the pane shows
 // the conversation up to it, the tab the brief as it stood there, and an answer, a change and Start analysis all go
 // on from it (the step rides with the request). Going on from a step that has steps after it starts another way:
-// the steps left are set aside, out of the pane and of what the Architect reads. The Pathfinding map - a level of
+// the steps left are set aside, out of the pane and of what the Pathfinder reads. The Pathfinding map - a level of
 // the maps drawer (maps.js), in the Workflow map's drawing (workflowGraph.js) - shows every step, and a click goes to
-// one. In the pane the Architect's card of a step has a branch button, as a turn's card of an analysis has
+// one. In the pane the Pathfinder's card of a step has a branch button, as a turn's card of an analysis has
 // (branch.js): a click goes to that step with no map opened. A brief kept before steps is one way, a step to a
 // version, and has neither.
 //
 // Where a reply has the coach's saved analyses read (§3.7), the stream says how far the reading is: a row of the
 // conversation with a count and Skip (POST /architect/skip). What was found is listed under the row, an analysis to
 // a line, and in full under the brief, to read; each can be viewed whole (GET /architect/saved/<thread>/<run>). The
-// coach chooses by answering the Architect, and the brief then says which analyses it builds on. Where a reply opened
-// a part of an earlier analysis, that is a row of the conversation too, and the Architect goes on at once (§2.17).
+// coach chooses by answering the Pathfinder, and the brief then says which analyses it builds on. Where a reply opened
+// a part of an earlier analysis, that is a row of the conversation too, and the Pathfinder goes on at once (§2.17).
 //
-// Where the brief holds figures, a draft of each is drawn after the Architect's reply (§2.20): the stream first
+// Where the brief holds figures, a draft of each is drawn after the Pathfinder's reply (§2.20): the stream first
 // carries the framing with the reply, the pane shows a row while the cell runs, and the Brief tab then draws each
 // plot with Plotly (GET /architect/draft/<thread>/<chain>/<key>) - marked where its numbers are made up. A figure
 // without a draft is a grey window with one line: a draft is on its way, none could be drawn, or none was yet.
 //
 // Start analysis first has the question read as the Analyst will read it (POST /architect/ready, a stream; §2.22):
-// a row says so while it is read, and what came of it. Where the reader could not place something, the Architect
+// a row says so while it is read, and what came of it. Where the reader could not place something, the Pathfinder
 // has gone on - the question worded again - and the coach starts again when they have seen it.
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
@@ -52,7 +53,7 @@
     'use strict';
 
     const WORDS = {
-        answer: 'Answer, or say what to change', replying: 'The Architect is replying', reading: 'reading…', readingSaved: 'Your saved analyses are being read',
+        answer: 'Answer, or say what to change', replying: 'The Pathfinder is replying', reading: 'reading…', readingSaved: 'Your saved analyses are being read',
         asked: 'What the Analyst will be asked', gets: 'This is what the Analyst gets. Change any line before you start.',
         head: { decision: 'What it is for', thinks: 'What you think', rests_on: 'Why you think so', expects: 'What you expect to see', would_change: 'What would change your mind',
                 also_check: 'Other explanations to test', figures: 'What it will look like', builds: 'Builds on', aside: 'Set aside' },
@@ -61,7 +62,7 @@
         step: 'Step', of: (k, n) => k + ' of ' + n, before: 'The step before', after: 'The step after', branchFrom: k => 'Branch from step ' + k,
         start: 'Start analysis', startFrom: k => 'Start analysis from step ' + k,
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
-        noReply: 'The Architect did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
+        noReply: 'The Pathfinder did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
         busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
         saved: 'MEMORY', found: n => n + (n === 1 ? ' analysis' : ' analyses') + ' found', noneFound: 'nothing found', readOf: (r, m) => r ? 'read ' + r + ' of ' + m : m + ' saved',
         searching: 'SEARCHING MEMORY', readSoFar: (r, m) => (m == null ? '' : (r || 0) + ' of ' + m + ' read'), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
@@ -79,9 +80,9 @@
         notStarted: 'The analysis did not start',
         // the Pathfinding map - the steps that made the brief: the drawer's words, why it cannot be shown, what a box says where the coach said nothing, and its second line - the parts of the brief the step changed, in the tab's words
         mapSaid: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : ''),
-        mapOff: { none: n => 'Chain ' + n + ' was asked without the Architect', old: n => 'Chain ' + n + "'s brief was made before version 2.8.1" },
-        mapRest: 'Click a step to go to it. Hover over one to read what was said.', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',
-        info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Architect' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
+        mapOff: { none: n => 'Chain ' + n + ' was asked without the Pathfinder', old: n => 'Chain ' + n + "'s brief was made before version 2.8.1" },
+        mapRest: 'Click a step to go to it. Hover over one to read what was said.', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Pathfinder went on',
+        info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
         part: { question: 'question', decision: 'what it is for', thinks: 'what you think', rests_on: 'why you think so', expects: 'what you expect', would_change: 'what would change your mind',
                 also_check: 'other explanations', 'fixed.comparison': 'what is compared', 'fixed.measure': 'measured by', 'fixed.period': 'period', figures: 'figure', saved: 'builds on' },
         against: { head: 'How it turned out', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked', missing: 'The report does not say.' }
@@ -96,7 +97,7 @@
     const KINDS = [['decision', WORDS.head.decision], ['thinks', WORDS.head.thinks], ['rests_on.+', WORDS.head.rests_on], ['expects', WORDS.head.expects],
                    ['would_change', WORDS.head.would_change], ['also_check.+', WORDS.another]].concat(FIXED.map(f => ['fixed.' + f[0], f[1]]));
     const LOCKED = ['data'];                      // a fact from a lookup: left out, never changed (§2.6)
-    const SOURCE = { architect: ['ar', 'Architect'], data: ['', 'data'], result: ['', 'last result'] };   // the coach's own lines carry no chip
+    const SOURCE = { architect: ['ar', 'Pathfinder'], data: ['', 'data'], result: ['', 'last result'] };   // the coach's own lines carry no chip
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const MARK = { 'holds': ['ok', '✓'], 'does not hold': ['no', '✕'], 'cannot be checked': ['q', '?'] };
     const VERDICT = { 'met': 'ok', 'not met': 'no', 'not seen': 'ok', 'seen': 'no', 'cannot tell': 'q' };
@@ -229,7 +230,7 @@
     // ------------------------------------------------------------ the brief with one line changed (pure)
     // Returns {brief, changed, removed} - the brief as it would stand, the parts the change touched, the index of a line
     // left out - or null when nothing would change. An empty text clears a part or leaves a line out; a line the coach
-    // changes is their own: it loses its mark until it is checked again (§2.6), and a proposal of the Architect's its box.
+    // changes is their own: it loses its mark until it is checked again (§2.6), and a proposal of the Pathfinder's its box.
     function apply(brief, path, text) {
         const part = String(path).split('.')[0], at = String(path).split('.')[1];
         const b = JSON.parse(JSON.stringify(brief || {}));
@@ -262,7 +263,7 @@
         return { brief: b, changed: [path] };
     }
 
-    // the brief with a proposal of the Architect's accepted or no longer (pure): {brief, changed}, or null for any other line
+    // the brief with a proposal of the Pathfinder's accepted or no longer (pure): {brief, changed}, or null for any other line
     function tick(brief, path) {
         const b = JSON.parse(JSON.stringify(brief || {}));
         const line = String(path).split('.')[0] === 'also_check' ? (b.also_check || [])[Number(String(path).split('.')[1])] : null;
@@ -359,7 +360,7 @@
     const build = {
         // one line of the brief: its text - empty where the coach is adding the part, and the line is then typed in; a
         // pencil where the coach can change it, a cross where they can leave it out; a box to tick on what the
-        // Architect proposed. o: {list, source, mark, note, shows, locked, tick}
+        // Pathfinder proposed. o: {list, source, mark, note, shows, locked, tick}
         line(c, path, text, o) {
             o = o || {};
             const can = c.edit && !(text && o.locked);
@@ -379,7 +380,7 @@
             return rows.concat(adding === part + '.+' ? [build.line(c, part + '.+', '')] : []).join('');
         },
         // which step of the conversation is on screen, of how many on the way through it, and the arrows to the one
-        // before and the one after. held: the Architect is replying - what is on its way goes on from the step it left,
+        // before and the one after. held: the Pathfinder is replying - what is on its way goes on from the step it left,
         // so neither can be pressed
         stepper(framing, shown, held) {
             const at = steps.place(framing, shown), off = held ? ' disabled' : '';
@@ -401,7 +402,7 @@
         // the line that says so. Otherwise the grey window, with one line: a draft is on its way (c.drawing: for a
         // figure whose first draft failed too, not for one tried twice), none could be drawn - why, under the mouse -,
         // or none was drawn: yet, while the brief can be changed. The window is in the markup of a drawn figure too:
-        // it is what shows if the plot cannot be shown. How the Architect described the figure is not on the page
+        // it is what shows if the plot cannot be shown. How the Pathfinder described the figure is not on the page
         figure(c, fig, i) {
             const key = (c.keys || [])[i], d = (key && (c.drafts || {})[key]) || {}, drawn = !!d.basis, madeUp = drawn && d.basis !== 'computed';
             const live = c.drawing && !drawn && !(d.failed && (Number(d.tries) || 1) >= TRIES);
@@ -427,7 +428,7 @@
         // coach is adding (o.adding: its path) - and, while the brief can be changed, the one control that adds a part
         // (o.adds: its list is open), what the readings of the saved analyses found, and Start analysis, which names
         // the step when it is not the last of its way. o: {chain, thread, state: 'framing' | 'run', shown: the step on
-        // screen, held: the Architect is replying, drawing: a draft of the figures is on its way, against: what the
+        // screen, held: the Pathfinder is replying, drawing: a draft of the figures is on its way, against: what the
         // run's report says against the brief - the card's rows (cutAnswer())}; the framing rides in the markup, with the thread the drafts' plots are
         // kept under and what the report says against the brief - shown at the foot of a step whose brief is the one the run was under
         brief(framing, o) {
@@ -475,18 +476,18 @@
                 '<button type="button" class="ok" data-ar="keep" title="Keep">' + ICON.ok + '</button><button type="button" class="no" data-ar="cancel" title="Cancel">' + ICON.x + '</button></span>';
         },
         you(text) { return '<div class="ar-msg you"><span class="who">You</span>' + esc(text) + '</div>'; },
-        // a message of the Architect's: its words, the button to the prompt it received (the run log's call), its
+        // a message of the Pathfinder's: its words, the button to the prompt it received (the run log's call), its
         // choices while they can still be clicked and - before the prompt's - the branch button of its step, where it
         // has one (talk()). from: {k: the step, at: its place on its way, on: it is the step in use - the button is lit}
         said(turn, chain, live, from) {
-            const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt the Architect received (run log)" data-agent="Architect" data-chain="' +
+            const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt the Pathfinder received (run log)" data-agent="Pathfinder" data-chain="' +
                 esc(chain) + '" data-call="' + esc(turn.call) + '">⌘</button>' : '';
             const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
             const branch = from ? '<button type="button" class="sp-branch' + (from.on ? ' on' : '') + '" data-ar="from" data-step="' + from.k + '" title="' + WORDS.branchFrom(from.at) +
                 '" aria-label="' + WORDS.branchFrom(from.at) + '">' + ICON.branch + '</button>' : '';
-            return '<div class="ar-msg arch"><span class="who">Architect' + branch + prompt + '</span>' + esc(turn.text) + choices + '</div>';
+            return '<div class="ar-msg arch"><span class="who">Pathfinder' + branch + prompt + '</span>' + esc(turn.text) + choices + '</div>';
         },
-        // the question changed with the reply above it: the Architect worded it, and it is the top box from that step on (at: the step's place on its way)
+        // the question changed with the reply above it: the Pathfinder worded it, and it is the top box from that step on (at: the step's place on its way)
         asked(at) {
             return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.question + '</span><span class="out">' + WORDS.updated + '</span><span class="t">' + WORDS.stepN(esc(at)) + '</span></div>';
         },
@@ -519,7 +520,7 @@
         went(turn) {
             return '<div class="sp-row tool read"><span>✓</span><span class="in">' + WORDS.brief + '</span><span class="out">' + WORDS.inUse(esc(turn.v)) + '</span></div>';
         },
-        // a part of an earlier analysis the Architect opened: what it is and how long - or why there is no such part
+        // a part of an earlier analysis the Pathfinder opened: what it is and how long - or why there is no such part
         opened(turn) {
             return '<div class="sp-row tool read' + (turn.missing ? ' skipped' : '') + '"><span>' + (turn.missing ? '–' : '✓') + '</span><span class="in">' + WORDS.opened + '</span>' +
                 '<span class="out">' + esc(turn.missing || turn.label) + '</span>' + (turn.missing ? '' : '<span class="t">' + WORDS.chars(turn.chars) + '</span>') + '</div>';
@@ -555,7 +556,7 @@
         // the saved analyses hold, what was opened, where the question changed - at which step of the way -, what a
         // draft of the figures came to and, in a conversation kept before steps, where the coach went to another
         // version. o: {live: the last message's choices can be clicked - a draft's row may stand under it -, sent: a
-        // message on its way, waiting: the Architect is replying, saved: the saved analyses are being read - how far
+        // message on its way, waiting: the Pathfinder is replying, saved: the saved analyses are being read - how far
         // -, drawing: its reply stands and the draft is on its way, checking: the question is being read before its
         // analysis}
         talk(entry, o) {
@@ -565,14 +566,14 @@
             const way = steps.kept(entry.framing) ? steps.way(entry.framing.steps, entry.framing.step) : [];
             const places = way.reduce((out, s, i) => out.concat(Array(s.turns).fill(i + 1)), []), placeOf = (t, i) => places[i] || t.v;
             // The branch button of a step (2.9, the product owner's: as a turn's card of an analysis has it), while the conversation can be gone on: on the last message the
-            // Architect said in the step. A click goes to the step - what is said next goes on from there, another way. The button of the step in use is lit, and brings the
+            // Pathfinder said in the step. A click goes to the step - what is said next goes on from there, another way. The button of the step in use is lit, and brings the
             // end of the way back (onClick): where the step in use is that end it has none. A conversation kept before steps has none
             const from = i => {
                 const at = places[i], on = at === way.length;
                 if (!can || !at || turns.some((x, j) => j > i && x.who === 'architect' && places[j] === at)) return null;
                 return on && entry.framing.tip === entry.framing.step ? null : { k: way[at - 1].k, at, on };
             };
-            // a reply worded the question when the version it left is the Architect's, changed the question, and reads as the reply has it
+            // a reply worded the question when the version it left is the Pathfinder's, changed the question, and reads as the reply has it
             const worded = t => { const v = versions[(t.v || 0) - 1]; return !!(t.wording && v && v.by === 'architect' && (v.changed || []).indexOf('question') >= 0 && (v.brief || {}).question === t.wording); };
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
                 turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t) : t.who === 'version' ? build.went(t)
@@ -581,18 +582,18 @@
                     : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? (o.saved ? build.reading(o.saved) : o.drawing ? build.pending(WORDS.drawingRow) : o.checking ? build.pending(WORDS.checkingRow)
-                    : '<div class="ar-msg arch wait"><span class="who">Architect</span>' + WORDS.reading + '</div>') : '');
+                    : '<div class="ar-msg arch wait"><span class="who">Pathfinder</span>' + WORDS.reading + '</div>') : '');
         },
         // the left pane of a brief not yet run: what the brief's calls have cost - those of the steps set aside too -
         // and the conversation. Which step is on screen is the Brief tab's to say, in one place
         pane(entry, o) {
             const cost = steps.all(entry.framing).reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
-            return '<div class="sp-strip"><span class="live idle"></span><span class="mode">Architect</span>' + (cost >= 0.005 ? '<span>$' + cost.toFixed(2) + '</span>' : '') + '</div>' +
+            return '<div class="sp-strip"><span class="live idle"></span><span class="mode">Pathfinder</span>' + (cost >= 0.005 ? '<span>$' + cost.toFixed(2) + '</span>' : '') + '</div>' +
                 '<div class="sp-stream">' + build.talk(entry, Object.assign({ live: true }, o)) + '</div>';
         },
         // the framing folded to one row, above the run it started - from which step of the conversation: the way to it is inside
         fold(entry) {
-            return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Architect</span><span class="kind">brief · ' +
+            return '<details class="sp-turn ar-fold"><summary><span class="chev"></span><span class="n">Pathfinder</span><span class="kind">brief · ' +
                 WORDS.stepN(steps.place(entry.framing, steps.on(entry.framing)).i) + '</span>' +
                 '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.talk(entry) + '</div></details>';
         },
@@ -614,7 +615,7 @@
 
     // ------------------------------------------------------------ the page
     let on = false;            // the switch: a typed question is framed first
-    let mine = false;          // the composer's words are the Architect's
+    let mine = false;          // the composer's words are the Pathfinder's
     let busy = false;          // a change or a message is on its way to the server
     let talking = null;        // the exchange in flight: {entry, sent, saved: how far a reading of the saved analyses is}
 
@@ -633,7 +634,7 @@
         // how a chain's question was made, for its box on the Workflow map (§2.9)
         if (!r) return '';
         if (r.status === 'framing') return 'not run';
-        if (r.framing || /id="tab-brief"/.test(r.tabContent || '')) return 'Architect';
+        if (r.framing || /id="tab-brief"/.test(r.tabContent || '')) return 'Pathfinder';
         return window.NextQuestionsUI && window.NextQuestionsUI.made(r) ? 'next question' : '';
     }
     function framingInView() { const r = responses[currentResponseIndex]; return !!(r && r.status === 'framing'); }
@@ -681,7 +682,7 @@
         pane.innerHTML = build.pane(entry, mid ? { sent: talking.sent, waiting: true, saved: talking.saved, drawing: talking.drawing, checking: talking.checking } : {});
         pane.scrollTop = pane.scrollHeight;
     }
-    // the Brief tab of a brief not yet run, as it stands now - its steps held while the Architect replies, its figures
+    // the Brief tab of a brief not yet run, as it stands now - its steps held while the Pathfinder replies, its figures
     // saying so while their draft is on its way
     function briefOf(entry) {
         const mid = talking && talking.entry === entry;
@@ -700,9 +701,18 @@
         drawPane(entry);
         window.MapsUI.follow();
     }
-    // a chain comes on screen: a brief not yet run is drawn from its versions; any other Brief tab came with its markup, and its drafts are drawn in it
-    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else mountAll(); }
-    // While a brief not yet run is on screen the composer is the conversation with the Architect: held while it
+    // What a chain kept before 2.9 says in the name of then, in today's: the fold above its run, that fold's cards with
+    // their prompt buttons, the next questions' prompt button, the chips of the lines it proposed
+    const NAME_AT = ['#streamOutput .ar-fold summary .n', '#streamOutput .ar-fold .ar-msg.arch .who', '#streamOutput .nq-foot', '#contentOutput .ar-brief .src.ar'];
+    function renamed() {
+        NAME_AT.forEach(at => document.querySelectorAll(at).forEach(el => {
+            if (el.innerHTML.includes('Architect')) el.innerHTML = el.innerHTML.replace(/\bArchitect\b/g, 'Pathfinder');
+        }));
+    }
+    // a chain comes on screen: a brief not yet run is drawn from its versions; any other came with its markup - its
+    // names are made today's, and its drafts are drawn in its Brief tab
+    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else { renamed(); mountAll(); } }
+    // While a brief not yet run is on screen the composer is the conversation with the Pathfinder: held while it
     // replies or the saved analyses are read, and while another chain runs - whose Stop stays within reach. Anywhere
     // else it is as it was.
     function onChain(entry) {
@@ -729,7 +739,7 @@
     }
 
     // a question typed with the switch on: its framing run is opened on the record, the page moves to it, and the
-    // Architect takes its first turn
+    // Pathfinder takes its first turn
     function open(question) {
         if (busy) { if (talking) say(WORDS.replying + '.'); return; }
         busy = true;
@@ -802,9 +812,9 @@
             }
         };
     }
-    // One exchange with the Architect: what the coach said - nothing on its first turn - and its reply. The request
+    // One exchange with the Pathfinder: what the coach said - nothing on its first turn - and its reply. The request
     // names the step in use here - the one on screen - and the exchange goes on from it. Where the reply had the data
-    // looked up, the saved analyses read or a part of an earlier analysis opened, the Architect goes on at once: one
+    // looked up, the saved analyses read or a part of an earlier analysis opened, the Pathfinder goes on at once: one
     // more exchange, with nothing said. While the saved analyses are read the pane follows the count. Where a draft of
     // the figures follows the reply, the stream carries the framing with the reply first: the page shows it, and the
     // figures as grey windows, until the stream ends on the framing with the draft - a stream that ends before it
@@ -834,7 +844,7 @@
                 return kept;
             });
     }
-    // what the coach typed or chose, said to the Architect of the brief on screen; a line being typed in the brief is
+    // what the coach typed or chose, said to the Pathfinder of the brief on screen; a line being typed in the brief is
     // kept first
     function tell(text) {
         const entry = responses[currentResponseIndex], root = briefRoot();
@@ -944,7 +954,7 @@
     // Before a brief's analysis starts (0313, §2.22): the question of the step in use is read as the Analyst will
     // read it - once: a version of the brief the framing lists as read starts at once. While it is read the pane
     // says so and the composer is held. Resolves to whether the analysis can start. Where the reader could not place
-    // something, the Architect has gone on: the conversation and the brief are the record's - the read, its reply,
+    // something, the Pathfinder has gone on: the conversation and the brief are the record's - the read, its reply,
     // the question as it worded it, the figures as grey windows while a draft follows - or the page says why it
     // made no reply; the coach starts again when they have seen it. A read that could not be had holds nothing up:
     // the start goes on, and says what it meets
@@ -957,7 +967,7 @@
         draw();
         return window.authService.fetch('/architect/ready', { method: 'POST', headers: { 'Content-Type': 'application/json' },
                                                                body: JSON.stringify({ thread_id: entry.thread_id, chain_id: entry.chain_id, step: steps.on(entry.framing) }) })
-            .then(r => readStream(r, along(entry, mine, draw))).then(body => {      // the Architect's reply after the read, as after a message
+            .then(r => readStream(r, along(entry, mine, draw))).then(body => {      // the Pathfinder's reply after the read, as after a message
                 const out = closing(body);
                 if (!out.framing) return true;
                 take(entry, out.framing);
@@ -966,7 +976,7 @@
             }).catch(() => true).then(clean => {
                 busy = false; talking = null;
                 const turns = turnsOf(entry.framing);
-                if (!clean && turns.length && ['check', 'memory', 'opened'].indexOf(turns[turns.length - 1].who) >= 0) exchange(entry, '');      // the Architect went on to look something up: it goes on
+                if (!clean && turns.length && ['check', 'memory', 'opened'].indexOf(turns[turns.length - 1].who) >= 0) exchange(entry, '');      // the Pathfinder went on to look something up: it goes on
                 else draw();
                 return clean;
             });
@@ -999,7 +1009,7 @@
 
     // Another step on screen (the arrows, the map, a card's button). In a brief not yet run it is the one in use from then, here as it
     // will be on the server: the pane shows the conversation up to it, the tab the brief as it stood there. Not while
-    // the Architect replies to this brief: what is on its way goes on from the step it left. A brief that ran is
+    // the Pathfinder replies to this brief: what is on its way goes on from the step it left. A brief that ran is
     // read: its tab shows the brief of that step, and nothing else changes
     function stepTo(root, k) {
         const entry = entryOf(root);
@@ -1010,7 +1020,7 @@
     }
     // what a step is, for its box on the map and for the drawer's foot: what the coach said in it - for the first, the
     // question as it was asked - or, where they said nothing, what was done: a line changed by hand, the question
-    // read, the Architect gone on; what the Architect last replied; and the parts of the brief the step changed, in
+    // read, the Pathfinder gone on; what the Pathfinder last replied; and the parts of the brief the step changed, in
     // the tab's words
     function stepWords(framing, s, turns) {
         const said = (turns.find(t => t.who === 'person') || {}).text, reply = (turns.filter(t => t.who === 'architect').pop() || {}).text || '';
@@ -1022,10 +1032,10 @@
     // in the Workflow map's drawing (workflowGraph.js) - the way to the step on screen lit, the steps off it faint; a
     // box says what the coach said and, under it, what the step changed. Under the pointer a box lights its own way,
     // and the drawer's foot says, as the Workflow map's does of a chain: what was said, where the step stands - as the
-    // arrows would count it -, what it follows, how many follow it, what it changed and what the Architect replied.
+    // arrows would count it -, what it follows, how many follow it, what it changed and what the Pathfinder replied.
     // A click goes to the step and shuts the drawer, which lies over the conversation.
     // What the drawer asks of the level: how many steps; that in words; why the map cannot be shown - the chain on
-    // screen, the `n`th of its thread, has no brief, or one kept before steps; or the Architect is replying, and
+    // screen, the `n`th of its thread, has no brief, or one kept before steps; or the Pathfinder is replying, and
     // what is on its way goes on from the step it left -; and the drawing
     function map(n) {
         const root = briefRoot(), st = root ? stateOf(root) : null, all = st && steps.kept(st.framing) ? steps.of(st.framing) : [];

@@ -387,7 +387,7 @@ function updateNavigationButtons() {
     if (typeof updateSaveButton === 'function') {
         updateSaveButton();
     }
-    // the code map follows the chain on screen while it is open (2026-10-20)
+    // the code trace follows the chain on screen while it is open (2026-10-20)
     if (window.CodeMapUI && typeof window.CodeMapUI.onChain === 'function') {
         window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id);
     }

@@ -62,18 +62,18 @@ function handleQuerySubmit(options = {}) {
     if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;      // a set of next questions is being written: nothing starts beside it
 
     // a turn gone back to: the branch the hint starts - in the mode, under the limits and the brief of the analysis it
-    // goes on from, so the Architect is not asked
+    // goes on from, so the Pathfinder is not asked
     const branch = typed && window.BranchUI ? window.BranchUI.hint(query) : null;
 
     if (window.ArchitectUI && !framed && !branch) {
-        // a brief not yet run is on screen: what is typed is said to the Architect, and nothing else starts from it
+        // a brief not yet run is on screen: what is typed is said to the Pathfinder, and nothing else starts from it
         if (window.ArchitectUI.framingInView()) {
             answerTabSynthesis = false;
             if (typed) window.ArchitectUI.tell(query);
             else showSystemMessage('This brief has not been run: start its analysis, or open another chain');
             return;
         }
-        // a typed question with the Architect on is framed first: its brief opens, and nothing runs until Start analysis
+        // a typed question with the Pathfinder on is framed first: its brief opens, and nothing runs until Start analysis
         if (typed && window.ArchitectUI.isOn()) {
             window.ArchitectUI.open(query);
             return;

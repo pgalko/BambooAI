@@ -1,4 +1,4 @@
-"""The code map of one chain (analyst/codemap, docs/CODEMAP_DESIGN.md): the route the modal calls.
+"""The code trace of one chain (analyst/codemap, docs/CODEMAP_DESIGN.md): the route the modal calls.
 
     GET /code_map/<thread_id>/<chain_id>
       400  ids not of the thread's and chain's shapes
@@ -88,7 +88,7 @@ def code_map(thread_id, chain_id):
     try:
         nb, storage = _notebook(thread_id)
     except Exception as exc:                                  # noqa: BLE001
-        logger.warning("code map: thread %s could not be read: %s", thread_id, exc)
+        logger.warning("code trace: thread %s could not be read: %s", thread_id, exc)
         return jsonify({'message': 'No such thread.'}), 404
     run = nb.runs.get(str(chain_id))
     if run is None:
@@ -103,5 +103,5 @@ def code_map(thread_id, chain_id):
         return jsonify(dict(head, built='end', map=cm['view']))
     built = _build_now(nb, run, storage)
     if built.get('error') or not built.get('view'):
-        return jsonify(dict(head, error=str(built.get('error') or 'the map could not be built')))
+        return jsonify(dict(head, error=str(built.get('error') or 'the trace could not be built')))
     return jsonify(dict(head, built='now', map=built['view']))

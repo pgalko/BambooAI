@@ -190,12 +190,12 @@
     --chip-model-border: rgba(80, 250, 123, 0.4);
     --chip-fail-border: rgba(255, 107, 107, 0.5);
     --chip-kernel-border: rgba(209, 189, 152, 0.45);
-    --chip-lookup-border: rgba(30, 144, 255, 0.55);     /* the code map (2026-10-20): data inputs in the look-up blue */
+    --chip-lookup-border: rgba(30, 144, 255, 0.55);     /* the code trace (2026-10-20): data inputs in the look-up blue */
     --chip-lookup-bg: rgba(30, 144, 255, 0.07);
     --chip-fail-bg: rgba(255, 107, 107, 0.05);
     --row-select-bg: rgba(255, 255, 255, 0.04);          /* a selected row or box */
     --edge-color: rgba(255, 255, 255, 0.3);              /* a diagram's arrows */
-    --scrim-heavy: rgba(0, 0, 0, 0.82);                  /* the working window dimmed under the code map */
+    --scrim-heavy: rgba(0, 0, 0, 0.82);                  /* the working window dimmed under the code trace */
     /* the series colours of the Usage dialog's charts (2026-10-31, docs/USAGE_DESIGN.md §4): seven slots in rank order
        and one for the tail folded into Other, validated for colour-blind readers against this theme's surfaces */
     --viz-1: #3987e5; --viz-2: #d95926; --viz-3: #199e70; --viz-4: #c98500; --viz-5: #d55181; --viz-6: #008300; --viz-7: #9085e9; --viz-other: #6b6b6b;

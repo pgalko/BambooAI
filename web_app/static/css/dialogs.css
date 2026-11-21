@@ -1073,7 +1073,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #savedAnalysisModal .ar-code pre { margin: 3px 0 0; padding: 8px 10px; border-radius: 5px; background: var(--bg-primary); font-family: var(--font-mono); font-size: 12px; line-height: 1.45; color: var(--text-primary); overflow-x: auto; }
 #savedAnalysisModal .ar-code pre.said { font-family: inherit; white-space: pre-wrap; }      /* the conversation and the brief it ran under: words, not code */
 
-/* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
+/* ---- the code trace (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
    diagram, and the panel. Past the rail and the top bar, like the Workflow map drawer, so the chain navigator stays usable. ---- */
 #codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim-heavy); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
 #codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; background: var(--bg-primary); overflow: hidden; }

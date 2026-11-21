@@ -36,7 +36,9 @@ def get_agent_instructions(chain_id, agent_name):
             wanted = max(1, int(request.args.get('call', 1)))
         except (TypeError, ValueError):
             wanted = 1
-        matches = [e for e in log_data if str(e.get('chain_id')) == str(chain_id) and e.get('agent') == agent_name and e.get('messages')]
+        # the Pathfinder was the Architect until 2.9: its calls before are in the log under that name, one count over both
+        names = {'Pathfinder', 'Architect'} if agent_name in ('Pathfinder', 'Architect') else {agent_name}
+        matches = [e for e in log_data if str(e.get('chain_id')) == str(chain_id) and e.get('agent') in names and e.get('messages')]
         if matches:
             entry = matches[min(wanted, len(matches)) - 1]
             for entry in [entry]:

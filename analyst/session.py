@@ -806,7 +806,7 @@ class Session:
                                                 # start of a run and again after a rollback, never a cell of the record
         self.documents = documents
         self.context = context                  # the load carries the words written beside the data (CTX, READ CTX)
-        self.map_inputs = map_inputs            # map_inputs(run) -> the inputs the chain was offered, for the code map (2026-10-20);
+        self.map_inputs = map_inputs            # map_inputs(run) -> the inputs the chain was offered, for the code trace (2026-10-20);
                                                 # None: the map is drawn from run.data alone
         self.system = contract(documents, context=context)      # the documents' and the context's sections and READ rows only when present
 
@@ -931,7 +931,7 @@ class Session:
             run = self.nb.new_run(question, parent, run_id=run_id)
         # the brief the person agreed for this run; an answer to the analyst's question runs under the brief it was asked in
         run.brief = briefs.agreed(brief) or briefs.carried(self.nb.runs.get(parent) if parent else None)
-        run.mode = mode or ""                         # the preset the run was asked in, for the code map's header (2026-10-20)
+        run.mode = mode or ""                         # the preset the run was asked in, for the code trace's header (2026-10-20)
         run.budget = asdict(budget)                   # its limits: a branch of this run runs under them (2.9)
         run.figure_asked = bool(image)
         run.sandbox = tools.sandbox(self.kernel)      # the box the cells run on, for the reach report (2026-10-28)
@@ -1051,7 +1051,7 @@ class Session:
                 if not err:
                     turn.cell_no = self.nb.next_cell_no(run.id)
                     turn.snap = tools.snap(self.kernel)        # the state the kernel can come back to (2.9)
-                    turn.registry = registry_delta(before, tools.namespace(self.kernel))   # what the cell made or changed (the code map, 2026-10-20)
+                    turn.registry = registry_delta(before, tools.namespace(self.kernel))   # what the cell made or changed (the code trace, 2026-10-20)
                     failures = 0
                 else:
                     failures += 1
@@ -1316,13 +1316,13 @@ class Session:
             run.replay_status, run.replay_script = status, script
             run.report += f"\n\n> {line}"
             self.emit({"type": "replay_end", "run": run.id, "status": status, "line": line})
-        # the code map (2026-10-20, analyst/codemap): built once from the record, mechanically, and kept with the run;
+        # the code trace (2026-10-20, analyst/codemap): built once from the record, mechanically, and kept with the run;
         # nothing of it reaches a prompt, and a failure is recorded on the run, never raised
         try:
             from . import codemap
             run.code_map = codemap.build(self.nb, run, self.map_inputs(run) if self.map_inputs else None, context=self.context)
         except Exception as exc:                              # noqa: BLE001
-            logger.warning("code map for run %s: %s", run.id, exc)
+            logger.warning("code trace for run %s: %s", run.id, exc)
             run.code_map = {"error": " ".join(str(exc).split())[:300]}
         run.status = "answered"
         self.emit({"type": "report", "run": run.id, "text": run.report})

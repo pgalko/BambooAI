@@ -1,4 +1,4 @@
-"""The second stage of the code map (blueprint 4.6, 4.10): from statements to the objects a reader sees - the named
+"""The second stage of the code trace (blueprint 4.6, 4.10): from statements to the objects a reader sees - the named
 tables and values the code built, one per (names, cell), with what each was made from, its kind, its steps in plain
 words, its size from the kernel's registry; the results with the objects behind them; the cells with their roles; the
 inputs, offered or used, with the columns used; the choices typed into the code; and what the chain leaves for later

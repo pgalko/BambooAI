@@ -251,20 +251,26 @@ check("prices(): the configuration's per-thousand prices as per-million, the pro
       UR.prices({"model_properties": {"m": {"prompt_tokens": 0.003, "completion_tokens": 0.015, "cache_read_tokens": 0.0003}}, "agent_configs": [{"agent": "Analyst", "details": {"model": "m", "provider": "anthropic"}}]})
       == {"m": {"in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write": None, "provider": "anthropic"}})
 
-# the Architect's calls (2.8): while a brief is written they are in the chain of that brief's run, which the record knows - an analysis, not run where
+# the Pathfinder's calls (2.8): while a brief is written they are in the chain of that brief's run, which the record knows - an analysis, not run where
 # none followed; a set of next questions is a chain of its own that the record does not know, named by the seat that spent on it
 _fr = nb9.new_run("Is the second half heavier?", run_id="f1"); _fr.status = "framing"
 nbs.record(nb9, _fr)
-_arow = lambda chain, minute: UR._call({"id": minute, "timestamp": f"2026-10-25 01:{minute:02d}:00", "agent": "Architect", "model": "m-big", "chain_id": chain, "prompt_tokens": 3000, "completion_tokens": 200,
+_arow = lambda chain, minute: UR._call({"id": minute, "timestamp": f"2026-10-25 01:{minute:02d}:00", "agent": "Pathfinder", "model": "m-big", "chain_id": chain, "prompt_tokens": 3000, "completion_tokens": 200,
                                          "elapsed_time": 3.0, "cost": 0.01})
 _aled = {e["chain"]: e for e in UR._ledger([_arow("f1", 1), _arow("f1", 2), _arow("n1", 3)], {"f1": "t9", "n1": "t9"}, STORAGE)}
-check("_ledger(): the Architect's calls in a brief's own chain are that analysis' - not run, where none followed; a chain of its calls that the record does not know is a set of next questions, grouped "
+check("_ledger(): the Pathfinder's calls in a brief's own chain are that analysis' - not run, where none followed; a chain of its calls that the record does not know is a set of next questions, grouped "
       "with the other chains that are not analyses",
       (_aled["f1"]["kind"], _aled["f1"]["question"], _aled["f1"]["outcome"], _aled["f1"]["calls"]) == ("analysis", "Is the second half heavier?", "not run", 2)
       and (_aled["n1"]["kind"], _aled["n1"]["question"], _aled["n1"]["calls"], _aled["n1"]["cells"], _aled["n1"]["thread"]) == ("next", "Next questions", 1, None, "t9")
-      and UR.mode_label(_aled["n1"]) == "Other" and _aled["n1"]["seats"] == {"Architect": 0.01}, _aled)
-# the reading of the saved analyses (2.8): made for a brief, its calls are in that brief's chain with the Architect's; asked from the command line it is a chain of
-# its own that the record does not know, named by its seats; and the configuration's template seats the Architect and the reader on the analyst's model, the reader's
+      and UR.mode_label(_aled["n1"]) == "Other" and _aled["n1"]["seats"] == {"Pathfinder": 0.01}, _aled)
+_old = UR._call({"id": 9, "timestamp": "2026-10-25 01:09:00", "agent": "Architect", "model": "m-big", "chain_id": "n0", "prompt_tokens": 3000, "completion_tokens": 200, "elapsed_time": 3.0, "cost": 0.02})
+_oled = {e["chain"]: e for e in UR._ledger([_old, _arow("n0", 10)], {"n0": "t9"}, STORAGE)}
+check("the Pathfinder was the Architect until 2.9 (0328): a call recorded under that name is read as the Pathfinder's - one seat on the page for both - and a chain of such calls that the "
+      "record does not know is a set of next questions, as before",
+      _old["seat"] == "Pathfinder" and (_oled["n0"]["kind"], _oled["n0"]["question"], _oled["n0"]["calls"]) == ("next", "Next questions", 2) and _oled["n0"]["seats"] == {"Pathfinder": 0.03},
+      (_old["seat"], _oled))
+# the reading of the saved analyses (2.8): made for a brief, its calls are in that brief's chain with the Pathfinder's; asked from the command line it is a chain of
+# its own that the record does not know, named by its seats; and the configuration's template seats the Pathfinder and the reader on the analyst's model, the reader's
 # second model on the fast one that reads the documents
 _mrow = lambda chain, minute, seat, cost: UR._call({"id": 100 + minute, "timestamp": f"2026-10-25 02:{minute:02d}:00", "agent": seat, "model": "m-big", "chain_id": chain, "prompt_tokens": 3000,
                                                    "completion_tokens": 200, "elapsed_time": 3.0, "cost": cost})
@@ -273,14 +279,14 @@ _mled = {e["chain"]: e for e in UR._ledger([_arow("f1", 1), _mrow("f1", 2, "Memo
 from analyst import architect as _arch
 _tpl = json.load(open(os.path.join(ROOT, "web_app", "LLM_CONFIG_template.json"), encoding="utf-8"))
 _tiers = {tier: {a["agent"]: a["details"] for a in _tpl[f"{tier}_agent_configs"]} for tier in ("free", "cost", "performance", "max")}
-check("_ledger(): a reading of the saved analyses made for a brief is part of that brief's analysis, its two seats beside the Architect's; one asked from the command line is a chain of its own, named "
-      "Saved analyses read whichever of its seats spent most. The template seats the Architect and the Memory Reader on each tier's analyst model, Memory Pieces on the model that reads the documents, "
-      "each with 16,000 tokens a reply - the Architect at a medium effort, as its engine asks for, the two that read at a low one",
-      (_mled["f1"]["kind"], _mled["f1"]["calls"]) == ("analysis", 3) and _mled["f1"]["seats"] == {"Memory Reader": 0.05, "Architect": 0.01, "Memory Pieces": 0.01}
+check("_ledger(): a reading of the saved analyses made for a brief is part of that brief's analysis, its two seats beside the Pathfinder's; one asked from the command line is a chain of its own, named "
+      "Saved analyses read whichever of its seats spent most. The template seats the Pathfinder and the Memory Reader on each tier's analyst model, Memory Pieces on the model that reads the documents, "
+      "each with 16,000 tokens a reply - the Pathfinder at a medium effort, as its engine asks for, the two that read at a low one",
+      (_mled["f1"]["kind"], _mled["f1"]["calls"]) == ("analysis", 3) and _mled["f1"]["seats"] == {"Memory Reader": 0.05, "Pathfinder": 0.01, "Memory Pieces": 0.01}
       and [(_mled[c]["kind"], _mled[c]["question"]) for c in ("m1", "m2")] == [("memory", "Saved analyses read")] * 2 and UR.mode_label(_mled["m1"]) == "Other"
-      and all((s["Architect"]["model"], s["Architect"]["provider"]) == (s["Analyst"]["model"], s["Analyst"]["provider"]) == (s["Memory Reader"]["model"], s["Memory Reader"]["provider"])
+      and all((s["Pathfinder"]["model"], s["Pathfinder"]["provider"]) == (s["Analyst"]["model"], s["Analyst"]["provider"]) == (s["Memory Reader"]["model"], s["Memory Reader"]["provider"])
               and (s["Memory Pieces"]["model"], s["Memory Pieces"]["provider"]) == (s["Reader"]["model"], s["Reader"]["provider"])
-              and [(s[k]["reasoning_effort"], s[k]["max_tokens"]) for k in ("Architect", "Memory Reader", "Memory Pieces")] == [("medium", 16000), ("low", 16000), ("low", 16000)] for s in _tiers.values())
+              and [(s[k]["reasoning_effort"], s[k]["max_tokens"]) for k in ("Pathfinder", "Memory Reader", "Memory Pieces")] == [("medium", 16000), ("low", 16000), ("low", 16000)] for s in _tiers.values())
       and _arch.EFFORT[0] == "medium"
       and not any("Knowledge Distiller" in s for s in _tiers.values()), (_mled, {t: sorted(s) for t, s in _tiers.items()}))
 

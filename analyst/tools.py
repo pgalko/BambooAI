@@ -96,7 +96,7 @@ def run_prelude(kernel, source: str) -> None:
 
 def namespace(kernel) -> dict:
     """The kernel's registry as {name: {"type", "desc"}}, its user names only (no leading underscore); {} when it keeps
-    none. Read before and after a cell runs, the difference is what the cell made or changed (the code map, 2026-10-20)."""
+    none. Read before and after a cell runs, the difference is what the cell made or changed (the code trace, 2026-10-20)."""
     out = {}
     for it in ((getattr(kernel, "registry", None) or {}).get("namespace") or []):
         if isinstance(it, dict) and it.get("name") and not str(it["name"]).startswith("_"):

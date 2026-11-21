@@ -1,11 +1,11 @@
-// The gallery's Architect states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §2.19, §3.7): the
-// Architect's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
-// the Architect worded it, a line being changed by hand - a conversation that branched, with an earlier step on screen
+// The gallery's Pathfinder states (tools/render_gallery.py; docs/ARCHITECT_DESIGN.md §2.11-§2.15, §2.18, §2.19, §3.7): the
+// Pathfinder's first question, the parts + Add offers, its reply awaited, a brief after the conversation - the question as
+// the Pathfinder worded it, a line being changed by hand - a conversation that branched, with an earlier step on screen
 // and with its map open (§2.25), what the brief rests on checked against the data with an explanation proposed, a report against a brief, the next questions under a finished analysis,
 // the saved analyses - being read, and what was found with the one the brief builds on - the figures: as grey
 // windows while their draft is drawn, and the drafts drawn (§2.20; the plots are tools/fixtures/drafts.json) - and
 // the question's check before an analysis starts: the question being read, and the words the Analyst could not
-// place with the Architect's wording after it (§2.22). An invented field trial, as the stack's scenario has it.
+// place with the Pathfinder's wording after it (§2.22). An invented field trial, as the stack's scenario has it.
 window.galleryArchitect = (function () {
   const Q = 'Is regime C worth switching to from regime A?';
   const WORDED = 'On plot means of yield, is regime C above regime A within each soil type? Give the gap for each soil type with its interval, and say whether it reaches 0.3 t/ha.';
@@ -31,12 +31,12 @@ window.galleryArchitect = (function () {
                     turns: described.turns.concat([{ who: 'draft', drawn: [{ title: FIGURES[0].title, basis: 'made up' }, { title: FIGURES[1].title, basis: 'computed' }], v: 3, secs: 7.4, cost: 0.003, call: 1 }]) });
   const framing = { versions: [V1, V2, { n: 3, by: 'architect', why: 'answer', changed: ['expects'], brief: Object.assign({}, BRIEF, { fixed: { comparison: 'regime C against regime A' }, also_check: undefined }) },
                                { n: 4, by: 'person', changed: ['fixed.measure'], brief: BRIEF },
-                               { n: 5, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED }) }],      // the question as the Architect worded it: written at once
+                               { n: 5, by: 'architect', why: 'answer', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED }) }],      // the question as the Pathfinder worded it: written at once
                     turns: [ASK, you('Switch the clay plots to regime C next season, or keep A.'), said('What do you think is going on, and what makes you think so?', { v: 2, call: 2 }),
                             you('C does better than A because the C plots looked greener last season.'), said('What do you expect to see?', { v: 2, call: 3 }),
                             you('C yields at least 0.3 t/ha more than A.'),
                             said('I have worded it as the gap between the two regimes within each soil type. Is that what you mean?', { wording: WORDED, v: 5, call: 4 })], calls: 4 };
-  // the question's check (§2.22): the coach worded the question by hand so that it points to an analysis of another day; the reader could not place that, and the Architect worded it again
+  // the question's check (§2.22): the coach worded the question by hand so that it points to an analysis of another day; the reader could not place that, and the Pathfinder worded it again
   const SOIL = ' Take the soil types from the soil column.';
   const pointed = { versions: framing.versions.concat([{ n: 6, by: 'person', changed: ['question'], brief: Object.assign({}, BRIEF, { question: WORDED + ' Take the soil types as in the analysis of 2 March.' }) }]),
                     turns: framing.turns, calls: 4 };
@@ -130,17 +130,17 @@ window.galleryArchitect = (function () {
       if (shown) pane.querySelector('.nq-row .n').click();
       pane.scrollTop = pane.scrollHeight;
     },
-    talk() { show(first); },      // the Architect's first turn: what the question states is in the brief, and its first question has two choices
+    talk() { show(first); },      // the Pathfinder's first turn: what the question states is in the brief, and its first question has two choices
     adding() {       // + Add, open: the parts the brief does not show, each under its name
       show(first);
       document.querySelector('#content-brief [data-ar="more"]').click();
     },
-    reading() {      // a message on its way: shown at once, the Architect reading, the composer held
+    reading() {      // a message on its way: shown at once, the Pathfinder reading, the composer held
       const entry = show(first);
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { sent: 'Switch the clay plots to regime C next season, or keep A.', waiting: true });
-      composerLock('The Architect is replying');
+      composerLock('The Pathfinder is replying');
     },
-    brief() {        // after the conversation: the question as the Architect worded it - the row that says so - the switch lit, one line open for typing
+    brief() {        // after the conversation: the question as the Pathfinder worded it - the row that says so - the switch lit, one line open for typing
       show(framing);
       document.querySelector('#content-brief .ar-line[data-path="expects"] .pen').click();
     },
@@ -166,7 +166,7 @@ window.galleryArchitect = (function () {
       document.getElementById('streamOutput').innerHTML = ArchitectUI.build.pane(entry, { waiting: true, checking: true });
       composerLock('The question is being read as the Analyst will read it');
     },
-    unplaced() { show(unplaced); },    // the Analyst could not place something: the row that says which words, the Architect's reply under it, the question worded again - one more version
+    unplaced() { show(unplaced); },    // the Analyst could not place something: the row that says which words, the Pathfinder's reply under it, the question worded again - one more version
     checked() { show(checked); },      // what the brief rests on, checked: the round's row, the marks with their facts, keep or change; an explanation proposed, to tick
     saved() { show(remembered); },     // what the saved analyses hold: the reading's row with the analyses found under it, each in full under the brief, and the one the brief builds on
     saving() {       // the saved analyses being read: the row says how far the second model is, with Skip; the composer held

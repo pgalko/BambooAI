@@ -75,10 +75,10 @@ check('the panel (0314): empty, it has a place for what stands over its sets, fo
   && el(b.end('test', '')).textContent === 'Write more' && el(b.end('test', 'test')).textContent === 'writing the questions…' && el(b.end('test', 'test')).elements[0].hasAttribute('disabled'), [topList.innerHTML, topWay.innerHTML]);
 const set = el(b.set(SET, 2)).querySelector('.nq-set'), cards = set.querySelectorAll('.nq-card');
 check('a set: its place and its way ride in its markup; it has no head of its own (0314: the panel says which way is shown); under its questions a line says how many there are and what the call '
-  + 'cost, with the button to the prompt the Architect received - its own chain on the run log, the first call there',
+  + 'cost, with the button to the prompt the Pathfinder received - its own chain on the run log, the first call there',
   set.getAttribute('data-set') === '2' && set.getAttribute('data-level') === 'emergence' && !set.querySelector('.nq-head') && same(set.elements.map(e => e.className.split(' ')[0]), ['nq-card', 'nq-card', 'nq-card', 'nq-foot'])
   && set.querySelector('.nq-foot span').textContent === '3 questions · $0.02' && set.querySelector('.nq-foot').textContent === '3 questions · $0.02⌘'
-  && same(['class', 'data-agent', 'data-chain', 'data-call'].map(a => set.querySelector('.nq-foot .sp-prompt').getAttribute(a)), ['agent-instructions-btn sp-prompt', 'Architect', '1700000077', '1'])
+  && same(['class', 'data-agent', 'data-chain', 'data-call'].map(a => set.querySelector('.nq-foot .sp-prompt').getAttribute(a)), ['agent-instructions-btn sp-prompt', 'Pathfinder', '1700000077', '1'])
   && cards.length === 3 && same(cards.map(c => c.getAttribute('data-k')), ['0', '1', '2']), set.querySelector('.nq-foot').outerHTML);
 const cheap = el(b.set({ level: 'test', cost: 0.004, questions: [{ text: 'One?' }] }, 0));
 check('a set whose call cost under half a cent shows no cost; one without a chain on record has no button to a prompt; one question is one question',
@@ -104,8 +104,8 @@ check('the row a run opens on says that a question started it, and which way it 
   && el(b.row({ level: 'refine' })).querySelector('.nq-from').textContent === 'Next question·Refine focus' && el(b.row({ level: 'deeper' })).querySelector('.lv').textContent === 'deeper', row.innerHTML);
 
 // ------------------------------------------------------------ the button on closing cards
-// closing cards as stream-pane.js builds them (0313): an answered run ends on the row of what can be done next, with the code map's button where it ran code
-const DONE = '<div class="sp-done"><div class="head"><span class="title">Run complete</span><span class="nums">2 turns</span></div><div class="acts"><button type="button" class="sp-act sp-codemap">Code map</button></div></div>';
+// closing cards as stream-pane.js builds them (0313): an answered run ends on the row of what can be done next, with the code trace's button where it ran code
+const DONE = '<div class="sp-done"><div class="head"><span class="title">Run complete</span><span class="nums">2 turns</span></div><div class="acts"><button type="button" class="sp-act sp-codemap">Code trace</button></div></div>';
 const NO_CODE = '<div class="sp-done"><div class="head"><span class="title">Run complete</span><span class="nums">1 turn</span></div><div class="acts"></div></div>';
 const ROUTINE = '<div class="sp-done"><div class="head"><span class="title">Run 3 complete</span><span class="nums">4 results</span></div><div class="rep ok">Reproduced.</div></div>';
 const ASKED = '<div class="sp-done"><div class="head"><span class="title">The analyst has a question for you</span><span class="nums">2 turns</span></div></div>';
@@ -113,9 +113,9 @@ const PANE = body => '<div class="sp-strip"></div><div class="sp-ids-slot"></div
 const several = el(PANE(DONE + ROUTINE + ASKED + NO_CODE));
 N.dress(several); N.dress(several); N.dress(null);
 const inRow = k => several.querySelectorAll('.sp-done')[k].querySelectorAll('.acts button').map(x => x.textContent).join('|');
-check('dress: the closing card of a finished analysis - the one with a row of what can be done next - gets the button, first in that row, before the code map\'s, once however often it is dressed; a run '
+check('dress: the closing card of a finished analysis - the one with a row of what can be done next - gets the button, first in that row, before the code trace\'s, once however often it is dressed; a run '
   + 'that ran no code has it alone; a routine\'s run and an analysis that ended on a question have no row and get none',
-  several.querySelectorAll('[data-nq="open"]').length === 2 && inRow(0) === 'Next questions|Code map' && inRow(3) === 'Next questions' && !several.querySelectorAll('.sp-done')[1].querySelector('.sp-next')
+  several.querySelectorAll('[data-nq="open"]').length === 2 && inRow(0) === 'Next questions|Code trace' && inRow(3) === 'Next questions' && !several.querySelectorAll('.sp-done')[1].querySelector('.sp-next')
   && !several.querySelectorAll('.sp-done')[2].querySelector('.sp-next') && !several.querySelector('.nq-open'), several.innerHTML);
 
 (async () => {
@@ -132,7 +132,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
   view(responses[3]); const framingButtons = pane.querySelectorAll('[data-nq="open"]').length;
   // a pane as the page kept it before the panel (0313 and earlier): the sets under the card, each under its head - and, here, what was of the moment when it was kept
   const KEPT = '<div class="nq-set" data-set="0" data-level="test"><div class="nq-head"><span class="k">Next questions</span><span class="sep">·</span><span class="lv">Test boundaries</span>'
-    + '<span class="r">$0.02<button class="agent-instructions-btn sp-prompt" type="button" data-agent="Architect" data-chain="55" data-call="1">⌘</button></span></div>'
+    + '<span class="r">$0.02<button class="agent-instructions-btn sp-prompt" type="button" data-agent="Pathfinder" data-chain="55" data-call="1">⌘</button></span></div>'
     + '<div class="nq-card editing" data-k="0"><div class="from" title="x"><span class="l">From it rests on and did not fit</span></div><div class="tx"><b>The scale.</b> <span class="q">q</span></div><div class="nq-edit"></div></div></div>'
     + '<div class="nq-set" data-set="1" data-level="shift"><div class="nq-head"><span class="k">Next questions</span><span class="r"></span></div>'
     + '<div class="nq-card" data-k="0"><div class="from"><span class="l">From also checked</span></div><div class="tx"><span class="q">r</span></div></div><div class="nq-card" data-k="1"><div class="tx"><span class="q">s</span></div></div></div>';
@@ -225,7 +225,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
 
   // ---- no set made
   const tries = [];
-  for (const a of [[200, JSON.stringify({ next: { error: 'The Architect\'s reply could not be read (it holds no JSON object).' } })],
+  for (const a of [[200, JSON.stringify({ next: { error: 'The Pathfinder\'s reply could not be read (it holds no JSON object).' } })],
                    [403, { error: 'authorization_failed', message: 'You need $0.010 per query but your balance is $0.00. Please add funds to continue.' }], 'down', [200, '\n']]) {
     answer = a; toasts.length = 0; stored.length = 0;
     click(wayRow(1));
@@ -234,7 +234,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
   }
   check('no set made: the reason is said - the server\'s own words, a refusal for the balance, a server that cannot be reached, a stream that ends on nothing - the way\'s row is a row to click again, '
     + 'nothing is kept and nothing is held',
-    same(tries, [[['The Architect\'s reply could not be read (it holds no JSON object).'], 1, 'nq-row:›', 0, false], [['You need $0.010 per query but your balance is $0.00. Please add funds to continue.'], 1, 'nq-row:›', 0, false],
+    same(tries, [[['The Pathfinder\'s reply could not be read (it holds no JSON object).'], 1, 'nq-row:›', 0, false], [['You need $0.010 per query but your balance is $0.00. Please add funds to continue.'], 1, 'nq-row:›', 0, false],
                  [['No questions were written: the server could not be reached.'], 1, 'nq-row:›', 0, false], [['No questions were written.'], 1, 'nq-row:›', 0, false]]), tries);
   queryRunning = true; calls.length = 0; toasts.length = 0;
   click(wayRow(2)); await tick();
@@ -354,9 +354,9 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     && same(beforeId, [['-', '-', '1700000099'], ['-'], ['-', '-']]) && same(marks(), [['-', '1700000100', '1700000099'], ['-'], ['-', '-']]) && same(stored, [['responses', 6]]) && pane.innerHTML === '', [rows, beforeId, marks()]);
   const done = { chain_id: 1700000100, thread_id: 7, parentChainId: 11, queryText: live.queryText, streamOutput: PANE(rows[0] + DONE) };
   check('the Workflow map\'s mark: a chain started from a question says next question - while it runs by what it carries, afterwards by the row its kept pane opens on; an analysis typed by the coach says '
-    + 'nothing, one framed with the Architect says so',
+    + 'nothing, one framed with the Pathfinder says so',
     N.made(live) === true && N.made(done) === true && N.made(A2) === false && N.made(null) === false && window.ArchitectUI.mark(live) === 'next question' && window.ArchitectUI.mark(done) === 'next question'
-    && window.ArchitectUI.mark(A2) === '' && window.ArchitectUI.mark({ tabContent: '<div id="tab-brief" class="tab">Brief</div>', streamOutput: done.streamOutput }) === 'Architect', null);
+    && window.ArchitectUI.mark(A2) === '' && window.ArchitectUI.mark({ tabContent: '<div id="tab-brief" class="tab">Brief</div>', streamOutput: done.streamOutput }) === 'Pathfinder', null);
   responses[liveState.index] = done; liveState.running = false;      // the run ended: its kept entry stands where the live one did
   N.ran(1700000102);
   const afterEnd = marks();
@@ -377,10 +377,10 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
   // ---- the page's hooks, read from the source
   const root = path.join(__dirname, '..', '..', 'web_app'), js = f => fs.readFileSync(path.join(root, 'static', 'js', f), 'utf8'), css = f => fs.readFileSync(path.join(root, 'static', 'css', f), 'utf8');
   const html = fs.readFileSync(path.join(root, 'templates', 'index.html'), 'utf8'), qp = js('query-processing.js');
-  check('index.html: the plant and its popover have left the composer; next-questions.js is loaded after the Architect\'s module and before the map\'s; the app starts it',
+  check('index.html: the plant and its popover have left the composer; next-questions.js is loaded after the Pathfinder\'s module and before the map\'s; the app starts it',
     !html.includes('suggestQuestions') && !html.includes('branchingSliderPopup') && !html.includes('branching-icon') && html.indexOf('js/next-questions.js') > html.indexOf('js/architect.js')
     && html.indexOf('js/next-questions.js') < html.indexOf('js/workflowGraph.js') && js('core.js').includes('window.NextQuestionsUI.initialize();'));
-  check('the send: a next question is the query as it stands - not typed, so the Architect\'s switch does not apply; nothing starts while a set is being written; the run\'s pane is told what started it; '
+  check('the send: a next question is the query as it stands - not typed, so the Pathfinder\'s switch does not apply; nothing starts while a set is being written; the run\'s pane is told what started it; '
     + 'the composer is neither cleared nor refilled; the server is told the set and the question; the stream\'s id line marks the card',
     qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());")
     && qp.includes('if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;') && qp.indexOf('window.NextQuestionsUI.holds()') < qp.indexOf('window.ArchitectUI.framingInView()')
@@ -388,7 +388,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     && qp.indexOf('if (next) window.NextQuestionsUI.started(next);') > qp.indexOf('beginLiveChain(framed);') && qp.includes('if (!synthesis && !next) {') && qp.includes('if (!framed && !next) queryInput.value = query;')
     && qp.includes('if (next) requestBody.next = { set: next.set, k: next.k };') && qp.includes('if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);')
     && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') > qp.indexOf("if (data.type === \"id\")") && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') < qp.indexOf('data.type === "html"'));
-  check('the pane and the map: a finished analysis is dressed when its closing card is made and when its chain is shown again; the map asks the Architect\'s module for the mark, which asks this one',
+  check('the pane and the map: a finished analysis is dressed when its closing card is made and when its chain is shown again; the map asks the Pathfinder\'s module for the mark, which asks this one',
     js('stream-pane.js').includes('append(build.runEnd(r));\n        if (window.NextQuestionsUI) window.NextQuestionsUI.dress(p);')
     && js('workflow-management.js').includes('if (window.NextQuestionsUI) window.NextQuestionsUI.restore(response);')
     && js('workflow-management.js').indexOf('window.NextQuestionsUI.restore(response)') > js('workflow-management.js').indexOf('reattachRestoredListeners();\n    if (window.ArchitectUI)')

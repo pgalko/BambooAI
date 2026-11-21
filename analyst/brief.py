@@ -4,7 +4,7 @@ A brief is a plain dict, kept with its run. Every part is optional: the analyst 
 something, and one the person did not state is the analyst's to choose.
 
     {"version": 2,
-     "question": "...",          the run's question: the person's words, or the Architect's wording of them
+     "question": "...",          the run's question: the person's words, or the Pathfinder's wording of them
      "decision": "...",          what they will do differently depending on the answer
      "thinks": "...",            what they think is going on
      "rests_on": [{"text": "...", "source": "person", "mark": "", "note": ""}],     what the frame rests on
@@ -19,16 +19,16 @@ something, and one the person did not state is the analyst's to choose.
      "set_aside": ["..."]}       considered and dropped
 
 A line's source is who it comes from (SOURCES); its mark is what a check against the data found (MARKS), or '' when
-nothing checked it. An explanation the Architect proposed says so, and whether the person accepted it; one of the
+nothing checked it. An explanation the Pathfinder proposed says so, and whether the person accepted it; one of the
 person's own carries neither. The passages under `saved` are those of the saved analyses the person chose to build
-on, as the reader found them (gather(), build_on()). A figure is one the person asked to see, as the Architect
+on, as the reader found them (gather(), build_on()). A figure is one the person asked to see, as the Pathfinder
 describes it (sketch()): a draft of it is drawn before the run (analyst/draft.py), the analyst computes for it and
 the step that draws is given it in words (figure_lines()). normalise() brings what a caller sends into this shape,
 agreed() is the brief as the analyst receives it, render() writes the BRIEF block of the prompt, held() says
 whether the report is to answer to it, and outcome() reads back what a report says against the brief. While a brief
 is being written it is kept as versions on its run: version() adds one, latest() is the one in use - the last, or
 the one the step of the conversation the person went back to ends on (analyst/steps.py); write() takes in what a
-reply of the Architect's names and mark() the marks it gives after its lookups; said() is the conversation the brief
+reply of the Pathfinder's names and mark() the marks it gives after its lookups; said() is the conversation the brief
 came from, as text.
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ KINDS = {"line": "a line chart", "scatter": "a scatter of points", "bar": "bars"
          "line3d": "a line in three dimensions"}
 FIGURE_CHARS = {"title": 120, "axis": 80, "name": 60, "note": TEXT_CHARS}      # the note: a line of the brief - how the figure is laid out, and what it is to make clear
 SERIES = 4                       # the lines or groups one figure holds by name
-COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Architect writes a brief with
+COUNTS = {"rests_on": 4, "also_check": 2}                               # the design's counts (§2.2): what the Pathfinder writes a brief with
 ALWAYS = ("chance", "measurement error", "how the cases compared came to be chosen")      # checked in every briefed run on data
 VERDICTS = ("not met", "cannot tell", "met")                     # read in this order: "not met" holds "met"
 SEEN = ("not seen", "cannot tell", "seen")
@@ -59,7 +59,7 @@ def _text(value) -> str:
 
 
 def wording(value) -> str:
-    """A wording of the question, the person's or the Architect's: its lines kept, runs of spaces folded, bounded as
+    """A wording of the question, the person's or the Pathfinder's: its lines kept, runs of spaces folded, bounded as
     a question is."""
     if not isinstance(value, str):
         return ""
@@ -136,7 +136,7 @@ def normalise(brief) -> dict:
 
 
 def agreed(brief) -> dict:
-    """The brief as the analyst receives it: in its known shape, without what the Architect proposed, or the reader
+    """The brief as the analyst receives it: in its known shape, without what the Pathfinder proposed, or the reader
     found in the saved analyses, and the person did not accept."""
     brief = brief if isinstance(brief, dict) else {}
     lines = brief.get("also_check") if isinstance(brief.get("also_check"), list) else []
@@ -156,7 +156,7 @@ def working(brief) -> dict:
 
 def version(framing: dict, brief, by: str = "person", changed=None, why: str = "") -> dict:
     """A version added to a run's framing: the brief as it stands, who made the change, which parts it touched and,
-    for the Architect's, what it was made from (`why`: the question, an answer, or a check against the data). Returns
+    for the Pathfinder's, what it was made from (`why`: the question, an answer, or a check against the data). Returns
     the framing with the new version, which is the one in use from now; every earlier one stays."""
     versions = list((framing or {}).get("versions") or [])
     entry = {"n": len(versions) + 1, "by": by if by in ("person", "architect") else "person",
@@ -167,11 +167,11 @@ def version(framing: dict, brief, by: str = "person", changed=None, why: str = "
 
 
 def write(brief, parts) -> tuple:
-    """The brief with what a reply of the Architect names written in (analyst/architect.py). A text part is a
+    """The brief with what a reply of the Pathfinder names written in (analyst/architect.py). A text part is a
     string, and "" empties it; the question is given as a wording, its lines kept, and is never emptied. The two
     lists take lines: a line given under `drop` is taken out of either, when it is there word for word; a line given
     under a list's own name is added to it when it is not there yet, as a line of the person's, up to the design's
-    counts. A line given under `propose` is added to the other explanations as the Architect's own, with what it
+    counts. A line given under `propose` is added to the other explanations as the Pathfinder's own, with what it
     would show, not accepted: only the person accepts it. A line the reply does not name stays as it is, with its
     source and its mark. What is fixed is given part by part. Nothing else of the brief is touched. Returns the
     brief and the parts that changed, as the page names them."""
@@ -209,7 +209,7 @@ def write(brief, parts) -> tuple:
 
 
 def sketch(brief, given) -> tuple:
-    """The brief with its figures as a reply of the Architect's gives them (analyst/architect.py): every figure as it
+    """The brief with its figures as a reply of the Pathfinder's gives them (analyst/architect.py): every figure as it
     is to stand, in order - one that stays as it is by its number among the brief's, from 1, a new or changed one
     in full; [] takes them all out. A number the brief does not have is passed over, as is a figure without a
     title or under a title another carries; MAX["figures"] are kept. Returns the brief and what changed, as the
@@ -259,7 +259,7 @@ def _same(a: dict, b: dict) -> bool:
 def gather(kept, read) -> list:
     """The passages the readings of a brief have found so far, with one more reading's (_passage()): in the order
     they were found, a passage that is there already not added again. The analyses they come from are numbered in
-    this order (analyses()): a reply of the Architect's builds on one by its number."""
+    this order (analyses()): a reply of the Pathfinder's builds on one by its number."""
     out = [dict(s) for s in kept if isinstance(s, dict)] if isinstance(kept, list) else []
     for entry in [_passage(f) for f in read] if isinstance(read, list) else []:
         if not any(_same(s, entry) for s in out):
@@ -268,7 +268,7 @@ def gather(kept, read) -> list:
 
 
 def build_on(brief, found, numbers) -> tuple:
-    """The brief built on the saved analyses a reply of the Architect's names, on the person's word: by their
+    """The brief built on the saved analyses a reply of the Pathfinder's names, on the person's word: by their
     numbers among the analyses the readings found (analyses(found)), from 1. Their passages stand under `saved`,
     and no other: an analysis the reply does not name is built on no longer. A number the readings do not have is
     passed over, and what the brief has no room for is left out. Returns the brief and what changed, as the page
@@ -284,7 +284,7 @@ def build_on(brief, found, numbers) -> tuple:
 
 
 def mark(brief, marks, facts) -> tuple:
-    """The brief with lines it rests on marked, as a reply of the Architect's says (analyst/architect.py). `marks`:
+    """The brief with lines it rests on marked, as a reply of the Pathfinder's says (analyst/architect.py). `marks`:
     [{"line", "mark", "lookup", "why"}], a line named word for word. `facts`: what the lookups made so far found, by
     number: (the line of the brief the lookup was made for, what it found as the host wrote it, whether that is a
     result). "holds" and "does not hold" stand only on a lookup made for the line that gave a result, and the fact
@@ -325,9 +325,9 @@ def latest(framing: dict) -> dict:
 
 
 def said(framing, question: str = "") -> str:
-    """What the person and the Architect said while a brief was written, as text: each message under who said it,
+    """What the person and the Pathfinder said while a brief was written, as text: each message under who said it,
     the question as it was first asked before them - `question` where the framing kept no first version - and the
-    question as the Architect worded it on a line of its own. "" where nothing was said. What was looked up, read
+    question as the Pathfinder worded it on a line of its own. "" where nothing was said. What was looked up, read
     or opened meanwhile, and where the person went to another version, is no part of it."""
     framing = framing if isinstance(framing, dict) else {}
     turns = [t for t in framing.get("turns") or [] if t.get("who") in ("person", "architect") and str(t.get("text") or "").strip()]
@@ -336,9 +336,9 @@ def said(framing, question: str = "") -> str:
     first = str(((framing.get("versions") or [{}])[0].get("brief") or {}).get("question") or question or "").strip()
     lines = [f"Person: {first}"] if first else []
     for t in turns:
-        lines.append(f"{'Architect' if t['who'] == 'architect' else 'Person'}: {str(t['text']).strip()}")
+        lines.append(f"{'Pathfinder' if t['who'] == 'architect' else 'Person'}: {str(t['text']).strip()}")
         if t.get("wording"):
-            lines.append(f"Architect's wording of the question: {t['wording']}")
+            lines.append(f"Pathfinder's wording of the question: {t['wording']}")
     return "\n".join(lines)
 
 

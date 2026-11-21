@@ -1,4 +1,5 @@
-"""The code map (docs/CODEMAP_DESIGN.md, 2026-10-20): how one analysis chain got from its data to its numbers, built
+"""The code trace (docs/CODEMAP_DESIGN.md, 2026-10-20; the code map until 2.9 - the names in the code keep that word, and
+the notes say "the map" of what is built): how one analysis chain got from its data to its numbers, built
 mechanically from the chain's committed cells and the kernel's record, once when the chain ends, and shown in a modal.
 No model call anywhere; the same chain always gives the same map. Nothing here reaches a prompt.
 
@@ -9,7 +10,7 @@ A failure is recorded, never raised: the chain is answered whether or not it has
 import copy
 import time
 
-VERSION = 5      # 5 (2026-11-21): a correction marks the line it replaced, not every line of its cell; 4 (2026-11-21): a branch's map says so - the steps it kept, each hint where it was given; 3 (2026-10-24): each recipe carries the lines behind its number, for the notebook; 2 (2026-10-21): short labels told apart, longer texts; older maps are rebuilt on request
+VERSION = 6      # 6 (2026-11-21): the words say trace - the Code map is the Code trace; 5 (2026-11-21): a correction marks the line it replaced, not every line of its cell; 4 (2026-11-21): a branch's map says so - the steps it kept, each hint where it was given; 3 (2026-10-24): each recipe carries the lines behind its number, for the notebook; 2 (2026-10-21): short labels told apart, longer texts; older maps are rebuilt on request
 
 
 def build_record(doc, primary_name=None):

@@ -52,9 +52,9 @@ def _note_html(note: str) -> str:
     return '<div class="nb-note"><div class="nb-note-title">Working note</div>' + "".join(rows) + "</div>"
 
 
-# the code map's eye on a committed cell (2026-10-24): the cell's row in the Steps view; the chain is the one on screen, as
+# the code trace's eye on a committed cell (2026-10-24): the cell's row in the Steps view; the chain is the one on screen, as
 # the closing card's link has it; inline, so a saved favourite's cells keep it, and silent on a page without the module
-_MAP_EYE = ('<button type="button" class="nb-cell-map" data-cell="{n}" title="This cell in the code map" aria-label="This cell in the code map" '
+_MAP_EYE = ('<button type="button" class="nb-cell-map" data-cell="{n}" title="This cell in the code trace" aria-label="This cell in the code trace" '
             'onclick="if(window.CodeMapUI)CodeMapUI.open(null,{{cell:{n}}})">'
             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle>'
             '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg></button>')

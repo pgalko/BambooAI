@@ -333,7 +333,7 @@ class ModelManager:
                    chain_id: str = None, tools: str = None, reasoning_models: list = None,
                    reasoning_effort: str = None, stop_event: threading.Event = None, label: str = None):
         # label: the name the call is logged and its usage recorded under, when a role runs on another seat's model
-        # (2026-11-15: the Architect on the analyst's seat). A chain's log counts a seat's calls by this name.
+        # (2026-11-15: the Pathfinder on the analyst's seat). A chain's log counts a seat's calls by this name.
         timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
 
         model, provider, max_tokens, temperature, response_format, api_type = self._init(agent)

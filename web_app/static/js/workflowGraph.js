@@ -325,7 +325,7 @@ window.WorkflowGraph = (function () {
             chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;
             div.appendChild(chainSpan);
 
-            // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Architect, or a brief not yet run;
+            // how the question was made (docs/ARCHITECT_DESIGN.md §2.9): framed with the Pathfinder, or a brief not yet run;
             // on another map, that map's own mark
             var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');
             if (made) {
@@ -343,14 +343,14 @@ window.WorkflowGraph = (function () {
                 div.appendChild(branchSpan);
             }
 
-            // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
+            // the code trace's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
             // the chain, the drawer shuts, the map opens
             if (!of && resp && resp.chain_id && made !== 'not run') {
                 var eye = document.createElement('button');
                 eye.className = 'wf-node-map';
                 eye.type = 'button';
-                eye.title = 'Code map: how this chain got its numbers';
-                eye.setAttribute('aria-label', 'Code map of chain ' + (idx + 1));
+                eye.title = 'Code trace: how this chain got its numbers';
+                eye.setAttribute('aria-label', 'Code trace of chain ' + (idx + 1));
                 eye.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg>';
                 eye.addEventListener('click', function (e) {
                     e.stopPropagation();

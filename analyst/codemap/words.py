@@ -43,8 +43,8 @@ APP_NAMES = [("wellness_data", "Wellness Summary"), ("activity_summary", "Activi
 
 UNTRACED = "the arithmetic is not traced"          # a helper's own arithmetic, said plainly, never explained
 MADE_IN_CODE = "made in the code"
-NOT_MAPPED = "Not mapped: the code could not be read"
-NOT_TRACED = "Not traced: the map could not follow how this was made"
+NOT_MAPPED = "Not traced: the code could not be read"
+NOT_TRACED = "Not traced: how this was made could not be followed"
 
 GLOSS = [
     ("Spearman", "Do the two measures rise and fall together? From -1 (opposite) to +1 (together)."),
@@ -143,6 +143,6 @@ def meta_nocode(mode, turns, searches) -> str:
 
 def nocode_text(searches, reads=0, ideas=False) -> str:
     if ideas:
-        return "No code ran in this chain: it proposed questions to ask next, so there is nothing to map."
+        return "No code ran in this chain: it proposed questions to ask next, so there is nothing to trace."
     src = ("a web search" if searches == 1 else f"{searches} web searches") if searches else ("a document read" if reads == 1 else (f"{reads} document reads" if reads else "what it already knew"))
-    return f"No code ran in this chain: it answered from {src}, so there is nothing to map."
+    return f"No code ran in this chain: it answered from {src}, so there is nothing to trace."

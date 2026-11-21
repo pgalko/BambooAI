@@ -1,6 +1,6 @@
 """Next questions: what could be analysed after a finished analysis (docs/ARCHITECT_DESIGN.md §2.7, §2.15).
 
-The person picks one of five levels, and one model call - the Architect's seat - returns up to five questions at
+The person picks one of five levels, and one model call - the Pathfinder's seat - returns up to five questions at
 that level. Each comes from a line the analysis left on record: a part of its brief, a line of its report, what was
 asked and found (record()). A level reads its own lines first (OWN), and where it has any, one question at least
 comes from them. A question says which line it comes from by number, so what the person is shown as its origin is
@@ -50,7 +50,7 @@ def _line(value, chars: int) -> str:
 
 def record(nb: Notebook, run: Run) -> list:
     """The lines an analysis leaves that a question can come from, each {"kind", "text"}: what its brief fixed, what
-    was also checked and what the Architect proposed and the person did not accept, what the brief rests on that was
+    was also checked and what the Pathfinder proposed and the person did not accept, what the brief rests on that was
     not found to hold, what would change the person's mind, what did not fit, what was asked and what was found -
     and what the analyses before it found, the newest first."""
     brief, seen = run.brief or {}, run.brief_outcome or {}

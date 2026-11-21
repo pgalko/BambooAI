@@ -36,13 +36,16 @@ PAGE = 1000                  # rows per fetch
 MAX_ROWS = 50000             # the most rows one answer aggregates (the answer says when it stopped there)
 _FACTS = {}                  # thread file -> (mtime, {run id: the facts the ledger shows}); re-read when the file changes
 
+# a seat whose name changed: the Pathfinder was the Architect until 2.9, and its calls before are recorded under that name
+_NOW = {"Architect": "Pathfinder"}
+
 # a chain the thread store does not know, named by the seat that spent on it (the last two seats are retired, 2.8: the
-# calls they made before stay in the record, and keep their name). The Architect's own such chain is a set of next
+# calls they made before stay in the record, and keep their name). The Pathfinder's own such chain is a set of next
 # questions: its calls while a brief is written are in the chain of that brief's run, which the store knows - as are
 # the calls of a reading of the saved analyses made for a brief; a reading asked from the command line has a chain
 # of its own
 _OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
-          "Architect": ("next", "Next questions"), "Memory Reader": ("memory", "Saved analyses read"), "Memory Pieces": ("memory", "Saved analyses read"),
+          "Pathfinder": ("next", "Next questions"), "Memory Reader": ("memory", "Saved analyses read"), "Memory Pieces": ("memory", "Saved analyses read"),
           "Knowledge Distiller": ("memory", "Memory: the distillation"), "Embedder": ("memory", "Memory: the embeddings")}
 
 
@@ -125,7 +128,8 @@ def _bucket_of(t_local, bucket):
 def _call(r):
     """A row as the route reads it; the five fields of 0255 None when the row predates them (not recorded)."""
     cached, written, sav = r.get("cached_tokens"), r.get("cache_write_tokens"), r.get("cache_savings")
-    return {"id": r.get("id"), "t": _ts(r.get("timestamp")), "seat": r.get("agent") or "Unknown", "model": r.get("model") or "Unknown", "chain": str(r.get("chain_id") or ""),
+    seat = r.get("agent") or "Unknown"
+    return {"id": r.get("id"), "t": _ts(r.get("timestamp")), "seat": _NOW.get(seat, seat), "model": r.get("model") or "Unknown", "chain": str(r.get("chain_id") or ""),
             "tokens_in": int(r.get("prompt_tokens") or 0), "tokens_out": int(r.get("completion_tokens") or 0), "elapsed": float(r.get("elapsed_time") or 0),
             "tps": float(r.get("tokens_per_second") or 0), "cost": float(r.get("cost") or 0),
             "cached": None if cached is None else int(cached), "written": None if written is None else int(written), "savings": None if sav is None else float(sav),
@@ -253,7 +257,7 @@ def _ledger_lines(store_dir):
 
 def outcome(f):
     """One word for how the run ended: answered | reproduced | differed | replay failed | failed at cell n | refused | stopped | asked | running |
-    not run (a brief written with the Architect whose analysis was not started)."""
+    not run (a brief written with the Pathfinder whose analysis was not started)."""
     s = f.get("status") or ""
     if s == "framing":
         return "not run"

@@ -1245,7 +1245,7 @@ def get_dataset_preview():
 def query_refusal(count=True):
     """Whether the signed-in user may run a query now - authorisation only, nothing is charged: None when they may,
     else the 403 answer the page shows (the month's free queries used up, the balance). `count`: this query counts
-    towards the month's free queries; a question framed with the Architect is counted when its brief opens, and not
+    towards the month's free queries; a question framed with the Pathfinder is counted when its brief opens, and not
     again when its analysis starts (architect_routes.py)."""
     auth0_user_id = get_current_user_id()
     if not auth0_user_id:

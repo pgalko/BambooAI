@@ -185,7 +185,7 @@
     // the composer's words, kept apart from a hold's: where the composer is held (routines.js), the words wait under the hold's
     function words(input, to) { if (input.getAttribute('data-placeholder') != null) input.setAttribute('data-placeholder', to); else input.placeholder = to; }
     // The composer as the hint's: its words ask for one, and the row under it says from which turn - with how many
-    // turns the analysis has left, since the turns kept count as used - in the place of the mode, the Architect's
+    // turns the analysis has left, since the turns kept count as used - in the place of the mode, the Pathfinder's
     // switch and the files, which a branch takes from the analysis it goes on from
     function composer() {
         const input = byId('queryInput'), row = document.querySelector('.icon-row');

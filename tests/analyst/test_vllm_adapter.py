@@ -281,18 +281,18 @@ check("ModelManager: words in order of preference reach the request as the first
       _streamed["extra_body"].get("reasoning") == {"effort": "medium"} and _meta.get("seat_effort") == "medium" and FakeClient.calls[-1]["extra_body"].get("reasoning") == {"effort": "medium"},
       (_streamed.get("extra_body"), _meta, FakeClient.calls[-1].get("extra_body")))
 
-# a call logged under another name than its seat's (2026-11-15, the Architect on the analyst's seat): the seat gives the
+# a call logged under another name than its seat's (2026-11-15, the Pathfinder on the analyst's seat): the seat gives the
 # model and the effort, the label is what the log - and so the usage record - says made the call
 class _Log:
     def __init__(self): self.rows = []
     def write_to_log(self, agent, chain_id, timestamp, model, *a, **k): self.rows.append((agent, chain_id, model))
 _log = _Log()
-for _kw in ({"label": "Architect"}, {}):
+for _kw in ({"label": "Pathfinder"}, {}):
     FakeClient.calls.clear(); FakeClient.script[:] = [chunk(content="x", finish="stop")]
     _mm.llm_stream(Prompts(), _log, _Pane(), [{"role": "system", "content": "s"}, {"role": "user", "content": "u"}], agent="Analyst", chain_id="c7",
                    reasoning_models=["deepseek/deepseek-v4.1-flash"], **_kw)
 check("ModelManager.llm_stream: a call given a label is logged under it, on its seat's model and chain; without one, under the seat's name",
-      _log.rows == [("Architect", "c7", "deepseek/deepseek-v4.1-flash"), ("Analyst", "c7", "deepseek/deepseek-v4.1-flash")] and FakeClient.calls[-1]["model"] == "deepseek/deepseek-v4.1-flash", _log.rows)
+      _log.rows == [("Pathfinder", "c7", "deepseek/deepseek-v4.1-flash"), ("Analyst", "c7", "deepseek/deepseek-v4.1-flash")] and FakeClient.calls[-1]["model"] == "deepseek/deepseek-v4.1-flash", _log.rows)
 
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")

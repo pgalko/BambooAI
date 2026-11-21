@@ -8,7 +8,7 @@ import argparse, json, os, sys, importlib.util
 HERE = os.path.dirname(os.path.abspath(__file__))
 spec = importlib.util.spec_from_file_location('rp', os.path.join(HERE, 'render_page.py')); rp = importlib.util.module_from_spec(spec); spec.loader.exec_module(rp)
 FILL = open(os.path.join(HERE, 'fixtures', 'fill_page.js')).read() if os.path.exists(os.path.join(HERE, 'fixtures', 'fill_page.js')) else ''
-ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # the Architect's states (2026-11-15): an invented brief and a report against it
+ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # the Pathfinder's states (2026-11-15): an invented brief and a report against it
 DAGRE = open(os.path.join(HERE, 'fixtures', 'dagre_stub.js')).read()             # the maps' layout library, as the harness has it: here the library's address is not reached (2026-11-19, the map of a brief's conversation)
 PLOTLY = open(os.path.join(HERE, 'stack', 'browser', 'libs_stub_plotly.js')).read()      # the stack's stand-in for Plotly: here the library's address is not reached (2026-11-18, the drafts of the figures)
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
@@ -29,17 +29,17 @@ STATES = {
     'dlg_endura': "document.getElementById('enduraModal').style.display='flex'; document.getElementById('enduraRaceSelect').innerHTML='<option>Spring classic 2026</option>';",
     'dlg_intervals_cfg': "document.getElementById('intervalsConfigModal').style.display='flex';",
     'dlg_codebook': "CodebookUI.open();",
-    'architect_talk': ARCHITECT + "galleryArchitect.talk();",          # the Architect's first question, with its choices (docs/ARCHITECT_DESIGN.md §2.12)
-    'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Architect reading, the composer held
+    'architect_talk': ARCHITECT + "galleryArchitect.talk();",          # the Pathfinder's first question, with its choices (docs/ARCHITECT_DESIGN.md §2.12)
+    'architect_reading': ARCHITECT + "galleryArchitect.reading();",    # a message on its way: the Pathfinder reading, the composer held
     'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
-    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
+    'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Pathfinder worded it (§2.18), one line open (§2.11)
     'architect_step': ARCHITECT + "galleryArchitect.step();",          # an earlier step of a conversation that branched on screen: both panes are that step's, Start analysis names it (§2.25)
     'architect_map': DAGRE + ARCHITECT + "galleryArchitect.map();",    # its Pathfinding map, in the maps drawer: the way to the step on screen lit, the pointer on the way that was left (§2.25)
     'architect_drawing': ARCHITECT + "galleryArchitect.drawing();",    # a grey window to each figure while its draft is drawn: the reply above the row that says so (§2.20; 0311)
     'architect_draft': PLOTLY + ARCHITECT + "galleryArchitect.draft();",      # the drafts drawn on the Brief tab: one on made-up numbers, marked, one computed (§2.20)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)
     'architect_checking': ARCHITECT + "galleryArchitect.checking();",  # Start analysis pressed: the question is being read as the Analyst will read it (§2.22)
-    'architect_unplaced': ARCHITECT + "galleryArchitect.unplaced();",  # the words the Analyst cannot place, and the Architect's wording after it (§2.22)
+    'architect_unplaced': ARCHITECT + "galleryArchitect.unplaced();",  # the words the Analyst cannot place, and the Pathfinder's wording after it (§2.22)
     'architect_answer': ARCHITECT + "galleryArchitect.answer();",      # the answer of a run under a brief: nothing in it of what the report says against the brief (0312)
     'architect_outcome': ARCHITECT + "galleryArchitect.outcome();",    # which stands at the foot of that run's Brief tab: how it turned out (§2.21)
     'architect_saving': ARCHITECT + "galleryArchitect.saving();",      # the saved analyses being read: the row with its count and Skip (§3.7)
@@ -53,7 +53,7 @@ def render_all(out, light=False):
     from playwright.sync_api import sync_playwright
     html = rp.static_index(); fixtures = json.load(open(os.path.join(HERE, 'fixtures', 'workflows.json'))); ROOT = rp.ROOT
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'codebook.json'))))     # the codebook screen's book (2026-10-16), a file of its own
-    fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'drafts.json'))))       # the plots of the drafts the Architect's state shows (2026-11-18), by the address the page asks
+    fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'drafts.json'))))       # the plots of the drafts the Pathfinder's state shows (2026-11-18), by the address the page asks
     usage_fx = os.path.join(HERE, 'fixtures', 'usage.json')                               # the usage dialog's answers (2026-10-31): a synthetic month, made on demand
     if not os.path.exists(usage_fx):
         import subprocess; subprocess.run([sys.executable, os.path.join(HERE, 'usage_fixture.py'), usage_fx], check=True, env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, 'tools', 'stack', 'fakepkgs')))

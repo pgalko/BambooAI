@@ -125,8 +125,8 @@ class BambooAI:
         # Storage: the notebook tree, one file per thread, under the user's storage.
         self.store = NotebookStore(self._user_storage())
         self.notebook = None
-        self._framed = set()             # the chains the Architect talked in whose analysis has not run: their calls are not charged yet
-        self._skip_saved = threading.Event()      # the person no longer waits for the saved analyses to be read (the Architect's row, Skip)
+        self._framed = set()             # the chains the Pathfinder talked in whose analysis has not run: their calls are not charged yet
+        self._skip_saved = threading.Event()      # the person no longer waits for the saved analyses to be read (the Pathfinder's row, Skip)
 
         # The kernel: one per thread, kept warm between runs; rehydrated on a branch.
         self._kernel = None
@@ -195,10 +195,14 @@ class BambooAI:
         return 'Figures' if 'Figures' in agents else self._seat()
 
     def _architect_seat(self):
-        """The seat the Architect runs on (docs/ARCHITECT_DESIGN.md, decision 28): 'Architect' when the config carries
-        one, else the analyst seat. Either way its calls are logged as the Architect's (_llm's `label`)."""
+        """The seat the Pathfinder runs on (docs/ARCHITECT_DESIGN.md, decision 28): 'Pathfinder' when the config carries
+        one; 'Architect' - its name until 2.9 - where a config written before carries that; else the analyst seat.
+        Whichever it is, its calls are logged as the Pathfinder's (_llm's `label`)."""
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
-        return 'Architect' if 'Architect' in agents else self._seat()
+        for seat in ('Pathfinder', 'Architect'):
+            if seat in agents:
+                return seat
+        return self._seat()
 
     def _memory_seats(self):
         """The seats the reader of the saved analyses runs on (docs/ARCHITECT_DESIGN.md, decision 28): the reader on
@@ -232,7 +236,7 @@ class BambooAI:
         order of preference, the first the model accepts (the analyst's report
         turn and its second attempts, 2026-10-18); the usage says the effort the
         call was asked at. `label` is the name the call is logged under when
-        it is not the seat's (the Architect on the analyst's seat). `chain` is
+        it is not the seat's (the Pathfinder on the analyst's seat). `chain` is
         the chain the call is logged and counted under when it is not the
         instance's own: a call made beside the analyses (next questions),
         which leaves the instance's chain alone."""
@@ -1050,7 +1054,7 @@ class BambooAI:
         return out
 
     def _map_inputs(self, run):
-        """The inputs a chain was offered, for its code map (analyst/codemap, 2026-10-20): the primary with its columns,
+        """The inputs a chain was offered, for its code trace (analyst/codemap, 2026-10-20): the primary with its columns,
         each auxiliary file with its columns (one executor call for them all), the context when the load carries one,
         and the thread's documents as the kernel names them (D1, D2, ...). Called once, at the chain's end."""
         from analyst.codemap.record import inputs_from_data
@@ -1326,7 +1330,7 @@ class BambooAI:
         """One more version of a framing run's brief, as the person left it; the question follows when they changed
         it. `step`: the step of the conversation on their screen, where they made the change - the change is a step
         of its own, which follows it (analyst/steps.py). No draft is drawn for it: a figure the change left as it
-        was keeps its draft, and one it changed - with the question, every one - has none until the Architect next
+        was keeps its draft, and one it changed - with the question, every one - has none until the Pathfinder next
         replies. Returns the framing, or None when the run is not one being framed."""
         from analyst import brief as briefs, draft, steps
         nb = self._thread_notebook(thread_id)
@@ -1341,13 +1345,13 @@ class BambooAI:
         return run.framing
 
     def architect_say(self, thread_id, run_id, text=None, step=None):
-        """One exchange with the Architect in a framing run (analyst/architect.py): the person's message - none on its
+        """One exchange with the Pathfinder in a framing run (analyst/architect.py): the person's message - none on its
         first turn, nor when it goes on after its lookups, a reading or a part it opened - and its reply, taken into the
         brief and the conversation; a part of an earlier analysis it opens comes from the thread's record, in the engine;
         the lookups a reply asks for are answered here (_architect_look), and the saved analyses are read here
         (_architect_recall) where the reply asks for it. `step`: the step of the conversation on the person's screen -
         the exchange goes on from it (analyst/steps.py). After the reply, the figures of the brief that have no draft are drawn one
-        (_draft). The calls are the run's own: logged under its chain as the Architect's - the draft's as the
+        (_draft). The calls are the run's own: logged under its chain as the Pathfinder's - the draft's as the
         draft's -, and charged with its analysis - or when the instance is torn down, if no analysis follows
         (cleanup). Returns the framing, or None when the run is not one being framed; raises architect.Failed with
         the reason to show."""
@@ -1364,7 +1368,7 @@ class BambooAI:
         keep, self.chain_id = self.chain_id, (int(run_id) if str(run_id).isdigit() else run_id)      # the cost is counted by chain
         self._framed.add(self.chain_id)
         try:
-            framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
+            framing = architect.exchange(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Pathfinder", **kw),
                                          self.notebook, run, text, data=self._data_description(), look=self._architect_look,
                                          recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]), step=step)
             run.framing = draft.keyed({**framing, "data": has_data(self._data_record(light=True))})      # as it is now: data may have been loaded since the brief opened
@@ -1387,10 +1391,10 @@ class BambooAI:
         """Before the analysis of a framed question starts (analyst/cold.py; docs/ARCHITECT_DESIGN.md §2.22): the
         question of the step on the person's screen is read as the analyst will read it - by a model given what
         the analyst is given, and nothing else - once for a version of the brief. Where it could not place something the
-        Architect goes on at once, as after a message, and the figures due a draft are drawn one. The calls are the
+        Pathfinder goes on at once, as after a message, and the figures due a draft are drawn one. The calls are the
         run's own: logged under its chain - the read as the question check's - and charged with its analysis.
         Returns {"framing", "clean": whether the analysis can start} - with "error", the reason in words for the
-        person, where the Architect's reply after the read failed - or None when the run is not one being framed.
+        person, where the Pathfinder's reply after the read failed - or None when the run is not one being framed.
         A read that could not be made holds nothing up: the analysis can start."""
         from analyst import architect, brief as briefs, cold, draft, memory
         from analyst.notebook import has_data
@@ -1405,7 +1409,7 @@ class BambooAI:
         keep, self.chain_id = self.chain_id, (int(run_id) if str(run_id).isdigit() else run_id)      # the cost is counted by chain
         self._framed.add(self.chain_id)
         try:
-            framing, out["clean"] = cold.ready(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", **kw),
+            framing, out["clean"] = cold.ready(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Pathfinder", **kw),
                                                lambda system, user, **kw: self._llm(system, user, seat=seat, label="Question check", **kw),
                                                self.notebook, run, step=step, data=self._data_description(), look=self._architect_look,
                                                recall=self._architect_recall, saved=len(memory.view(self._user_storage())["runs"]))
@@ -1413,7 +1417,7 @@ class BambooAI:
             run.question = (briefs.latest(run.framing) or {}).get("question") or run.question      # the question of the version in use is the run's
             if not out["clean"]:
                 self._draft(run)
-        except architect.Failed as exc:                        # the read stands, and the Architect made nothing of it: why
+        except architect.Failed as exc:                        # the read stands, and the Pathfinder made nothing of it: why
             out = {"clean": False, "error": str(exc)}
         except Exception:                                      # noqa: BLE001
             logger.exception("The question could not be read before its analysis")
@@ -1428,7 +1432,7 @@ class BambooAI:
 
     def _draft(self, run):
         """The draft of a framing run's figures (analyst/draft.py; docs/ARCHITECT_DESIGN.md §2.20), after a reply of
-        the Architect's. Where figures of the brief in use are due one, the page is first given the framing as it
+        the Pathfinder's. Where figures of the brief in use are due one, the page is first given the framing as it
         stands - it shows the reply while the draft is drawn. Then a model writes the cell on the figures' seat,
         logged as the draft's under the run's chain; the cell runs with no data (_run_draft); each plot is kept
         beside the thread's record; and the round is a turn of the conversation. A round that could not be made is
@@ -1492,9 +1496,9 @@ class BambooAI:
 
     def _architect_recall(self, question, brief):
         """The person's saved analyses read for a brief (memory_read), under the framing run's chain: the calls are
-        the run's own, as the Architect's are. The pane is told as it goes - how many are saved, how many the second
+        the run's own, as the Pathfinder's are. The pane is told as it goes - how many are saved, how many the second
         model has read - and the person can skip it (skip_saved). A reading that could not be made is a result that
-        says why: the Architect's reply stands either way."""
+        says why: the Pathfinder's reply stands either way."""
         seen = lambda read, of: self._pane('architect_saved', read=read, of=of)      # noqa: E731
         try:
             result = self.memory_read(question, chain=self.chain_id, brief=brief, stop=self._skip_saved.is_set, on_read=seen)
@@ -1570,7 +1574,7 @@ class BambooAI:
 
     def next_questions(self, thread_id, run_id, level):
         """One set of next questions for a finished analysis, at a level (analyst/next_questions.py): one model call on
-        the Architect's seat, logged as the Architect's under a chain of its own - the analysis' chain is settled - and
+        the Pathfinder's seat, logged as the Pathfinder's under a chain of its own - the analysis' chain is settled - and
         charged when it ends, as Save as routine's proposal is. The set is kept with the run. Returns {"set", "at": its
         place among the run's sets}, or None when the run is not a finished analysis on the record; raises
         architect.Failed with the reason to show."""
@@ -1583,7 +1587,7 @@ class BambooAI:
             return None
         seat, chain = self._architect_seat(), utils.next_chain_id()
         try:
-            asked = next_questions.propose(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Architect", chain=chain, **kw),
+            asked = next_questions.propose(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Pathfinder", chain=chain, **kw),
                                            self.notebook, run, level, data=self._data_description())
         finally:
             try:
@@ -1595,7 +1599,7 @@ class BambooAI:
         return {"set": run.next_questions[-1], "at": len(run.next_questions) - 1}
 
     def _architect_look(self, lookups):
-        """A round of the Architect's lookups (analyst/lookup.py), answered where the analysis' cells run: one
+        """A round of the Pathfinder's lookups (analyst/lookup.py), answered where the analysis' cells run: one
         host-written script through the executor, over the frame loaded now and the files beside it. It leaves nothing
         behind: no names in the analysis' kernel, no files. One answer to a lookup; where the script did not run,
         each lookup is refused in words."""
@@ -1607,7 +1611,7 @@ class BambooAI:
         except Exception as exc:                               # noqa: BLE001
             out, error = "", str(exc)
         if error:
-            logger.warning("The Architect's lookups did not run: %s", str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
+            logger.warning("The Pathfinder's lookups did not run: %s", str(error).strip().splitlines()[-1][:300] if str(error).strip() else error)
         return lookup.read(out, len(lookups))
 
     def _on_thread(self, thread_id):
@@ -1780,7 +1784,7 @@ class BambooAI:
                     self.log_and_call_manager.charge_for_completed_query(self.chain_id)
             except Exception:                                  # noqa: BLE001
                 pass
-            self._framed.discard(self.chain_id)                # the Architect's calls in this chain were charged with it
+            self._framed.discard(self.chain_id)                # the Pathfinder's calls in this chain were charged with it
             try:
                 _run = self.notebook.runs.get(str(self.chain_id)) if self.notebook else None
                 if _run is not None and not _run.data:
@@ -1874,7 +1878,7 @@ class BambooAI:
 
     def cleanup(self):
         self._drop_kernel()
-        for chain in list(self._framed):                       # briefs the Architect talked in and no analysis followed: their calls are charged now
+        for chain in list(self._framed):                       # briefs the Pathfinder talked in and no analysis followed: their calls are charged now
             try:
                 self.log_and_call_manager.charge_for_completed_query(chain)
             except Exception:                                  # noqa: BLE001

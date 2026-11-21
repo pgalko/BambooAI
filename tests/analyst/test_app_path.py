@@ -37,7 +37,7 @@ class FakeModels:
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
-        if messages[0]["content"].startswith("You are the Architect"):
+        if messages[0]["content"].startswith("You are the Pathfinder"):
             state.setdefault("architect_seen", []).append((agent, kw, messages[0]["content"], user))
             from bambooai.models import prompt_cache
             prompt_cache.reset()
@@ -169,12 +169,12 @@ run1 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("the run id IS the chain id the browser was told", any(e.get("type") == "id" and str(e.get("chain_id")) == run1.id for e in events) or True)
 check("report stored with the replay line; the rewrite by the same 'model', headed by the report's title (2026-10-17); status answered",
       run1.status == "answered" and "Replay reproduced" in run1.report and run1.rewrite.startswith("# B exceeds A\n\nPlain:") and run1.title == "B exceeds A", run1.report[-160:])
-check("the run keeps the mode it was asked in, as the host labels it, and each committed cell the registry entries it made (the code map's record, 2026-10-20); the thread file carries both",
+check("the run keeps the mode it was asked in, as the host labels it, and each committed cell the registry entries it made (the code trace's record, 2026-10-20); the thread file carries both",
       run1.mode in ("Quick", "Deep", "Adaptive") and any(t.registry for t in run1.cells())
       and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["mode"] == run1.mode, (run1.mode, [t.registry for t in run1.cells()]))
-# the code map (2026-10-20, M3): built by the Session at the chain's end from the inputs the host offered, kept on the run
+# the code trace (2026-10-20, M3): built by the Session at the chain's end from the inputs the host offered, kept on the run
 from analyst import codemap as _cm
-check("the run carries its code map, at the current version, built from the primary's columns as the host offered them; the thread file carries it",
+check("the run carries its code trace, at the current version, built from the primary's columns as the host offered them; the thread file carries it",
       run1.code_map.get("version") == _cm.VERSION and "error" not in run1.code_map and run1.code_map["view"]["chain_id"] == run1.id
       and run1.code_map["inputs"][0]["columns"] == ["arm", "x"] and run1.code_map["view"]["meta"].startswith(run1.mode + " · ")
       and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["code_map"]["version"] == _cm.VERSION,
@@ -1631,7 +1631,7 @@ except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("the brief through the instance: the checks ran", False, traceback.format_exc()[-600:])
 
-# the framing run (2.8, docs/ARCHITECT_DESIGN.md §2.6, §2.9): a question asked with the Architect on opens a run on the record before
+# the framing run (2.8, docs/ARCHITECT_DESIGN.md §2.6, §2.9): a question asked with the Pathfinder on opens a run on the record before
 # any analysis - no model is called; each change to its brief is kept as a version; the analysis continues that run under its id
 try:
     import architect_routes as AR
@@ -1732,7 +1732,7 @@ try:
           and _o7["2"]["versions"] == [{"n": 1, "by": "person", "changed": ["from the last brief"], "brief": {**_whole7, "question": "A next question"}}]
           and _o7["3"]["versions"] == [{"n": 1, "by": "person", "changed": [], "brief": {"question": "A next question"}}]
           and [f["data"] for f in (_o7["1"], _o7n, _o7a, _o7nj["framing"])] == [True, False, True, False] and BAMBOO.notebook.thread_id == "1077", (_o7, _o7n))
-    # ---- the Architect talks (0297, §2.12): one exchange is one model call - the run's own, logged as the Architect's
+    # ---- the Pathfinder talks (0297, §2.12): one exchange is one model call - the run's own, logged as the Pathfinder's
     from analyst import architect as _arch
     def _say(payload):
         r = _wac.post("/architect/say", json=payload)
@@ -1750,15 +1750,15 @@ try:
     _n5, _chain_was, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, []
     _st5, _ln5 = _say({"thread_id": "1077", "chain_id": _c2})
     _seat5, _kw5, _sys5, _user5 = state["architect_seen"][-1]
-    check("/architect/say, the Architect's first turn: a stream that ends on the framing; one model call - its instructions, on the analyst's seat at a lowered effort, logged as the Architect's under the brief's own "
+    check("/architect/say, the Pathfinder's first turn: a stream that ends on the framing; one model call - its instructions, on the analyst's seat at a lowered effort, logged as the Pathfinder's under the brief's own "
           "chain - whose prompt has the data's description, the analyses the question follows with how the last stood against its brief, the question, the brief as it stands and no conversation yet",
-          _st5 == 200 and _ln5[-1] == {"architect": {"framing": _frun2.framing}} and len(state["calls"]) == _n5 + 1 and _seat5 == "Investigator" and _kw5.get("label") == "Architect"
+          _st5 == 200 and _ln5[-1] == {"architect": {"framing": _frun2.framing}} and len(state["calls"]) == _n5 + 1 and _seat5 == "Investigator" and _kw5.get("label") == "Pathfinder"
           and _kw5.get("reasoning_effort") == ("medium", "low") and _sys5 == _arch.SYSTEM and _user5.startswith("DATA:\n") and "EARLIER (the analyses this question follows, oldest first):\n[1] Q: " in _user5
           and "] Q: Is B above A, on x?\n    Found: " in _user5 and "    Against its brief - what they expected: met" in _user5
           and "\n\nQUESTION:\nAnd on the other half?\n\nBRIEF (version 1):\ndecision: which arm to keep\n" in _user5 and _user5.endswith("CONVERSATION:\n(nothing yet)\n\nReply with the JSON object.")
-          and _logged(_c2) == ["Architect"], (_st5, _ln5[-1], _seat5, _kw5, _user5[-600:], _logged(_c2)))
+          and _logged(_c2) == ["Pathfinder"], (_st5, _ln5[-1], _seat5, _kw5, _user5[-600:], _logged(_c2)))
     _file5 = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][str(_c2)]
-    check("the reply is taken into the run's framing, on the record: the part the Architect wrote as one more version, its own, made from the question, the first still saying it came from the last brief; its "
+    check("the reply is taken into the run's framing, on the record: the part the Pathfinder wrote as one more version, its own, made from the question, the first still saying it came from the last brief; its "
           "message with its choices in the conversation. The instance is where it was - its chain, no stop signal left - the brief is noted as one whose calls are still to be charged, the query was authorised "
           "without being counted, and the usage ledger has the brief's line",
           [(v["n"], v["by"], v.get("why"), v["changed"]) for v in _frun2.framing["versions"]] == [(1, "person", None, ["from the last brief"]), (2, "architect", "question", ["fixed.comparison"])]
@@ -1769,12 +1769,12 @@ try:
           and BAMBOO.store.ledger()[str(_c2)]["status"] == "framing", (_frun2.framing, BAMBOO._framed, _auth["counted"]))
     state["architect"] = ["I would ask about the decision.", '{"brief": {"decision": "Keep B"}, "say": "What do you expect to see?"}']
     _st6, _ln6 = _say({"thread_id": "1077", "chain_id": _c2, "text": "  Keep B  "})
-    check("/architect/say, an answer: the coach's words join the conversation the Architect reads; a reply that cannot be read is asked for once more; the reply kept is a version made from the answer, and its "
-          "message carries the number of the call that brought it - the log holds three calls of the Architect's in this chain",
+    check("/architect/say, an answer: the coach's words join the conversation the Pathfinder reads; a reply that cannot be read is asked for once more; the reply kept is a version made from the answer, and its "
+          "message carries the number of the call that brought it - the log holds three calls of the Pathfinder's in this chain",
           _st6 == 200 and _ln6[-1] == {"architect": {"framing": _frun2.framing}} and "Person: Keep B\n" in state["architect_seen"][-1][3] and "Your last reply could not be read: it holds no JSON object." in state["architect_seen"][-1][3]
           and [(t["who"], t["text"]) for t in _frun2.framing["turns"][1:]] == [("person", "Keep B"), ("architect", "What do you expect to see?")] and _frun2.framing["turns"][2]["call"] == 3 and _frun2.framing["calls"] == 3
           and (_frun2.framing["versions"][2]["by"], _frun2.framing["versions"][2]["why"], _frun2.framing["versions"][2]["brief"]["decision"]) == ("architect", "answer", "Keep B")
-          and _logged(_c2) == ["Architect"] * 3, (_ln6[-1], _frun2.framing["turns"], _logged(_c2)))
+          and _logged(_c2) == ["Pathfinder"] * 3, (_ln6[-1], _frun2.framing["turns"], _logged(_c2)))
     _stood6 = json.dumps({k: v for k, v in _frun2.framing.items() if k != "calls"}, sort_keys=True)
     state["architect"] = ["no", "still no"]
     _st7, _ln7 = _say({"thread_id": "1077", "chain_id": _c2, "text": "B above A by 2"})
@@ -1783,8 +1783,8 @@ try:
     _st9 = _wac.post("/architect/say", json={"thread_id": "1077"}).status_code
     check("/architect/say, no reply to keep: the stream ends on the reason, in words; the brief and the conversation stand as they did, and only the calls are counted, so the next reply's number is right. A brief "
           "whose analysis has started is refused without a call; a request without its chain is refused",
-          _st7 == 200 and _ln7[-1] == {"architect": {"error": "The Architect's reply could not be read (it holds no JSON object)."}}
-          and json.dumps({k: v for k, v in _frun2.framing.items() if k != "calls"}, sort_keys=True) == _stood6 and _frun2.framing["calls"] == 5 and _logged(_c2) == ["Architect"] * 5
+          _st7 == 200 and _ln7[-1] == {"architect": {"error": "The Pathfinder's reply could not be read (it holds no JSON object)."}}
+          and json.dumps({k: v for k, v in _frun2.framing.items() if k != "calls"}, sort_keys=True) == _stood6 and _frun2.framing["calls"] == 5 and _logged(_c2) == ["Pathfinder"] * 5
           and _ln8[-1] == {"architect": {"error": "This brief can no longer be changed: its analysis has started."}} and len(state["calls"]) == _n7 and _st9 == 400, (_ln7[-1], _frun2.framing["calls"], _ln8[-1], _st9))
     _auth["counted"], _auth["refuse"] = [], ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
     _runs9 = len(BAMBOO.notebook.runs)
@@ -1825,9 +1825,9 @@ try:
     _st13, _ln13 = _say({"thread_id": "1077", "chain_id": _c6})
     _user13 = state["architect_seen"][-1][3]
     _file13 = json.load(open(os.path.join(work, "storage", "u1", "threads", "1077.json"), encoding="utf-8"))["runs"][str(_c6)]
-    check("/architect/say, with nothing said after a round: the Architect reads what the lookups found, and the marks it gives are a version made from a check against the data - each line with the host's own "
+    check("/architect/say, with nothing said after a round: the Pathfinder reads what the lookups found, and the marks it gives are a version made from a check against the data - each line with the host's own "
           "fact beside it - kept on the record; the brief is still one being framed",
-          _st13 == 200 and _user13.endswith(f"Architect: Checking this against the data.\nLookups:\n1. about \"{_size}\" - rows by arm: {_sizes}\n2. about \"{_hours}\" - total of h by arm, in more.csv: A 4 · B 3.5\n"
+          _st13 == 200 and _user13.endswith(f"Pathfinder: Checking this against the data.\nLookups:\n1. about \"{_size}\" - rows by arm: {_sizes}\n2. about \"{_hours}\" - total of h by arm, in more.csv: A 4 · B 3.5\n"
                                             f"3. about \"{_size}\" - total of nothing: not looked up - there is no column nothing: the columns are " + ", ".join(BAMBOO.df.columns) + "\n"
                                             f"4. about \"{_size}\" - not looked up - a lookup is a count, a list or a total\n\nReply with the JSON object.")
           and (_run6.framing["versions"][-1]["by"], _run6.framing["versions"][-1]["why"], _run6.framing["versions"][-1]["changed"]) == ("architect", "check", ["rests_on.0", "rests_on.1"])
@@ -1847,7 +1847,7 @@ try:
     check("the host's lookups never fail the exchange: an executor that cannot be reached, or a script that did not run, refuses each lookup in words",
           _down == _failed13 == [{"refused": "the data could not be reached"}] * 2 and BAMBOO._architect_look(_one)[0] == {"value": len(BAMBOO.df)}, (_down, _failed13))
     BAMBOO.auxiliary_datasets = _aux_was
-    # ---- another explanation (0299, §2.14): what the Architect proposes enters the brief as its own; the coach's tick accepts it
+    # ---- another explanation (0299, §2.14): what the Pathfinder proposes enters the brief as its own; the coach's tick accepts it
     from analyst import brief as _bf
     _timing = {"text": "The arms were filled at different times", "shows": "the gap follows the time", "source": "architect", "accepted": False}
     state["architect"] = [json.dumps({"say": "The brief is ready.", "propose": [{"text": _timing["text"], "shows": _timing["shows"], "column": "arm"}, {"text": "The weather turned", "column": "weather"}]})]
@@ -1857,7 +1857,7 @@ try:
     _b14 = copy.deepcopy(_v14["brief"]); _b14["also_check"][0]["accepted"] = True
     _s14 = _wac.post("/architect/brief", json={"thread_id": "1077", "chain_id": _c6, "brief": _b14, "changed": ["also_check.0"]})
     _after14 = _bf.agreed(_bf.latest(_run6.framing))
-    check("/architect/say, a reply that proposes: the explanation that names a column of the loaded data enters the brief as the Architect's own, not accepted - the one that names none of its columns does not - "
+    check("/architect/say, a reply that proposes: the explanation that names a column of the loaded data enters the brief as the Pathfinder's own, not accepted - the one that names none of its columns does not - "
           "and the analyst would not receive it; the coach's tick, sent as the page sends it, is one more version of theirs, and then the analyst would",
           _st14 == 200 and _v14["brief"]["also_check"] == [_timing] and _v14["changed"] == ["also_check.0"] and _run6.framing.get("proposed") == 1 and "also_check" not in _before14
           and _s14.status_code == 200 and (_run6.framing["versions"][-1]["by"], _run6.framing["versions"][-1]["changed"]) == ("person", ["also_check.0"])
@@ -1867,12 +1867,12 @@ try:
     state["architect"] = ['{"say": "What will you do differently depending on the answer?"}']
     _st10, _ln10 = _say({"thread_id": _op3["thread_id"], "chain_id": _op3["chain_id"]})
     _user10 = state["architect_seen"][-1][3]
-    check("the Architect in a brief on another thread: the instance goes there, as it does for a run - that thread's record in hand, the usage filed under it, the other thread's kernel dropped; a question that follows "
+    check("the Pathfinder in a brief on another thread: the instance goes there, as it does for a run - that thread's record in hand, the usage filed under it, the other thread's kernel dropped; a question that follows "
           "no analysis has no EARLIER part; a reply that writes nothing makes no version",
           _st10 == 200 and BAMBOO.notebook.thread_id == str(_op3["thread_id"]) and str(BAMBOO.log_and_call_manager.thread_id) == str(_op3["thread_id"]) and BAMBOO._kernel is None
           and "EARLIER" not in _user10 and "QUESTION:\nSomething else, elsewhere\n\nBRIEF (version 1):" in _user10 and len(_ln10[-1]["architect"]["framing"]["versions"]) == 1
           and [t["who"] for t in _ln10[-1]["architect"]["framing"]["turns"]] == ["architect"] and BAMBOO._framed == {int(_c2), int(_c6), int(_op3["chain_id"])}, (_st10, BAMBOO.notebook.thread_id, _user10[:200], BAMBOO._framed))
-    # the analysis of a brief the Architect talked in: one chain on the log, charged once; a brief never run is charged when the instance goes
+    # the analysis of a brief the Pathfinder talked in: one chain on the log, charged once; a brief never run is charged when the instance goes
     import time as _time
     _opened, _before = _frun2.created, _time.time()
     _n11 = len(state["calls"])
@@ -1881,11 +1881,11 @@ try:
     while not q.empty(): q.get()
     _ran2 = BAMBOO.notebook.runs[str(_c2)]                   # the thread's record was read again when the instance came back to it
     _log11 = _logged(_c2)
-    check("the analysis of a brief the Architect talked in: the same chain - on the log the Architect's five calls, then the analyst's own under its seat, so its first turn is its seat's first call; the chain is "
+    check("the analysis of a brief the Pathfinder talked in: the same chain - on the log the Pathfinder's five calls, then the analyst's own under its seat, so its first turn is its seat's first call; the chain is "
           "charged once, when the analysis ends, and is no longer waiting to be; the run's clock starts with the analysis, not with the brief",
-          _ran2.status == "answered" and _ran2.brief["decision"] == "Keep B" and _ran2.brief["version"] == 3 and _log11[:5] == ["Architect"] * 5 and "Architect" not in _log11[5:] and _log11[5] == "Investigator"
+          _ran2.status == "answered" and _ran2.brief["decision"] == "Keep B" and _ran2.brief["version"] == 3 and _log11[:5] == ["Pathfinder"] * 5 and "Pathfinder" not in _log11[5:] and _log11[5] == "Investigator"
           and _charged == [int(_c2)] and BAMBOO._framed == {int(_c6), int(_op3["chain_id"])} and _ran2.created >= _before > _opened and len(_ran2.framing["turns"]) == 3, (_ran2.status, _log11, _charged, BAMBOO._framed))
-    # ---- next questions (0300, §2.7, §2.15): a set for a finished analysis is one call of the Architect's, under a chain of its own
+    # ---- next questions (0300, §2.7, §2.15): a set for a finished analysis is one call of the Pathfinder's, under a chain of its own
     from analyst import next_questions as _nq
     def _next(payload):
         r = _wac.post("/architect/next", json=payload)
@@ -1901,11 +1901,11 @@ try:
     _seat20, _kw20, _on20, _sys20, _user20 = state["next_seen"][-1]
     _set20 = _ran2.next_questions[0] if _ran2.next_questions else {}
     check("/architect/next: a stream that ends on the set and its place. One model call - the instructions for next questions and the prompt for the level, on the analyst's seat at a lowered effort, logged as "
-          "the Architect's under a chain of its own, which is no run of the thread - and that chain is charged at once; the query is counted. The level's own line comes first among the lines",
-          _st20 == 200 and _ln20[-1] == {"next": {"set": _set20, "at": 0}} and len(state["calls"]) == _n20 + 1 and _seat20 == "Investigator" and _kw20.get("label") == "Architect"
+          "the Pathfinder's under a chain of its own, which is no run of the thread - and that chain is charged at once; the query is counted. The level's own line comes first among the lines",
+          _st20 == 200 and _ln20[-1] == {"next": {"set": _set20, "at": 0}} and len(state["calls"]) == _n20 + 1 and _seat20 == "Investigator" and _kw20.get("label") == "Pathfinder"
           and _kw20.get("reasoning_effort") == ("low", "medium") and _sys20 == _nq.SYSTEM and _user20 == _p20 and _own20 == 1 and _lines20[0] == {"kind": "check", "text": "Chance: not examined."}
           and "\n\nLEVEL: shift - a question at this level puts another explanation of the same result to the test\n\nSOURCES:\n1. Also checked: Chance: not examined.\nOther lines:\n2. " in _user20
-          and _on20 not in (int(_c2), _chain20) and str(_on20) not in BAMBOO.notebook.runs and len(BAMBOO.notebook.runs) == _runs20 and _logged(_on20) == ["Architect"] and _logged(_c2) == _log11
+          and _on20 not in (int(_c2), _chain20) and str(_on20) not in BAMBOO.notebook.runs and len(BAMBOO.notebook.runs) == _runs20 and _logged(_on20) == ["Pathfinder"] and _logged(_c2) == _log11
           and _charged == _charged20 + [_on20] and _auth["counted"] == [True], (_st20, _ln20[-1], _seat20, _kw20, _on20, _charged[len(_charged20):], _auth["counted"], _user20[-500:]))
     _cost20 = float((BAMBOO.log_and_call_manager.token_summary.get(_on20) or {}).get("total_cost") or 0)
     check("the set is kept with the analysis it follows, on the record: its level, each question with its title and the lines it comes from as the record has them, what its one call cost - the cost "
@@ -1936,7 +1936,7 @@ try:
     check("/architect/next, no set made: a reply unreadable twice ends on the reason, its two calls logged under their chain and charged, and nothing is kept; a chain that is not on the record, or is a brief "
           "not yet run, ends on that in words, with no call and no charge; a level that is not one of the five, and a request without its thread, chain or level, are refused outright; a refusal of the "
           "account's is passed on, with no call",
-          _st22 == 200 and _ln22[-1] == {"next": {"error": "The Architect's reply could not be read (it holds no JSON object)."}} and _n23 == _n22 + 2 and _logged(_on22) == ["Architect"] * 2
+          _st22 == 200 and _ln22[-1] == {"next": {"error": "The Pathfinder's reply could not be read (it holds no JSON object)."}} and _n23 == _n22 + 2 and _logged(_on22) == ["Pathfinder"] * 2
           and _charged == _charged20 + [_on20, _on21, _on22] and len(_ran2.next_questions) == 2
           and _ln23[-1] == _ln24[-1] == {"next": {"error": "This analysis is no longer on record: nothing can follow from it."}} and _r25 == [400] * 5
           and _r26.status_code == 403 and _r26.get_json()["message"].startswith("You need $0.010") and _auth["counted"] == [True] and len(state["calls"]) == _n23 and len(_charged) == len(_charged20) + 3,
@@ -1959,9 +1959,9 @@ try:
           and [[qn.get("ran") for qn in s["questions"]] for s in _ran2.next_questions] == _marks27 and BAMBOO.notebook.runs[str(BAMBOO.chain_id)].status == "answered", (_cand.parent, _marks27, _cand.brief))
     _charged28 = list(_charged)
     BAMBOO.cleanup()
-    check("a brief the Architect talked in and no analysis followed: its calls are charged when the instance is torn down, once",
+    check("a brief the Pathfinder talked in and no analysis followed: its calls are charged when the instance is torn down, once",
           _charged28[0] == int(_c2) and sorted(_charged[len(_charged28):]) == sorted([int(_c6), int(_op3["chain_id"])]) and BAMBOO._framed == set(), (_charged, BAMBOO._framed))
-    # ---- the saved analyses in an exchange (0303, docs/ARCHITECT_DESIGN.md §3.7; 0308, §2.18): read where the Architect's reply asks, the pane told as it goes; what was found
+    # ---- the saved analyses in an exchange (0303, docs/ARCHITECT_DESIGN.md §3.7; 0308, §2.18): read where the Pathfinder's reply asks, the pane told as it goes; what was found
     # is kept beside the brief, and the brief builds on an analysis when the person chooses it - the reply after names it by number
     from analyst.notebook import Notebook as _NB3, NotebookStore as _NBS3
     from _saved import add as _add3, favourite as _fav3
@@ -1991,7 +1991,7 @@ try:
     _kept_m = {"thread": "7301", "run": "7302", "when": _mt["found"][0]["when"], "question": "Was B above A in spring?", "passage": "B led A by 3 units", "where": "report", "note": "The same comparison, in spring.",
                "marks": "picked", "data": "spring.csv", "period": "2026-03-01 to 2026-05-31", "person": "First Person", "other": True}
     _mcost = [e["cost"] for e in json.load(open(BAMBOO.log_and_call_manager.run_log_file_path)) if str(e.get("chain_id")) == str(_cm) and str(e.get("agent")).startswith("Memory")]
-    check("/architect/say, a reply that asks for the saved analyses: the Architect is told how many the person has, and the framing keeps the number; they are read under the brief's own chain, with the question and the brief as it then stands; the stream says how many are saved and, as the "
+    check("/architect/say, a reply that asks for the saved analyses: the Pathfinder is told how many the person has, and the framing keeps the number; they are read under the brief's own chain, with the question and the brief as it then stands; the stream says how many are saved and, as the "
           "second model goes, how many are read; what was found is the conversation's last turn, and the passage is kept beside the brief (0308) - the brief has only what the reply wrote, a reading makes no version, and the analyst would not receive the passage",
           _stm == 200 and [(e["read"], e["of"], e["chain_id"]) for e in _lnm if e.get("type") == "architect_saved"] == [(0, 1, _cm), (1, 1, _cm)]
           and [t["who"] for t in _fm["turns"]] == ["person", "architect", "memory"] and _mt["found"] == [{"id": "7301/7302", "when": _mt["found"][0]["when"], "question": "Was B above A in spring?", "where": "report",
@@ -1999,7 +1999,7 @@ try:
           and (_mt["of"], _mt["read"], _mt["failed"], _mt["across"]) == (1, 1, "", None) and round(_mt["cost"], 4) == round(sum(_mcost), 4) and len(_mcost) == 3
           and _fm["found"] == [_kept_m] and "saved" not in _fm["versions"][-1]["brief"] and len(_fm["versions"]) == 2
           and (_fm["versions"][-1]["by"], _fm["versions"][-1]["why"], _fm["versions"][-1]["changed"]) == ("architect", "answer", ["decision"])
-          and state["memory_seen"][0][4].startswith("QUESTION:\nIs B above A this autumn?\n\nBRIEF (version 1):\ndecision: keep one arm\n") and _logged(_cm) == ["Architect", "Memory Reader", "Memory Pieces", "Memory Reader"]
+          and state["memory_seen"][0][4].startswith("QUESTION:\nIs B above A this autumn?\n\nBRIEF (version 1):\ndecision: keep one arm\n") and _logged(_cm) == ["Pathfinder", "Memory Reader", "Memory Pieces", "Memory Reader"]
           and "\n\nSAVED: 1\n\nQUESTION:\nIs B above A this autumn?\n" in state["architect_seen"][0][3] and _fm["saved"] == 1
           and "saved" not in _bf.agreed(_fm["versions"][-1]["brief"]), (_stm, [e for e in _lnm if e.get("type") == "architect_saved"], _fm.get("turns"), _logged(_cm)))
     _same3 = [{"thread": "7301", "run": "7302", "data": {"name": "spring.csv"}}, {"thread": "7301", "run": "9999", "data": {}}]
@@ -2010,7 +2010,7 @@ try:
     BAMBOO._whose(_none3)
     BAMBOO.load_params = {"source": "s", "subject": {"id": "p-1", "name": "Second Person"}}
     check("whose data a passage's run ran on: the framing keeps the person's name from the thread's record, for the person to read, and that it is another person than the one whose data is loaded now - "
-          "not said for the same person, nor where the data loaded names nobody, nor for a run that is not on record; no model reads the name - not the reader, not the second model, not the Architect",
+          "not said for the same person, nor where the data loaded names nobody, nor for a run that is not on record; no model reads the name - not the reader, not the second model, not the Pathfinder",
           (_kept_m["person"], _kept_m["other"]) == ("First Person", True) and _same3[0]["data"] == {"name": "spring.csv", "person": "First Person", "other": False}
           and _same3[1]["data"] == {"person": "", "other": False} and _none3[0]["data"] == {"person": "First Person", "other": False}
           and all("First Person" not in str(seen) and "Second Person" not in str(seen) for seen in state["memory_seen"] + state["architect_seen"])
@@ -2023,8 +2023,8 @@ try:
     _undone = _wac.post("/architect/brief", json={"thread_id": _opm["thread_id"], "chain_id": _cm, "changed": ["saved"],
                                                   "brief": {k: v for k, v in _sm["framing"]["versions"][-1]["brief"].items() if k != "saved"}}).get_json()["framing"]      # the cross on the page: built on no longer
     _sm = {"framing": _wac.post("/architect/brief", json={"thread_id": _opm["thread_id"], "chain_id": _cm, "changed": ["saved.0"], "brief": _sm["framing"]["versions"][-1]["brief"]}).get_json()["framing"]}
-    check("the exchange after a reading, and 'build on it' (0308): the Architect reads what the saved analyses hold, the analysis under its number, and that the brief builds on none yet; the person's word "
-          "is theirs to give in the conversation, and the reply that names the analysis by its number brings its passage into the brief, accepted - a version of the Architect's - so the analyst receives it "
+    check("the exchange after a reading, and 'build on it' (0308): the Pathfinder reads what the saved analyses hold, the analysis under its number, and that the brief builds on none yet; the person's word "
+          "is theirs to give in the conversation, and the reply that names the analysis by its number brings its passage into the brief, accepted - a version of the Pathfinder's - so the analyst receives it "
           "as a claim to test. The cross on the page takes it out again, a version of the person's; a brief sent with the passage has it back",
           f'\nSaved analyses (1 saved, 1 read through):\n[1] {_kept_m["when"]} "Was B above A in spring?": in its report "B led A by 3 units" - The same comparison, in spring.\n' in _seen_found
           and "\nbuilds_on: (empty)\n\nCONVERSATION:" in _seen_found and "First Person" not in _seen_found
@@ -2049,7 +2049,7 @@ try:
           _one.status_code == 200 and {k: _one.get_json()[k] for k in ("id", "question", "title", "report", "marks", "data")} == {"id": "7301/7302", "question": "Was B above A in spring?", "title": "B led in spring",
               "report": "# B led in spring\n\nB led A by 3 units [cell 1].", "marks": ["picked"], "data": {"name": "spring.csv", "period": "2026-03-01 to 2026-05-31", "person": "First Person"}}
           and _one.get_json()["cells"] == [{"n": 1, "code": "gap = b - a"}] and _one.get_json()["brief"] == "What the answer is for: keep the taller arm\nFixed before the run:\n- measure: height"
-          and _one.get_json()["conversation"] == "Person: Which arm led in spring?\nArchitect: What is the answer for?\nPerson: To keep the taller arm."
+          and _one.get_json()["conversation"] == "Person: Which arm led in spring?\nPathfinder: What is the answer for?\nPerson: To keep the taller arm."
           and (_built["cells"], _built["brief"], _built["conversation"]) == ([{"n": 1, "code": "def gap(a, b):\n    return b - a"}, {"n": 2, "code": "g = gap(a, b)"}], "", "")
           and _wac.get("/architect/saved/7401/7403").status_code == 404 and len(_mem3.view(_su3)["runs"]) == 1
           and _wac.get("/architect/saved/7301/9999").status_code == 404 and _wac.get("/architect/saved/1077/" + str(_c2)).status_code == 404
@@ -2129,15 +2129,15 @@ try:
     BAMBOO.memory_read = _read_was
     _t4 = _lnm4[-1]["architect"]["framing"]["turns"]
     os.remove(_favm)
-    check("a reading that cannot be made does not lose the Architect's reply: the turn says why, in words, and the skip of the exchange before does not reach this one",
+    check("a reading that cannot be made does not lose the Pathfinder's reply: the turn says why, in words, and the skip of the exchange before does not reach this one",
           [t["who"] for t in _t4] == ["person", "architect", "memory"] and _t4[-1]["failed"] == "The saved analyses could not be read: the executor is away" and _t4[1]["text"] == "Looking."
           and not BAMBOO._skip_saved.is_set(), _t4[-1])
     state["architect"] = [json.dumps({"say": "Say what to look for."})]
     _stm9, _lnm9 = _say({"thread_id": _opm2["thread_id"], "chain_id": _opm2["chain_id"], "text": "Look.", "look": True})
     _t9 = _lnm9[-1]["architect"]["framing"]["turns"]
-    check("/architect/say: the person has no request of their own for the saved analyses (0308) - a message that carries the `look` of the page before is one the Architect replies to, and nothing is read",
+    check("/architect/say: the person has no request of their own for the saved analyses (0308) - a message that carries the `look` of the page before is one the Pathfinder replies to, and nothing is read",
           [t["who"] for t in _t9][-2:] == ["person", "architect"] and _t9[-1]["text"] == "Say what to look for." and sum(1 for t in _t9 if t["who"] == "memory") == 1, _t9[-2:])
-    # the question worded (0308, §2.18): the Architect's wording is the question from its reply on - a version like any other. The person changes it by hand or goes back to an earlier version:
+    # the question worded (0308, §2.18): the Pathfinder's wording is the question from its reply on - a version like any other. The person changes it by hand or goes back to an earlier version:
     # the version on their screen rides with what they do next, and the analysis runs under it
     _wording = "Total the hours of each arm, and compare them."
     _cw = _opm2["chain_id"]
@@ -2148,8 +2148,8 @@ try:
     state["architect"] = [json.dumps({"say": "Ready when you are."})]
     _stw3, _lnw3 = _say({"thread_id": _opm2["thread_id"], "chain_id": _cw, "text": "Good."})
     _filew = json.load(open(os.path.join(work, "storage", "u1", "threads", f'{_opm2["thread_id"]}.json'), encoding="utf-8"))["runs"][str(_cw)]
-    check("/architect/say, the question worded (0308): the Architect's message keeps its lines, and the wording it gives is the question from that reply on, whatever the reply wrote under the brief's "
-          "question - a version of the Architect's, kept with its message, the run's question on the record at once, and the question the Architect reads from then on, with how it was first asked. "
+    check("/architect/say, the question worded (0308): the Pathfinder's message keeps its lines, and the wording it gives is the question from that reply on, whatever the reply wrote under the brief's "
+          "question - a version of the Pathfinder's, kept with its message, the run's question on the record at once, and the question the Pathfinder reads from then on, with how it was first asked. "
           "Nothing waits to be taken",
           (_fw["turns"][-1]["text"], _fw["turns"][-1].get("wording"), _then) == ("I have put that into the question.\n\nIs that what you mean?", _wording, _wording)
           and (_fw["versions"][-1]["by"], _fw["versions"][-1]["changed"], _fw["versions"][-1]["brief"]["question"]) == ("architect", ["question"], _wording) and not hasattr(_arch, "pending")
@@ -2171,7 +2171,7 @@ try:
                                                 "brief": {**_fw7["versions"][2]["brief"], "thinks": "one arm works more"}}).get_json()["framing"]      # a change by hand, made at step 6: the page sends the brief that stands there with it
     _shape = lambda f: [(x["k"], x["from"], x["v"], x["made"], x["turns"]) for x in f["steps"]]      # noqa: E731
     _texts = lambda turns: [t.get("text") for t in turns if t["who"] == "person"]                    # noqa: E731
-    check("the step on the person's screen (0316): an answer sent from an earlier step goes on from it. The Architect reads the question and the brief as they stood there and the conversation up to "
+    check("the step on the person's screen (0316): an answer sent from an earlier step goes on from it. The Pathfinder reads the question and the brief as they stood there and the conversation up to "
           "there - not what was said after, and no word that the person went back - and its change is one more version made on that brief, the run's question the one that stood there; message and "
           "reply are a step that follows the one gone to, and what the steps left hold is set aside. A reply that changes nothing leaves that step's version in use, the framing names it, and the "
           "run's question is its. `step` is a whole number: a number in words names none, and the conversation goes on from the step in use. A change by hand made at a step is the brief that "
@@ -2181,7 +2181,7 @@ try:
           and [t.get("text") for t in _fw5["aside"]["6"]["turns"]] == ["By month, rather.", "Then like this."]
           and _fw5["versions"][-1]["brief"] == {"question": _wording, "decision": "to see which arm works more"} and len(_fw5["versions"]) == 4 and "at" not in _fw5 and _q5 == _wording
           and f"QUESTION:\n{_wording}\n(first asked as: And the hours?)\n\nBRIEF (version 2):" in _seen5
-          and "\nArchitect: Ready when you are.\nPerson: It is to see which arm works more.\n\nReply with the JSON object." in _seen5 and "By month" not in _seen5 and "went to version" not in _seen5
+          and "\nPathfinder: Ready when you are.\nPerson: It is to see which arm works more.\n\nReply with the JSON object." in _seen5 and "By month" not in _seen5 and "went to version" not in _seen5
           and _fw6["at"] == 3 and len(_fw6["versions"]) == 4 and _shape(_fw6)[-1] == (8, 6, 3, [], 2) and _fw6["turns"][-1]["v"] == 3 and _q6 == _second
           and _texts(_fw6["turns"])[-2:] == ["By month, rather.", "And the one before?"] and sorted(_fw6["aside"]) == ["7"]
           and _fw7["at"] == 3 and [t["who"] for t in _fw7["turns"]][-2:] == ["person", "architect"] and _shape(_fw7)[-1] == (9, 8, 3, [], 2)
@@ -2235,7 +2235,7 @@ try:
     _filef = json.loads(_thread_text)["runs"][str(_cf)]
     _plotf = lambda k: os.path.join(work, "storage", "u1", "drafts", str(_tf), str(_cf), f"{k}.json")      # noqa: E731
     _got2 = _wac.get(f"/architect/draft/{_tf}/{_cf}/{_kf[1]}")
-    check("/architect/say, the figures and their draft (0310): the figures a reply gives are the brief's from that reply on - a version of the Architect's, each figure a description and no more: "
+    check("/architect/say, the figures and their draft (0310): the figures a reply gives are the brief's from that reply on - a version of the Pathfinder's, each figure a description and no more: "
           "points a reply gives are not kept. The framing names each figure's key beside its version. A draft follows the reply in the same exchange: the stream first carries the framing with the "
           "reply - the page shows it while the draft is drawn - and ends on the framing with the draft's turn: each figure drawn, with what its numbers are, the seconds, the cost, its call",
           _stf == 200 and (_ff["versions"][-1]["by"], _ff["versions"][-1]["changed"]) == ("architect", ["figures.0", "figures.1", "figures.2"])
@@ -2254,10 +2254,10 @@ try:
     check("the draft's cell through the host (0310): one model call on the figures' seat, at a low effort, logged as the draft's under the brief's chain; its prompt is the question as it stands and "
           "the figures in words. The cell ran where no data is - the frame of the analysis was not there for it - and each plot is a file of its own beside the thread's record, which holds the "
           "cell and the keys of the figures it drew, and no plot. /architect/draft gives a figure's plot by its key, as Plotly takes it; a key that has none is not found. Every route of the "
-          "Architect's asks for the sign-in, the draft's among them",
+          "Pathfinder's asks for the sign-in, the draft's among them",
           [(a, k.get("label"), k.get("reasoning_effort"), str(c)) for a, k, c, _ in state["draft_seen"]] == [(BAMBOO._figures_seat(), "Draft", ("low",), str(_cf))]
           and len(_routes) == 8 and all(asks for _, asks in _routes) and {"/architect/draft/<thread_id>/<run_id>/<key>", "/architect/ready"} <= {r for r, _ in _routes}
-          and state["draft_seen"][0][3] == _draft.prompt("Chart the hours of each arm.", _bf["figures"]) and _logged(_cf)[_nlog:] == ["Architect", "Draft"]
+          and state["draft_seen"][0][3] == _draft.prompt("Chart the hours of each arm.", _bf["figures"]) and _logged(_cf)[_nlog:] == ["Pathfinder", "Draft"]
           and all(os.path.isfile(_plotf(k)) for k in _kf) and json.load(open(_plotf(_kf[0])))["data"][0]["y"] == [-1, -1] and len(BAMBOO.df) == 200
           and sorted(os.listdir(os.path.dirname(_plotf(_kf[0])))) == sorted(f"{k}.json" for k in _kf)
           and _filef["drafts"] == [{"code": _cell_f, "keys": _kf}] and '"y": [-1, -1]' not in _thread_text and _filef["framing"]["drafts"] == _ff["drafts"]
@@ -2271,7 +2271,7 @@ try:
     _ff3 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Good."})[1][-1]["architect"]["framing"]
     _seenf = state["architect_seen"][-1][3]
     check("/architect/brief and the draft (0309, 0310): a figure the person takes out is a version of theirs - the page sends the brief without it. The figures that stay keep their keys, so their "
-          "drafts stand: nothing is drawn again, by that change or by the reply after it. The Architect then reads the figures that stand, each under its number, in words, and what the draft "
+          "drafts stand: nothing is drawn again, by that change or by the reply after it. The Pathfinder then reads the figures that stand, each under its number, in words, and what the draft "
           "came to as a line of the conversation",
           (_ff2["versions"][-1]["by"], _ff2["versions"][-1]["changed"], len(_ff2["versions"][-1]["brief"]["figures"])) == ("person", ["figures"], 2) and _ff2["versions"][-1]["keys"] == _kf[:2]
           and _ff2["drafts"] == _ff["drafts"] and [t["who"] for t in _ff2["turns"]] == ["person", "architect", "draft"]
@@ -2301,7 +2301,7 @@ try:
           and _fx2["drafts"][_kx] == {"failed": "the cell failed: ValueError: still wrong", "tries": 2} and _fx2["turns"][-1]["call"] == 5 and _fx2["draft_calls"] == 5 and len(state["draft_seen"]) == 5
           and [t["who"] for t in _fx3["turns"]][-2:] == ["person", "architect"] and _fx3["drafts"] == _fx2["drafts"] and len(state["draft_seen"]) == 5 and not os.path.exists(_plotf(_kx)),
           (_fx1["turns"][-1], _fx2["drafts"].get(_kx), len(state["draft_seen"])))
-    # the question changed by hand: every figure is under another key and has no draft, until the Architect next replies - and a round that breaks off is a round that drew nothing
+    # the question changed by hand: every figure is under another key and has no draft, until the Pathfinder next replies - and a round that breaks off is a round that drew nothing
     _bx = _fx3["versions"][-1]["brief"]
     _fh = _wac.post("/architect/brief", json={"thread_id": _tf, "chain_id": _cf, "changed": ["question", "figures"],
                                               "brief": {**_bx, "question": "Chart the hours of each arm, in all.", "figures": _bx["figures"][:1]}}).get_json()["framing"]
@@ -2312,25 +2312,25 @@ try:
         _fh1 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Is that right?"})[1][-1]["architect"]["framing"]
     finally:
         BAMBOO._run_draft = _run_was
-    # the round after, on a configuration with a seat for the figures and one for the Architect, under a brief that builds on a saved analysis (its code as the host would give it)
+    # the round after, on a configuration with a seat for the figures and one for the Pathfinder, under a brief that builds on a saved analysis (its code as the host would give it)
     _seats_was, _saved_was, _on_disk = list(FakeModels.config["agent_configs"]), BAMBOO._saved_code, []
-    FakeModels.config["agent_configs"] = _seats_was + [{"agent": a_, "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium"}} for a_ in ("Figures", "Architect")]
+    FakeModels.config["agent_configs"] = _seats_was + [{"agent": a_, "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium"}} for a_ in ("Figures", "Pathfinder")]
     BAMBOO._saved_code = lambda brief: "--- cell 9 ---"
     BAMBOO._run_draft = lambda code: (_on_disk.append(len(json.load(open(os.path.join(work, "storage", "u1", "threads", f"{_tf}.json"), encoding="utf-8"))["runs"][str(_cf)]["framing"]["turns"])), _run_was(code))[1]
     try:
         _fh2 = _say({"thread_id": _tf, "chain_id": _cf, "text": "Once more."})[1][-1]["architect"]["framing"]
     finally:
         FakeModels.config["agent_configs"], BAMBOO._saved_code, BAMBOO._run_draft = _seats_was, _saved_was, _run_was
-    check("the question changed by hand, and a round that breaks off (0310): under another wording the figure has another key and no draft - none is drawn for a change made by hand. The Architect's "
+    check("the question changed by hand, and a round that breaks off (0310): under another wording the figure has another key and no draft - none is drawn for a change made by hand. The Pathfinder's "
           "next reply has it drawn; where the round breaks off - the sandbox away - the exchange stands, the turn says so in its last line, and the call it made is counted; the round after "
-          "draws the figure, the cell before it in the prompt - on the figures' seat where the configuration has one, not the Architect's, with the code of the saved analysis the brief builds "
+          "draws the figure, the cell before it in the prompt - on the figures' seat where the configuration has one, not the Pathfinder's, with the code of the saved analysis the brief builds "
           "on, and with the reply already on the thread's record when the cell runs",
           len(_kh) == 1 and _kh[0] not in _fx3["drafts"] and _fh["drafts"] == _fx3["drafts"] and _kh[0] == _draft.key("Chart the hours of each arm, in all.", _bx["figures"][0])
           and {k: v for k, v in _fh1["turns"][-1].items() if k not in ("secs", "cost")} == {"who": "draft", "drawn": [], "missing": ["Hours of each arm"], "failed": "it could not be drawn: it did not answer", "v": 5, "call": 6}
           and _fh1["drafts"][_kh[0]] == {"failed": "it could not be drawn: it did not answer", "tries": 1}
           and _fh2["drafts"][_kh[0]] == {"basis": "made up"} and _fh2["turns"][-1]["call"] == 7 and _fh2["turns"][-1]["drawn"] == [{"title": "Hours of each arm", "basis": "made up"}]
           and os.path.isfile(_plotf(_kh[0])) and state["draft_seen"][-1][3].startswith("QUESTION:\nChart the hours of each arm, in all.\n\nFIGURES TO DRAW:\n1. \"Hours of each arm\" - bars;")
-          and (state["draft_seen"][-1][0], state["architect_seen"][-1][0]) == ("Figures", "Architect") and "\n\nA SAVED ANALYSIS THE QUESTION BUILDS ON:\n--- cell 9 ---\n\n" in state["draft_seen"][-1][3]
+          and (state["draft_seen"][-1][0], state["architect_seen"][-1][0]) == ("Figures", "Pathfinder") and "\n\nA SAVED ANALYSIS THE QUESTION BUILDS ON:\n--- cell 9 ---\n\n" in state["draft_seen"][-1][3]
           and _on_disk == [len(_fh2["turns"]) - 1] and _fh2["turns"][-2]["who"] == "architect",
           (_fh1["turns"][-1], _fh2["turns"][-1], _kh, state["draft_seen"][-1][0], _on_disk))
     # ---- the question read as the analyst will read it, before its analysis starts (0313, §2.22)
@@ -2359,9 +2359,9 @@ try:
     _fc = _crun.framing
     _stc2, _lnc2 = _ready({"thread_id": _tc, "chain_id": _cc, "step": _sc})
     check("/architect/ready, a question that stands on its own (0313): a stream that ends on the framing and on the word that the analysis can start. One model call - the reader's instructions, on "
-          "the Architect's seat at a low effort, logged as the question check's under the brief's own chain - whose prompt is what the analyst will be given: the data as described, the question, "
+          "the Pathfinder's seat at a low effort, logged as the question check's under the brief's own chain - whose prompt is what the analyst will be given: the data as described, the question, "
           "the brief as agreed with its figure. The read is a turn of the conversation, the first of the question checks, and a step of its own that follows the one read (0316); the framing lists "
-          "the version as read and is on the thread's record; the Architect's calls are counted as they were. The query was authorised without being counted, the instance is where it was, and no "
+          "the version as read and is on the thread's record; the Pathfinder's calls are counted as they were. The query was authorised without being counted, the instance is where it was, and no "
           "stop signal is left. Asked again for the same step, no call is made",
           _stc == 200 and _lnc[-1] == {"architect": {"framing": _fc, "clean": True}} and len(state["calls"]) == _nc + 1 and _seat_c == "Investigator" and _kw_c.get("label") == "Question check"
           and _kw_c.get("reasoning_effort") == ("low",) and str(_under_c) == str(_cc) and state["calls"][-1][1] == _user_c
@@ -2383,16 +2383,16 @@ try:
     _fq, _midq, _nq2 = _crun.framing, [e for e in _lnq if e.get("type") == "architect_draft"], len(state["calls"])
     _lnq3, _lnq4 = _ready({"thread_id": _tc, "chain_id": _cc, "step": _sq + 1})[1], _ready({"thread_id": _tc, "chain_id": _cc, "step": _sq})[1]
     check("/architect/ready, a question that points outside what the analyst is given (0313): the reader names the words - kept as the question has them, the ones it does not hold dropped - and the "
-          "Architect goes on at once, on its own seat and under its own name in the log: its CONVERSATION ends on what the reader could not place. Its wording is one more version, the run's "
+          "Pathfinder goes on at once, on its own seat and under its own name in the log: its CONVERSATION ends on what the reader could not place. Its wording is one more version, the run's "
           "question from then; the figure, under another wording, is drawn a draft - the stream carries the framing with the reply before it. The stream ends on the framing and on the word "
-          "that the analysis cannot start. The read is the second of the question checks, the reply the next of the Architect's calls, the draft the draft's; read, reply and draft are one step, "
+          "that the analysis cannot start. The read is the second of the question checks, the reply the next of the Pathfinder's calls, the draft the draft's; read, reply and draft are one step, "
           "which follows the one read (0316). Both versions are listed as read: asked again from either step, the analysis can start, and no call is made",
-          _stq == 200 and _lnq[-1] == {"architect": {"framing": _fq, "clean": False}} and _nq2 == _nq + 3 and _logged(_cc)[-3:] == ["Question check", "Architect", "Draft"]
+          _stq == 200 and _lnq[-1] == {"architect": {"framing": _fq, "clean": False}} and _nq2 == _nq + 3 and _logged(_cc)[-3:] == ["Question check", "Pathfinder", "Draft"]
           and [t["who"] for t in _fq["turns"][-3:]] == ["reader", "architect", "draft"] and (_fq["steps"][-1]["k"], _fq["steps"][-1]["from"], _fq["steps"][-1]["turns"]) == (_sq + 1, _sq, 3) and {k: v for k, v in _fq["turns"][-3].items() if k not in ("secs", "cost")} == {"who": "reader", "missing": ["as on 14 May"], "v": _vq, "call": 2}
           and (_fq["turns"][-2]["wording"], _fq["turns"][-2]["v"], _fq["turns"][-2]["call"]) == ("Chart the hours of each arm, by month.", _vq + 1, _calls_c + 1) and _fq["calls"] == _calls_c + 1
           and (_fq["versions"][-1]["by"], _fq["versions"][-1]["changed"], len(_fq["versions"])) == ("architect", ["question"], _vq + 1) and _crun.question == "Chart the hours of each arm, by month."
           and state["architect_seen"][-1][3].endswith('\nA reader given what the analyst will be given could not place: "as on 14 May"\n\nReply with the JSON object.')
-          and state["architect_seen"][-1][1].get("label") == "Architect" and len(state["draft_seen"]) == _drafts_q + 1
+          and state["architect_seen"][-1][1].get("label") == "Pathfinder" and len(state["draft_seen"]) == _drafts_q + 1
           and len(_midq) == 1 and _midq[0]["framing"]["turns"][-1]["who"] == "architect" and _lnq.index(_midq[0]) < len(_lnq) - 1
           and _fq["read"] == [_vc, _vq, _vq + 1] and _on_file() == _fq and _crun.status == "framing"
           and _lnq3[-1] == {"architect": {"framing": _fq, "clean": True}} == _lnq4[-1] and len(state["calls"]) == _nq2,
@@ -2423,12 +2423,12 @@ try:
     _lne = _ready({"thread_id": _tc, "chain_id": _cc, "step": 1})[1]            # the first step on the person's screen: the question as it was asked
     _fe, _qe = _lne[-1]["architect"].get("framing") or {}, BAMBOO.notebook.runs[str(_cc)].question      # the thread was read again from its record: the run is another object
     BAMBOO._on_thread(_tf)                                                     # where the instance was: the draft's own run goes on below
-    check("/architect/ready, what can go wrong (0313). The Architect's reply after the read cannot be read: the stream ends on the framing, on the word that the analysis cannot start and on the "
+    check("/architect/ready, what can go wrong (0313). The Pathfinder's reply after the read cannot be read: the stream ends on the framing, on the word that the analysis cannot start and on the "
           "reason, in words for the person; the read stands as the conversation's last turn, no version is made, the failed reply's calls are counted, and asked again the analysis can start. "
           "The read itself cannot be made - the provider fails: the analysis can start, nothing is kept of the read, and the version is not listed as read, so the next start asks again; a reply "
           "that is no object names nothing: the read is kept, and the analysis can start. A brief whose analysis has started is refused in words, without a call; a request without its chain is "
           "refused; and a refusal for the balance is the app's own answer, with no call",
-          _st5r == 200 and _ln5r[-1] == {"architect": {"framing": _f5r, "clean": False, "error": "The Architect's reply could not be read (it holds no JSON object)."}}
+          _st5r == 200 and _ln5r[-1] == {"architect": {"framing": _f5r, "clean": False, "error": "The Pathfinder's reply could not be read (it holds no JSON object)."}}
           and _f5r["turns"][-1]["who"] == "reader" and _f5r["turns"][-1]["missing"] == ["as usual"] and _f5r["turns"][-1]["call"] == 3 and len(_f5r["versions"]) == _v5 and _f5r["calls"] == _calls5 + 2
           and _n5r2 == _n5r + 3 and _f5r["read"][-1] == _v5 and _ln5r2[-1] == {"architect": {"framing": _f5r, "clean": True}} and len(state["calls"]) >= _n5r2
           and _ln6r[-1] == {"architect": {"framing": _f6r, "clean": True}} and len(_f6r["turns"]) == _turns6 and _v6 not in _f6r["read"]
@@ -2950,5 +2950,30 @@ try:
 except Exception as exc:                                     # noqa: BLE001
     import traceback
     check("0319: a branch through the instance: the checks ran", False, traceback.format_exc()[-1500:])
+
+# ---- the names of 2.9 (0328): the Pathfinder was the Architect, and what was written under that name is still read
+try:
+    import agent_instructions_routes as _AIR
+    _seats0, _named = list(FakeModels.config["agent_configs"]), []
+    for _names in (("Pathfinder",), ("Architect",), ("Architect", "Pathfinder"), ()):
+        FakeModels.config["agent_configs"] = _seats0 + [{"agent": a_, "details": {"model": "fake/model", "provider": "fake", "reasoning_effort": "medium"}} for a_ in _names]
+        _named.append(BAMBOO._architect_seat())
+    FakeModels.config["agent_configs"] = _seats0
+    _cwd0 = os.getcwd(); os.chdir(tempfile.mkdtemp())
+    os.makedirs(os.path.join("logs", "u1"))
+    _logged = lambda agent, said: {"chain_id": 7001, "agent": agent, "messages": [{"role": "system", "content": "frame the question"}, {"role": "user", "content": said}]}
+    json.dump([_logged("Architect", "its first reply, before 2.9"), _logged("Analyst", "a turn"), _logged("Pathfinder", "its second reply")], open(os.path.join("logs", "u1", "bambooai_run_log.json"), "w"))
+    _ai = Flask("ai"); _ai.register_blueprint(_AIR.agent_instructions_bp); _aic = _ai.test_client()
+    _asked = lambda agent, call: (lambda j: (j.get("user"), j.get("call"), j.get("calls")))(_aic.get(f"/api/agent-instructions/7001/{agent}?call={call}").get_json())
+    _prompts = [_asked("Pathfinder", 1), _asked("Pathfinder", 2), _asked("Architect", 2), _asked("Analyst", 1)]
+    os.chdir(_cwd0)
+    check("the Pathfinder's name (0328; the Architect until 2.9). Its seat: 'Pathfinder' where the configuration has one; 'Architect' where a configuration written before has that - "
+          "the newer name first where it has both -; else the analyst's. Its prompts in the run log: the calls it made before stand there under the old name, and a card asks for the "
+          "nth of the two names taken together, whichever name the card carries - a card kept from before asks under the old one; another seat's calls are counted by its own name",
+          _named == ["Pathfinder", "Architect", "Pathfinder", BAMBOO._seat()]
+          and _prompts == [("its first reply, before 2.9", 1, 2), ("its second reply", 2, 2), ("its second reply", 2, 2), ("a turn", 1, 1)], (_named, _prompts))
+except Exception as exc:                                     # noqa: BLE001
+    import traceback
+    check("0328: the Pathfinder's name: the checks ran", False, traceback.format_exc()[-1500:])
 
 print(f"\n{len(passed)} passed, {len(failed)} failed"); sys.exit(1 if failed else 0)

@@ -25994,7 +25994,7 @@
 "inputs": [],
 "meta": "2 turns · 1 web search · no code",
 "nocode": true,
-"nocodeText": "No code ran in this chain: it answered from a web search, so there is nothing to map. The report cites chain 1's cell 1.",
+"nocodeText": "No code ran in this chain: it answered from a web search, so there is nothing to trace. The report cites chain 1's cell 1.",
 "path": [
 1,
 5

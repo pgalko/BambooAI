@@ -1,19 +1,19 @@
-"""The Architect: the model that frames a question with the person before it is analysed (docs/ARCHITECT_DESIGN.md
-§2.3, §2.12-§2.14, §2.16-§2.18).
+"""The Pathfinder: the model that frames a question with the person before it is analysed (docs/ARCHITECT_DESIGN.md
+§2.3, §2.12-§2.14, §2.16-§2.18). It was the Architect until 2.9: the names in the code keep that word.
 
-One exchange is one model call. The Architect reads the data's description, the analyses the question follows, the
+One exchange is one model call. The Pathfinder reads the data's description, the analyses the question follows, the
 question, the brief as it stands and the conversation so far (prompt()), and replies with one JSON object: the parts
 of the brief it writes, one message for the person, and choices to click where it offers them (parse()). exchange()
 makes the call and returns the run's framing with the reply taken in: the brief as a new version when a part changed,
-the conversation with the person's message and the Architect's.
+the conversation with the person's message and the Pathfinder's.
 
-The question is the Architect's to word. A wording it gives is written at once, as a version of the brief like any
+The question is the Pathfinder's to word. A wording it gives is written at once, as a version of the brief like any
 other change: the person sees the question change, can change it by hand, and can go back to an earlier version - the
 one in use is the one the next exchange goes on from, and the one the analysis runs under (analyst/brief.py use()).
 
 A reply may also ask for lookups, to check what the brief rests on (analyst/lookup.py). The host answers them, and
 what they found joins the conversation as a turn of its own; the reply to the next exchange marks the lines by it.
-And it may propose another explanation, which enters the brief as the Architect's own, for the person to accept.
+And it may propose another explanation, which enters the brief as the Pathfinder's own, for the person to accept.
 A reply may ask to have the person's saved analyses read as well (analyst/reader.py; §3): the host reads them, and
 what was found is a turn of the conversation, the analyses numbered; the brief builds on those the person chooses,
 which the reply after names by number (`build`). Where the person asks to see what a figure will look like, a reply
@@ -45,11 +45,11 @@ EFFORT = ("medium", "low")       # what to say next takes judgement, not long th
 TURNS_MAX = 200                  # replies in one brief: a person finding their way talks for as long as they like; the bound is for a page that will not stop
 ROUNDS = 2                       # rounds of lookups after one message of the person's: the second is for what the first refused
 NOT_ABOUT = "a lookup names the line under rests_on it checks, copied exactly"
-PROPOSALS = 2                    # explanations the Architect proposes in one brief, in all: one left out is not proposed again and again
+PROPOSALS = 2                    # explanations the Pathfinder proposes in one brief, in all: one left out is not proposed again and again
 READINGS = 4                     # readings of the saved analyses in one brief: one serves one direction of the conversation, and each takes the person's time and money
 OPENS = 3                        # parts of earlier analyses opened after one message of the person's: each is read whole by the replies that follow
-OPEN_CHARS = 16_000              # of one part opened, as the Architect reads it: a longer one loses its middle
-SAY_CHARS = 6000                 # the Architect's message, at most: the instructions ask for a short one, and this bounds a reply that does not end
+OPEN_CHARS = 16_000              # of one part opened, as the Pathfinder reads it: a longer one loses its middle
+SAY_CHARS = 6000                 # the Pathfinder's message, at most: the instructions ask for a short one, and this bounds a reply that does not end
 CHOICES, CHOICE_CHARS = 4, 120
 EMPTY = "(empty)"
 AGAIN = "Your last reply could not be read: {problem}. Reply with the JSON object and nothing else."
@@ -61,8 +61,8 @@ NO_READER = "nothing here reads them"
 OPENED_ALL = f"opening - {OPENS} parts were opened since the person last spoke, and that is the most"
 LOOKED_ALL = f"lookups - {ROUNDS} rounds were made since the person last spoke, and that is the most"
 CUT = "it was cut off at the token limit"
-SPENT = f"The Architect has replied {TURNS_MAX} times in this brief. Change the brief yourself, or start the analysis."
-UNREAD = "The Architect's reply could not be read ({problem})."
+SPENT = f"The Pathfinder has replied {TURNS_MAX} times in this brief. Change the brief yourself, or start the analysis."
+UNREAD = "The Pathfinder's reply could not be read ({problem})."
 DECLINED = "The model declined to reply ({category})."
 
 
@@ -83,7 +83,7 @@ def _line(value, chars: int) -> str:
 
 
 def _say(value) -> str:
-    """The Architect's message as it is kept: its lines, each on one line of text, at most one empty line between two
+    """The Pathfinder's message as it is kept: its lines, each on one line of text, at most one empty line between two
     paragraphs, bounded."""
     if not isinstance(value, str):
         return ""
@@ -119,7 +119,7 @@ def reply_object(text: str) -> dict:
 
 
 def parse(text: str) -> dict:
-    """What a reply of the Architect's says: {"brief": the parts it writes, "say": its message, "choices": [...],
+    """What a reply of the Pathfinder's says: {"brief": the parts it writes, "say": its message, "choices": [...],
     "wording": the question as it puts it to the analyst, "lookups": what it asks of the data, "marks": the marks it
     gives, "propose": the explanations it proposes, "recall": whether it asks for the saved analyses to be read,
     "build": the saved analyses the brief is to build on, by number - None where the reply does not say -, "figures":
@@ -150,8 +150,8 @@ def _numbers(found) -> dict:
 
 
 def block(brief: dict, found=None) -> str:
-    """The BRIEF block of the Architect's prompt: every part under the name the reply uses for it. A line the brief
-    rests on shows its mark, with what was found, once it was checked; an explanation the Architect proposed says so,
+    """The BRIEF block of the Pathfinder's prompt: every part under the name the reply uses for it. A line the brief
+    rests on shows its mark, with what was found, once it was checked; an explanation the Pathfinder proposed says so,
     and whether the person accepted it. A figure stands under the number a reply keeps it by. `found`: the passages
     the readings found - the saved analyses the brief builds on stand under the numbers they have there."""
     lines = [f"BRIEF (version {brief.get('version', 1)}):"]
@@ -188,7 +188,7 @@ def _drew(turn: Turn) -> str:
 def earlier(nb: Notebook, run_id: str, cells: bool = False) -> str:
     """The analyses the run's question follows, oldest first: each one's question - with the hints a branch was made
     under - and what it found - or what the analyst stopped and asked - and, where it ran under a brief, how the
-    result stood against it. `cells`: for the Architect, who may open a part of one (opened()): what each has to
+    result stood against it. `cells`: for the Pathfinder, who may open a part of one (opened()): what each has to
     open, and of the last a line to each cell, with what it drew. '' when the question follows none."""
     path = nb.path(str(run_id))[:-1]
     if not path:
@@ -233,7 +233,7 @@ def recalled(turn: dict, numbers: dict) -> list:
 
 
 def conversation(turns: list, numbers: Optional[dict] = None) -> str:
-    """The CONVERSATION block: who said what - under a message of the Architect's the question as it was written
+    """The CONVERSATION block: who said what - under a message of the Pathfinder's the question as it was written
     then, where the reply worded it, and the choices it offered, which the person may answer by - what each round of
     lookups found, a numbered line to a lookup, what a reading of the saved analyses found, what was opened, what a
     draft of the figures came to, what a reader given what the analyst will be given could not place
@@ -254,7 +254,7 @@ def conversation(turns: list, numbers: Optional[dict] = None) -> str:
         elif t.get("who") == "version":
             said.append(f"(the person went to version {t.get('v')} of the brief: QUESTION and BRIEF show it)")
         else:
-            said.append(f"{'Architect' if t.get('who') == 'architect' else 'Person'}: {t.get('text', '')}")
+            said.append(f"{'Pathfinder' if t.get('who') == 'architect' else 'Person'}: {t.get('text', '')}")
             if t.get("wording"):
                 said.append(f"(the question was written as: {t['wording']})")
             if t.get("choices"):
@@ -264,7 +264,7 @@ def conversation(turns: list, numbers: Optional[dict] = None) -> str:
 
 def prompt(question: str, brief: dict, turns: list, data: str = "", before: str = "", saved: int = 0, first: str = "",
            unread: str = "", opened: str = "", found=None) -> str:
-    """What the Architect reads for one reply. What does not change from one reply to the next comes first. `saved`:
+    """What the Pathfinder reads for one reply. What does not change from one reply to the next comes first. `saved`:
     how many saved analyses the person has, said where there are any, with why they cannot be read now (`unread`)
     where they cannot. `first`: the question as the person first asked it, said where the wording has changed since.
     `opened`: the parts of earlier analyses in view. `found`: the passages the readings found so far."""
@@ -340,7 +340,7 @@ def _unread(recall: Optional[Callable], turns: list) -> str:
 
 
 def _fit(text: str) -> str:
-    """A part opened, as the Architect reads it: whole, or without its middle where it is longer than OPEN_CHARS,
+    """A part opened, as the Pathfinder reads it: whole, or without its middle where it is longer than OPEN_CHARS,
     the cut said."""
     if len(text) <= OPEN_CHARS:
         return text
@@ -396,7 +396,7 @@ def opened(nb: Notebook, run_id: str, turns: list) -> str:
 
 
 def _grounded(proposal, data: str) -> bool:
-    """Whether an explanation the Architect proposes names a column the data's description has: one the data cannot
+    """Whether an explanation the Pathfinder proposes names a column the data's description has: one the data cannot
     tell apart from the person's view is not proposed."""
     column = _line(proposal.get("column"), lookup.NAME_CHARS) if isinstance(proposal, dict) else ""
     return bool(column) and bool(re.search(r"(?<!\w)" + re.escape(column) + r"(?!\w)", data or ""))
@@ -421,17 +421,17 @@ def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = E
 
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None,
              recall: Optional[Callable] = None, saved: int = 0, step: Optional[int] = None) -> dict:
-    """One exchange in a framing run: the person's message - none on the Architect's first turn, nor when it goes on
+    """One exchange in a framing run: the person's message - none on the Pathfinder's first turn, nor when it goes on
     after a round of lookups, a reading or a part opened - and its reply. A reply that cannot be read is asked for
     once more. Returns the framing as it then stands: the brief as one more version when the reply changed a part,
-    marked a line, built on a saved analysis or described a figure (the Architect's, made from the question, from an
+    marked a line, built on a saved analysis or described a figure (the Pathfinder's, made from the question, from an
     answer, or from a check against the data), the conversation with both messages, the calls counted. Where the
     reply asks for lookups, `look` answers them - clean lookups in, an answer to each out - and the round is the
     conversation's last turn: the next exchange, with no message, reads it. What the reply proposes enters the
     brief only where it names a column of the data, and a brief takes two proposals in all.
 
     `step`: the step of the conversation on the person's screen (analyst/steps.py). Where it is not the one in
-    use, it is from now: the exchange goes on from it - the Architect reads the way to it, and nothing that was
+    use, it is from now: the exchange goes on from it - the Pathfinder reads the way to it, and nothing that was
     said on another - and what the exchange adds is a step that follows it. The steps after it stay, set aside,
     and the next version is counted on from the last.
 
@@ -439,9 +439,9 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     reply on - one more change of the version - and the host makes it the run's; the message that worded it keeps
     the wording.
 
-    The saved analyses are read by `recall(question, the brief as the Architect reads it)`, which gives the reader's
+    The saved analyses are read by `recall(question, the brief as the Pathfinder reads it)`, which gives the reader's
     result, where the reply asks for it: once after a message of the person's, READINGS times in a brief. `saved` is
-    how many there are: the Architect is told, so that it asks only where there are some. What the readings found
+    how many there are: the Pathfinder is told, so that it asks only where there are some. What the readings found
     stays with the framing (`found`), the analyses numbered in the order they were found; `build` in a reply - the
     person chose - names by number every analysis the brief builds on from then.
 
@@ -464,7 +464,7 @@ def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, 
     said = text.strip()[:briefs.QUESTION_CHARS] if isinstance(text, str) else ""
     if said:
         turns.append({"who": "person", "text": said})
-    question = brief.get("question") or run.question          # as it stands: the person's own, or the Architect's wording of it
+    question = brief.get("question") or run.question          # as it stands: the person's own, or the Pathfinder's wording of it
     unread = _unread(recall, turns)
     spent = {"open": _since(turns, "opened") >= OPENS, "lookups": _since(turns, "check") >= ROUNDS}
     found = framing.get("found") or []

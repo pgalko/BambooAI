@@ -1,5 +1,5 @@
 {
- "about": "A framing whose conversation went one way (step 3), came back to step 2 and went another (steps 4 to 6); under `go`, what differs in it with each step in use - as analyst/steps.py go() makes it; every key not listed there is the framing's - and under `then`, the person speaking from step 2 once more: the turns added, the brief the Architect left, and the framing after. The engine's suite checks all of it against analyst/steps.py; the page's suite holds architect.js to it.",
+ "about": "A framing whose conversation went one way (step 3), came back to step 2 and went another (steps 4 to 6); under `go`, what differs in it with each step in use - as analyst/steps.py go() makes it; every key not listed there is the framing's - and under `then`, the person speaking from step 2 once more: the turns added, the brief the Pathfinder left, and the framing after. The engine's suite checks all of it against analyst/steps.py; the page's suite holds architect.js to it.",
  "framing": {
   "versions": [
    {

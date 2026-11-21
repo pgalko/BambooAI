@@ -31,7 +31,7 @@ global.loadResponseContent = r => { loaded.push(r.chain_id); $('tabContainer').i
 global.updateNavigationButtons = () => { window.BranchUI.onChain(responses[currentResponseIndex]); window.MapsUI.follow(); };
 global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText }); global.extractPlotDataFromResponse = () => null;
 const framed = []; window.ArchitectUI = { mark: () => '', started: e => framed.push(e),
-  map: n => ({ n: 0, said: '', off: 'Chain ' + n + ' was asked without the Architect', draw() {} }) };      // the Pathfinding level's stand-in: no chain here has a brief with steps
+  map: n => ({ n: 0, said: '', off: 'Chain ' + n + ' was asked without the Pathfinder', draw() {} }) };      // the Pathfinding level's stand-in: no chain here has a brief with steps
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;
 const JS = path.join(__dirname, '..', '..', 'web_app', 'static', 'js');
 require(path.join(JS, 'stream-pane.js')); require(path.join(JS, 'workflowGraph.js')); require(path.join(JS, 'branch.js')); require(path.join(JS, 'maps.js'));
@@ -159,7 +159,7 @@ show(q0); const onQ = [same(B.place(), { i: 1, n: 4 }), B.step(-1) === q0, B.ste
 check('the arrows count analyses: four of them in a thread of seven chains, in the order they began. Of an analysis they show the chain that was last on screen - a branch brought back '
   + 'stays the one its analysis shows; where none was, its newest - and go to the analysis before or after, staying at either end',
   same(fresh, [10, 23, 30, 40]) && same(onC, [[10, 23, 30, 40], true]) && same(onA, [[10, 20, 30, 40], true, true, true]) && same(onS, [true, true, true]) && same(onQ, [true, true, true]), [fresh, onC, onA, onS, onQ]);
-check('... asked of a chain, the place is that chain\'s, whichever is on screen: a branch has the number of the analysis it is a way of - the code map names chains so (0322)',
+check('... asked of a chain, the place is that chain\'s, whichever is on screen: a branch has the number of the analysis it is a way of - the code trace names chains so (0322)',
   same([q0, a, b1, c, f, s].map(e => B.place(e).i), [1, 2, 2, 2, 3, 4]) && same(B.place(c), { i: 2, n: 4 }) && same(B.place(), { i: 1, n: 4 }), [q0, a, b1, c, f, s].map(e => B.place(e)));
 show(b1);
 const items = B.items();
@@ -434,7 +434,7 @@ check('a framed analysis\'s branch runs under the same brief: when the server an
 const js = n => fs.readFileSync(path.join(JS, n), 'utf8'), css = n => fs.readFileSync(path.join(JS, '..', 'css', n), 'utf8');
 const qp = js('query-processing.js'), wm = js('workflow-management.js'), uc = js('ui-controls.js'), graph = js('workflowGraph.js'), core = js('core.js'), ar = js('architect.js');
 const shell = css('shell.css'), paneCss = css('pane.css');
-check('the composer\'s send: a typed text is offered to the branch first - a hint where a turn is gone back to - and the Architect is not asked for a branch; the chain begun keeps the '
+check('the composer\'s send: a typed text is offered to the branch first - a hint where a turn is gone back to - and the Pathfinder is not asked for a branch; the chain begun keeps the '
   + 'analysis\'s question and the branch; the request names the turn; a branch the server did not start - the limit, the network, its own refusal - is undone, and nothing is saved of it',
   qp.includes("const branch = typed && window.BranchUI ? window.BranchUI.hint(query) : null;") && qp.includes("if (window.ArchitectUI && !framed && !branch) {")
   && qp.indexOf('window.BranchUI.hint(query)') < qp.indexOf('window.ArchitectUI.framingInView()') && qp.includes("currentData.queryText = branch ? branch.question : query;")
@@ -451,7 +451,7 @@ check('the stream: the chain\'s announcement is handed to the branch, and so is 
   && core.includes("window.BranchUI.initialize();") && html.indexOf("js/branch.js") > html.indexOf("js/next-questions.js") && html.indexOf("js/branch.js") < html.indexOf("js/workflowGraph.js"));
 const branchJs = js('branch.js'), paneJs = js('stream-pane.js');
 check('the Workflow map: its boxes are the analyses, the open one that of the chain on screen, the level counting chains and their branches; a box clicked brings its chain on screen '
-  + 'through the branch, and no longer shuts the drawer; the drawing takes a map\'s own mark for a box; the Architect\'s cards have the Git branch mark, the left bar\'s button the map\'s',
+  + 'through the branch, and no longer shuts the drawer; the drawing takes a map\'s own mark for a box; the Pathfinder\'s cards have the Git branch mark, the left bar\'s button the map\'s',
   wm.includes("var boxes = window.BranchUI ? window.BranchUI.items() : responses;") && wm.includes("WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
   && wm.includes("var branches = boxes.reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);") && !wm.includes('showWorkflowMap') && !/workflowMapModal[^\n]*\.style\.display/.test(wm)
   && graph.includes("if (window.BranchUI) window.BranchUI.open(resp);") && graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');")
@@ -466,7 +466,7 @@ check('the Analysis map is the drawer\'s (0327), from the sources: no button to 
   && !branchJs.includes('openMap') && !branchJs.includes('mapFollows') && /window\.BranchUI = \{ initialize, map, onChain,/.test(branchJs) && (branchJs.match(/window\.MapsUI\.follow\(\);/g) || []).length === 2
   && branchJs.includes("window.MapsUI.shut();\n                go(here && owner(here, b.turn.n) === b.entry ? here : b.entry, b.turn.n);")
   && branchJs.includes("mapOff: { running: 'An analysis is running', none: n => 'Chain ' + n + ' has no turns to go back to' },"));
-check('the stylesheets: with a turn gone back to the composer shows no file menu, no mode and no Architect switch, and the row of the turn is styled; the drawer hides the thread\'s '
+check('the stylesheets: with a turn gone back to the composer shows no file menu, no mode and no Pathfinder switch, and the row of the turn is styled; the drawer hides the thread\'s '
   + 'buttons while it holds the turns; the Workflow map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row is '
   + 'styled; the ids\' row stays in view under the strip, on one line, its last id giving way first',
   shell.includes("body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-panel #modeSliderPopup, body.br-hint .left-panel .icon-row .ar-switch { display: none !important; }")

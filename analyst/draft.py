@@ -1,7 +1,7 @@
 """The draft of the figures: what the person will get, drawn before their question is analysed
 (docs/ARCHITECT_DESIGN.md §2.20).
 
-A brief may hold figures the person asked to see (analyst/brief.py). After a reply of the Architect's, each figure
+A brief may hold figures the person asked to see (analyst/brief.py). After a reply of the Pathfinder's, each figure
 of the brief in use that has no draft is due one (due()): a model writes one cell that draws them (prompt(),
 cell()), the host runs it where no data is, and what it drew is read, a plot to a figure (read()). draw() is that
 round - the cell asked for once more where it was not run or left a figure without a plot - and settle() takes it into
@@ -72,7 +72,7 @@ def keyed(framing: dict) -> dict:
 
 def due(framing: dict) -> list:
     """The figures of the brief in use that are to be drawn now, each (its key, the figure): one without a draft, and
-    one whose draft could not be drawn, until it was tried TRIES times. None while the Architect goes on by itself -
+    one whose draft could not be drawn, until it was tried TRIES times. None while the Pathfinder goes on by itself -
     after its lookups, a reading, a part it opened: the reply the person reads is the one after."""
     turns = (framing or {}).get("turns") or []
     if turns and turns[-1].get("who") in ("check", "memory", "opened"):
@@ -231,7 +231,7 @@ def settle(run: Run, figures: list, made: dict, secs: float = 0.0) -> None:
 
 
 def line(turn: dict) -> str:
-    """A round as a line of the Architect's CONVERSATION block: the figures drawn, each by its title with what its
+    """A round as a line of the Pathfinder's CONVERSATION block: the figures drawn, each by its title with what its
     numbers are, and the ones without a draft, with why."""
     drawn = [f"\"{d['title']}\" ({'computed' if d.get('basis') == COMPUTED else 'on made-up numbers'})" for d in turn.get("drawn", [])]
     missing = ", ".join(f'"{t}"' for t in turn.get("missing", []))

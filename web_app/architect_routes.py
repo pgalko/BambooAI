@@ -1,5 +1,5 @@
 """The brief before an analysis (docs/ARCHITECT_DESIGN.md §2.6, §2.9, §2.12, §2.13): a question asked with the
-Architect on opens a framing run on the thread's record; the Architect then fills its brief from the question, asks
+Pathfinder on opens a framing run on the thread's record; the Pathfinder then fills its brief from the question, asks
 for what is missing and checks what the brief rests on against the data, one exchange a call; every change to the
 brief is kept as a version. The analysis then continues that run through /query, which names it as run_id.
 
@@ -12,13 +12,13 @@ person can skip it (/architect/skip), and a saved analysis the brief names can b
 Where the brief holds figures, a draft of them is drawn after the reply (§2.20): the stream carries the framing as
 the reply left it, and the page then asks for each figure's plot (/architect/draft). Before the analysis starts, the
 question is read as the analyst will read it (/architect/ready, §2.22): where something in it cannot be placed, the
-Architect goes on and the analysis waits for the person to start it again.
+Pathfinder goes on and the analysis waits for the person to start it again.
 
 A framed question is a query for the account's purposes: authorised like one at each step, counted towards the
 month's free queries once, when its brief opens, and charged once, with its analysis (bambooai.py, architect_say).
 
 After a finished analysis the person may ask for the questions that could follow it, at one of five levels (§2.7,
-§2.15): one call of the Architect's, which is a query of its own - authorised, counted and charged like one."""
+§2.15): one call of the Pathfinder's, which is a query of its own - authorised, counted and charged like one."""
 from flask import Blueprint, Response, jsonify, request, session
 
 from analyst.architect import Failed
@@ -68,7 +68,7 @@ def architect_open():
 @architect_bp.route('/architect/say', methods=['POST'])
 @requires_auth
 def architect_say():
-    """One exchange with the Architect: {thread_id, chain_id, text, step} - no text on its first turn, nor when it
+    """One exchange with the Pathfinder: {thread_id, chain_id, text, step} - no text on its first turn, nor when it
     goes on after a round of lookups, a reading of the saved analyses or a part of an earlier analysis it opened;
     `step`: the step of the conversation on the person's screen, which the exchange goes on from - as a stream that
     ends on {"architect": {"framing": ...}}, or {"architect": {"error": ...}} when no reply was kept. While the saved
@@ -91,7 +91,7 @@ def architect_say():
             return {'architect': {'error': str(exc)}}
         except Exception as exc:                             # noqa: BLE001
             logger.exception("architect: the exchange failed")
-            return {'architect': {'error': f'The Architect could not reply: {str(exc)[:300]}'}}
+            return {'architect': {'error': f'The Pathfinder could not reply: {str(exc)[:300]}'}}
         if framing is None:
             return {'architect': {'error': 'This brief can no longer be changed: its analysis has started.'}}
         return {'architect': {'framing': framing}}
@@ -103,8 +103,8 @@ def architect_say():
 def architect_ready():
     """Before a framed question's analysis starts (§2.22): {thread_id, chain_id, step} - the step of the conversation
     on the person's screen. Its question is read as the analyst will read it; the stream ends on {"architect":
-    {"framing": ..., "clean": whether the analysis can start}}. Where it cannot, the Architect has gone on: the
-    framing holds what the reader could not place and the Architect's reply - or "error" says why there is none -
+    {"framing": ..., "clean": whether the analysis can start}}. Where it cannot, the Pathfinder has gone on: the
+    framing holds what the reader could not place and the Pathfinder's reply - or "error" says why there is none -
     and the stream carried {"type": "architect_draft", "framing"} before a draft of the figures was drawn, as
     after any reply. {"architect": {"error": ...}} alone where no read was made: the analysis can start."""
     data = request.json or {}

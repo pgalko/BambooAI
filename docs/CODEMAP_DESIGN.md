@@ -1,4 +1,10 @@
-# The code map — design v1.7 (2026-11-21)
+# The code map — design v1.8 (2026-11-21)
+
+**The name (0328).** Since 2.9 the code map is called the **Code trace** on the page and in the README. The product
+owner, 2026-11-21: it is not a map in the sense the Workflow, Pathfinding and Analysis maps are. It follows a number
+back to its data. This document keeps the name it was written under, as do the names in the code
+(`analyst/codemap`, `code_map`, `CodeMapUI`, `/code_map/...`). Its ways in are as they were: the closing card's
+button, a `[cell n]` citation, a cell's eye in the Investigation tab, the eye on a chain's box of the Workflow map.
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -178,8 +184,8 @@ view (`traced: false`) and is listed in `selfcheck`; nothing blocks the chain.
 
 ## 5. What is stored, and the route
 
-`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 5 since 2026-11-21: a correction
-marks the line it replaced; 4 since 2026-11-21: a branch's map says what it kept and what the person said; 3 since
+`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 6 since 2026-11-21: the view's words
+say trace; 5 since 2026-11-21: a correction marks the line it replaced; 4 since 2026-11-21: a branch's map says what it kept and what the person said; 3 since
 2026-10-24: the recipes carry the lines behind each number); on failure `{version, built, error, inputs}`,
 and when even the import fails, `{"error": ...}`. `exports` (the names and helpers the chain left in the kernel, for
 later chains) and `inputs` (as the chain ended, with the auxiliary files' columns) let a later rebuild give the same
@@ -333,4 +339,5 @@ through `ga, gb = g[...], g[...]`; at the top level a bootstrap loop's step adds
 document the report cites by passage counts as used; the no-code header leaves out "0 web searches"; chain ids and
 `{chain:<id>}` tokens instead of numbers; a stored failure is rebuilt on request; a correction marks the line it
 replaced, where the prototype marked every line of the cell (0326: the expected view and map of the thread's chain
-3 follow - its cell 10 recorded two lines, and cell 11 gave one of them again).
+3 follow - its cell 10 recorded two lines, and cell 11 gave one of them again); a chain that ran no code says there
+is *nothing to trace*, where the prototype said *nothing to map* (0328: the name; one value of the expected view).

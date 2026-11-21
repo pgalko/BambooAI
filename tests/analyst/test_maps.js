@@ -28,7 +28,7 @@ global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText
 const steps = {}, drawn = [];
 window.ArchitectUI = { mark: () => '', map: n => { const s = steps[currentData.chain_id];
   return s ? { n: s, said: s + ' steps', off: '', draw() { drawn.push('pathfinding of chain ' + n); window.WorkflowGraph.rest('the steps'); $('workflowMapContainer').innerHTML = ''; } }
-           : { n: 0, said: '', off: 'Chain ' + n + ' was asked without the Architect', draw() {} }; } };
+           : { n: 0, said: '', off: 'Chain ' + n + ' was asked without the Pathfinder', draw() {} }; } };
 let runView = false; window.RoutinesUI = { inRunView: () => runView };
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;
 require(path.join(JS, 'stream-pane.js')); require(path.join(JS, 'workflowGraph.js')); require(path.join(JS, 'branch.js')); require(path.join(JS, 'maps.js'));
@@ -88,7 +88,7 @@ check('the switch (0327): Workflow, with how many chains; the chain on screen, b
   + 'many boxes its map has. The level in use is pressed. A level that cannot be shown is greyed - marked so for a reader, with no number - and says why under the pointer; the others '
   + 'say what their map holds. Each is a button',
   same(opened, ['flex', 'workflow', 'Workflow3* / Chain 2 / Pathfinding- | Analysis3', 'level workflow']) && marks === 'button.map-level span.map-chain span.map-of-chain' && group === 'pathfinding,analysis'
-  && same(says, ['3 chains', 'Chain 2 was asked without the Architect', '3 turns']) && same(kinds, ['button/button', 'button/button', 'button/button']) && same(numbers, ['3', null, '3'])
+  && same(says, ['3 chains', 'Chain 2 was asked without the Pathfinder', '3 turns']) && same(kinds, ['button/button', 'button/button', 'button/button']) && same(numbers, ['3', null, '3'])
   && level('pathfinding').getAttribute('aria-disabled') === 'true' && !level('pathfinding').hasAttribute('aria-pressed') && level('analysis').getAttribute('aria-pressed') === 'false' && boxes() === 3,
   [opened, marks, group, says, kinds, numbers, boxes()]);
 

@@ -1,14 +1,14 @@
 """The cold read: a question read as the analyst will read it, before its analysis starts
 (docs/ARCHITECT_DESIGN.md §2.22).
 
-The Architect words the question inside a conversation. What was said there, a saved analysis of another day, "as
-before" - all of it reads plainly to the Architect, and to nobody who was not there. So what the analyst will be
+The Pathfinder words the question inside a conversation. What was said there, a saved analysis of another day, "as
+before" - all of it reads plainly to the Pathfinder, and to nobody who was not there. So what the analyst will be
 given of a framed question (given()) is given to a model that has nothing else either, and it is asked which words
 of the question point to something it was not given (read()). ready() is the step before an analysis starts: the
-read, and where it names something the Architect's next reply.
+read, and where it names something the Pathfinder's next reply.
 
 Two things are held in code. A phrase counts only where it stands in the question, word for word (named()): one
-the model makes up starts nothing. And a version of the brief is read once, the Architect's wording after a read
+the model makes up starts nothing. And a version of the brief is read once, the Pathfinder's wording after a read
 not at all: a read holds a start up once.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ ASK = "Reply with the JSON object."
 
 
 def given(question: str, brief: dict, data: bool = True, described: str = "", earlier: str = "") -> str:
-    """What the analyst is given of a question framed with the Architect, in the order its prompt has it
+    """What the analyst is given of a question framed with the Pathfinder, in the order its prompt has it
     (analyst/session.py): the analyses the question follows (`earlier`: the notebook's ledger of them), the data as
     described (`described`), the question, and the BRIEF block - of the brief as agreed, without what the person did
     not accept (analyst/brief.py agreed(), render()). `data`: whether the run has data to run on."""
@@ -70,15 +70,15 @@ def ready(llm: Callable, reader: Callable, nb: Notebook, run: Run, step: Optiona
     The question to run under - that of the step on the person's screen, `step` (analyst/steps.py) - is read cold
     by `reader`, once: a version of the brief the framing lists as read (`read`) is not read again. The step read
     is the one in use from then: its analysis is what was asked for. The read is a step of the conversation. One
-    that names nothing lets the analysis start. One that names something has the Architect go on at once - `llm`,
+    that names nothing lets the analysis start. One that names something has the Pathfinder go on at once - `llm`,
     one exchange with no message, whose CONVERSATION ends on what could not be placed; `data`, the data as
     described, and `more` are the exchange's (analyst/architect.py exchange()). The analysis does not start then:
-    the person sees what the Architect made of it, and starts again. The version the Architect leaves is listed
+    the person sees what the Pathfinder made of it, and starts again. The version the Pathfinder leaves is listed
     as read without a read: a read holds a start up once.
 
     A read is one call of its own kind: its turn numbers it among the reads of the whole brief - those of the
-    steps set aside too - and the Architect's calls are counted apart. Raises architect.Failed where the
-    Architect's reply fails: the read stands, the calls of the failed reply are counted, and the version is not
+    steps set aside too - and the Pathfinder's calls are counted apart. Raises architect.Failed where the
+    Pathfinder's reply fails: the read stands, the calls of the failed reply are counted, and the version is not
     read again."""
     framing = steps.go(run.framing or {}, step) if step is not None else run.framing or {}
     brief = briefs.latest(framing) or {"question": run.question}

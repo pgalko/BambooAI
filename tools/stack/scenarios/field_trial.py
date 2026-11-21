@@ -55,15 +55,15 @@ Regime B plots were sown a week later than regime A on the same soils.
 """
 DOC_QUESTION = "What do the field notes say about the wet season?"
 
-# the Architect (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief filled by hand, then run
+# the Pathfinder (docs/ARCHITECT_DESIGN.md §2.11): a question typed with the switch on, its brief filled by hand, then run
 BRIEF_QUESTION = "Is regime C worth switching to from regime A?"
 BRIEF_ANSWER = "Use yield instead."                # the person's answer when the analyst asks about a measure the data lacks
-# the Architect's questions, in the order of its instructions (analyst/architect.md), each with the part it asks for
+# the Pathfinder's questions, in the order of its instructions (analyst/architect.md), each with the part it asks for
 ARCHITECT_ASKS = (("decision", "What will you do differently depending on the answer?"),
                   ("thinks", "What do you think is going on, and what makes you think so?"),
                   ("expects", "What do you expect to see?"))
 ARCHITECT_READY = "The brief is ready: start the analysis, or change a line."
-# the check against the data (docs/ARCHITECT_DESIGN.md §2.13): what the scripted Architect looks up for a line the brief
+# the check against the data (docs/ARCHITECT_DESIGN.md §2.13): what the scripted Pathfinder looks up for a line the brief
 # rests on, by a word of the line - the planted cases - and what it says around the round
 ARCHITECT_CHECKING = "Checking this against the data."
 ARCHITECT_LOOKS = (("rain", {"op": "total", "column": "rainfall_mm", "by": "regime"}),          # "The C plots got the most rain."
@@ -73,16 +73,16 @@ ARCHITECT_LOOKS = (("rain", {"op": "total", "column": "rainfall_mm", "by": "regi
 ARCHITECT_UNRECORDED = "nothing loaded records it"
 ARCHITECT_KEEP = ["Keep it", "Change it"]
 ARCHITECT_NOW = "What do you think is going on now, and what makes you think so?"
-# another explanation (docs/ARCHITECT_DESIGN.md §2.14): what the scripted Architect proposes with its marks, from a column the
+# another explanation (docs/ARCHITECT_DESIGN.md §2.14): what the scripted Pathfinder proposes with its marks, from a column the
 # data has, and what it adds to its last message while the proposal is unticked
 ARCHITECT_PROPOSES = {"text": "The C plots sit on other soil than the A plots", "shows": "the gap narrows within a soil type", "column": "soil"}
 ARCHITECT_TICK = " What I proposed under Other explanations to test can be ticked."
-# the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Architect says while they are read, and when passages were found
+# the saved analyses (docs/ARCHITECT_DESIGN.md §3.7): what the Pathfinder says while they are read, and when passages were found
 ARCHITECT_LOOKING = "I am looking in your saved analyses."
 ARCHITECT_FOUND = " Your saved analyses hold something on this: build on it, or go another way?"      # said with the choices: one to each analysis found
 ARCHITECT_BUILD_ON = 'Build on "{}"'                                 # the choice that names an analysis, where more than one was found
 ARCHITECT_AGAIN = "Look in my saved analyses again."                 # the person asks for one more reading, in words
-# the Architect as a tutor (docs/ARCHITECT_DESIGN.md §2.16-§2.18): what could be looked at, and the question worded - written at once
+# the Pathfinder as a tutor (docs/ARCHITECT_DESIGN.md §2.16-§2.18): what could be looked at, and the question worded - written at once
 TUTOR_QUESTION = "Plot the two regimes side by side"                 # a bare request: the question is worked out in the conversation
 TUTOR_FIRST = ("Two regimes can be put side by side in more than one way. What should the plot show?\n\n"
                "- what each regime gives, season by season;\n- how the plots of one regime spread against the other's.")
@@ -90,10 +90,10 @@ TUTOR_CHOICES = ["Season by season", "The spread", "I cannot tell yet"]
 ARCHITECT_BACK = "I have put that into the question. Is that what you mean?"      # said with a wording: the engine writes it as the question at once
 ARCHITECT_YES = ["Yes, that is it", "Change something"]
 ARCHITECT_WRITTEN = "Good. Start the analysis when you are ready, or go on."
-ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Architect gives it as its wording
-ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Architect, which then writes the question under the brief: the engine keeps none of it
+ARCHITECT_OWN = "The question is: "                                  # the person gives a wording of their own: the Pathfinder gives it as its wording
+ARCHITECT_UNREAD = "Word it yourself."                               # ... or leaves it to the Pathfinder, which then writes the question under the brief: the engine keeps none of it
 ARCHITECT_UNREAD_WORDING = "A wording written in the wrong place"
-# the figures and their draft (§2.19, §2.20): asked to show them, the Architect describes the figures - a draft of each is then drawn; asked for another order, it names each by its number
+# the figures and their draft (§2.19, §2.20): asked to show them, the Pathfinder describes the figures - a draft of each is then drawn; asked for another order, it names each by its number
 COLD_POINTER = "as in the analysis of 2 March"                       # words a question may carry that point outside what the Analyst is given: the question's check names them
 ARCHITECT_PLACED = "The question pointed to something the Analyst is not given. I took that out."
 FIGURES_QUESTION = "Plot the yield of regime C against regime A"
@@ -138,7 +138,7 @@ def make_dataset(path, seed=20260909):
 
 
 def described(first, second):
-    """The figures the scripted Architect describes for a question about two regimes: the yield of each by season
+    """The figures the scripted Pathfinder describes for a question about two regimes: the yield of each by season
     and the plot yields of each - both for the data to give - and the target, which follows from its rule."""
     pair = [{"name": f"regime {first}"}, {"name": f"regime {second}"}]
     return [{"title": f"Yield by season, regime {first} and regime {second}", "kind": "line", "x": "season", "y": "yield, t/ha", "series": pair,
@@ -382,7 +382,7 @@ SEARCH_DIGEST = (
 SEARCH_LINKS = [{"link": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
                 {"link": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
 
-# next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Architect asks from a line of each kind, as the prompt names the
+# next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Pathfinder asks from a line of each kind, as the prompt names the
 # kinds (analyst/next_questions.py SAID) - a title, and the question around the line's own words
 NEXT_MISFIT = "The gap is not the same on every soil"        # the misfit the briefed report plants, from the gap by soil its cell printed
 NEXT_FROM = {"Did not fit": ("What did not fit", "What lies behind this: {t}?"),
@@ -421,7 +421,7 @@ class Scenario:
                         f"- Verdict: REPORT the comparison the question requires is made and its uncertainty stated [cell {last}].")
         if system.startswith("You are the analyst"):
             return self.analyst(user)
-        if system.startswith("You are the Architect"):
+        if system.startswith("You are the Pathfinder"):
             return "", self.architect(user)
         if system.startswith("You propose the questions to analyse next"):
             return "", self.next_questions(user)
@@ -449,11 +449,11 @@ class Scenario:
         question = (re.search(r"^QUESTION:\n(.*?)(?:\n\nBRIEF \(|\n\nReply with)", user, re.S | re.M) or [None, ""])[1]
         return json.dumps({"cannot_place": [COLD_POINTER] if COLD_POINTER in question else []})
 
-    # ------------------------------------------------------------ the Architect (docs/ARCHITECT_DESIGN.md §2.12)
+    # ------------------------------------------------------------ the Pathfinder (docs/ARCHITECT_DESIGN.md §2.12)
     def architect(self, user):
-        """The Architect's reply, read off its prompt (analyst/architect.py). On its first turn it writes what the
+        """The Pathfinder's reply, read off its prompt (analyst/architect.py). On its first turn it writes what the
         question states: the two regimes it compares, or - where the analyst had stopped and asked - the measure the
-        person's answer names. After that the person's last message goes, as they gave it, into the part the Architect
+        person's answer names. After that the person's last message goes, as they gave it, into the part the Pathfinder
         had just asked for ("... because ..." also gives what the view rests on; "The measure is ..." changes what is
         fixed; "skip" leaves the part empty). Then it asks for the next part still empty and not yet asked for, with
         two choices where the question names two courses. When nothing is left to ask it checks the lines the brief
@@ -488,7 +488,7 @@ class Scenario:
         question = find(r"^QUESTION:\n(.*?)\n\nBRIEF \(").split("\n(first asked as: ")[0]
         empty = lambda key: find(rf"^{re.escape(key)}: ([^\n]*)$") in ("", "(empty)")
         said_so_far = find(r"^CONVERSATION:\n(.*?)\n\n(?:OPENED \(|Reply with)")
-        talk = re.findall(r"^(Architect|Person): (.*)$", said_so_far, re.M)
+        talk = re.findall(r"^(Pathfinder|Person): (.*)$", said_so_far, re.M)
         unplaced = re.match(r"A reader given what the analyst will be given could not place: (.*)$", said_so_far.splitlines()[-1] if said_so_far else "")
         if unplaced:
             wording = question
@@ -504,7 +504,7 @@ class Scenario:
             if "\nSaved analyses" in "\n" + said_so_far:        # the reading is done: the report of the analysis before
                 return json.dumps({"say": ARCHITECT_OPENING, "open": {"what": "report"}})
             return json.dumps({"say": ARCHITECT_LOOKING, "recall": True})
-        asked = [key for key, ask in ARCHITECT_ASKS if ("Architect", ask) in talk]
+        asked = [key for key, ask in ARCHITECT_ASKS if ("Pathfinder", ask) in talk]
         pair = re.search(r"regime (\w)\b.*\bregime (\w)\b", question)
         writes = {}
         if not talk and question == TUTOR_QUESTION:
@@ -516,7 +516,7 @@ class Scenario:
             if pair and empty("fixed.comparison"):
                 writes["fixed"] = {"comparison": f"regime {pair.group(1)} against regime {pair.group(2)}"}
         elif talk[-1][0] == "Person":
-            said, before = talk[-1][1].strip(), talk[-2][1] if len(talk) > 1 and talk[-2][0] == "Architect" else ""
+            said, before = talk[-1][1].strip(), talk[-2][1] if len(talk) > 1 and talk[-2][0] == "Pathfinder" else ""
             if said == TUTOR_CHOICES[0] or said.startswith(ARCHITECT_OWN):
                 wording = said[len(ARCHITECT_OWN):] if said.startswith(ARCHITECT_OWN) else question.rstrip("?.") + ", season by season"
                 return json.dumps({"say": ARCHITECT_BACK, "wording": wording, "choices": ARCHITECT_YES})
@@ -560,7 +560,7 @@ class Scenario:
         lines = re.findall(r"^- (.*?)( \[(?:holds|does not hold|cannot be checked)\b.*\])?$", rests.group(1) if rests else "", re.M)
         open_lines = [text for text, mark in lines if not mark] + writes.get("rests_on", [])
         found = {about: fact for about, fact in re.findall(r'^\d+\. about "(.*)" - (.*)$', said_so_far, re.M)}      # the last lookup made for a line
-        since = said_so_far[max(said_so_far.rfind("\nArchitect: "), said_so_far.rfind("\nPerson: "), 0):]      # what came back after the last thing said
+        since = said_so_far[max(said_so_far.rfind("\nPathfinder: "), said_so_far.rfind("\nPerson: "), 0):]      # what came back after the last thing said
         looked = bool(re.search(r'^\d+\. about ".*" - ', since, re.M))             # a round of lookups
         read_now = "\nSaved analyses" in since                                      # a reading of the saved analyses
         recall = bool(re.search(r"^SAVED: \d+$", user, re.M)) and "EARLIER (" not in user and "\nSaved analyses" not in "\n" + said_so_far
@@ -793,7 +793,7 @@ class Scenario:
         return _cell("A question outside the scripted story: one look at the data, then a short answer.",
                      _note(q, plan="describe, then report"), CELL_GENERIC)
 
-    # ------------------------------------------------------------ a run with a brief (the Architect)
+    # ------------------------------------------------------------ a run with a brief (the Pathfinder)
     def briefed(self, user, q, turn, forced):
         b = _brief(user)
         measure = b["fixed"].get("measure", "")

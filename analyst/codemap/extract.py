@@ -1,4 +1,4 @@
-"""The first stage of the code map (blueprint 4.1-4.5): each committed cell parsed, its top-level statements named for
+"""The first stage of the code trace (blueprint 4.1-4.5): each committed cell parsed, its top-level statements named for
 what they do (a fixed vocabulary of verbs), linked by the names they read and write across cells, the RESULT lines
 paired with their calls, the printouts the report cites traced from their print statements, the helpers the chain
 defined described from their own code. Pure: a ChainRecord in, statements and results out; no model, no kernel.

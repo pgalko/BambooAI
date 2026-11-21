@@ -204,16 +204,16 @@
         head(title, nums) {
             return '<div class="head"><span class="title">' + title + '</span><span class="nums">' + nums.filter(Boolean).join(' · ') + '</span></div>';
         },
-        // the code map's way in, for a chain that ran code: the chain id rides in the markup, so a card shown again still opens its map
+        // the code trace's way in, for a chain that ran code: the chain id rides in the markup, so a card shown again still opens its trace
         codemap(chain) {
             return '<button type="button" class="sp-act sp-codemap" data-chain="' + esc(chain) + '" title="How this chain got from its data to its numbers" onclick="if(typeof CodeMapUI!==\'undefined\')CodeMapUI.open(this.dataset.chain)">' +
-                ICON_MAP + 'Code map</button>';
+                ICON_MAP + 'Code trace</button>';
         },
         runEnd(r) {
             const rep = r.replay_status === 'reproduced' ? 'ok' : (r.replay_status ? 'warn' : '');
             const cellsNote = [r.failed ? esc(r.failed) + ' failed' : '', r.refused ? esc(r.refused) + ' not run' : ''].filter(Boolean).join(', ');
             // an answered run ends on the row of what can be done next: next-questions.js puts its button first in it,
-            // the code map's follows where the run ran code. The dataset pills ride once, under the REPLAY row (2026-10-06)
+            // the code trace's follows where the run ran code. The dataset pills ride once, under the REPLAY row (2026-10-06)
             return '<div class="sp-done">' +
                 build.head(r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete'),
                            [r.of ? esc(r.turns) + ' of ' + esc(r.of) + ' turns' : count(r.turns, 'turn'), count(r.cells || 0, 'cell') + (cellsNote ? ' (' + cellsNote + ')' : ''),
@@ -263,8 +263,8 @@
                                             : "if(typeof paneOpenPassage==='function')paneOpenPassage('" + esc(ref) + "')";
                 return '<span class="cite ' + kind + '" data-unit="' + esc(ref) + '" title="' + esc(title) + '" onclick="' + open + '">' + esc(ref) + '</span>';
             }
-            // [cell n] opens the code map on that number's recipe (2026-10-24, the third way in; the cell's code is a click
-            // further, from the map's panel); the chip hands over itself, so the map can read the sentence it sits in
+            // [cell n] opens the code trace on that number's recipe (2026-10-24, the third way in; the cell's code is a click
+            // further, from the trace's panel); the chip hands over itself, so the trace can read the sentence it sits in
             if (kind === 'cell') return '<span class="cite cell" title="How this number was made" onclick="if(typeof paneOpenRecipe===\'function\')paneOpenRecipe(this,' + esc(ref) + ')">cell ' + esc(ref) + '</span>';
             return '<span class="cite ' + kind + '" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'Plots\')">' + kind + ' ' + esc(ref) + '</span>';
         }
@@ -451,7 +451,7 @@
     window.paneDatasets = function (d) { append(build.datasets(d)); };
     // A closing card kept from before 0313 comes to the shape of today's when its chain is shown again: its title and
     // numbers on one line; no links - the tabs are the way to the answer, and one of the links led nowhere; the code
-    // map's button in the row of what can be done next, with the button next-questions.js had put under the links.
+    // trace's button in the row of what can be done next, with the button next-questions.js had put under the links.
     // The card of a routine's run had links and nothing else to do next: its row goes
     window.paneRenew = function (pane) {
         if (!pane) return;
@@ -514,8 +514,8 @@
         const tab = Array.from(document.querySelectorAll('.tab, .tab-button, [data-tab]')).find(el => (el.textContent || '').trim().toLowerCase().startsWith(name.toLowerCase()));
         if (tab) tab.click();
     };
-    // a [cell n] chip in the report: the code map on that cell's number. The words before the chip in its block, from
-    // the last sentence end, go along so the map can tell which of the cell's numbers the sentence names; the chain is
+    // a [cell n] chip in the report: the code trace on that cell's number. The words before the chip in its block, from
+    // the last sentence end, go along so the trace can tell which of the cell's numbers the sentence names; the chain is
     // the one on screen, as the closing card's link has it
     window.paneOpenRecipe = function (el, n) {
         if (!window.CodeMapUI) { window.paneOpenCell(n); return; }                 // a page without the module: the cell, as before
@@ -530,7 +530,7 @@
         while ((m = ends.exec(tail)) !== null) cut = m.index;
         window.CodeMapUI.open(null, { view: 'diagram', cell: n, near: cut >= 0 ? tail.slice(cut + 1) : tail });
     };
-    // the cell in the Investigation tab; with `hl` (the code map's recipe, 2026-10-24: {lines: {cell: [[from, to], ...]},
+    // the cell in the Investigation tab; with `hl` (the code trace's recipe, 2026-10-24: {lines: {cell: [[from, to], ...]},
     // own: {cell: [...]}}) the lines behind the number are lit in every cell of the recipe, the RESULT's own statement
     // strong - bars behind the code, placed by line, so the syntax colouring is untouched; the last lighting is cleared first
     window.paneOpenCell = function (n, hl) {

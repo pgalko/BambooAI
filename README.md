@@ -10,15 +10,15 @@ BambooAI is an AI-powered data analysis workbench designed to make the analytica
 
 At its core is an LLM Analyst working in a persistent Python environment. Given a dataset and a question, the Analyst explores the data, writes and executes code, examines results and develops its analysis iteratively. You can follow the investigation as it unfolds, ask follow-up questions, revisit earlier steps or branch into a different line of enquiry without losing the previous work.
 
-BambooAI preserves the complete computational record: executed code, outputs, figures, intermediate results, working notes and model interactions. Numerical findings are linked to the code that produced them, while a code map helps trace how results were derived. At the end of an analysis, the supporting computation is replayed in a fresh Python kernel to check reproducibility.
+BambooAI preserves the complete computational record: executed code, outputs, figures, intermediate results, working notes and model interactions. Numerical findings are linked to the code that produced them, while a code trace shows how results were derived. At the end of an analysis, the supporting computation is replayed in a fresh Python kernel to check reproducibility.
 
 You retain control over the models, the depth of analysis and the direction of the investigation. Adaptive mode introduces a separate Reviewer model that can challenge assumptions, question the evidence and request further tests. Completed analyses can also be turned into reusable routines and applied to new datasets.
 
 The underlying principle is simple: AI-generated analysis should be open to the same scrutiny as any other analytical work. Reproducible calculations are an important part of that, but the choice of methods, assumptions and interpretation must also remain open to examination.
 
-![BambooAI: a run beside its data and the report's figures; the chain's code map and the recipe of one of its numbers](docs/images/bambooai_app.jpg)
+![BambooAI: a run beside its data and the report's figures; the chain's code trace and the recipe of one of its numbers](docs/images/bambooai_app.jpg)
 
-*1 · a run: the turns and cells on the left, the data on the right · 2 · the report's figures · 3 · the chain's code map · 4 · the recipe of one of its numbers.*
+*1 · a run: the turns and cells on the left, the data on the right · 2 · the report's figures · 3 · the chain's code trace · 4 · the recipe of one of its numbers.*
 
 ![BambooAI: the Usage dialog - a month of analyses by day and by seat; one analysis's seats, calls in time and models](docs/images/bambooai_usage.jpg)
 
@@ -39,7 +39,7 @@ The underlying principle is simple: AI-generated analysis should be open to the 
   - [Analysis modes](#analysis-modes)
   - [Reports and verification](#reports-and-verification)
   - [Follow-ups and plots](#follow-ups-and-plots)
-  - [The Architect](#the-architect)
+  - [The Pathfinder](#the-pathfinder)
   - [Branching](#branching)
   - [Saved analyses as memory](#saved-analyses-as-memory)
   - [Routines](#routines)
@@ -75,7 +75,7 @@ The Python environment retains variables, dataframes and intermediate calculatio
 
 BambooAI records the analytical process as it happens. The user can inspect executed code, outputs, figures, intermediate results, working notes and model interactions, including token usage, execution time and cost.
 
-Numerical estimates are recorded alongside the computations that produced them. Reports reference those calculations, and an automatically generated code map helps trace results through the underlying data transformations and intermediate steps.
+Numerical estimates are recorded alongside the computations that produced them. Reports reference those calculations, and an automatically generated code trace follows results through the underlying data transformations and intermediate steps.
 
 Once an analysis is complete, BambooAI reconstructs the supporting computation in a fresh Python kernel and runs it again against the original data. This replay verification checks whether the reported numerical results can be reproduced.
 
@@ -91,7 +91,7 @@ Other specialised roles handle supporting tasks such as document reading, figure
 
 ### Framing the question
 
-A sound analysis of the wrong question still misleads. The optional **Architect** works on the question before
+A sound analysis of the wrong question still misleads. The optional **Pathfinder** works on the question before
 any code runs. It talks it through with you, like a tutor, and writes a short **brief**: what the answer is for,
 what you expect, and what else could explain the result. It checks the brief against the loaded data and looks
 through your saved analyses for earlier work on the same subject. The analysis is then held to the brief, and the
@@ -156,7 +156,7 @@ The working directory holds configuration and saved work:
 ├── storage/<user>/threads/           thread records: runs, cells, reports and replay results
 ├── storage/<user>/usage_ledger.jsonl  completed-analysis records for Usage
 ├── storage/<user>/favourites/        saved chains
-├── storage/<user>/memory/            the saved analyses as one view, kept for the Architect
+├── storage/<user>/memory/            the saved analyses as one view, kept for the Pathfinder
 ├── storage/<user>/routines/          routine versions, runs and results
 ├── storage/<user>/context/           codebooks and coded Intervals.icu passages
 └── logs/<user>/                      model calls, tokens, latency and cost
@@ -226,7 +226,7 @@ After `REPORT`, BambooAI performs several distinct steps:
 - **Reproduction.** Committed cells are replayed in order in a fresh kernel, through the last cited or
   figure-producing cell. Numerical outputs are compared with the original run. The closing card shows
   the verdict and number of values checked; replayed figures appear in **Plots**.
-- **Code map.** Built from committed code and kernel records, without an LLM. It traces each result to
+- **Code trace.** Built from committed code and kernel records, without an LLM. It traces each result to
   its cells, input data, intermediate values and choices such as seeds or thresholds. Open it from the
   closing card or a report's `[cell n]` citation. It documents *how* a result was obtained, not whether
   the method was sound. See [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md).
@@ -251,23 +251,23 @@ Use the chat button on a figure to ask about it. The image is included only when
 images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
 without the image, and the app indicates that limitation.
 
-### The Architect
+### The Pathfinder
 
-Switch **Architect** on beside the mode control and type a question. Nothing runs yet. The Architect talks it
+Switch **Pathfinder** on beside the mode control and type a question. Nothing runs yet. The Pathfinder talks it
 through with you in the left pane, and the brief builds up on its own tab.
 
-- **The question.** The top of the Brief tab is what the Analyst will be asked. The Architect rewrites it as you
+- **The question.** The top of the Brief tab is what the Analyst will be asked. The Pathfinder rewrites it as you
   talk, and you can change it with its pencil.
 - **The brief.** Under the question: what the answer is for, what you think is going on, what you expect to see.
   Any line can be changed in place.
 - **Checks.** What the brief rests on is looked up in the data and marked *holds*, *does not hold* or *cannot be
-  checked*. The Architect may also propose up to two other explanations; you tick the ones to test.
+  checked*. The Pathfinder may also propose up to two other explanations; you tick the ones to test.
 - **Figures.** Ask for a figure and a draft appears in the brief, so you see what you will get. A draft drawn on
   made-up numbers is marked so.
 - **Going back.** Each message or change is a step. Go back to any step and continue from there: the conversation
   branches, and the path you left stays on the **Pathfinding map** (see [Branching](#branching)).
 - **Start analysis.** The question is first read without the conversation, as the Analyst will read it. If it
-  points to something the Analyst does not have, the Architect rewords it and you start again.
+  points to something the Analyst does not have, the Pathfinder rewords it and you start again.
 - **The result.** The Brief tab shows *How it turned out*: what you expected, and how each other explanation
   fared. The Answer, which you may share, does not show this.
 
@@ -275,12 +275,12 @@ After a run, **Next questions** on the *Run complete* card offers five ways to g
 test boundaries, blend elements and follow emergence. Each way gives up to five questions drawn from what the
 analysis found or left open. Change one if you like, then run it.
 
-The Architect's messages are a model's, so the brief is yours to correct. Its instructions are in
+The Pathfinder's messages are a model's, so the brief is yours to correct. Its instructions are in
 [`analyst/architect.md`](analyst/architect.md).
 
 ### Branching
 
-You can go back and branch at three levels: the **thread**, and within a **chain** the **Architect**'s conversation
+You can go back and branch at three levels: the **thread**, and within a **chain** the **Pathfinder**'s conversation
 and the **Analyst**'s turns. The original path is always kept, and each level has a map of its branches. **Maps** on
 the left bar (Ctrl/Cmd+M) opens all three in one drawer: a switch at its top, or the left and right arrow keys, moves
 between the thread's map and the two maps of the chain on screen.
@@ -288,19 +288,19 @@ between the thread's map and the two maps of the chain on screen.
 | Level | Go back to | Continue with | Map |
 |---|---|---|---|
 | **Thread** | an earlier chain | a follow-up question | Workflow map |
-| **Chain · Architect** | an earlier step of the conversation about the brief | a different answer, or a change to the brief | Pathfinding map |
+| **Chain · Pathfinder** | an earlier step of the conversation about the brief | a different answer, or a change to the brief | Pathfinding map |
 | **Chain · Analyst** | an earlier turn of the analysis | a hint | Analysis map |
 
 - **Thread.** Open any chain with the chain arrows or from the Workflow map and ask a follow-up. It starts from the
   Python state in which that chain ended.
-- **Chain · Architect.** While a question is being framed, step back with the arrows on the Brief tab, on the
-  Pathfinding map, or with the branch button on one of the Architect's cards. The Architect no longer sees the path
+- **Chain · Pathfinder.** While a question is being framed, step back with the arrows on the Brief tab, on the
+  Pathfinding map, or with the branch button on one of the Pathfinder's cards. The Pathfinder no longer sees the path
   you left.
 - **Chain · Analyst.** Once an analysis has finished or been stopped, pick a turn on the Analysis map, or use the
   branch button on its card, and type a hint such as *keep the soil types apart*. The Analyst receives the turns up
   to that point and your hint, and writes a report of its own. The kernel returns to the state it held after that
   turn, so earlier cells are re-run only if that state is no longer available, and you pay only for the new turns.
-  The branch keeps the original mode and brief and does not call the Architect; where the hint and the brief
+  The branch keeps the original mode and brief and does not call the Pathfinder; where the hint and the brief
   conflict, the hint takes precedence.
 
 Saving a thread keeps all its branches. An analysis can be branched only if it was made with version 2.9 or later
@@ -309,9 +309,9 @@ and its data is loaded; routine runs and questions about a plot cannot. See
 
 ### Saved analyses as memory
 
-The analyses you save are the Architect's memory. Deleting a saved workflow removes it.
+The analyses you save are the Pathfinder's memory. Deleting a saved workflow removes it.
 
-While a brief is written, the Architect can look through them, on its own once it knows the subject or when you
+While a brief is written, the Pathfinder can look through them, on its own once it knows the subject or when you
 ask. What it finds is shown as exact quotes, each with its analysis and date. A quote that is not word for word in
 the record is dropped. Where earlier analyses disagree, it says so and asks which way this one goes. Say *build on
 this one* and the brief lists it. The Analyst then gets its passages as earlier results to test, and can open its
@@ -385,7 +385,7 @@ defined in the template):
 ```json
 "performance_agent_configs": [
   {"agent": "Analyst",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "xhigh",  "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Architect",                 "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 16000, "temperature": 0}},
+  {"agent": "Pathfinder",                "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 16000, "temperature": 0}},
   {"agent": "Figures",                   "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Rewriter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reader",                    "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "low",    "max_tokens": 16000, "temperature": 0}},
@@ -413,8 +413,9 @@ The default `cost` preset uses OpenRouter throughout (DeepSeek with Grok for rev
 Claude for several seats, and `max` moves those to Opus. Supported providers include OpenRouter, OpenAI,
 Anthropic, Google, Groq, Mistral, xAI, DeepSeek, Ollama and vLLM.
 
-`Architect`, `Memory Reader` and `Memory Pieces` may be left out. The Architect and the reader of the saved
-analyses then use the `Analyst` seat, and the reader's second model the `Reader` seat.
+`Pathfinder`, `Memory Reader` and `Memory Pieces` may be left out. The Pathfinder and the reader of the saved
+analyses then use the `Analyst` seat, and the reader's second model the `Reader` seat. A config written before 2.9
+names the Pathfinder's seat `Architect`; that name is still read.
 
 | Seat | Function |
 |---|---|
@@ -720,7 +721,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 ```
 
 - [`analyst/session.py`](analyst/session.py) drives the turn loop using
-  [`analyst/contract.md`](analyst/contract.md). Reports, replay, the code map and routines are
+  [`analyst/contract.md`](analyst/contract.md). Reports, replay, the code trace and routines are
   implemented under `analyst/`.
 - [`delve/kernel.py`](delve/kernel.py) runs code in a subprocess and keeps a snapshot of every
   successful cell; failed cells roll back.
@@ -730,7 +731,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - `analyst/context.py`, `analyst/coder.py` and `containers/executor/intervals_store.py` implement
   training context, coding and incremental data storage.
 - `analyst/architect.py`, `analyst/brief.py`, `analyst/steps.py`, `analyst/lookup.py`, `analyst/draft.py`,
-  `analyst/cold.py` and `analyst/next_questions.py` implement the Architect; `analyst/memory.py` and `analyst/reader.py` the memory
+  `analyst/cold.py` and `analyst/next_questions.py` implement the Pathfinder; `analyst/memory.py` and `analyst/reader.py` the memory
   made of saved analyses.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.

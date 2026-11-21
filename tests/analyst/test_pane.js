@@ -207,7 +207,7 @@ w.paneTurnEnd({turn:4, kind:'cell', thinking:'The step it read.', note:'- Names:
 check('a call before the turn format: the live step stops where the call begins; the finished card shows the step the session read',
       tc2Live.startsWith('I print the table.') && !tc2Live.includes('invoke') && tc2.querySelector('.sp-think').textContent === 'The step it read.', [tc2Live, tc2.querySelector('.sp-think') && tc2.querySelector('.sp-think').textContent]);
 
-// a [cell n] chip opens the code map on that number (2026-10-24): the chip hands the map its cell and the sentence it sits in
+// a [cell n] chip opens the code trace on that number (2026-10-24): the chip hands the map its cell and the sentence it sits in
 const opened = []; w.CodeMapUI = { open: (id, o) => opened.push([id, o]) };
 const para = doc.createElement('p'); para.innerHTML = w.paneCiteHtml('<p>The medians were equal (28 vs 28) [cell 1]. Survivors are on average 2.3 years younger (95% CI −4.5 to −0.1) [cell 2].</p>').replace(/^<p>|<\/p>$/g, '');
 w.paneOpenRecipe(para.querySelectorAll('.cite.cell')[1], 2);
@@ -276,15 +276,15 @@ const cardOf = r => { const d = doc.createElement('div'); d.innerHTML = w.__pane
 const shape = c => c.elements.map(e => e.className).join('|'), numsOf = r => cardOf(r).querySelector('.head .nums').textContent;
 const full = cardOf({ of: 15, plots: 3, cells: 8, failed: 4, refused: 1, chain_id: 77, brief: true, replay_status: 'reproduced', replay_line: 'Replay reproduced the cited results.', reaches: { recorded: true, counts: {} } });
 check('closing card (0313): the head - the title and, beside it, the turns of how many, the cells with those that failed or were not run, the plots, the cost and the time; then the replay line, the faint line '
-  + 'that nothing was reached, and the row of what can be done next, which holds the code map\'s button. No link, no arrow, no word of a tab - with a brief or without',
+  + 'that nothing was reached, and the row of what can be done next, which holds the code trace\'s button. No link, no arrow, no word of a tab - with a brief or without',
   shape(full) === 'head|rep ok|reaches quiet|acts' && full.querySelector('.head').elements.map(e => e.tag + '.' + e.className).join() === 'span.title,span.nums' && full.querySelector('.title').textContent === 'Run complete'
   && numsOf({ of: 15, plots: 3, cells: 8, failed: 4, refused: 1 }) === '2 of 15 turns · 8 cells (4 failed, 1 not run) · 3 plots · $0.10 · 9.0 s'
   && full.querySelectorAll('a').length === 0 && !/→|Answer|Brief|Simplified|Investigation/.test(full.textContent) && cardOf({ brief: true }).outerHTML === cardOf({ brief: false }).outerHTML
-  && full.querySelectorAll('.acts button').length === 1 && full.querySelector('.acts .sp-act.sp-codemap').textContent === 'Code map' && full.querySelector('.acts .sp-codemap').getAttribute('data-chain') === '77'
+  && full.querySelectorAll('.acts button').length === 1 && full.querySelector('.acts .sp-act.sp-codemap').textContent === 'Code trace' && full.querySelector('.acts .sp-codemap').getAttribute('data-chain') === '77'
   && full.querySelector('.acts .sp-codemap svg') && full.querySelector('.acts .sp-codemap').getAttribute('type') === 'button', full.outerHTML);
 check('closing card: one of a thing is said as one - "1 turn", "1 cell", "1 plot" - and nothing of plots where there are none; a run without a turn count of how many says its turns alone',
   numsOf({ turns: 1, cells: 1, plots: 1 }) === '1 turn · 1 cell · 1 plot · $0.10 · 9.0 s' && numsOf({ turns: 3, cells: 0 }) === '3 turns · 0 cells · $0.10 · 9.0 s' && numsOf({ of: 1, turns: 1 }) === '1 of 1 turns · 1 cell · $0.10 · 9.0 s');
-check('closing card: the row of what can be done next stands on every answered run - next-questions.js puts its button there - with the code map\'s button only where the run ran code and names its chain; '
+check('closing card: the row of what can be done next stands on every answered run - next-questions.js puts its button there - with the code trace\'s button only where the run ran code and names its chain; '
   + 'a run that was stopped, and one that asked, have no row',
   shape(cardOf({ cells: 0, chain_id: 77 })) === 'head|acts' && cardOf({ cells: 0, chain_id: 77 }).querySelectorAll('.acts button').length === 0 && cardOf({ cells: 2 }).querySelectorAll('.acts button').length === 0
   && cardOf({ cells: 2, chain_id: 77 }).querySelectorAll('.acts button').length === 1
@@ -301,7 +301,7 @@ check('the closing card of a routine\'s run (0313): the same shape - its title w
 // a card kept from before 0313, as a chain's kept markup holds it: shown again, it comes to today's shape
 const KEPT_CARD = '<div class="sp-done"><div class="title">Run complete</div><div class="grid"><span>Turns <b>13</b></span><span>Cells <b>8</b> (4 failed)</span><span>Cost <b>$0.14</b></span><span>Time <b>5 min 9 s</b></span></div>' +
   '<div class="rep ok">✓ Replay reproduced.</div><div class="reaches quiet"><span class="h">No reaches outside the data</span></div>' +
-  '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><a href="#">Plots (3) →</a><button class="sp-codemap" data-chain="88">Code map →</button></div>' +
+  '<div class="links"><a href="#">Answer →</a><a href="#">Brief →</a><a href="#">Simplified →</a><a href="#">Investigation →</a><a href="#">Plots (3) →</a><button class="sp-codemap" data-chain="88">Code trace →</button></div>' +
   '<div class="nq-open"><button type="button" class="sp-next" data-nq="open" title="t">Next questions</button></div><details class="sp-telemetry"><summary>call telemetry</summary><pre>x</pre></details></div>';
 const KEPT_ROUTINE = '<div class="sp-done"><div class="title">Run 3 complete</div><div class="grid"><span>Results <b>4</b></span><span>Time <b>5 s</b></span></div><div class="rep ok">✓ Reproduced.</div>' +
   '<div class="links"><a href="#">Trend →</a><a href="#">Results →</a><a href="#">Data →</a></div></div>';
@@ -309,12 +309,12 @@ const keptPane = doc.createElement('div'); keptPane.innerHTML = '<div class="sp-
 const today = keptPane.querySelectorAll('.sp-done')[3].outerHTML;
 w.paneRenew(keptPane);
 const renewed = keptPane.querySelectorAll('.sp-done');
-check('a closing card kept from before (0313), shown again: its title and its numbers on one line, as they were written; its links gone, every one - the tabs are the way to the answer; the code map\'s '
+check('a closing card kept from before (0313), shown again: its title and its numbers on one line, as they were written; its links gone, every one - the tabs are the way to the answer; the code trace\'s '
   + 'button as today\'s, with its chain, in the row of what can be done next - the Next questions button it had under the links first in that row, the same button; the telemetry last, untouched. The '
   + 'card of a routine\'s run keeps no row; a run that was stopped had none. Today\'s card is left as it is, and a pane renewed twice is renewed once; no pane at all is no error',
   shape(renewed[0]) === 'head|rep ok|reaches quiet|acts|sp-telemetry' && renewed[0].querySelector('.head').elements.map(e => e.className).join() === 'title,nums'
   && renewed[0].querySelector('.nums').textContent === 'Turns 13Cells 8 (4 failed)Cost $0.14Time 5 min 9 s' && renewed[0].querySelectorAll('a').length === 0 && !/→/.test(renewed[0].textContent)
-  && renewed[0].querySelectorAll('.acts button').map(x => x.className + '=' + x.textContent).join('|') === 'sp-next sp-act=Next questions|sp-act sp-codemap=Code map'
+  && renewed[0].querySelectorAll('.acts button').map(x => x.className + '=' + x.textContent).join('|') === 'sp-next sp-act=Next questions|sp-act sp-codemap=Code trace'
   && renewed[0].querySelector('.acts .sp-codemap').getAttribute('data-chain') === '88' && renewed[0].querySelector('.acts [data-nq="open"]').getAttribute('title') === 't' && !renewed[0].querySelector('.nq-open')
   && shape(renewed[1]) === 'head|rep ok' && renewed[1].querySelector('.nums').textContent === 'Results 4Time 5 s' && shape(renewed[2]) === 'head' && renewed[3].outerHTML === today
   && (() => { const once = keptPane.innerHTML; w.paneRenew(keptPane); w.paneRenew(null); return keptPane.innerHTML === once; })(), renewed[0].outerHTML);
@@ -328,7 +328,7 @@ check('the closing card\'s look and its hook, from the sources (0313): the title
   && paneCss.includes('#streamOutput .sp-done .reaches.quiet { margin-top: 3px; padding-top: 0; border-top: 0;') && !/\.sp-done \.(grid|links)\b/.test(paneCss)
   && showSrc.includes("document.getElementById('streamOutput').innerHTML = response.streamOutput;\n    if (typeof paneRenew === 'function') paneRenew(document.getElementById('streamOutput'));"));
 pane2.innerHTML = '';
-w.paneAppend('<details class="sp-turn ar-fold"><summary>Architect</summary></details>');
+w.paneAppend('<details class="sp-turn ar-fold"><summary>Pathfinder</summary></details>');
 w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m'});
 check('a row of the page\'s own (the framing, folded): it makes the pane\'s strip, ids line and stream when the pane is empty and goes first in the stream; the run\'s strip and cards follow it',
   pane2.elements.map(e => e.className).join() === 'sp-strip,sp-ids-slot,sp-stream' && pane2.querySelector('.sp-stream').elements.map(e => e.className).join('|') === 'sp-turn ar-fold|sp-turn live'

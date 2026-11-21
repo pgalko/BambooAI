@@ -77,7 +77,7 @@
         if (o === 'stopped') return 'stopped before it answered';
         if (o === 'asked') return 'the analyst asked a question and waited';
         if (o === 'running') return 'still running when last saved';
-        if (o === 'not run') return 'a brief written with the Architect; its analysis was not started';
+        if (o === 'not run') return 'a brief written with the Pathfinder; its analysis was not started';
         return '';
     }
     function chip(o) { return o ? '<span class="rt-status ' + statusClass(o) + '" title="' + esc(gloss(o)) + '">' + esc(o) + '</span>' : ''; }
@@ -280,7 +280,7 @@
                 + '</tbody></table>';
         },
         seatsTab(data, st) {
-            return '<div class="us-sec"><div class="h">Seats <span class="n">— who spent what; a seat is one role the analyst plays (the Analyst writes the cells, the Reviewer judges them, the Architect frames the question, the Memory Reader reads your saved analyses, the Reader reads documents…)</span></div>' + build.seatsTable(data.seats, data.totals, st.sort.seats) + '</div>'
+            return '<div class="us-sec"><div class="h">Seats <span class="n">— who spent what; a seat is one role the analyst plays (the Analyst writes the cells, the Reviewer judges them, the Pathfinder frames the question, the Memory Reader reads your saved analyses, the Reader reads documents…)</span></div>' + build.seatsTable(data.seats, data.totals, st.sort.seats) + '</div>'
                 + '<div class="us-sec"><div class="h">Models <span class="n">— the list price is the configuration’s, per million tokens; the cost is what the calls came to at it</span></div>' + build.modelsTable(data.models, data.totals, st.sort.models) + '</div>';
         },
         // the ledger: every chain of the period with what it cost, grouped by day; pick one for its breakdown

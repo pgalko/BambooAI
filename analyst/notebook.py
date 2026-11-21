@@ -147,7 +147,7 @@ class Turn:
     error: str = ""                 # CELL: traceback, if the cell failed
     figures: List[dict] = field(default_factory=list)   # CELL: plot payloads returned by the kernel
     results: List[dict] = field(default_factory=list)   # CELL: the RESULT(...) records the kernel kept (text, typed, test, corrects, line)
-    registry: dict = field(default_factory=dict)   # CELL: the kernel's {name: {type, desc}} for the names this cell made or changed (the code map, 2026-10-20)
+    registry: dict = field(default_factory=dict)   # CELL: the kernel's {name: {type, desc}} for the names this cell made or changed (the code trace, 2026-10-20)
     reaches: List[dict] = field(default_factory=list)   # CELL: what the cell touched outside the data, each marked asked (analyst/reach.py, 2026-10-28)
     refused: str = ""               # CELL: the restricted word the executor refused the cell for; it did not run and this is not an error of the code (2026-10-28)
     cell_no: Optional[int] = None   # CELL: its number along the path (only committed cells get one)
@@ -182,12 +182,12 @@ class Run:
     status: str = "running"         # running | answered | asked | stopped | failed | framing (the brief is being written; no analysis yet)
     created: float = field(default_factory=_now)
     data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
-    mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code map's header)
-    code_map: dict = field(default_factory=dict)   # the code map built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
+    mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code trace's header)
+    code_map: dict = field(default_factory=dict)   # the code trace built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
     sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit
-    framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Architect: {versions: [{n, by, changed, why, brief}],
+    framing: dict = field(default_factory=dict)   # the brief's versions, each kept, and the conversation with the Pathfinder: {versions: [{n, by, changed, why, brief}],
                                                   # turns: [{who, text, choices, wording, v, cost, call} | {who: "check", found: [{k, about, fact, ran}], secs}
                                                   # | {who: "memory", found, ...} | {who: "opened", what, run, n, label, chars} or {who: "opened", missing}], calls,
                                                   # proposed, saved, data} (docs/ARCHITECT_DESIGN.md §2.6, §2.12-§2.14, §2.17); {} for a run not framed
@@ -248,7 +248,7 @@ def hint_block(run: Run) -> str:
 
 def hint_lines(hints: Optional[list]) -> List[str]:
     """A run's hints as one who reads the run afterwards is told them, a line each: the analyst of a later question
-    of the thread, the Architect, memory's reader. From a Run's `hints`, or its dict's."""
+    of the thread, the Pathfinder, memory's reader. From a Run's `hints`, or its dict's."""
     return [f"HINT FROM THE PERSON after turn {h['turn']}: {' '.join(h['text'].split())}" for h in hints or []]
 
 

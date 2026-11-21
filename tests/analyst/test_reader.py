@@ -448,7 +448,7 @@ llm, pieces, sentc = models(['JUDGE\n{"runs": "all", "parts": ["conversation"], 
 resc = reader.read("What did I know then?", vc, kernel, llm, pieces, clock=lambda: 1000.0)
 check("the conversation of a framed run: the second model reads it where the reader names the part, after the report, under a heading of its own; a quote from it stands, over its lines too, and code "
       "says it stands in the conversation - a run of words the brief holds as well stands in the brief. What SHOW SAVED opens does not hold it",
-      rc["conversation"] == "Person: Plot the thing\nArchitect: Two things could be looked at.\n\n- the shape\n- where two starts part\nPerson: Where they part: the butterfly is new to me"
+      rc["conversation"] == "Person: Plot the thing\nPathfinder: Two things could be looked at.\n\n- the shape\n- where two starts part\nPerson: Where they part: the butterfly is new to me"
       and reader.piece(vc, rc, ["report", "conversation"]) == ("=== 850/851 ===\nQUESTION: Plot x against z for two starts\nTITLE: Two starts\nREPORT:\n# Two starts\n\nThey part after 20 units [cell 1].\n"
                                                                "CONVERSATION:\n" + rc["conversation"])
       and "CONVERSATION:" not in reader.piece(vc, rc, ["report", "brief"]) and "\nCONVERSATION:\nPerson: Plot the thing\n" in sentc["pieces"][0][1] and "\nREPORT:\n" not in sentc["pieces"][0][1]

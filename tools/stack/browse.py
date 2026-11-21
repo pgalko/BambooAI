@@ -10,7 +10,7 @@ The story: cold page -> the dataset uploaded through the file input -> the quest
 Deep run (screenshots while it runs and when it completes) -> each right-pane tab -> the
 simplified view -> a follow-up on the warm kernel -> the chain navigation -> the Workflow map ->
 Save as favourite -> Saved workflows -> the settings dialogs -> a question framed with the
-Architect, its analysis, and the next questions that follow it.
+Pathfinder, its analysis, and the next questions that follow it.
 Page errors and console errors are written to <out>/console.txt; a non-empty errors list makes
 the exit status 1, so the walk doubles as a smoke test.
 """
@@ -218,7 +218,7 @@ def story(w, mod, dataset, questions):
     w.shot("account_dialog")
     close_dialogs()
 
-    # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14, §2.18): a question typed with the switch on, the conversation that
+    # the Pathfinder (docs/ARCHITECT_DESIGN.md §2.11-§2.14, §2.18): a question typed with the switch on, the conversation that
     # fills its brief, the parts + Add offers, the check of what it rests on against the data, the explanation it proposes and
     # the coach ticks, a line changed by hand, an earlier step of the conversation on screen, the analysis started from the brief,
     # the report against it, the Workflow map
@@ -269,7 +269,7 @@ def story(w, mod, dataset, questions):
         said(6)
         w.shot("architect_ready")
         versions = p.evaluate("() => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length")
-        p.click('#content-brief .ar-line[data-path="also_check.0"] .tick')      # what the Architect proposed, accepted
+        p.click('#content-brief .ar-line[data-path="also_check.0"] .tick')      # what the Pathfinder proposed, accepted
         p.wait_for_function("(n) => JSON.parse(document.querySelector('#content-brief .ar-brief').dataset.framing).versions.length === n + 1", arg=versions, timeout=15000)
         p.wait_for_timeout(300)
         w.shot("architect_ticked")
@@ -356,7 +356,7 @@ def story(w, mod, dataset, questions):
         w.shot("next_card_run")
         p.click("#architectSwitch")
 
-    # the saved analyses in the Architect (docs/ARCHITECT_DESIGN.md §3.7, §2.18): the framed analysis saved, then a question it
+    # the saved analyses in the Pathfinder (docs/ARCHITECT_DESIGN.md §3.7, §2.18): the framed analysis saved, then a question it
     # bears on framed in a workflow of its own - what the reading found, under its row and under the brief; one analysis
     # viewed whole; the coach's answer that builds on it; a second reading asked for in words and skipped; and the analysis
     # under that brief: its first step opens the saved one
@@ -417,8 +417,8 @@ def story(w, mod, dataset, questions):
         w.shot("saved_run")
         p.click("#architectSwitch")
 
-    # the Architect as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question as the
-    # Architect words it - written at once, a version each time; an earlier step brought back with the arrow and gone on from -
+    # the Pathfinder as a tutor (2026-11-17), with nothing loaded: a bare request, what could be looked at, the question as the
+    # Pathfinder words it - written at once, a version each time; an earlier step brought back with the arrow and gone on from -
     # another way - and the conversation's map, with the way that was left to go back to (§2.25); then the analysis, a question that follows it - the saved analyses read, the report of the analysis before opened - and "build on it"
     tutor_question = getattr(mod, "TUTOR_QUESTION", None)
     if brief_question and tutor_question and p.query_selector("#architectSwitch"):
@@ -433,7 +433,7 @@ def story(w, mod, dataset, questions):
         p.wait_for_selector("#content-brief .ar-brief", timeout=15000)
         said(1)
         w.shot("tutor_first")
-        p.click("#streamOutput .ar-choice >> nth=0")          # a choice taken: the Architect words the question, and it is the question at once
+        p.click("#streamOutput .ar-choice >> nth=0")          # a choice taken: the Pathfinder words the question, and it is the question at once
         said(2)
         p.wait_for_timeout(300)
         w.shot("tutor_question")
@@ -471,7 +471,7 @@ def story(w, mod, dataset, questions):
             if pointer:                                      # the question's check (§2.22): the coach's wording points to an analysis the Analyst is not given
                 write("question", p.inner_text("#content-brief h1 .tx") + ", " + pointer)
                 replies = p.evaluate("() => document.querySelectorAll('#streamOutput .sp-stream > .ar-msg.arch:not(.wait)').length")
-                p.click('#content-brief [data-ar="start"]')  # read first: nothing runs, the row says which words, the Architect words the question again
+                p.click('#content-brief [data-ar="start"]')  # read first: nothing runs, the row says which words, the Pathfinder words the question again
                 said(replies + 1)
                 p.wait_for_timeout(300)
                 w.shot("tutor_question_check")
@@ -490,7 +490,7 @@ def story(w, mod, dataset, questions):
             w.shot("tutor_build")
         p.click("#architectSwitch")
 
-    # the figures and their draft (docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data: asked to show them, the Architect describes
+    # the figures and their draft (docs/ARCHITECT_DESIGN.md §2.19, §2.20), on data: asked to show them, the Pathfinder describes
     # the figures and a draft of each is drawn on the Brief tab - on made-up numbers what the data will give, computed what
     # follows from a rule; another order by their numbers, a figure taken out with its cross, then the analysis, which
     # draws the ones that stand

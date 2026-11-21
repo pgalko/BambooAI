@@ -1,6 +1,6 @@
 """The steps of a brief's conversation (docs/ARCHITECT_DESIGN.md §2.25).
 
-While a brief is written, what the person says or changes, with what the Architect does in reply, is one step. A step
+While a brief is written, what the person says or changes, with what the Pathfinder does in reply, is one step. A step
 follows another, and more than one may follow the same step: the person went back and took another way. A framing
 holds the conversation of one way - the way to the step in use: its turns, the passages its readings found, the
 version of the brief that stands at its end - and, set aside, what the steps off that way hold:
@@ -11,12 +11,12 @@ version of the brief that stands at its end - and, set aside, what the steps off
      "aside": {"4": {"turns": [...], "found": [...]}, ...}}      what the steps off the way to the one in use hold
 
 A step: its number, the step it follows (0: none), the version of the brief in use at its end, the versions it made,
-how many turns and found passages are its own, and how many explanations the Architect had proposed by its end.
+how many turns and found passages are its own, and how many explanations the Pathfinder had proposed by its end.
 
 take() counts what was added to a framing into a step: a new one where the person spoke or changed the brief by
 hand, where the question was read before its analysis, or where the step in use has one after it - what was is not
 changed; otherwise the step in use. go() puts another step in use: the framing then holds that step's way, and what
-the others hold is set aside. So whoever reads a framing - the Architect, the page, what is kept of a saved
+the others hold is set aside. So whoever reads a framing - the Pathfinder, the page, what is kept of a saved
 analysis - reads one way and nothing of the others. A framing kept before steps is one way, a step to a version:
 take() counts it so the first time it is touched.
 """
@@ -107,7 +107,7 @@ def said(framing: dict) -> list:
 def take(framing: dict) -> dict:
     """The framing with what was added to it since its steps were last counted taken into a step: the turns and
     found passages beyond those of the way to the step in use, the versions no step made, the version in use and
-    the count of what the Architect proposed. They are a new step - which follows the one in use, and is in use
+    the count of what the Pathfinder proposed. They are a new step - which follows the one in use, and is in use
     from then - where the first turn added is the person's or the question's read, where a version was made and
     nothing said (the person changed the brief by hand), or where the step in use has a step after it; otherwise
     they are the step in use's. A framing with nothing added is returned as it is."""
@@ -154,7 +154,7 @@ def _to(framing: dict, k: int) -> dict:
 
 def go(framing: dict, k) -> dict:
     """The framing with step `k` in use: the person went to it, and what is said or changed next follows it. The
-    framing then holds that step's way - its turns, the passages found on it, the count of what the Architect had
+    framing then holds that step's way - its turns, the passages found on it, the count of what the Pathfinder had
     proposed by then, the version of the brief that stood at its end - and what the other steps hold is set aside.
     The way being walked ends where it did if the step is on it, else where the newest steps after `k` lead. What
     was added and not yet counted is taken into a step first; a step the framing does not have changes nothing."""

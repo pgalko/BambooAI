@@ -27,7 +27,7 @@ check("parse_result_line: a colon inside the label, thousands separators, no uni
 r3 = rt.parse_result_line("RESULT: share of rows kept: +0.912")
 check("parse_result_line: an estimate alone", r3 and r3["estimate"] == "+0.912" and r3["low"] is None and r3["unit"] == "" and r3["direction"] == "", r3)
 check("parse_result_line: not a result line -> None; a blank -> None", rt.parse_result_line("hello world") is None and rt.parse_result_line("") is None)
-# a correction marks the line it replaced, not every line of its cell (0326): the ledger's rule (test_analyst.py) and the code map's (test_code_map.py)
+# a correction marks the line it replaced, not every line of its cell (0326): the ledger's rule (test_analyst.py) and the code trace's (test_code_map.py)
 _B = "yield, regime B minus A, plots pooled: +0.62 (95% CI +0.37 to +0.84) t/ha, B higher"
 _C = "yield, regime C minus A, plots pooled: +0.30 (95% CI +0.05 to +0.55) t/ha, C higher"
 _cells23 = [(2, _B, None), (2, _C, None), (2, "plots compared: +36", None), (3, "share of soil types where B out-yields A: +1.00", None)]

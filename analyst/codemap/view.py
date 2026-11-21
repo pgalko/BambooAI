@@ -1,4 +1,4 @@
-"""The third stage of the code map (blueprint 4.7-4.13): the stored, render-ready view the modal draws. From the map
+"""The third stage of the code trace (blueprint 4.7-4.13): the stored, render-ready view the modal draws. From the map
 (objects.build_map) and the ChainRecord: the rows (steps, failed attempts, reviews, the report, in order), the input
 lanes, the results, each result's recipe in plain words and its diagram (nodes and edges; the client lays them out),
 the step details, the checks worth making, the one line of a chain that ran no code, and the self-checks.

@@ -1,4 +1,5 @@
-// code-map.js - the code map's modal (docs/CODEMAP_DESIGN.md; 2026-10-20): how one chain got from its data to its
+// code-map.js - the code trace's modal (docs/CODEMAP_DESIGN.md; 2026-10-20; the code map until 2.9 - the names in the
+// code keep that word, and the notes here say "the map" of what the modal draws): how one chain got from its data to its
 // numbers, drawn from the view the server built when the chain ended (analyst/codemap) and serves at
 // GET /code_map/<thread_id>/<chain_id>. Two views: Steps (one row per cell, the inputs as lanes, what came out) and the
 // Recipe diagram (the data, the tables and values the code made, the number); a side panel with the chain's summary, a
@@ -7,7 +8,7 @@
 // the rules are in dialogs.css under #codeMapModal. The map's content comes from the server (analyst/codemap/words.py);
 // the modal's own words sit in WORDS below. Nothing here reaches a prompt.
 //
-// Ways in: the closing card's "Code map" button (stream-pane.js) and the eye on a chain's box in the Workflow map
+// Ways in: the closing card's "Code trace" button (stream-pane.js) and the eye on a chain's box in the Workflow map
 // drawer (workflowGraph.js). window.CodeMapUI = { initialize, open, close, onChain, build }.
 
 (function () {
@@ -15,21 +16,21 @@
 
     // ------------------------------------------------------------ the modal's own words (British spelling, as the app)
     const WORDS = {
-        title: 'Code map',
+        title: 'Code trace',
         views: [['steps', 'Steps'], ['diagram', 'Recipe diagram']],
         legendSteps: [['read', 'reads the data here'], ['via', 'uses it through an earlier step'], ['recorded', 'result recorded'], ['replaced', 'replaced'], ['empty', 'came out empty'], ['printed', 'cited printout']],
         legendDiagram: [['in', 'data the chain was given'], ['table', 'a table or values the code made'], ['estimate', 'a calculation'], ['result', 'the result']],
         colStep: 'Step', colWhat: 'What the step did, in the analyst\'s words', colOut: 'What came out',
         noLanes: 'No data attached: the numbers are made in the code',
-        loading: 'Loading the map…',
-        error: 'The code map could not be built for this chain.',
-        running: 'The code map is built when this chain ends.',
-        unfinished: 'No code map: this chain ended without an answer.',
-        unreachable: 'The code map could not be read.',
-        notMapped: 'Not mapped: the code could not be read',
-        notTraced: 'Not traced: the map could not follow how this was made',
+        loading: 'Loading the trace…',
+        error: 'The code trace could not be built for this chain.',
+        running: 'The code trace is built when this chain ends.',
+        unfinished: 'No code trace: this chain ended without an answer.',
+        unreachable: 'The code trace could not be read.',
+        notMapped: 'Not traced: the code could not be read',
+        notTraced: 'Not traced: how this was made could not be followed',
         sizes: 'Table sizes were not recorded for this chain (an older run).',
-        howNot: 'The map shows how this number was made, not whether it is right.',
+        howNot: 'The trace shows how this number was made, not whether it is right.',
         howToRead: 'Each row is one step of the analysis, one cell of code, in the order it ran. The columns on the left are the data this chain was given; a dot means the step used it. Click a result to see how it was made, or a step to see what it built.',
         diagramHint: 'Read it top to bottom: the data the chain was given, the tables and values the code made from it, then the number or figure. Click a box to see its step.',
         zoom: { group: 'Zoom', out: 'Zoom out', in: 'Zoom in', fit: 'Fit to the frame' },
@@ -64,13 +65,13 @@
                  figureLabel: 'Drawn after the report. The recipe is the data drawn; numbers written on the figure are left out.',
                  why: 'Why, in the analyst\'s words', uses: 'Uses', builds: 'Tables and numbers it made', figs: 'Figures it drew', printed: 'Printed',
                  printoutLink: 'The report cites this printout · see how it was made', results: 'Results it recorded', usedBy: 'Later steps that use it', lines: '{n} lines of code',
-                 seeHow: 'see how it was made', openMap: 'open {chain}\'s map', fromChain: 'from {chain}, cell {cells}: {names}', fromCell: 'from cell {cell}: {names}',
+                 seeHow: 'see how it was made', openMap: 'open {chain}\'s trace', fromChain: 'from {chain}, cell {cells}: {names}', fromCell: 'from cell {cell}: {names}',
                  colsNotNamed: 'columns not named in the code', usedThrough: 'used through {chain}', allColumns: 'all {n} columns: ', someColumns: '{u} of {n} columns: ' },
         counts: { steps: 'steps', failed: 'failed attempts', inputs: 'inputs used', recorded: 'results recorded', replaced: 'replaced', empty: 'came out empty' },
         earlier: 'an earlier chain',
         picker: 'Recipe of', pickPrinted: 'Printed, cell {n} · {short}', pickFigure: '{name}, cell {n}',
-        lane: { loaded: 'loaded, not used', unused: 'not used', chainTip: 'What {chain} made and this chain reuses: {names}. Opens {chain}\'s map.', uses: 'Uses: ', notUsed: 'Not used: ', through: ', used through {chain}' },
-        diagramNode: { given: 'data the chain was given', madeBy: 'what {chain} made', result: 'RESULT · cell {n}', printed: 'PRINTED · cell {n}', figure: 'FIGURE · cell {n}', opens: ': opens {chain}\'s map' },
+        lane: { loaded: 'loaded, not used', unused: 'not used', chainTip: 'What {chain} made and this chain reuses: {names}. Opens {chain}\'s trace.', uses: 'Uses: ', notUsed: 'Not used: ', through: ', used through {chain}' },
+        diagramNode: { given: 'data the chain was given', madeBy: 'what {chain} made', result: 'RESULT · cell {n}', printed: 'PRINTED · cell {n}', figure: 'FIGURE · cell {n}', opens: ': opens {chain}\'s trace' },
         rowSub: { turn: 'turn {n}', afterReport: 'after report', cell: 'Cell {n}', fig: 'Fig {n}', turnFailed: 'Turn {n}', failed: 'Failed' },
         dot: { read: 'reads {name} here', via: 'uses {name} through an earlier step' },
         band: { review: 'Review after turn {n} · {v}', final: 'Review of the report · {v}', report: 'Turn {n} · report', hint: 'Hint · after turn {n}' },
@@ -200,7 +201,7 @@
     // ------------------------------------------------------------ builders (pure: return HTML; tests read them)
     const build = {
         shell() {
-            return '<div class="ui-dlg cm-dlg" role="dialog" aria-modal="true" aria-label="Code map">' +
+            return '<div class="ui-dlg cm-dlg" role="dialog" aria-modal="true" aria-label="Code trace">' +
                 '<div class="ui-dlg-h cm-head"></div>' +
                 '<div class="ui-dlg-b cm-body"><div class="cm-map"></div><div class="cm-panel"></div></div></div>';
         },
@@ -232,7 +233,7 @@
                 (q ? '<div class="cm-question">' + esc(q) + '</div>' : '') + '</div>' +
                 '<div class="cm-head-r"><div class="cm-head-tools"><div class="cm-switch" role="group" aria-label="View">' +
                 WORDS.views.map(v => '<button data-act="view" data-view="' + v[0] + '" aria-pressed="' + (st.view === v[0] ? 'true' : 'false') + '"' + (view && view.nocode ? ' disabled' : '') + '>' + v[1] + '</button>').join('') +
-                '</div><button class="x" data-act="close" aria-label="Close the code map">×</button></div>' + legend + '</div>';
+                '</div><button class="x" data-act="close" aria-label="Close the code trace">×</button></div>' + legend + '</div>';
         },
         state(kind) {
             const t = { loading: WORDS.loading, error: WORDS.error, running: WORDS.running, unfinished: WORDS.unfinished, unreachable: WORDS.unreachable }[kind] || WORDS.error;

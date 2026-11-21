@@ -34,7 +34,7 @@ Search with code first, then judge what the search leaves. A single analysis you
 | `hints` | what the person said where they went back to a turn of it and had it go on another way, each `{turn, text}`; `[]` otherwise |
 | `brief` | what the person agreed before it ran, where they framed it first; `""` otherwise |
 | `outcome` | how the report stood against it: `{expected, would_change}`; `{}` without a brief |
-| `conversation` | what was said while it was framed, each message under `Person:` or `Architect:`, who helped them frame it; `""` otherwise |
+| `conversation` | what was said while it was framed, each message under `Person:` or `Pathfinder:`, who helped them frame it; `""` otherwise |
 | `cells` | its cells, each `{n, code, results, printed}`: the number, the code, the result lines, what was printed |
 | `data` | what it ran on: `{name, rows, period, columns, subject}` |
 | `path` | the ids of the earlier steps it was built on, the first one first |

@@ -456,11 +456,11 @@ check("a framed run's brief is memory: the view holds what was agreed - the deci
       and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("What the answer is for: keep it above the line", {"expected": "", "would_change": ""})
       and [h["id"] for h in memory.search(_v8, "above")] == ["800/801", "800/803", "800/802"] and [h["id"] for h in memory.search(_v8, "height")] == ["800/801", "800/802"]
       and memory.search(_v8, "height")[0]["passages"] == [{"where": "brief", "text": "- measure: height"}] and memory.search(_v8, "chance") == [] and memory.search(_v8, "comparison") == []
-      and memory.FORMAT == 5 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 5,
+      and memory.FORMAT == 6 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 6,
       (_by8["800/801"]["brief"], _by8["800/801"]["outcome"], _hit8, [h["id"] for h in memory.search(_v8, "above")], memory.search(_v8, "height")))
 shutil.rmtree(S8, ignore_errors=True)
 
-# ---- the conversation a brief came from (0306): what the person and the Architect said while a saved run's question was framed
+# ---- the conversation a brief came from (0306): what the person and the Pathfinder said while a saved run's question was framed
 S9 = tempfile.mkdtemp(prefix="bamboo_memory_said_")
 _nb9 = Notebook("900")
 _framing9 = {"versions": [{"n": 1, "by": "person", "changed": [], "brief": {"question": "Plot the thing"}},
@@ -485,12 +485,12 @@ for _chain in (901, 902, 903, 904):
 _v9 = memory.refresh(S9)
 _by9 = {r["id"]: r for r in _v9["runs"]}
 _long9 = "Person: A long talk\nPerson: " + ("w " * 30_000).strip()
-check("a framed run's conversation is memory: the view holds what the person and the Architect said, each message under who said it, with its lines, the question as it was first asked before them, and a "
-      "wording of the question the Architect gave on a line of its own (0307: the message no longer holds it) - "
+check("a framed run's conversation is memory: the view holds what the person and the Pathfinder said, each message under who said it, with its lines, the question as it was first asked before them, and a "
+      "wording of the question the Pathfinder gave on a line of its own (0307: the message no longer holds it) - "
       "not what was looked up, read or opened meanwhile, nor a turn that is neither's, and no message without words; a run framed without a word said, and one not framed, hold none; a long one is kept up to its bound, the cut said. Plain "
       "search finds a word only the conversation holds, says it stands there and gives its line; a word counts there as in the brief, twice what it counts in code",
-      _by9["900/901"]["conversation"] == ("Person: Plot the thing\nArchitect: Let me have a look.\nArchitect: Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?\n"
-                                          "Person: How they part - the butterfly is new to me\nArchitect: Then like this?\nArchitect's wording of the question: Plot x against z\nfor two starts.")
+      _by9["900/901"]["conversation"] == ("Person: Plot the thing\nPathfinder: Let me have a look.\nPathfinder: Two things could be looked at.\n\n- the shape\n- how two starts part\n\nWhich one?\n"
+                                          "Person: How they part - the butterfly is new to me\nPathfinder: Then like this?\nPathfinder's wording of the question: Plot x against z\nfor two starts.")
       and memory.search(_v9, "echidna") == [] and _by9["900/901"]["conversation"] == briefs.said(_framing9, "x")
       and (_by9["900/902"]["conversation"], _by9["900/904"]["conversation"]) == ("", "")
       and _by9["900/903"]["conversation"] == _long9[:memory.SAID] + f"\n... ({len(_long9) - memory.SAID:,} more characters not kept)" and memory.SAID == 40_000 and len(_long9) > memory.SAID

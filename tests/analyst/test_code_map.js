@@ -1,4 +1,4 @@
-// The code map's modal (docs/CODEMAP_DESIGN.md, 2026-10-20): the markup code-map.js builds from the server's view - the shell,
+// The code trace's modal (docs/CODEMAP_DESIGN.md, 2026-10-20): the markup code-map.js builds from the server's view - the shell,
 // the header with the chain's number and path, the Steps grid with its lanes and rows, the result chips by status, the notes,
 // the recipe diagram laid out with the harness's dagre stand-in, the panel in its three forms, the states - and the module
 // driven on the mini DOM with a scripted route: opened, a result and a step selected, the view switched, another chain opened
@@ -49,7 +49,7 @@ const sh = el(b.shell());
 check('shell: a ui-dlg with the head, the body split into the map and the panel', sh.querySelector('.ui-dlg.cm-dlg .ui-dlg-h.cm-head') && sh.querySelector('.ui-dlg-b.cm-body .cm-map') && sh.querySelector('.cm-body .cm-panel'), sh.innerHTML);
 const hd = el(b.header(TRIAL2, ctx, { view: 'steps', state: '' }));
 check('header: the title, the chain numbered as the navigator numbers it, its path with the earlier chain a link, the facts (how the map was built rides as data, not words), the report title, the question, the view switch with Steps pressed, the close, the Steps legend',
-  hd.querySelector('.cm-head-line .title').textContent === 'Code map' && hd.querySelector('.cm-chain-no').textContent === 'chain 2'
+  hd.querySelector('.cm-head-line .title').textContent === 'Code trace' && hd.querySelector('.cm-chain-no').textContent === 'chain 2'
   && hd.querySelector('.cm-path a[data-act="open-chain"][data-chain="1"]').textContent === '1' && hd.querySelector('.cm-path b.cm-path-here').textContent === '2'
   && hd.querySelector('.cm-facts').textContent === TRIAL2.meta && hd.querySelector('.cm-facts').getAttribute('data-built') === 'end' && !hd.textContent.includes('built') && hd.querySelector('.cm-title').textContent === TRIAL2.title
   && hd.querySelector('.cm-question').textContent.startsWith('Question: ') && hd.querySelector('.cm-switch button[data-view="steps"]').getAttribute('aria-pressed') === 'true'
@@ -61,8 +61,8 @@ check('header: a map built now says so only in its data; the diagram view shows 
   && el(b.header(TRIAL2, ctx, { view: 'diagram', state: '' })).querySelectorAll('.cm-legend span').length === 4
   && el(b.header(TRIAL2, Object.assign({}, ctx, { number: () => 0 }), { view: 'steps', state: '' })).querySelector('.cm-chain-no').textContent === 'an earlier chain');
 check('states: loading, error, running, unfinished, unreachable - one line each', ['loading', 'error', 'running', 'unfinished', 'unreachable'].every(k => el(b.state(k)).querySelector('.cm-state.cm-state-' + k))
-  && el(b.state('error')).textContent === 'The code map could not be built for this chain.' && el(b.state('running')).textContent === 'The code map is built when this chain ends.'
-  && el(b.state('unfinished')).textContent === 'No code map: this chain ended without an answer.');
+  && el(b.state('error')).textContent === 'The code trace could not be built for this chain.' && el(b.state('running')).textContent === 'The code trace is built when this chain ends.'
+  && el(b.state('unfinished')).textContent === 'No code trace: this chain ended without an answer.');
 
 // the Steps grid of the field trial (chain 1): one lane, a failed attempt, two cells and the figures cell
 const c1 = { titles: TRIAL.titles, built: 'end', number: ctx.number, chainId: '1' };
@@ -104,11 +104,11 @@ check('steps: of the two lines of one cell, the one a later cell gave again is s
 const st2 = el(b.steps(TRIAL2, ctx, null, { cells: null, inputs: null, recipe: null }));
 check('a follow-up: the "From chain 1" lane is a button that opens that chain, named by the navigator\'s number; the dataset lane says "through chain 1"',
   st2.querySelector('.cm-lanes button.cm-lane.chain[data-act="open-chain"][data-chain="1"] .name').textContent === 'From chain 1' && st2.querySelector('.cm-lane.chain .sub').textContent === 'adj_diff, plot_means'
-  && st2.querySelectorAll('.cm-lane')[1].querySelector('.sub').textContent === 'through chain 1' && st2.querySelector('.cm-lane.chain').getAttribute('title').includes('Opens chain 1\'s map'), st2.querySelector('.cm-lanes').innerHTML);
+  && st2.querySelectorAll('.cm-lane')[1].querySelector('.sub').textContent === 'through chain 1' && st2.querySelector('.cm-lane.chain').getAttribute('title').includes('Opens chain 1\'s trace'), st2.querySelector('.cm-lanes').innerHTML);
 check('a chain lane for a chain the navigator does not hold reads "From an earlier chain"',
   el(b.laneHead(TRIAL2.inputs[0], Object.assign({}, ctx, { number: () => 0 }), false)).querySelector('.name').textContent === 'From an earlier chain');
 check('no inputs: the lanes column carries the one line instead', el(b.steps(Object.assign({}, TRIAL, { inputs: [] }), c1, null, { cells: null, inputs: null, recipe: null })).querySelector('.cm-nolane.head').textContent === 'No data attached: the numbers are made in the code');
-check('a cell that did not parse: its row says so in the "what came out" column', el(b.row(TRIAL, Object.assign({}, TRIAL.rows[0], { mapped: false }), c1, null, { cells: null, inputs: null, recipe: null })).querySelector('.cm-note').textContent === 'Not mapped: the code could not be read');
+check('a cell that did not parse: its row says so in the "what came out" column', el(b.row(TRIAL, Object.assign({}, TRIAL.rows[0], { mapped: false }), c1, null, { cells: null, inputs: null, recipe: null })).querySelector('.cm-note').textContent === 'Not traced: the code could not be read');
 
 // the recipe diagram, laid out with the harness's dagre stand-in
 const dg = el(b.diagram(TRIAL, c1, 'r1'));
@@ -177,7 +177,7 @@ check('panel, the branching chain: the checks as buttons - a citation into chain
 const rp = el(b.result(TRIAL, c1, 'r1'));
 check('panel, a result: the kicker with the cell, the number, the interval and unit, the label, "recorded", the line that the map does not judge it, Made from, the items in order with names, sizes and glossed steps, the final line, the choices, the cells it rests on, Open in the notebook',
   rp.querySelector('.cm-kicker span').textContent === 'How this number was made · cell 2' && rp.querySelector('.cm-big').textContent === '+0.57' && rp.querySelector('.cm-iv').textContent === '95% CI 0.38 to 0.76 · t/ha, B higher'
-  && rp.querySelector('.cm-status.recorded').textContent === 'recorded' && rp.querySelector('.cm-hownot').textContent === 'The map shows how this number was made, not whether it is right.'
+  && rp.querySelector('.cm-status.recorded').textContent === 'recorded' && rp.querySelector('.cm-hownot').textContent === 'The trace shows how this number was made, not whether it is right.'
   && rp.querySelector('.cm-chips-row .cm-in').textContent === 'field_trial.csv' && rp.querySelectorAll('.cm-item:not(.final)').length === TRIAL.recipes.r1.items.length
   && rp.querySelector('.cm-item .cm-item-label[data-act="pick-s"][data-cell="2"]').textContent === TRIAL.recipes.r1.items[0].label && rp.querySelector('.cm-item .cm-names').textContent === 'plot_means · cell 2 · ' + TRIAL.recipes.r1.items[0].shape
   && rp.querySelector('.cm-item .cm-gloss') && rp.querySelector('.cm-item.final .cm-final').textContent === 'RESULT +0.57 (0.38 to 0.76)'
@@ -193,13 +193,13 @@ check('panel, a figure: its name, the caption with the figures line, the "figure
   && fp.querySelector('.cm-status.figure') && fp.querySelector('.cm-item.final .cm-final').textContent === 'figure 2 of 2, cell 3' && fp.querySelector('.cm-foot span').textContent === 'Rests on cells 2, 3', fp.innerHTML);
 check('panel: a typed parameter is marked; a recipe not traced says so and lists nothing it was made from; sizes not recorded is said once',
   el(b.result(T4, T4c, 'r1')).querySelector('.cm-param .cm-typed') !== null
-  && el(b.result(Object.assign({}, TRIAL, { recipes: Object.assign({}, TRIAL.recipes, { r1: Object.assign({}, TRIAL.recipes.r1, { traced: false }) }) }), c1, 'r1')).querySelector('.cm-note').textContent === 'Not traced: the map could not follow how this was made'
+  && el(b.result(Object.assign({}, TRIAL, { recipes: Object.assign({}, TRIAL.recipes, { r1: Object.assign({}, TRIAL.recipes.r1, { traced: false }) }) }), c1, 'r1')).querySelector('.cm-note').textContent === 'Not traced: how this was made could not be followed'
   && el(b.result(Object.assign({}, TRIAL, { sizes: false }), c1, 'r1')).querySelectorAll('.cm-note').map(n => n.textContent).join() === 'Table sizes were not recorded for this chain (an older run).');
 const sp = el(b.step(TRIAL2, ctx, 4));
 check('panel, a step: the cell and turn, its role, why, what it uses - the inputs and what it takes from chain 1 (a link that opens chain 1 at the cell) - what it made with sizes, what it printed with the printout link, the line count, Open in the notebook',
   sp.querySelector('.cm-kicker span').textContent === 'Step' && sp.querySelector('.cm-big.cell').textContent === 'Cell 4 · turn 1' && sp.querySelector('.cm-status.role').textContent === 'Printed what the report cites'
   && sp.querySelector('.cm-p').textContent === TRIAL2.steps['4'].why && sp.querySelector('.cm-chips-row .cm-in a.cm-chain[data-chain="1"]')
-  && sp.querySelector('.cm-take.chain[data-act="open-chain"][data-chain="1"][data-cell="2"]').textContent === 'from chain 1, cell 2: adj_diff, plot_means · open chain 1\'s map'
+  && sp.querySelector('.cm-take.chain[data-act="open-chain"][data-chain="1"][data-cell="2"]').textContent === 'from chain 1, cell 2: adj_diff, plot_means · open chain 1\'s trace'
   && sp.querySelectorAll('.cm-builds .cm-build').length === TRIAL2.steps['4'].builds.length && sp.querySelector('.cm-build .cm-names').textContent.includes(' · ')
   && sp.querySelector('.cm-take[data-act="pick-r"][data-id="p4"]').textContent === 'The report cites this printout · see how it was made' && sp.querySelector('.cm-foot span').textContent === TRIAL2.steps['4'].lines + ' lines of code'
   && sp.querySelector('.cm-foot button[data-act="open-nb"][data-cell="4"]'), sp.innerHTML);
@@ -301,7 +301,7 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   check('Open in the notebook from a number: the recipe\'s lines and the RESULT\'s own line go to the notebook with the cell', m.style.display === 'none' && opened[opened.length - 1][0] === 2
     && JSON.stringify(opened[opened.length - 1][1]) === JSON.stringify({ lines: lit.recipes.r1.lines, own: lit.recipes.r1.own }), opened[opened.length - 1]);
   // the states
-  for (const [id, kind, txt] of [['3', 'running', 'The code map is built when this chain ends.'], ['4', 'unfinished', 'No code map: this chain ended without an answer.'], ['5', 'error', 'The code map could not be built for this chain.'], ['9', 'unfinished', 'No code map: this chain ended without an answer.']]) {
+  for (const [id, kind, txt] of [['3', 'running', 'The code trace is built when this chain ends.'], ['4', 'unfinished', 'No code trace: this chain ended without an answer.'], ['5', 'error', 'The code trace could not be built for this chain.'], ['9', 'unfinished', 'No code trace: this chain ended without an answer.']]) {
     w.CodeMapUI.open(id); await tick(); await tick();
     check('state ' + kind + ' for chain ' + id + ': the line in place of the map, the panel empty', m.querySelector('.cm-map .cm-state-' + kind) && m.querySelector('.cm-map .cm-state').textContent === txt && m.querySelector('.cm-panel').innerHTML === '', m.querySelector('.cm-map').innerHTML);
   }
@@ -318,13 +318,13 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   w.CodeMapUI.close();
   // the closing card's button (stream-pane.js): for an answered chain with cells only
   const pane = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'stream-pane.js'), 'utf8');
-  check('the closing card carries a Code map button with the chain id in its markup, for an answered chain that ran code, guarded for a page without the module; it stands in the card\'s row of what can '
+  check('the closing card carries a Code trace button with the chain id in its markup, for an answered chain that ran code, guarded for a page without the module; it stands in the card\'s row of what can '
     + 'be done next (0313: it was the last thing on a row of links)',
     pane.includes("(r.status === 'answered' ? '<div class=\"acts\">' + (r.cells > 0 && r.chain_id ? build.codemap(r.chain_id) : '') + '</div>' : '')")
-    && pane.includes('<button type="button" class="sp-act sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)") && !pane.includes('Code map →'));
+    && pane.includes('<button type="button" class="sp-act sp-codemap" data-chain="') && pane.includes("if(typeof CodeMapUI!==\\'undefined\\')CodeMapUI.open(this.dataset.chain)") && !pane.includes('Code trace →'));
   // the modal is a dialog for readers: the role, Escape closes it, the focus lands on the close
   w.CodeMapUI.open('1'); await tick(); await tick();
-  check('the dialog carries its role and label; Escape closes it', m.querySelector('.cm-dlg').getAttribute('role') === 'dialog' && m.querySelector('.cm-dlg').getAttribute('aria-label') === 'Code map'
+  check('the dialog carries its role and label; Escape closes it', m.querySelector('.cm-dlg').getAttribute('role') === 'dialog' && m.querySelector('.cm-dlg').getAttribute('aria-label') === 'Code trace'
     && (doc.dispatch('keydown', m, { key: 'Escape' }), m.style.display === 'none'));
   check('a lane dot says in words what it marks', el(b.steps(TRIAL2, ctx, null, { cells: null, inputs: null, recipe: null })).querySelectorAll('.cm-dot-cell').map(d => d.getAttribute('title')).join('|') === 'reads From chain 1 here|uses field_trial.csv through an earlier step');
   // the third way in (2026-10-24): a [cell n] citation. One recorded number in the cell opens its recipe on the diagram; of

@@ -158,7 +158,7 @@ check('callTip: the seat and model, when and how long, the tokens with the cache
 check('the outcome words (2026-10-31, from the product owner reading "answered" as the general success): every chip carries its gloss, the detail pane spells it out, the filter\'s options say what each word means',
   el(chip_('reproduced')).querySelector('.rt-status').getAttribute('title') === 'answered; the replay re-ran the cells and the cited numbers matched' && el(chip_('answered')).querySelector('.rt-status').getAttribute('title') === 'answered; no replay on record'
   && el(chip_('failed at cell 4')).querySelector('.rt-status').getAttribute('title') === 'the run failed; the last error was in cell 4'
-  && el(chip_('not run')).querySelector('.rt-status').getAttribute('title') === 'a brief written with the Architect; its analysis was not started' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
+  && el(chip_('not run')).querySelector('.rt-status').getAttribute('title') === 'a brief written with the Pathfinder; its analysis was not started' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
   && [...el(b.analysesTab(DATA, ST)).querySelectorAll('[data-outcome] option')].map(o => o.textContent).join('|') === 'Every outcome|answered — no replay on record|failed|reproduced — replay matched');
 // a branch (2.9): its analysis's question, asked again from one of its turns
 const BR = Object.assign({}, AN[2], { chain: 'b1', branch: { turn: 2, hint: 'Keep the soil types apart.' } });

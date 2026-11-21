@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.10 (2026-11-21; released as 2.9.0, 0326; 0327, the maps in one place; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.11 (2026-11-21; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -53,6 +53,9 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     its head goes between the Workflow map and the two maps of the chain on screen, Pathfinding and Analysis. The
     buttons that opened a map from above an analysis and from the Brief tab are gone; the branch buttons on the
     cards stay. The Code map is no map of this kind and keeps its own ways in.
+19. The names (2026-11-21, 0328): the Architect is the **Pathfinder** (docs/ARCHITECT_DESIGN.md, decision 59) and
+    the Code map the **Code trace** (docs/CODEMAP_DESIGN.md). Below, each part keeps the names it was written
+    under; what is quoted of the page is as the page says it now.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -230,7 +233,7 @@ a switch (decision 18):
   branches*). The left and right arrow keys go round the levels while the drawer is open, unless the focus is on
   something outside it.
 - **A level that cannot be shown** is greyed and says why under the pointer: *Chain 1 was asked without the
-  Architect*; *Chain 1's brief was made before version 2.8.1* (it keeps no steps); *The Architect is replying*;
+  Pathfinder*; *Chain 1's brief was made before version 2.8.1* (it keeps no steps); *The Pathfinder is replying*;
   *Chain 1 has no turns to go back to*; *An analysis is running*. With no chain on screen - a new thread, a
   routine's run - the switch is Workflow alone.
 - **Following.** The drawer shows what is on screen: when another chain comes on screen, or the one there changes,
@@ -321,6 +324,7 @@ before.
 | 0325 | The branch button on the Architect's cards, as on a turn's card (docs/ARCHITECT_DESIGN.md §2.25). | built |
 | 0326 | A correction of a result marks the line it replaced, not every line of its cell (docs/CODEMAP_DESIGN.md §4). Release 2.9.0. | built |
 | 0327 | The maps in one place: one button, one drawer, a switch between Workflow and the chain's Pathfinding and Analysis. | built |
+| 0328 | The names: the Architect is the Pathfinder, the Code map the Code trace (decision 19). | built |
 
 ## 9. Tests
 

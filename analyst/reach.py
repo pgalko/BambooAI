@@ -7,7 +7,7 @@ question, an earlier question of the thread, or a hint given on the way (a branc
 the name - the one mechanical sign that the person asked for the reach rather than the model deciding on it. A cell
 the executor refused before it ran carries the restricted word on `Turn.refused`; it is not an error of the code.
 
-Nothing here enters a prompt. The record is read by the closing card, the stream pane, the code map and the tally
+Nothing here enters a prompt. The record is read by the closing card, the stream pane, the code trace and the tally
 script (tools/reaches_report.py).
 """
 from __future__ import annotations
@@ -171,7 +171,7 @@ def summary(run) -> dict:
 
 
 def summary_of_record(doc: dict) -> dict:
-    """The same report from a chain record (analyst/codemap/record.py), for the code map's summary panel."""
+    """The same report from a chain record (analyst/codemap/record.py), for the code trace's summary panel."""
     entries = [(f"cell {c.get('cell')}", c.get("reaches") or [], "") for c in doc.get("cells") or []]
     entries += [(f"attempt after cell {f.get('after_cell') or 0}", [], f.get("refused") or "") for f in doc.get("failed") or [] if f.get("refused")]
     return summarize(entries, doc.get("sandbox") or {})

@@ -1,4 +1,4 @@
-"""The code map (docs/CODEMAP_DESIGN.md, 2026-10-20): the extractor against its golden fixtures, its rules one by one,
+"""The code trace (docs/CODEMAP_DESIGN.md, 2026-10-20): the extractor against its golden fixtures, its rules one by one,
 the build at a chain's end, and the route.
 
     python3 tests/analyst/test_code_map.py
@@ -323,12 +323,12 @@ def rule_unparsed():
 
 def rule_no_cells():
     v = codemap.build_record(record([], searches=1, report="The answer is 42."))["view"]
-    check("rule: a chain with no cells - one line, no rows, no inputs",
-          v["nocode"] is True and v["nocodeText"] == "No code ran in this chain: it answered from a web search, so there is nothing to map." and v["rows"] == [] and v["inputs"] == []
+    check("rule: a chain with no cells - one line, no rows, no inputs; the line says trace (0328: the Code map is the Code trace), in a view of version 6, so that one stored with the older word is made again",
+          v["nocode"] is True and v["nocodeText"] == "No code ran in this chain: it answered from a web search, so there is nothing to trace." and codemap.VERSION == 6 and v["rows"] == [] and v["inputs"] == []
           and v["meta"] == "Quick · 0 turns · 1 web search · no code", v)
     v = codemap.build_record(record([], reads=1, chain_id="2", path=["1", "2"], path_cells={"1": "1", "2": "1"}, titles={"1": "q1", "2": "q2"}, report="See [cell 1] and [cell 2].\n"))["view"]
     check("rule: a chain with no cells - its citations into the earlier chain are listed, that chain named by its id",
-          v["nocodeText"].endswith("there is nothing to map. The report cites {chain:1}'s cells 1 and 2.")
+          v["nocodeText"].endswith("there is nothing to trace. The report cites {chain:1}'s cells 1 and 2.")
           and [(c["kind"], c["chain"], c["cell"]) for c in v["checks"]] == [("cites", "1", 1)] and v["titles"] == {"1": "q1", "2": "q2"}, v)
 
 
@@ -692,7 +692,7 @@ check("route: a stored failure is no map - the chain is built again now; when th
       j.get("error") == "the extractor fell over" and "map" not in j and wc.get("/code_map/4001/5005").get_json().get("built") == "now", j)
 j = wc.get("/code_map/4001/5007").get_json()
 check("route: an ideas chain (answered without _finish) is built now: its one line says it proposed questions, its header its one turn",
-      j.get("built") == "now" and j["map"]["nocode"] is True and j["map"]["nocodeText"] == "No code ran in this chain: it proposed questions to ask next, so there is nothing to map."
+      j.get("built") == "now" and j["map"]["nocode"] is True and j["map"]["nocodeText"] == "No code ran in this chain: it proposed questions to ask next, so there is nothing to trace."
       and j["map"]["meta"] == "Ideas · 1 turn · no code" and j["map"]["rows"] == [], j.get("map", {}).get("meta"))
 check("route: 400 for ids of the wrong shape, 404 for an unknown chain or thread",
       wc.get("/code_map/4001/no-such").status_code == 400 and wc.get("/code_map/..%2Fx/5001").status_code in (400, 404) and wc.get("/code_map/4001/9999").status_code == 404
@@ -856,11 +856,11 @@ check("a correction, a line at a time, on the real kernel: of the three lines of
       and "\n".join([led[0], led[1].replace("(corrected by cell 3) ", ""), led[2]]) + "\n\n" in by_line_seen[2] and "corrected by" not in by_line_seen[1],
       (rb.status, led, by_line_seen[-1][-900:]))
 vb = (rb.code_map or {}).get("view") or {}
-check("... and on the code map of the same run: the same two lines replaced, by the same cells, the third recorded, and the check counts two - a map of version 5, so "
+check("... and on the code trace of the same run: the same two lines replaced, by the same cells, the third recorded, and the check counts two - a map of version 5 or later, so "
       "that one stored before is made again when it is opened",
       [(x["cell"], x["status"], x["corrected_by"]) for x in vb.get("results", {}).values()]
       == [(1, "corrected", 2), (1, "corrected", 3), (1, "recorded", None), (2, "recorded", None), (3, "recorded", None)]
-      and [c["text"] for c in vb["checks"] if c["kind"] == "corrected"] == ["2 results were replaced by later cells"] and rb.code_map["version"] == codemap.VERSION == 5,
+      and [c["text"] for c in vb["checks"] if c["kind"] == "corrected"] == ["2 results were replaced by later cells"] and rb.code_map["version"] == codemap.VERSION >= 5,
       ((rb.code_map or {}).get("error"), [(x["cell"], x["status"], x["corrected_by"]) for x in vb.get("results", {}).values()], vb.get("checks")))
 
 os.chdir("/"); shutil.rmtree(work, ignore_errors=True)

@@ -1,7 +1,7 @@
 {
   "free_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
-    {"agent": "Architect", "details": {"reasoning_effort": "medium", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Pathfinder", "details": {"reasoning_effort": "medium", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
@@ -16,7 +16,7 @@
   ],
   "cost_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
-    {"agent": "Architect", "details": {"reasoning_effort": "medium", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Pathfinder", "details": {"reasoning_effort": "medium", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
@@ -31,7 +31,7 @@
   ],
   "performance_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 32000}},
-    {"agent": "Architect", "details": {"reasoning_effort": "medium", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Pathfinder", "details": {"reasoning_effort": "medium", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "claude-sonnet-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},
@@ -46,7 +46,7 @@
   ],
   "max_agent_configs": [
     {"agent": "Analyst", "details": {"reasoning_effort": "xhigh", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 48000}},
-    {"agent": "Architect", "details": {"reasoning_effort": "medium", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
+    {"agent": "Pathfinder", "details": {"reasoning_effort": "medium", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Figures", "details": {"reasoning_effort": "low", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Rewriter", "details": {"reasoning_effort": "low", "model": "claude-opus-5-5", "provider": "anthropic", "temperature": 0, "max_tokens": 16000}},
     {"agent": "Reader", "details": {"reasoning_effort": "low", "model": "deepseek/deepseek-v4.1-flash-1017", "provider": "openrouter", "temperature": 0, "max_tokens": 16000}},

@@ -102,7 +102,7 @@
 #streamOutput .sp-done .reaches .r.unasked .tag { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 #streamOutput .sp-done .reaches .r.unasked .what { color: var(--text-secondary); }
 #streamOutput .sp-done .reaches .sandbox { margin-top: 4px; color: var(--text-quaternary); font-size: 11px; }
-#streamOutput .sp-done .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }   /* what can be done next (0313): the questions that could follow, the code map */
+#streamOutput .sp-done .acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color); }   /* what can be done next (0313): the questions that could follow, the code trace */
 #streamOutput .sp-done .acts:empty { display: none; }
 #streamOutput .sp-act { display: inline-flex; align-items: center; gap: 7px; padding: 4px 11px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; font: inherit; font-size: 12.5px; color: var(--accent-color); cursor: pointer; }
 #streamOutput .sp-act:hover { background: var(--accent-bg-hover); }
@@ -126,13 +126,13 @@
 #streamOutput .sp-telemetry { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
 #streamOutput .sp-telemetry > summary { list-style: none; display: flex; align-items: center; gap: 8px; cursor: pointer; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-tertiary); }
 #streamOutput .sp-telemetry pre { margin: 6px 0 0; padding: 8px 10px; background: var(--code-bg); border: 1px solid var(--border-color); border-radius: 4px; font-family: 'Courier New', Courier, monospace; font-size: 11px; line-height: 1.4; color: var(--text-secondary); white-space: pre-wrap; }
-/* ---- the Architect in the left pane (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the conversation as cards - the coach's and the Architect's, its choices as pills; once the analysis starts, the framing is one folded row above the run ---- */
+/* ---- the Pathfinder in the left pane (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15): the conversation as cards - the coach's and the Pathfinder's, its choices as pills; once the analysis starts, the framing is one folded row above the run ---- */
 #streamOutput .ar-msg { margin-left: 10px; padding: 7px 12px 8px; border: 1px solid var(--border-color); border-radius: 6px; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; white-space: pre-wrap; }
 #streamOutput .ar-msg .who { display: block; margin-bottom: 2px; font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--text-quaternary); }
 #streamOutput .ar-fold .ar-msg { margin: 8px 10px; background: var(--bg-primary); }
 #streamOutput .ar-fold .sp-row { margin: 8px 10px; }
 #streamOutput .ar-msg.arch { border-left: 3px solid var(--c-model); background: var(--bg-secondary); }
-/* the head of the Architect's card: its name; then, at the line's end, the branch button of its step (2.9, architect.js: the Git branch mark, as on a turn's card)
+/* the head of the Pathfinder's card: its name; then, at the line's end, the branch button of its step (2.9, architect.js: the Git branch mark, as on a turn's card)
    and the button to its prompt - one size, on one line. The buttons are in the line, not floated beside it: the words under it keep the card's whole width */
 #streamOutput .ar-msg.arch .who { display: flex; align-items: center; color: var(--c-model); }
 #streamOutput .ar-msg.arch .who > button { order: 0; flex-shrink: 0; box-sizing: border-box; min-width: 22px; height: 18px; margin: 0 0 0 6px; justify-content: center; text-transform: none; letter-spacing: 0; }

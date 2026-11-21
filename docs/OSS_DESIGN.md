@@ -311,7 +311,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-21: 2.9.0 (patches 0318-0326).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
+- **Status 2026-11-21: 2.9.0 (patches 0318-0328).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
   back to any turn of an analysis, gives the Analyst a hint, and the analysis goes on from there another way; the
   first way stays, and the Analysis map shows every turn of every branch. The kernel keeps its state after every cell
   and goes back to any, with nothing run again (executor image v75, `cloudpickle`); a follow-up asked from an earlier
@@ -321,7 +321,8 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   kept and what the person said. Each turn's card has a branch button, and so has each of the Architect's. The three
   maps are the Workflow map (a thread's chains), the Pathfinding map (the steps that made a brief) and the Analysis
   map (an analysis's turns): one button on the left bar opens them in one drawer, with a switch between them (0327).
-  Also in it: a correction of a result marks the line it replaced, not
+  The Architect is the Pathfinder and the Code map the Code trace (0328): on the page, in the prompts, in the README
+  and as the seat's name in `LLM_CONFIG`, where a config written before is still read. Also in it: a correction of a result marks the line it replaced, not
   every line of its cell - in the ledger of the prompts and on the code map (version 5). The README has the three
   levels of branching: the thread, and in a chain the Architect and the Analyst. The hosted editions rebuild the
   executor image as v75 and restart the orchestrator; no migration.

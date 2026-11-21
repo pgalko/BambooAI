@@ -1,4 +1,4 @@
-"""Lookups: what the Architect may ask of the data to check a line a brief rests on (docs/ARCHITECT_DESIGN.md §2.4,
+"""Lookups: what the Pathfinder may ask of the data to check a line a brief rests on (docs/ARCHITECT_DESIGN.md §2.4,
 §2.13).
 
 A lookup counts, lists or totals what is there, and nothing else: it does not compare, average, model or test. The

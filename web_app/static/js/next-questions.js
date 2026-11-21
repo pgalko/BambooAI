@@ -1,10 +1,10 @@
 // next-questions.js - the questions that could follow a finished analysis (docs/ARCHITECT_DESIGN.md §2.7, §2.15,
 // §2.24; 2026-11-16, the panel 2026-11-19). The closing card of a finished analysis carries a Next questions button.
 // It opens a panel inside the card: a line that says what the questions are, and five ways to go, each with a
-// sentence. The one picked is asked of the server (POST /architect/next, a stream: one call of the Architect's), and
+// sentence. The one picked is asked of the server (POST /architect/next, a stream: one call of the Pathfinder's), and
 // the questions that come back take the list's place in the panel, in rows of the same look, each saying what it
 // starts from. A row's pencil changes its question; its arrow starts a new analysis with it at once (/query with
-// `next`): no brief, and the Architect's switch does not apply. Back at the list, a way that has questions says how
+// `next`): no brief, and the Pathfinder's switch does not apply. Back at the list, a way that has questions says how
 // many and opens them again; more of them are written on request.
 //
 // The panel is part of the analysis' own pane, kept with the chain as the rest of the pane is - in the page's copy
@@ -21,7 +21,7 @@
     const WORDS = {
         button: 'Next questions', buttonTitle: 'Questions that could follow this analysis',
         one: 'Next question', run: 'run', runTitle: 'Open its analysis',
-        change: 'Change', go: 'Start the analysis', keep: 'Keep', cancel: 'Cancel', prompt: 'the prompt the Architect received (run log)',
+        change: 'Change', go: 'Start the analysis', keep: 'Keep', cancel: 'Cancel', prompt: 'the prompt the Pathfinder received (run log)',
         wait: 'The questions are being written. Wait for them.', busyRun: 'Another analysis is running. Wait for it to end, or stop it.',
         none: 'No questions were written', unreachable: 'the server could not be reached',
         // the panel: its heading, what the questions are, and what is said while a set is written
@@ -106,14 +106,14 @@
         was(chain) {
             return '<button type="button" class="was" data-nq="goto" data-chain="' + esc(chain) + '" title="' + WORDS.runTitle + '">' + WORDS.run + '</button>';
         },
-        // the line under a set: how many questions, what the call cost, and the button to the prompt the Architect received
+        // the line under a set: how many questions, what the call cost, and the button to the prompt the Pathfinder received
         foot(n, cost, prompt) {
             return '<div class="nq-foot"><span>' + WORDS.count(n) + (cost ? ' · ' + cost : '') + '</span>' + (prompt || '') + '</div>';
         },
         // a set as the server keeps it ({level, questions, cost, chain}), at its place among the analysis' sets
         set(asked, at) {
             const cost = Number(asked.cost) || 0, questions = asked.questions || [];
-            const prompt = asked.chain ? '<button class="agent-instructions-btn sp-prompt" type="button" title="' + WORDS.prompt + '" data-agent="Architect" data-chain="' + esc(asked.chain) + '" data-call="1">⌘</button>' : '';
+            const prompt = asked.chain ? '<button class="agent-instructions-btn sp-prompt" type="button" title="' + WORDS.prompt + '" data-agent="Pathfinder" data-chain="' + esc(asked.chain) + '" data-call="1">⌘</button>' : '';
             return '<div class="nq-set" data-set="' + esc(at) + '" data-level="' + esc(asked.level) + '">' + questions.map((q, k) => build.card(q, k)).join('') +
                 build.foot(questions.length, cost >= 0.005 ? '$' + cost.toFixed(2) : '', prompt) + '</div>';
         },
