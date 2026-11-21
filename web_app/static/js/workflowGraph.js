@@ -3,19 +3,21 @@
 //  Replaces Mermaid-based workflow map rendering
 //  Dependency: dagre.js (https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js)
 //
-//  The Workflow map draws a thread's chains. The same drawing serves another map - the Brief map, the steps of a
-//  brief's conversation (architect.js; docs/ARCHITECT_DESIGN.md §2.25) - which gives its boxes as chains are given
-//  ({chain_id, parentChainId, queryText}) and says, in render()'s last argument, what is its own:
+//  The Workflow map draws a thread's chains. The same drawing serves the two maps under it - the Pathfinding map, the
+//  steps that made a brief (architect.js; docs/ARCHITECT_DESIGN.md §2.25), and the Analysis map, the turns of an
+//  analysis (branch.js; docs/BRANCH_DESIGN.md §5) - each of which gives its boxes as chains are given ({chain_id,
+//  parentChainId, queryText}) and says, in render()'s last argument, what is its own:
 //      sub(item, i)    a box's second line
 //      show(item, i)   what the drawer's foot says of the box under the pointer
 //      pick(item, i)   a box clicked
 //      tag(item, i)    a mark on a box's corner, where the map has one
-//  and has the way to the box in use lit while no box is under the pointer. The turns of an analysis are a third map,
-//  the Analysis map (branch.js; docs/BRANCH_DESIGN.md §5). The thread's own boxes are analyses: where one has branches
-//  its box says how many (`branches`), and a click opens the chain of it the box stands for (BranchUI.open).
+//  and has the way to the box in use lit while no box is under the pointer. The thread's own boxes are analyses: where
+//  one has branches its box says how many (`branches`), and a click brings the chain of it the box stands for on
+//  screen (BranchUI.open) - the drawer stays open, and follows.
 //
-//  The three share the drawer's head (2.9): head() writes a map's name, what is on it, and what the drawer's foot says
-//  until a box is under the pointer; render() puts zoom and full screen into the head, before its close.
+//  The three are the levels of one drawer, whose head is the switch between them (maps.js): render() puts zoom and
+//  full screen into the head, before its close, and rest() writes what the drawer's foot says until a box is under
+//  the pointer.
 //--------------------
 
 window.WorkflowGraph = (function () {
@@ -342,7 +344,7 @@ window.WorkflowGraph = (function () {
             }
 
             // the code map's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
-            // the chain, the drawer closes, the map opens
+            // the chain, the drawer shuts, the map opens
             if (!of && resp && resp.chain_id && made !== 'not run') {
                 var eye = document.createElement('button');
                 eye.className = 'wf-node-map';
@@ -353,8 +355,7 @@ window.WorkflowGraph = (function () {
                 eye.addEventListener('click', function (e) {
                     e.stopPropagation();
                     if (typeof navigateToChainId === 'function' && String(resp.chain_id) !== String(currentData.chain_id)) navigateToChainId(resp.chain_id);
-                    var drawer = document.getElementById('workflowMapModal');
-                    if (drawer) drawer.style.display = 'none';
+                    window.MapsUI.shut();
                     if (window.CodeMapUI && typeof window.CodeMapUI.open === 'function') window.CodeMapUI.open(resp.chain_id);
                 });
                 div.appendChild(eye);
@@ -374,6 +375,7 @@ window.WorkflowGraph = (function () {
             });
 
             // ── Click → navigate ──
+            // a chain's box: the chain comes on screen and the drawer stays open, so its other maps are a click away (2.9)
             div.addEventListener('click', function () {
                 if (of) { of.pick(resp, idx); return; }
                 if (window.BranchUI) window.BranchUI.open(resp);       // the box stands for a chain of its analysis: that chain opens
@@ -383,8 +385,6 @@ window.WorkflowGraph = (function () {
                     loadResponseContent(responses[idx]);
                     if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
                 }
-                var drawer = document.getElementById('workflowMapModal');
-                if (drawer) drawer.style.display = 'none';       // the drawer closes on the way to the chain (2026-09-08)
             });
 
             wrapper.appendChild(div);
@@ -405,14 +405,14 @@ window.WorkflowGraph = (function () {
             fitObserver.observe(mapContainer);
         }
 
-        // ── Scroll-wheel zoom ──
-        mapContainer.addEventListener('wheel', function (e) {
+        // ── Scroll-wheel zoom ── the frame's one handler, for the drawing it now holds: the frame outlives its drawings
+        mapContainer.onwheel = function (e) {
             if (e.ctrlKey || e.metaKey) {
                 e.preventDefault();
                 var delta = e.deltaY > 0 ? -ZOOM_STEP : ZOOM_STEP;
                 applyZoom(wrapper, currentZoom + delta);
             }
-        }, { passive: false });
+        };
     }
 
     // ── Path highlighting ───────────────────────────────────
@@ -495,19 +495,17 @@ window.WorkflowGraph = (function () {
         }
     }
 
-    // ── The drawer's head ───────────────────────────────────
+    // ── The drawer's foot ───────────────────────────────────
 
-    // What the drawer says of the map it holds: its name; what is on it; and, in its foot until a box is under the
-    // pointer, what a click and the pointer do - nothing, for a map with nothing on it
-    function head(name, counts, rest) {
-        document.getElementById('workflowMapModal').querySelector('h2').textContent = name;
-        document.getElementById('mapDrawerSub').textContent = counts;
-        document.getElementById('nodeTaskContent').innerHTML = rest ? '<span class="map-rest">' + rest + '</span>' : '';
+    // What the drawer's foot says of the map it holds until a box is under the pointer: what a click and the pointer
+    // do - nothing, for a map with nothing on it
+    function rest(words) {
+        document.getElementById('nodeTaskContent').innerHTML = words ? '<span class="map-rest">' + words + '</span>' : '';
         document.getElementById('nodePlotPreview').innerHTML = '';
     }
 
     // ── Public API ──────────────────────────────────────────
 
-    return { render: render, head: head, toggleFullscreen: toggleFullscreen };
+    return { render: render, rest: rest, toggleFullscreen: toggleFullscreen };
 
 })();

@@ -265,7 +265,7 @@ through with you in the left pane, and the brief builds up on its own tab.
 - **Figures.** Ask for a figure and a draft appears in the brief, so you see what you will get. A draft drawn on
   made-up numbers is marked so.
 - **Going back.** Each message or change is a step. Go back to any step and continue from there: the conversation
-  branches, and the path you left stays on the **Brief map** (see [Branching](#branching)).
+  branches, and the path you left stays on the **Pathfinding map** (see [Branching](#branching)).
 - **Start analysis.** The question is first read without the conversation, as the Analyst will read it. If it
   points to something the Analyst does not have, the Architect rewords it and you start again.
 - **The result.** The Brief tab shows *How it turned out*: what you expected, and how each other explanation
@@ -281,18 +281,21 @@ The Architect's messages are a model's, so the brief is yours to correct. Its in
 ### Branching
 
 You can go back and branch at three levels: the **thread**, and within a **chain** the **Architect**'s conversation
-and the **Analyst**'s turns. The original path is always kept, and each level has a map of its branches.
+and the **Analyst**'s turns. The original path is always kept, and each level has a map of its branches. **Maps** on
+the left bar (Ctrl/Cmd+M) opens all three in one drawer: a switch at its top, or the left and right arrow keys, moves
+between the thread's map and the two maps of the chain on screen.
 
 | Level | Go back to | Continue with | Map |
 |---|---|---|---|
 | **Thread** | an earlier chain | a follow-up question | Workflow map |
-| **Chain · Architect** | an earlier step of the conversation about the brief | a different answer, or a change to the brief | Brief map |
+| **Chain · Architect** | an earlier step of the conversation about the brief | a different answer, or a change to the brief | Pathfinding map |
 | **Chain · Analyst** | an earlier turn of the analysis | a hint | Analysis map |
 
 - **Thread.** Open any chain with the chain arrows or from the Workflow map and ask a follow-up. It starts from the
   Python state in which that chain ended.
-- **Chain · Architect.** While a question is being framed, step back with the arrows on the Brief tab, on the Brief
-  map, or with the branch button on one of the Architect's cards. The Architect no longer sees the path you left.
+- **Chain · Architect.** While a question is being framed, step back with the arrows on the Brief tab, on the
+  Pathfinding map, or with the branch button on one of the Architect's cards. The Architect no longer sees the path
+  you left.
 - **Chain · Analyst.** Once an analysis has finished or been stopped, pick a turn on the Analysis map, or use the
   branch button on its card, and type a hint such as *keep the soil types apart*. The Analyst receives the turns up
   to that point and your hint, and writes a report of its own. The kernel returns to the state it held after that

@@ -319,7 +319,12 @@ function continueAppInitialization() {
         window.ArchitectUI.initialize();
     }
 
-    // Branches (docs/BRANCH_DESIGN.md §5): the Analysis map behind the button of the ids' row, the composer as a hint's
+    // The maps drawer: the left bar's button, the switch between the maps
+    if (typeof window.MapsUI !== 'undefined' && typeof window.MapsUI.initialize === 'function') {
+        window.MapsUI.initialize();
+    }
+
+    // Branches (docs/BRANCH_DESIGN.md §5): the buttons on an analysis's turns, the composer as a hint's
     if (typeof window.BranchUI !== 'undefined' && typeof window.BranchUI.initialize === 'function') {
         window.BranchUI.initialize();
     }

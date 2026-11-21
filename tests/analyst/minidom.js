@@ -5,6 +5,7 @@ const VOID = new Set(['br', 'hr', 'img', 'input', 'meta', 'link', 'path', 'circl
 function decode(s) { return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, '\u00a0').replace(/&times;/g, '×').replace(/&amp;/g, '&'); }
 function encodeText(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u00a0/g, '&nbsp;'); }
 function encodeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+let active = null;      // the element with the focus, as far as focus() and blur() say
 class Node { constructor() { this.parent = null; } }
 class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data = t; } get textContent() { return this.data; } get outerHTML() { return encodeText(this.data); } }
 class Element extends Node {
@@ -41,7 +42,8 @@ class Element extends Node {
   dispatch(type, target, extra) { const ev = Object.assign({ type, target: target || this, preventDefault() {}, stopPropagation() {} }, extra || {}); for (const fn of ((this.listeners || {})[type] || [])) fn(ev); return ev; }
   matches(sel) { return this.parent ? this.parent.querySelectorAll(sel).includes(this) : false; }
   closest(sel) { let n = this; while (n && n.nodeType === 1) { if (n.matches(sel)) return n; n = n.parent; } return null; }
-  focus() {} select() {} blur() {}
+  focus() { active = this; } select() {} blur() { if (active === this) active = null; }
+  contains(n) { for (; n; n = n.parent) if (n === this) return true; return false; }
   getBoundingClientRect() { return { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 }; }      // no layout here: every box is empty
   get elements() { return this.children.filter(c => c.nodeType === 1); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
@@ -87,6 +89,7 @@ function makeDocument() {
   const body = new Element('body');
   const doc = { body, createElement: t => new Element(t), getElementById: id => { const find = n => { for (const c of n.elements) { if (c.id === id) return c; const r = find(c); if (r) return r; } return null; }; return find(body); },   // by id, not by selector: a dotted id (unit-D1.2) is an id, as in the browser
     querySelector: s => body.querySelector(s), querySelectorAll: s => body.querySelectorAll(s),
+    get activeElement() { return active && body.contains(active) ? active : body; },      // the body, where nothing in the page has the focus
     listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
     dispatch(type, target, extra) { const ev = Object.assign({ type, target, preventDefault() { ev.defaulted = true; }, stopPropagation() { ev.stopped = true; } }, extra || {}); for (const fn of (this.listeners[type] || [])) fn(ev); return ev; } };
   return doc;

@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.31 (2026-11-21; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.32 (2026-11-21; 0327, the map of the steps in the maps drawer; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -75,7 +75,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 54 | Next questions are a panel inside the closing card, not a list that drops over the page. The panel says what the questions are and what each of the five ways does, a sentence each, in the words of what the Architect is told to do at that way. The questions of the way picked take the list's place, in rows of the same look. The row a run opens on says the way and not what the question came from (0314, the first of three mockups, the product owner's choice: "very little explanation what the feature does, what the options mean", and of *From did not fit* on the run's row: "What does from did not fit even mean"; §2.24). |
 | 55 | What the coach says or changes, with what the Architect does in reply, is a step of the conversation. The coach can go back to any step and go on from it: another way. The Architect then reads the way to that step and nothing of the others, so a direction that led nowhere needs no correcting - it is left. The way that was left stays, to go back to and to go on from (2026-11-19, the product owner's idea; §2.25). |
 | 56 | What is on screen is in use. The arrows count the steps of the way being walked - *Step 3 of 5* - and both panes show the step on screen: the brief as it stood there, the conversation up to it. A step off that way is out of the conversation; no row lists what was left (the product owner, of a row that did: "It should go, it is confusing. Irrelevant steps should be simply removed from the left pane"; §2.25). |
-| 57 | The steps have a map: the Workflow map's own drawer and drawing, a box to a step, opened by a button beside the arrows. The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
+| 57 | The steps have a map: the Workflow map's own drawer and drawing, a box to a step - opened by a button beside the arrows until 0327, since then the *Pathfinding* level of the maps drawer (docs/BRANCH_DESIGN.md §5). The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
 | 58 | The Architect's card of a step has a branch button, as a turn's card of an analysis has: a click goes to the step with no map opened, and what is said next goes on from there. The button of the step in use is lit, and brings the end of the way back (2026-11-21, the product owner: "it would be beneficial and close the loop"; §2.25). |
 
 ## 2. The Architect
@@ -1335,19 +1335,21 @@ command to branch.
   server once the next request names it: the tab shows the brief as it stood there, with the lines that step
   changed marked; the pane shows the conversation up to it, the last message's choices to click again; **Start
   analysis from step 3** names the step unless it is the last of its way. Stepping sends nothing.
-- **While the Architect replies** the arrows and the map's button are off: what is on its way goes on from the
-  step it left.
-- **The map.** The button after the arrows opens the Workflow map's drawer (§2.9) as the *Brief map* (the
-  *Conversation map* until 0324, when the Thread map became the Workflow map; docs/BRANCH_DESIGN.md §5): how
-  many steps, where they branch. The drawing is the Workflow map's own (`workflowGraph.js`, which now takes
+- **While the Architect replies** the arrows are off, and the map cannot be shown: what is on its way goes on from
+  the step it left.
+- **The map.** The *Pathfinding map*: the *Pathfinding* level of the maps drawer, which the button on the left bar
+  opens (0327; docs/BRANCH_DESIGN.md §5, *The maps in one place*). Until then a button after the arrows opened it,
+  as the *Brief map* (the *Conversation map* until 0324). The level says how many steps, and where they branch. A
+  chain asked without the Architect has no such map, nor a brief kept before steps; the level is greyed and says
+  so. The drawing is the Workflow map's own (`workflowGraph.js`, which now takes
   another map's boxes and is told what is that map's own): a box to a step, joined to the step it follows. On
   a box: what the coach said - the question as it was asked on the first; *You changed a line*, *Question check*
   where they said nothing - and under it what the step changed, in the tab's words. The way to the step on
   screen is lit, the rest faint. Under the pointer a box lights its own way and the drawer's foot says, as the
   Workflow map does of a chain: what was said, *Step* (as the arrows would count it), *Follows*, *Follow-ups*,
   *Changed*, and the first sentence of the Architect's reply. A click goes to the step and shuts the drawer.
-  While the drawer is open the map follows its brief - an arrow pressed, a step added - and it shuts when another
-  chain comes on screen.
+  While the drawer is open the map follows its brief - an arrow pressed, a step added - and, when another chain
+  comes on screen, shows that chain's steps or goes to the Workflow map.
 - **The button on a card** (0325, 2.9; decision 58). In the pane, the Architect's card of a step carries the Git
   branch mark in its head, before the button of its prompt - *Branch from step 3*, the step as the arrows count it. A
   click is a click on the step's box of the map: the pane ends at that card, the tab is the brief as it stood there,

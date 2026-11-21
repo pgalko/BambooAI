@@ -16,10 +16,11 @@
 // The arrows step through the steps of the way being walked, and the one on screen is the one in use: the pane shows
 // the conversation up to it, the tab the brief as it stood there, and an answer, a change and Start analysis all go
 // on from it (the step rides with the request). Going on from a step that has steps after it starts another way:
-// the steps left are set aside, out of the pane and of what the Architect reads. The map beside the arrows shows
-// every step - in the Workflow map's own drawer and drawing (workflowGraph.js) - and a click goes to one. In the pane
-// the Architect's card of a step has a branch button, as a turn's card of an analysis has (branch.js): a click goes
-// to that step with no map opened. A brief kept before steps is one way, a step to a version, and has neither.
+// the steps left are set aside, out of the pane and of what the Architect reads. The Pathfinding map - a level of
+// the maps drawer (maps.js), in the Workflow map's drawing (workflowGraph.js) - shows every step, and a click goes to
+// one. In the pane the Architect's card of a step has a branch button, as a turn's card of an analysis has
+// (branch.js): a click goes to that step with no map opened. A brief kept before steps is one way, a step to a
+// version, and has neither.
 //
 // Where a reply has the coach's saved analyses read (§3.7), the stream says how far the reading is: a row of the
 // conversation with a count and Skip (POST /architect/skip). What was found is listed under the row, an analysis to
@@ -38,14 +39,14 @@
 //
 // A brief not yet run is drawn from its versions (the chain's `framing`), never from kept markup. Once it runs, the
 // Brief tab's markup carries the framing (data-framing), so a restored chain or a saved favourite steps through its
-// steps - and opens their map, to be read - with nothing else kept.
+// steps - and has their map, to be read - with nothing else kept.
 //
 // The report of a run with a brief has a part "Against the brief" (analyst/session.py). It is not the Answer's - the
 // Answer is what goes to other people: cutAnswer() takes it out, and turnedOut() shows it at the foot of that run's
 // Brief tab, as a card of verdicts (§2.21). The page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted,
-//                        cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout }
+//                        cutAnswer, turnedOut, mark, map, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout }
 
 (function () {
     'use strict';
@@ -76,8 +77,9 @@
         unplaced: 'the Analyst cannot place', checkPrompt: 'what the question check was given (run log)',
         drawn: n => n + ' drawn', notDrawn: n => n + ' not', noneDrawn: 'no draft', draftPrompt: 'the prompt the draft was written from (run log)',
         notStarted: 'The analysis did not start',
-        // the Brief map - the steps of the brief's conversation: the drawer's words, what a box says where the coach said nothing, and its second line - the parts of the brief the step changed, in the tab's words
-        map: 'Brief map', mapSub: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : ''),
+        // the Pathfinding map - the steps that made the brief: the drawer's words, why it cannot be shown, what a box says where the coach said nothing, and its second line - the parts of the brief the step changed, in the tab's words
+        mapSaid: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : ''),
+        mapOff: { none: n => 'Chain ' + n + ' was asked without the Architect', old: n => 'Chain ' + n + "'s brief was made before version 2.8.1" },
         mapRest: 'Click a step to go to it. Hover over one to read what was said.', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',
         info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Architect' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
         part: { question: 'question', decision: 'what it is for', thinks: 'what you think', rests_on: 'why you think so', expects: 'what you expect', would_change: 'what would change your mind',
@@ -102,9 +104,7 @@
         pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
         ok: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
         x: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-        // the Git branch mark, as an analysis has it (stream-pane.js, branch.js): on the button to the Brief map - a map
-        // of ways gone, where the Workflow map keeps its own, boxes joined by lines (2.9, the product owner's choice) -
-        // and on the branch button of a card in the pane
+        // the Git branch mark, as an analysis has it (stream-pane.js, branch.js): on the branch button of a card in the pane
         branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
             '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>'
     };
@@ -378,14 +378,13 @@
             const rows = (items || []).map((x, i) => build.line(c, part + '.' + i, x.text, Object.assign({ list: true, locked: LOCKED.indexOf(x.source) >= 0 }, of(x))));
             return rows.concat(adding === part + '.+' ? [build.line(c, part + '.+', '')] : []).join('');
         },
-        // which step of the conversation is on screen, of how many on the way through it, the arrows to the one before
-        // and the one after, and - where the framing keeps steps - the button to the map of them all. held: the
-        // Architect is replying - what is on its way goes on from the step it left, so none of them can be pressed
+        // which step of the conversation is on screen, of how many on the way through it, and the arrows to the one
+        // before and the one after. held: the Architect is replying - what is on its way goes on from the step it left,
+        // so neither can be pressed
         stepper(framing, shown, held) {
             const at = steps.place(framing, shown), off = held ? ' disabled' : '';
             const arrow = (d, glyph, title, to) => '<button type="button" data-ar="step" data-step="' + d + '" title="' + title + '" aria-label="' + title + '"' + (to ? off : ' disabled') + '>' + glyph + '</button>';
-            return '<div class="ar-ver"><span class="k">' + WORDS.step + '</span>' + arrow(-1, '‹', WORDS.before, at.before) + '<b>' + WORDS.of(at.i, at.n) + '</b>' + arrow(1, '›', WORDS.after, at.after) +
-                (steps.kept(framing) ? '<button type="button" class="ar-map" data-ar="map" title="' + WORDS.map + '" aria-label="' + WORDS.map + '"' + off + '>' + ICON.branch + '</button>' : '') + '</div>';
+            return '<div class="ar-ver"><span class="k">' + WORDS.step + '</span>' + arrow(-1, '‹', WORDS.before, at.before) + '<b>' + WORDS.of(at.i, at.n) + '</b>' + arrow(1, '›', WORDS.after, at.after) + '</div>';
         },
         // the button that shows a saved analysis whole, in a dialog over the page
         view(thread, run) {
@@ -699,10 +698,10 @@
         const root = briefRoot();
         if (root) { root.parentNode.innerHTML = briefOf(entry); mount(briefRoot()); }
         drawPane(entry);
-        mapFollows();
+        window.MapsUI.follow();
     }
     // a chain comes on screen: a brief not yet run is drawn from its versions; any other Brief tab came with its markup, and its drafts are drawn in it
-    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else mountAll(); mapFollows(); }
+    function restore(entry) { if (entry && entry.status === 'framing') show(entry); else mountAll(); }
     // While a brief not yet run is on screen the composer is the conversation with the Architect: held while it
     // replies or the saved analyses are read, and while another chain runs - whose Stop stays within reach. Anywhere
     // else it is as it was.
@@ -867,7 +866,7 @@
         const st = stateOf(root), host = root.parentNode;
         host.innerHTML = build.brief(st.framing, Object.assign({ chain: st.chain, thread: st.thread, state: st.state, shown: shown || st.shown, drawing: st.drawing, against: st.against }, more || {}));
         mount(host.querySelector('.ar-brief'));
-        mapFollows();
+        window.MapsUI.follow();
     }
     // What a run's report says against its brief, on that run's Brief tab (0312). `root` holds the run's tabs: the page's,
     // or the holder of a run that goes on while another chain is on screen. The rows are kept in the brief's own markup,
@@ -998,7 +997,7 @@
         if (why) say(WORDS.notStarted + ': ' + why);
     }
 
-    // Another step on screen (the arrows, the map). In a brief not yet run it is the one in use from then, here as it
+    // Another step on screen (the arrows, the map, a card's button). In a brief not yet run it is the one in use from then, here as it
     // will be on the server: the pane shows the conversation up to it, the tab the brief as it stood there. Not while
     // the Architect replies to this brief: what is on its way goes on from the step it left. A brief that ran is
     // read: its tab shows the brief of that step, and nothing else changes
@@ -1019,23 +1018,24 @@
         const label = !s.from ? (versionAt(framing, 1).brief || {}).question || '' : said || (!turns.length ? WORDS.byHand : turns[0].who === 'reader' ? WORDS.checked : WORDS.wentOn);
         return { label, reply, parts };
     }
-    // The Brief map - the map of a brief's conversation (§2.25): every step a box, in the Workflow map's own drawer and
-    // with its drawing (workflowGraph.js) - the way to the step on screen lit, the steps off it faint; a box says what
-    // the coach said and, under it, what the step changed. Under the pointer a box lights its own way, and the drawer's
-    // foot says, as the Workflow map's does of a chain: what was said, where the step stands - as the arrows would
-    // count it -, what it follows, how many follow it, what it changed and what the Architect replied. A click goes to
-    // the step and shuts the drawer
-    function openMap(root) {
-        const st = stateOf(root), framing = st.framing, all = steps.of(framing), held = steps.held(framing), drawer = byId('workflowMapModal');
-        if (!drawer || !window.WorkflowGraph) return;
-        const words = all.map(s => stepWords(framing, s, held[s.k]));
+    // The Pathfinding map - a level of the maps drawer (maps.js; §2.25): every step that made the brief on screen a box,
+    // in the Workflow map's drawing (workflowGraph.js) - the way to the step on screen lit, the steps off it faint; a
+    // box says what the coach said and, under it, what the step changed. Under the pointer a box lights its own way,
+    // and the drawer's foot says, as the Workflow map's does of a chain: what was said, where the step stands - as the
+    // arrows would count it -, what it follows, how many follow it, what it changed and what the Architect replied.
+    // A click goes to the step and shuts the drawer, which lies over the conversation.
+    // What the drawer asks of the level: how many steps; that in words; why the map cannot be shown - the chain on
+    // screen, the `n`th of its thread, has no brief, or one kept before steps; or the Architect is replying, and
+    // what is on its way goes on from the step it left -; and the drawing
+    function map(n) {
+        const root = briefRoot(), st = root ? stateOf(root) : null, all = st && steps.kept(st.framing) ? steps.of(st.framing) : [];
         const forks = all.filter(s => all.filter(x => x.from === s.k).length > 1).length;
+        return { n: all.length, said: WORDS.mapSaid(all.length, forks),
+                 off: !root ? WORDS.mapOff.none(n) : !all.length ? WORDS.mapOff.old(n) : talking && talking.entry === entryOf(root) ? WORDS.replying : '', draw: () => drawMap(st, all) };
+    }
+    function drawMap(st, all) {
+        const framing = st.framing, held = steps.held(framing), words = all.map(s => stepWords(framing, s, held[s.k]));
         const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
-        drawer.classList.remove('turns');                      // the drawer may last have held the map of an analysis's turns (branch.js)
-        drawer.classList.add('steps');                         // the thread's own buttons are not this map's
-        drawer.setAttribute('data-chain', st.chain);
-        window.WorkflowGraph.head(WORDS.map, WORDS.mapSub(all.length, forks), WORDS.mapRest);
-        drawer.style.display = 'flex';
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map((s, i) => ({ chain_id: s.k, parentChainId: s.from || null, queryText: words[i].label })), st.shown - 1, {
             sub: (item, i) => (all[i].from ? [] : [WORDS.asked1]).concat(words[i].parts).join(' · '),
             show: (item, i) => {
@@ -1047,17 +1047,9 @@
                     row(WORDS.info.changed, esc(words[i].parts.join(' · ') || WORDS.nothing)) +
                     (words[i].reply ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.replied + '</span><b>' + esc(first ? first[0] : words[i].reply.slice(0, 240)) + '</b></div>' : '') + '</div>';
             },
-            // a box clicked: the drawer shuts, and the map's brief - the one on screen while the drawer is open (mapFollows()) - goes to the step
-            pick: (item, i) => { drawer.style.display = 'none'; stepTo(briefRoot(), all[i].k); }
+            pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }
         });
-    }
-    // The map, while its drawer is open, follows its brief: drawn again whenever the brief is - another step may be on
-    // screen, a step may have been added - and shut once another chain is on screen
-    function mapFollows() {
-        const drawer = byId('workflowMapModal'), root = briefRoot();
-        if (!drawer || !drawer.classList.contains('steps') || drawer.style.display !== 'flex') return;
-        if (root && root.getAttribute('data-chain') === drawer.getAttribute('data-chain')) openMap(root);
-        else drawer.style.display = 'none';
+        window.WorkflowGraph.rest(WORDS.mapRest);
     }
 
     // a saved analysis a reading found, viewed whole in a dialog over the page: the report, and under it the conversation,
@@ -1091,7 +1083,6 @@
         if (!root) return;
         const act = hit.getAttribute('data-ar');
         if (act === 'step') { settled(root, r => { const at = steps.place(stateOf(r).framing, stateOf(r).shown); stepTo(r, Number(hit.getAttribute('data-step')) < 0 ? at.before : at.after); }); return; }
-        if (act === 'map') { settled(root, openMap); return; }
         if (busy) return;
         const line = hit.closest('.ar-line');
         if (act === 'edit') edit(root, line);
@@ -1124,5 +1115,5 @@
         document.addEventListener('input', ev => { const input = ev.target && ev.target.closest ? ev.target.closest('.ar-input') : null; if (input) grow(input); });
     }
 
-    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, cutAnswer, turnedOut, mark, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout };
+    window.ArchitectUI = { initialize, isOn, open, tell, restore, onChain, framingInView, started, notStarted, cutAnswer, turnedOut, mark, map, apply, tick, unbuild, unfigure, go, steps, build, readStream, draftLayout };
 })();

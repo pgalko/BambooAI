@@ -445,7 +445,8 @@ def story(w, mod, dataset, questions):
         w.shot("tutor_step_back")
         p.click("#streamOutput .ar-choice >> nth=0")          # the coach goes on from it - another way: the wording they gave is left behind
         said(3)
-        p.click('#content-brief .ar-ver [data-ar="map"]')     # the conversation's map: both ways, the one in use lit
+        p.click("#railMapButton")                             # the conversation's map - the maps drawer, its Pathfinding level: both ways, the one in use lit
+        p.click("#mapLevels [data-level='pathfinding']")
         p.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
         p.wait_for_timeout(600)
         w.shot("tutor_map")
@@ -455,7 +456,7 @@ def story(w, mod, dataset, questions):
         p.click("#workflowMapModal .wf-node >> nth=2")        # a click goes to it: both panes are that step's
         p.wait_for_timeout(400)
         w.shot("tutor_way_left")
-        p.click('#content-brief .ar-ver [data-ar="map"]')     # and back, by the map, to the way the coach took
+        p.click("#railMapButton")                             # and back, by the map - the drawer opens where it was left -, to the way the coach took
         p.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
         p.click("#workflowMapModal .wf-node >> nth=3")
         p.wait_for_timeout(400)

@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.9 (2026-11-21; released as 2.9.0, 0326; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.10 (2026-11-21; released as 2.9.0, 0326; 0327, the maps in one place; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -30,9 +30,9 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
 4. A branch runs in the mode of the first run, and the turns kept count as used. The Architect is not called for
    a branch, also when it is switched on.
 5. Only analyses made after the build can be branched.
-6. The map works as the Workflow map and the Brief map do: hover to read, click to go, type to branch.
-7. The map is the **Analysis map** (the *Turn map* until decision 17). Its button, and the Brief map's, carry the
-   Git branch icon; the Workflow map keeps its own.
+6. The map works as the Workflow map and the Pathfinding map do: hover to read, click to go, type to branch.
+7. The map is the **Analysis map** (the *Turn map* until decision 17). The Git branch icon is the branch
+   buttons' on the cards (it was also on the buttons to this map and to the Pathfinding map, until decision 18).
 8. Going back moves the left pane only. The right pane keeps the result, so the person looks at the figure while
    they write the hint.
 9. A hint is required.
@@ -46,9 +46,13 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     report says where it departs.
 16. A run that failed gets no Analysis map (2026-11-21).
 17. The maps' names (2026-11-21): the **Workflow map** shows a thread's chains (it was the *Thread map*), the
-    **Analysis map** an analysis's turns (the *Turn map*), the **Brief map** the steps of a brief's conversation
-    (the *Conversation map*). The three have one head, on one line: the map's mark, its name, what is on it; then
-    zoom, full screen and the close. Nothing stands over the map.
+    **Analysis map** an analysis's turns (the *Turn map*), the **Pathfinding map** the steps that made a brief (the
+    *Conversation map*, then the *Brief map* until decision 18). The three have one head, on one line. Nothing
+    stands over the map.
+18. The maps have one way in (2026-11-21): the button on the left bar, **Maps**, opens one drawer, and a switch in
+    its head goes between the Workflow map and the two maps of the chain on screen, Pathfinding and Analysis. The
+    buttons that opened a map from above an analysis and from the Brief tab are gone; the branch buttons on the
+    cards stay. The Code map is no map of this kind and keeps its own ways in.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -164,16 +168,14 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 `web_app/static/js/branch.js`, with the left pane (`stream-pane.js`) and the Workflow map's drawing
 (`workflowGraph.js`).
 
-**The Analysis map.** Its button - the Git branch mark and the map's name - stands at the end of the row of the ids,
-under the strip, once the run has ended with turns to go on from (`turn_map` on the closing card; a stopped run now
-has a closing card too). Beside the name is the number of branches the analysis has. The row stays in view under the
-strip when the pane scrolls, on one line: an id that does not fit is cut short, the frame's first (0321; the product
-owner, 2026-11-21: on the strip the button was hard to find). The map opens in the Workflow map's drawer: every turn
-of the analysis and of its branches is a box, joined to the turn it follows. A box says what the turn did, and under
-that its number and its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn
-of a branch carries the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says
-what the turn did, the hint its branch was given, how many ways the analysis went on from it and what its cell
-printed. The map does not open while an analysis runs.
+**The Analysis map** is a level of the maps drawer (*The maps in one place*, below). Every turn of the analysis and
+of its branches is a box, joined to the turn it follows. A box says what the turn did, and under that its number and
+its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn of a branch carries
+the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says what the turn did,
+the hint its branch was given, how many ways the analysis went on from it and what its cell printed. The map can be
+shown once the run has ended with turns to go on from (`turn_map` on the closing card, which marks the row of the
+ids, `data-branch`; a stopped run has a closing card too), and not while an analysis runs. Until 0327 a button at
+the end of the row of the ids opened it (0321).
 
 **Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by
 a rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the
@@ -186,8 +188,9 @@ back whole. The turn a run was stopped in ended nothing: it has no box.
 map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git branch
 mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is no turn. A
 click is a click on the turn's box of the map - the pane ends at the turn, the composer takes the hint - and its
-button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a pane that has
-the Analysis map's button: when its run ends, and when a chain kept from before the button existed comes on screen.
+button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a pane whose
+run ended with turns to go on from: when its run ends, and when a chain kept from before the button existed comes
+on screen.
 
 **The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
 chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
@@ -204,22 +207,48 @@ another branch brings that branch on screen, tabs and pane.
 chain of it that was last on screen (the newest where none was). The box says how many branches it has; a chain
 asked from a branch hangs under its analysis's box.
 
-**The icon.** The Git branch mark is on the Analysis map's button and on the Brief map's; the Workflow map keeps
-its own.
+**The icon.** The Git branch mark is the branch buttons', on a turn's card and on the Architect's.
 
 **The maps' names and their head** (0324; the product owner, 2026-11-21: the head was misaligned and the three names
-did not say what each map is of). The drawer holds one of three maps - the Workflow map, the Analysis map, the Brief
-map (decision 17) - and has one head for them, on one line (`index.html`, `shell.css`): the map's mark, its name, and
-what is on it (*2 chains · 3 branches*, *11 turns · 2 branches*, *5 steps · 1 branch*); then zoom - out, the level,
-in, fit - a line, full screen, and the close. The mark is the rail's while the drawer holds a thread's chains and the
-Git branch mark for the other two, by the drawer's class. Zoom and full screen were in the map's corners, over the
-drawing: `workflowGraph.js` now puts them into the head each time a map is drawn, and a map with nothing on it has
-neither. The full-screen button says what a click does, also on a map drawn again while the drawer is over the page.
-What a click and the pointer do is said in the drawer's foot, until a box is under the pointer (*Click a turn to go
-back to it. Hover over one to see what it did.*), and no longer in the head: `WorkflowGraph.head(name, counts, rest)`
-writes the three for whichever map opens. The small grey text of the drawer - the counts, the level, a box's second
-line, that line of the foot - is one shade lighter than it was. In the code the names of what the map is of stay:
-`turn_map` on the closing card, `.sp-turnmap`, the drawer's `.turns` and `.steps`.
+did not say what each map is of). The drawer holds one of three maps (decision 17) and has one head for them, on one
+line (`index.html`, `shell.css`), with zoom - out, the level, in, fit - a line, full screen, and the close.
+Zoom and full screen were in the map's corners, over the drawing: `workflowGraph.js` puts them into the head each
+time a map is drawn, and a map with nothing on it has neither. The full-screen button says what a click does, also
+on a map drawn again while the drawer is over the page. What a click and the pointer do is said in the drawer's foot,
+until a box is under the pointer (*Click a turn to go back to it. Hover over one to see what it did.*). The small
+grey text of the drawer is one shade lighter than it was.
+
+**The maps in one place** (0327; the product owner, 2026-11-21: four things called a map opened from four places,
+and it was hard to remember which was where). `web_app/static/js/maps.js` is the drawer's one way in, and its head is
+a switch (decision 18):
+
+- **The way in.** The button on the left bar, *Maps*, and Ctrl/Cmd+M open the drawer and shut it. It opens on the
+  map it was left on, Workflow the first time.
+- **The switch.** *Workflow*, then the chain on screen by its place in the thread (*Chain 2*), then that chain's
+  two levels as one control: *Pathfinding* and *Analysis*. Each level has the number of boxes on its map, and says
+  in words what the map holds under the pointer (*3 chains · 1 branch*, *5 steps · 1 branch*, *11 turns · 2
+  branches*). The left and right arrow keys go round the levels while the drawer is open, unless the focus is on
+  something outside it.
+- **A level that cannot be shown** is greyed and says why under the pointer: *Chain 1 was asked without the
+  Architect*; *Chain 1's brief was made before version 2.8.1* (it keeps no steps); *The Architect is replying*;
+  *Chain 1 has no turns to go back to*; *An analysis is running*. With no chain on screen - a new thread, a
+  routine's run - the switch is Workflow alone.
+- **Following.** The drawer shows what is on screen: when another chain comes on screen, or the one there changes,
+  the map is drawn again. On a level the chain now on screen does not have, the drawer goes to the Workflow map and
+  stays there. An analysis that starts shuts the drawer: it lies over the pane the run is shown in.
+- **Clicks.** A chain's box on the Workflow map brings the chain on screen and leaves the drawer open, so its other
+  maps are one click away. A step or a turn clicked shuts the drawer, which lies over the pane the person then
+  works in.
+- **In the code.** A level is what its module gives the drawer when asked - how many boxes, that in words, why it
+  cannot be shown, and its drawing: `workflowMap()` (`workflow-management.js`), `ArchitectUI.map` and
+  `BranchUI.map`. The drawer says which level it holds in `data-level`. `MapsUI.follow()` is called at the end of
+  the page's hook for a chain on screen, when a brief is drawn again, when a turn is gone back to or left, and when
+  a routine's run comes on screen. A pane or a Brief tab kept by an earlier build still has its button to a map in
+  its markup: the button is hidden, and in a pane it still says the analysis can be gone on from.
+- **The drawer** is 560 px wide (520 until then): two digits on every level fit beside the tools, and the chain's
+  name gives way first should a number ever be longer.
+- **Found on the way.** The wheel with Ctrl or Cmd zoomed by one step for every time a map had been drawn in the
+  drawer, the frame having kept a handler for each drawing; it has one now.
 
 ## 6. Save, memory, usage (0321, built)
 
@@ -291,6 +320,7 @@ before.
 | 0324 | The maps' names - Workflow map, Analysis map, Brief map - and one head for the three. | built |
 | 0325 | The branch button on the Architect's cards, as on a turn's card (docs/ARCHITECT_DESIGN.md §2.25). | built |
 | 0326 | A correction of a result marks the line it replaced, not every line of its cell (docs/CODEMAP_DESIGN.md §4). Release 2.9.0. | built |
+| 0327 | The maps in one place: one button, one drawer, a switch between Workflow and the chain's Pathfinding and Analysis. | built |
 
 ## 9. Tests
 
@@ -317,4 +347,9 @@ a turn's card - which cards have one, a click and a second click, a chain kept f
 in a browser, and a branch started from one. (0324) `test_branch.js`, now on the page's own drawer: the Workflow
 map's head as the page's opener writes it, a thread with no chain; the head's buttons - where they stand, their
 names, the zoom's level, full screen and a map drawn again meanwhile; `test_shell.js`: the head's markup and its
-styles; the walk: the head of each of the three maps as a browser lays it out, and its buttons used.
+styles; the walk: the head of each of the three maps as a browser lays it out, and its buttons used. (0327)
+`tests/analyst/test_maps.js`: the drawer's switch - what it says, a greyed level, where the drawer opens, how it
+follows the chain on screen, the arrow keys and the focus, the page's hooks; `test_branch.js` and
+`test_architect.js`: each level through the switch, a pane kept with the old button, the wheel; the walk: the three
+maps of a framed analysis with branches from the one button, the keys, and no button above an analysis or beside
+the Brief tab's arrows.

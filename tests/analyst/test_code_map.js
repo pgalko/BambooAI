@@ -362,7 +362,8 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
     at100 && in1 && wheelOut && out2 && kept && lvl() === '100%' && scale() === 'scale(1)', [at100, in1, wheelOut, out2, kept, lvl(), scale()]);
   w.CodeMapUI.close();
   const graph = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'), 'utf8');
-  check('the Workflow map drawer: an eye on each chain box that moves the app to the chain, closes the drawer and opens its map', graph.includes("eye.className = 'wf-node-map'") && graph.includes('window.CodeMapUI.open(resp.chain_id)') && graph.includes("drawer.style.display = 'none'"));
+  check('the Workflow map drawer: an eye on each chain box that moves the app to the chain, shuts the drawer and opens its map',
+    graph.includes("eye.className = 'wf-node-map'") && /window\.MapsUI\.shut\(\);\s+if \(window\.CodeMapUI && typeof window\.CodeMapUI\.open === 'function'\) window\.CodeMapUI\.open\(resp\.chain_id\);/.test(graph));
   const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'ui-controls.js'), 'utf8');
   check('the navigator hands the chain on screen to the map (onChain) at the end of updateNavigationButtons', ui.includes('window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id)'));
   const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');

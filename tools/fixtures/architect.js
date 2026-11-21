@@ -148,9 +148,10 @@ window.galleryArchitect = (function () {
       show(branched);
       for (let k = 0; k < 2; k++) document.querySelector('#content-brief [data-ar="step"][data-step="-1"]').click();
     },
-    map() {          // the Brief map of that conversation, in the Workflow map's drawer: the way to the step on screen lit, the pointer on the end of the way that was left
+    map() {          // the Pathfinding map of that conversation, in the maps drawer: the way to the step on screen lit, the pointer on the end of the way that was left
       show(branched);
-      document.querySelector('#content-brief [data-ar="map"]').click();
+      document.getElementById('railMapButton').click();
+      document.querySelector('#mapLevels [data-level="pathfinding"]').click();
       document.querySelectorAll('#workflowMapContainer .wf-node')[3].dispatchEvent(new MouseEvent('mouseenter'));
     },
     drawing() {      // the reply stands, a grey window to each figure while its draft is drawn: the row that says so, the composer held

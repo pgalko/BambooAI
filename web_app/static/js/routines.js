@@ -2050,6 +2050,7 @@
         composerLock();
         if (typeof updateSaveButton === 'function') updateSaveButton();
         updateRunNav();
+        if (window.MapsUI) window.MapsUI.follow();      // the maps drawer, where open: no chain is on screen now
     }
     function whoLine() { const n = viewState ? subjectName(viewState.subject) : ''; return n ? ' · ' + n : ''; }
     function finishRunView(out) {

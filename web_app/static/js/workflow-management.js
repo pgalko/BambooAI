@@ -589,7 +589,7 @@ function initializeWorkflowMap() {
     
     if (closeBtn) {
         closeBtn.addEventListener('click', function() {
-            workflowMapModal.style.display = 'none';
+            window.MapsUI.shut();
         });
     }
     
@@ -607,29 +607,31 @@ function initializeWorkflowMap() {
     if (workflowMapModal) {
         workflowMapModal.addEventListener('click', function(event) {
             if (event.target === workflowMapModal) {
-                workflowMapModal.style.display = 'none';
+                window.MapsUI.shut();
             }
         });
     }
 }
 
-function showWorkflowMap() {
-    var modal = document.getElementById('workflowMapModal');
-    var container = document.getElementById('workflowMapContainer');
-    modal.classList.remove('steps');                           // the drawer may last have held the Brief map (architect.js): its mark and its foot are the thread's again
-    modal.classList.remove('turns');                           // ... or the Analysis map (branch.js)
-    modal.style.display = 'flex';
-    updateSynthesisButtonState();
-    updateTrajectoryButtonState();
-    // a box to an analysis: a branch is its analysis's, and the box shows the chain of it that was last on screen (branch.js)
+// The Workflow map - the first level of the maps drawer (maps.js): the thread's chains. A box to an analysis: a branch
+// is its analysis's, and the box shows the chain of it that was last on screen (branch.js). What the drawer asks: how
+// many chains; that in words, with how many branches their analyses have between them; and the drawing, with the
+// thread's own buttons under it
+function workflowMap() {
     var boxes = window.BranchUI ? window.BranchUI.items() : responses;
-    WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);
-    // the drawer's head: the map's name; how many chains, and how many branches their analyses have between them; and what its foot says until a chain is under the pointer
-    var branches = (boxes || []).reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);
-    var n = (boxes || []).length;
-    WorkflowGraph.head('Workflow map',
-        n ? n + ' chain' + (n === 1 ? '' : 's') + (branches ? ' · ' + branches + ' branch' + (branches === 1 ? '' : 'es') : '') : 'no chains yet',
-        n ? 'Click a chain to open it. Hover over one to see its question.' : '');
+    var branches = boxes.reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);
+    var n = boxes.length;
+    return {
+        n: n,
+        said: n ? n + ' chain' + (n === 1 ? '' : 's') + (branches ? ' · ' + branches + ' branch' + (branches === 1 ? '' : 'es') : '') : 'no chains yet',
+        off: '',
+        draw: function () {
+            updateSynthesisButtonState();
+            updateTrajectoryButtonState();
+            WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);
+            WorkflowGraph.rest(n ? 'Click a chain to open it. Hover over one to see its question.' : '');
+        }
+    };
 }
 
 function updateSynthesisButtonState() {
@@ -653,10 +655,8 @@ function updateSynthesisButtonState() {
 }
 
 function requestSynthesis() {
-    const workflowMapModal = document.getElementById('workflowMapModal');
-    
     // Close the modal
-    workflowMapModal.style.display = 'none';
+    window.MapsUI.shut();
     
     // Set synthesis tab mode
     answerTabSynthesis = true;
@@ -1619,10 +1619,8 @@ function renderVariationPills(variations, container) {
                     lastActiveChainId = responses[targetIndex].chain_id || null;
                     loadResponseContent(responses[currentResponseIndex]);
                     if (typeof updateNavigationButtons === 'function') {
-                        updateNavigationButtons();
+                        updateNavigationButtons();      // the chain comes on screen: the drawer stays open, and follows (maps.js)
                     }
-                    // Close the modal
-                    document.getElementById('workflowMapModal').style.display = 'none';
                 }
             });
         }

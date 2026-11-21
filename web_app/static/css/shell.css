@@ -226,20 +226,25 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 #content-answer .cite.fig, #content-brief .ar-against .cite.fig { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
 #content-answer .cite.doc, #content-answer .cite.ctx, #content-brief .ar-against .cite.doc, #content-brief .ar-against .cite.ctx { color: var(--info-color, #58a6ff); border-color: var(--info-color, #58a6ff); }   /* a quoted passage: a document's [D1.17] (D45), the context's [C.417] (S2) - told apart by the prefix */
 
-/* ---- the Workflow map as a drawer (2026-09-08): #workflowMapModal keeps its ids; workflow-management.js shows it with
-   display:flex and workflowGraph.js draws .wf-* nodes and edges into #workflowMapContainer. workflow-map.css is retired. */
-#workflowMapModal.map-drawer { position: fixed; left: 46px; top: 40px; bottom: 0; right: auto; width: 520px; height: auto; margin: 0; padding: 0; background: none; border: none; display: none; align-items: stretch; justify-content: flex-start; z-index: 1001; }
+/* ---- the maps drawer (2026-09-08; 2.9: one drawer for the three maps): #workflowMapModal keeps its ids; maps.js shows
+   it with display:flex and workflowGraph.js draws .wf-* nodes and edges into #workflowMapContainer. workflow-map.css is retired. */
+#workflowMapModal.map-drawer { position: fixed; left: 46px; top: 40px; bottom: 0; right: auto; width: 560px; height: auto; margin: 0; padding: 0; background: none; border: none; display: none; align-items: stretch; justify-content: flex-start; z-index: 1001; }
 #workflowMapModal.map-drawer .workflow-modal-content { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; padding: 0; border: none; border-right: 1px solid var(--border-color); border-radius: 0; background: var(--bg-primary); box-shadow: 12px 0 30px rgba(0, 0, 0, 0.25); display: flex; flex-direction: column; animation: none; transform: none; overflow: hidden; }
-/* the head (2.9), one for the three maps the drawer holds: the map's mark, its name and what is on it; then, on the same line,
-   zoom, full screen and the close - nothing stands over the map. The mark is the rail's while the drawer holds a thread's
-   chains, the Git branch mark while it holds an analysis's turns (.turns) or a brief's steps (.steps) */
-#workflowMapModal .map-drawer-head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 9px 0 14px; margin: 0; border: none; border-bottom: 1px solid var(--border-color); background: none; }
-#workflowMapModal .map-drawer-icon { flex-shrink: 0; width: 16px; height: 16px; color: var(--text-tertiary); }
-#workflowMapModal .map-drawer-icon.branch, #workflowMapModal.steps .map-drawer-icon.tree, #workflowMapModal.turns .map-drawer-icon.tree { display: none; }
-#workflowMapModal.steps .map-drawer-icon.branch, #workflowMapModal.turns .map-drawer-icon.branch { display: block; }
-#workflowMapModal .map-drawer-name { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 12px; }
-#workflowMapModal .map-drawer-head h2 { flex-shrink: 0; margin: 0; font-size: var(--fs-title); font-weight: 600; line-height: 20px; color: var(--text-primary); white-space: nowrap; }
-#workflowMapModal .map-drawer-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-meta); line-height: 20px; color: var(--text-tertiary); }
+/* the head (2.9): the switch between the drawer's maps (maps.js) - Workflow, then, of the chain on screen, Pathfinding
+   and Analysis as one control -; then, on the same line, zoom, full screen and the close - nothing stands over the map.
+   A level's button has its name and how many boxes its map has; the one in use is lit, one that cannot be shown greyed */
+#workflowMapModal .map-drawer-head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 9px 0 12px; margin: 0; border: none; border-bottom: 1px solid var(--border-color); background: none; }
+#workflowMapModal .map-levels { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+#workflowMapModal .map-level { flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 26px; padding: 0 8px; margin: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: none; color: var(--text-secondary); font-family: var(--font-ui); font-size: var(--fs-meta); white-space: nowrap; cursor: pointer; }
+#workflowMapModal .map-level .n { font-size: var(--fs-small); color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+#workflowMapModal .map-level:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+#workflowMapModal .map-level[aria-pressed="true"], #workflowMapModal .map-level[aria-pressed="true"] .n { background: var(--bg-tertiary); color: var(--c-model); }
+#workflowMapModal .map-level[aria-disabled="true"] { background: none; color: var(--text-quaternary); cursor: not-allowed; }
+#workflowMapModal .map-chain { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-small); color: var(--text-tertiary); white-space: nowrap; }      /* the one part that gives way, should the numbers ever be too long for the head */
+#workflowMapModal .map-of-chain { flex-shrink: 0; display: flex; border: 1px solid var(--border-color); border-radius: var(--r-2); overflow: hidden; }
+#workflowMapModal .map-of-chain .map-level { height: 24px; padding: 0 7px; border: none; border-radius: 0; }
+#workflowMapModal .map-of-chain .map-level + .map-level { border-left: 1px solid var(--border-color); }
+#workflowMapModal .map-of-chain .map-level:focus-visible { outline-offset: -2px; }      /* the ring of the keys' focus, inside the level: the control cuts what stands outside it */
 #workflowMapModal .map-drawer-tools { flex-shrink: 0; display: flex; align-items: center; gap: 2px; }
 #workflowMapModal #mapDrawerTools { display: contents; }      /* zoom and full screen (workflowGraph.js) stand in the row of the close */
 /* the head's buttons: out, the level, in, fit - a line - full screen, the close; one size, no frame */
@@ -268,8 +273,8 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 #workflowMapModal .details-plot-preview img { max-width: 100%; border-radius: var(--r-1); border: 1px solid var(--border-color); }
 #workflowMapModal .plot-preview-message { font-size: var(--fs-small); color: var(--text-quaternary); }
 #workflowMapModal .map-drawer-foot { display: flex; align-items: center; padding: 10px 14px; margin: 0; border: none; border-top: 1px solid var(--border-color); background: none; }
-#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }      /* the drawer as the Brief map (architect.js) or the Analysis map (branch.js): the thread's buttons are not its own */
-#workflowMapModal.steps .wf-node-chain, #workflowMapModal.turns .wf-node-chain { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }      /* ... and a box's second line is words - what the step changed, which turn it is: one line, in the page's type */
+#workflowMapModal:not([data-level="workflow"]) .map-drawer-foot { display: none; }      /* the drawer on the Pathfinding map (architect.js) or the Analysis map (branch.js): the thread's buttons are not its own */
+#workflowMapModal:not([data-level="workflow"]) .wf-node-chain { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-ui); }      /* ... and a box's second line is words - what the step changed, which turn it is: one line, in the page's type */
 #workflowMapModal .workflow-actions-container { display: flex; gap: 8px; width: 100%; }
 #workflowMapModal .workflow-actions-container .ui-btn { flex: 1; justify-content: center; }
 #workflowMapModal .workflow-actions-container .ui-btn:disabled { opacity: .4; cursor: default; }

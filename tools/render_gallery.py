@@ -34,7 +34,7 @@ STATES = {
     'architect_adding': ARCHITECT + "galleryArchitect.adding();",      # + Add, open: the parts the brief does not show (§2.18)
     'architect_brief': ARCHITECT + "galleryArchitect.brief();",        # the brief after the conversation: the question as the Architect worded it (§2.18), one line open (§2.11)
     'architect_step': ARCHITECT + "galleryArchitect.step();",          # an earlier step of a conversation that branched on screen: both panes are that step's, Start analysis names it (§2.25)
-    'architect_map': DAGRE + ARCHITECT + "galleryArchitect.map();",    # its Brief map, in the Workflow map's drawer: the way to the step on screen lit, the pointer on the way that was left (§2.25)
+    'architect_map': DAGRE + ARCHITECT + "galleryArchitect.map();",    # its Pathfinding map, in the maps drawer: the way to the step on screen lit, the pointer on the way that was left (§2.25)
     'architect_drawing': ARCHITECT + "galleryArchitect.drawing();",    # a grey window to each figure while its draft is drawn: the reply above the row that says so (§2.20; 0311)
     'architect_draft': PLOTLY + ARCHITECT + "galleryArchitect.draft();",      # the drafts drawn on the Brief tab: one on made-up numbers, marked, one computed (§2.20)
     'architect_checked': ARCHITECT + "galleryArchitect.checked();",    # what the brief rests on, checked against the data: the row, the marks, keep or change (§2.13)

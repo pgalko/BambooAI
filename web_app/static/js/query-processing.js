@@ -96,6 +96,8 @@ function handleQuerySubmit(options = {}) {
     if (saveButton) {
         saveButton.style.display = 'none';
     }
+    // the maps drawer lies over the pane the run is shown in: it shuts (maps.js)
+    if (window.MapsUI) window.MapsUI.shut();
 
     // Store the query text
     if (synthesis) {

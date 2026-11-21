@@ -119,21 +119,12 @@ function initializeScrollBehavior() {
 //--------------------
 
 function initializeRail() {
-    // the rail's own buttons (2026-09-08): New workflow and the Workflow map; the other pills bind themselves
+    // the rail's own button (2026-09-08): New workflow; the other pills bind themselves, and the maps' is the drawer's (maps.js)
     const railNewButton = document.getElementById('railNewButton');
     if (railNewButton) {
         railNewButton.addEventListener('click', function (event) {
             event.stopPropagation();
             if (typeof handleNewConversation === 'function') handleNewConversation();
-        });
-    }
-    const railMapButton = document.getElementById('railMapButton');
-    if (railMapButton) {
-        railMapButton.addEventListener('click', function (event) {
-            event.stopPropagation();
-            const map = document.getElementById('workflowMapModal');
-            if (map && map.style.display === 'flex') { map.style.display = 'none'; return; }
-            if (typeof showWorkflowMap === 'function') showWorkflowMap();
         });
     }
 }
@@ -175,7 +166,6 @@ function initializeMenuOverlay() {
     // Handle menu options
     const newConversationOption = document.querySelector('.new-conversation-option');
     const loginOption = document.querySelector('.login-option');
-    const workflowMapOption = document.querySelector('.workflow-map-option');
     
     if (newConversationOption) {
         newConversationOption.addEventListener('click', function() {
@@ -188,16 +178,6 @@ function initializeMenuOverlay() {
         loginOption.addEventListener('click', function() {
             menuPopup.style.display = 'none';
             // Add login functionality here
-        });
-    }
-    
-    if (workflowMapOption) {
-        workflowMapOption.addEventListener('click', function() {
-            document.querySelector('.menu-popup').style.display = 'none';
-            document.querySelector('.menu-overlay').classList.remove('active');
-            if (typeof showWorkflowMap === 'function') {
-                showWorkflowMap();
-            }
         });
     }
     
@@ -415,6 +395,8 @@ function updateNavigationButtons() {
     if (window.BranchUI) window.BranchUI.onChain(responses[currentResponseIndex]);
     // a brief not yet run holds the composer while it is on screen (2026-11-15)
     if (window.ArchitectUI) window.ArchitectUI.onChain(responses[currentResponseIndex]);
+    // the maps drawer, where open, shows the chain now on screen (maps.js)
+    if (window.MapsUI) window.MapsUI.follow();
 }
 
 //--------------------
@@ -534,16 +516,6 @@ function initializeKeyboardShortcuts() {
         });
     }
     
-    // Handle show workflow map with Ctrl+M or Cmd+M
-    document.addEventListener('keydown', function(e) {
-        if ((e.ctrlKey || e.metaKey) && e.key === 'm') {
-            e.preventDefault();
-            if (typeof showWorkflowMap === 'function') {
-                showWorkflowMap();
-            }
-        }
-    });
-
     // Handle new conversation with Ctrl+N or Cmd+N
     document.addEventListener('keydown', function(e) {
         if ((e.ctrlKey || e.metaKey) && e.key === 'k') {

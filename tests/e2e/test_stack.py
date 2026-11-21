@@ -78,7 +78,7 @@ def brief_on_screen(page):
         const text = c => (r.querySelector(c) || {}).textContent || '';
         const anchor = l => { const t = l.querySelector('.tx').cloneNode(true), f = t.querySelector('.fact'), m = l.querySelector('.mk'); if (f) f.remove();
             return [t.textContent, m ? m.title : '', f ? f.textContent : '', !!(f && f.classList.contains('no'))]; };
-        return { state: r.dataset.state, v: text('.ar-ver b'), label: text('.ar-ver .k'), map: (r.querySelector('.ar-ver [data-ar="map"]') || {}).title || '', title: text('h1 .tx'), asked: text('.ar-top .label'), gets: text('.ar-gets'),
+        return { state: r.dataset.state, v: text('.ar-ver b'), label: text('.ar-ver .k'), beside: [...r.querySelectorAll('.ar-ver button')].map(x => x.getAttribute('data-ar')).join(), title: text('h1 .tx'), asked: text('.ar-top .label'), gets: text('.ar-gets'),
                  heads: [...r.querySelectorAll('h3')].map(h => h.textContent), always: text('.ar-always'), add: text('[data-ar="more"]'),
                  kinds: [...r.querySelectorAll('.ar-kinds [data-ar="add"]')].map(k => k.textContent),
                  decision: line('decision'), thinks: line('thinks'), rests: line('rests_on.0'), expects: line('expects'), would: line('would_change'),
@@ -118,29 +118,49 @@ def talk_on_screen(page, within="#streamOutput"):
 
 
 def conversation_map(page):
-    """A map as the person sees it in the drawer - the Brief map (docs/ARCHITECT_DESIGN.md §2.25), the Analysis map, the Workflow map: whether it is open, its name and what the head says
-    is on it; each box - what it says and what stands under that -, which box is the open one, which are lit and not faint; what the drawer's foot says, with its rows; how many of the
-    Workflow map's own marks it has, and whether the thread's buttons are in view. And the head (0324): which mark is shown, the buttons by their names, whether mark, name, counts and
-    buttons stand in that order on the head's middle line, how many of the buttons stand on the map, and whether the foot's line is the quiet one."""
-    return page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), boxes = [...d.querySelectorAll('.wf-node')];
-        const nth = keep => boxes.map((x, i) => keep(x) ? i + 1 : 0).filter(Boolean);
-        return { open: getComputedStyle(d).display !== 'none', title: d.querySelector('h2').textContent, sub: document.getElementById('mapDrawerSub').textContent,
+    """A map as the person sees it in the maps drawer - the Workflow map, the Pathfinding map (docs/ARCHITECT_DESIGN.md §2.25), the Analysis map: whether the drawer is open; the level
+    it is on, by its name, and what that level says, under the pointer, is on its map; the switch (0327) - each level with its number, * the one in use, - one that cannot be shown, the
+    chain on screen named between them - and why a level cannot be shown; each box - what it says and what stands under that -, which box is the open one, which are lit and not faint;
+    what the drawer's foot says, with its rows; how many of the Workflow map's own marks it has, and whether the thread's buttons are in view. And the head: the buttons by their names,
+    whether the switch's parts and the buttons stand in that order on the head's middle line, how many of the buttons stand on the map, and whether the foot's line is the quiet one."""
+    return page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), bar = document.getElementById('mapLevels'), boxes = [...d.querySelectorAll('.wf-node')];
+        const nth = keep => boxes.map((x, i) => keep(x) ? i + 1 : 0).filter(Boolean), used = bar.querySelector('.map-level[aria-pressed="true"]');
+        const said = x => x.textContent + (x.getAttribute('aria-pressed') === 'true' ? '*' : '') + (x.getAttribute('aria-disabled') ? '-' : '');
+        return { open: getComputedStyle(d).display !== 'none', title: used ? used.firstChild.textContent : '', sub: used ? used.title : '',
+                 switch: [...bar.children].map(x => (x.classList.contains('map-of-chain') ? [...x.children] : [x]).map(said).join(' | ')).join(' / '),
+                 off: Object.fromEntries([...bar.querySelectorAll('.map-level[aria-disabled]')].map(x => [x.dataset.level, x.title])),
+                 focus: document.activeElement && document.activeElement.classList.contains('map-level') ? document.activeElement.dataset.level : document.activeElement.id || document.activeElement.tagName,
                  boxes: boxes.map(x => [x.querySelector('.wf-node-label').textContent, x.querySelector('.wf-node-chain').textContent]),
                  on: nth(x => x.classList.contains('wf-node--active')), lit: nth(x => parseFloat(getComputedStyle(x).opacity) === 1),
                  says: document.getElementById('nodeTaskContent').textContent, rows: [...d.querySelectorAll('#nodePlotPreview .wf-info-row')].map(r => [...r.children].map(c => c.textContent)),
                  thread: d.querySelectorAll('.wf-node-made, .wf-node-map, .wf-edge-label').length, buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none',
-                 head: (() => { const box = e => e.getBoundingClientRect(), h = box(d.querySelector('.map-drawer-head')), marks = [...d.querySelectorAll('.map-drawer-icon')].filter(e => getComputedStyle(e).display !== 'none');
-                     const tools = [...d.querySelectorAll('.map-drawer-tools button')], parts = marks.concat([d.querySelector('h2'), document.getElementById('mapDrawerSub')], tools);
-                     return { mark: marks.map(e => e.classList.contains('tree') ? 'tree' : 'branch').join(), names: tools.map(b => b.getAttribute('aria-label')),
+                 head: (() => { const box = e => e.getBoundingClientRect(), h = box(d.querySelector('.map-drawer-head'));
+                     const tools = [...d.querySelectorAll('.map-drawer-tools button')], parts = [...bar.querySelectorAll('.map-level, .map-chain')].concat(tools);
+                     return { names: tools.map(b => b.getAttribute('aria-label')),
                               line: parts.every(e => box(e).width > 0 && box(e).top >= h.top && box(e).bottom <= h.bottom && Math.abs(box(e).top + box(e).height / 2 - (h.top + 22)) <= 2),
                               order: parts.every((e, i) => i === 0 || box(e).left >= box(parts[i - 1]).right),
                               on_map: [...d.querySelectorAll('.wf-zoom-controls, .wf-fullscreen-btn')].filter(e => d.querySelector('.workflow-body').contains(e)).length,
                               quiet: !!d.querySelector('#nodeTaskContent .map-rest') }; })() }; }""")
 
 
-def map_head(mark):
-    """The drawer's head as every map has it (0324), with the mark that is the map's own: the rail's for the Workflow map, the Git branch for the other two."""
-    return {"mark": mark, "names": ["Zoom out", "Zoom in", "Fit to the frame", "Full screen", "Close"], "line": True, "order": True, "on_map": 0, "quiet": True}
+def map_head():
+    """The drawer's head as every map has it (0324; its switch, 0327): the switch's parts, then zoom, full screen and the close, in that order on one line - none of them on the map -
+    and the foot's line the quiet one."""
+    return {"names": ["Zoom out", "Zoom in", "Fit to the frame", "Full screen", "Close"], "line": True, "order": True, "on_map": 0, "quiet": True}
+
+
+def open_maps(page, level=None):
+    """The maps drawer as the person sees it (0327): opened with the button on the left bar where it is shut, and - where a level is named - with that level pressed."""
+    if page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display === 'none'"):
+        page.click("#railMapButton")
+        page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none'", timeout=10000)
+        page.mouse.move(900, 620)                             # off the button: its tooltip would lie over the drawer
+    if level:
+        page.click(f"#mapLevels [data-level='{level}']")
+        page.wait_for_function("(l) => document.getElementById('workflowMapModal').getAttribute('data-level') === l", arg=level, timeout=10000)
+        page.mouse.move(900, 620)
+    page.wait_for_timeout(200)
+    return conversation_map(page)
 
 
 def steps_of(framing):
@@ -178,24 +198,21 @@ def composer(page):
 def left_pane(page):
     """The left pane as the person sees it, with a turn gone back to or without (docs/BRANCH_DESIGN.md §5): the numbered turn cards in sight - each with whether
     the chain kept it from another -, how many cards the pane holds, the rows of hints in sight, whether the closing card is; the composer - the row of the turn
-    gone back to, its words, and whether the files' menu, the mode and the Architect's switch are in sight; the turn the page stands at; the arrows' count; the
-    number on the Analysis map's button; how long the tabs' markup is, and the answer's text."""
+    gone back to, its words, and whether the files' menu, the mode and the Architect's switch are in sight; the turn the page stands at; the arrows' count;
+    how long the tabs' markup is, and the answer's text."""
     return page.evaluate("""() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null;
         const s = document.querySelector('#streamOutput .sp-stream'), cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn]')];
         return { turns: cards.filter(e => /^\\d+$/.test(e.getAttribute('data-turn')) && vis(e)).map(e => [Number(e.getAttribute('data-turn')), e.classList.contains('kept')]),
                  cards: cards.length, hidden: cards.filter(e => !vis(e)).length, hints: [...s.querySelectorAll(':scope > .sp-hint')].filter(vis).map(e => e.textContent), done: vis(s.querySelector('.sp-done')),
                  chip: (document.getElementById('branchChip') || {}).textContent || '', words: document.getElementById('queryInput').placeholder,
                  controls: ['.attach-menu-container', '#modeSliderPopup', '#architectSwitch'].map(q => vis(document.querySelector('.left-panel ' + q))),
-                 standing: BranchUI.standing(), position: document.getElementById('chainPosition').textContent, badge: (s.parentNode.querySelector('.sp-turnmap .n') || {}).textContent || '',
+                 standing: BranchUI.standing(), position: document.getElementById('chainPosition').textContent,
                  tabs: document.getElementById('contentOutput').innerHTML.length, answer: ((document.querySelector('#content-answer .markdown-content') || {}).textContent || '').length }; }""")
 
 
 def open_turn_map(page):
-    """The Analysis map of the analysis on screen, opened with the button on the left pane's strip, as the person sees it."""
-    page.click("#streamOutput .sp-turnmap")
-    page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none' && document.getElementById('workflowMapModal').classList.contains('turns')", timeout=10000)
-    page.wait_for_timeout(200)
-    return conversation_map(page)
+    """The Analysis map of the analysis on screen, as the person sees it: the maps drawer, its Analysis level pressed."""
+    return open_maps(page, "analysis")
 
 
 def turn_box(page, keep):
@@ -253,12 +270,12 @@ def walk_architect(page, st, mod, wa, edition, user):
     rec1 = thread_run(wa, user, tid, cid)
     new1 = usage_rows(wa, edition, user)[rows0:]
     check("the Architect's switch, off until it is pressed; a question typed with it on opens its brief and runs nothing: one tab - Brief - with the question as its title and, beside it, which step "
-          "of the conversation is on screen: Step, 1 of 1, between its arrows, and after them the button to the conversation's map (0316) - the pane's strip names none. The Architect takes its first turn at once: it writes what the question states - the two regimes compared - as a version of its own, and "
+          "of the conversation is on screen: Step, 1 of 1, between its arrows, and nothing after them (the conversation's map is the maps drawer's, 0327) - the pane's strip names none. The Architect takes its first turn at once: it writes what the question states - the two regimes compared - as a version of its own, and "
           "asks the first thing missing, with the two courses the question names as choices. The brief shows the parts that hold something and no other - here what is compared; + Add opens the list "
           "of the parts not there, each under its plain name, and closes again; one line says what a run on data always tests",
           off == "false" and p1["on"] == "true" and re.fullmatch(r"Architect(\$\d+\.\d\d)?", p1["strip"]) and p1["tabs"] == ["Brief"] and p1["n"] == 1 and p1["status"] == "framing" and not p1["running"] and p1["typed"] == ""
           and t1["said"] == [["You", mod.BRIEF_QUESTION], ["Architect", asks[0]]] and t1["choices"] == ["Switch to regime C", "Keep regime A"] and not t1["waiting"] and t1["notes"] == []
-          and b1["state"] == "framing" and (b1["label"], b1["v"], b1["map"]) == ("Step", "1 of 1", "Brief map") and b1["title"] == mod.BRIEF_QUESTION and b1["compare"] == "regime C against regime A"
+          and b1["state"] == "framing" and (b1["label"], b1["v"], b1["beside"]) == ("Step", "1 of 1", "step,step") and b1["title"] == mod.BRIEF_QUESTION and b1["compare"] == "regime C against regime A"
           and b1["changed"] == ["fixed.comparison"] and [b1[k] for k in ("decision", "thinks", "expects", "would", "measure", "period")] == [None] * 6
           and b1["asked"] == "What the Analyst will be asked" and b1["gets"] == "This is what the Analyst gets. Change any line before you start."
           and b1["always"] == "Always tested on data: chance, measurement error, how the cases were chosen." and b1["heads"] == ["What is compared"] and (b1["add"], b1["kinds"]) == ("+ Add", [])
@@ -399,11 +416,11 @@ def walk_architect(page, st, mod, wa, edition, user):
     page.wait_for_timeout(300)
     held = page.evaluate("() => ({ running: queryRunning, n: responses.length, toast: document.getElementById('summaryContent').textContent })")
     page.evaluate("closePopup()")
-    page.evaluate("showWorkflowMap()")
+    open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     box = page.evaluate("""() => { const n = document.querySelector('#workflowMapModal .wf-node'); return { made: (n.querySelector('.wf-node-made') || {}).textContent, notrun: n.classList.contains('wf-node--notrun'),
         eye: !!n.querySelector('.wf-node-map'), nodes: document.querySelectorAll('#workflowMapModal .wf-node').length }; }""")
-    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    page.evaluate("MapsUI.shut()")
     check("a brief not yet run: nothing else starts from it, and the page says so; on the Workflow map it is one box, marked 'not run', with no code map to open",
           not held["running"] and held["n"] == 1 and "This brief has not been run" in held["toast"] and box == {"made": "not run", "notrun": True, "eye": False, "nodes": 1}, (held, box))
 
@@ -643,10 +660,10 @@ def walk_architect(page, st, mod, wa, edition, user):
           and kc["buttons"][0][2] == kc["buttons"][1][2] and kept_card["back"] == ["Next questions", "Code map"], kept_card)
 
     # the Workflow map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
-    page.evaluate("showWorkflowMap()")
+    open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--notrun'), !!n.querySelector('.wf-node-map')])")
-    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    page.evaluate("MapsUI.shut()")
     page.click("#architectSwitch")
     page.fill("#queryInput", "How many plots are there?")
     page.click("#submitQuery")
@@ -856,10 +873,10 @@ def walk_next_questions(page, mod, wa, edition, user, tid, cid2):
           and fourth.get("status") == "answered" and fourth.get("question") == changed and str(fourth.get("parent")) == str(cid2) and fourth.get("brief") == {} and fourth.get("framing") == {}
           and [q.get("ran") for q in followed["next_questions"][0]["questions"]] == [str(cid4), None, None, None, None] and followed["next_questions"][0]["questions"][0]["text"] == first.get("q")
           and not any("ran" in q for s in followed["next_questions"][1:] for q in s["questions"]) and month2 - month1 == (1 if edition == "hosted" else 0), (ran, fourth.get("parent"), followed["next_questions"][0]["questions"][0], month2))
-    page.evaluate("showWorkflowMap()")
+    open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--fork')])")
-    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    page.evaluate("MapsUI.shut()")
     page.click("#prevResponse")
     page.click("#prevResponse")
     wait_text(page, "#chainPosition", "chain 2 of 4", 10000)
@@ -1275,9 +1292,9 @@ def walk_tutor(page, mod, wa, edition, user):
           and f"Architect: {mod.ARCHITECT_BACK}\n(the question was written as: {wording})\n(choices offered: " in read and "not taken yet" not in read and own not in read,
           (b5["v"], b5["title"], rec5.get("question"), read[:300]))
 
-    # the conversation's map (0316): the Workflow map's drawer, a box to a step; the way that was left is there to go back to, and to go on from
+    # the conversation's map (0316; the maps drawer's Pathfinding level, 0327): a box to a step; the way that was left is there to go back to, and to go on from
     cut = lambda text: text if len(text) <= 30 else text[:27] + "..."      # noqa: E731 - what a box says, as the map's drawing cuts it
-    open_map = lambda: (page.click('#content-brief .ar-ver [data-ar="map"]'), page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000))      # noqa: E731
+    open_map = lambda: (open_maps(page, "pathfinding"), page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000))      # noqa: E731
     shut_map = lambda: page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display === 'none'", timeout=5000)      # noqa: E731
     rows_m, rec_m = len(usage_rows(wa, edition, user)), thread_run(wa, user, tid, cid)
     open_map()
@@ -1294,16 +1311,17 @@ def walk_tutor(page, mod, wa, edition, user):
     page.click("#workflowMapModal .workflow-close")
     shut_map()
     quiet_m = [len(usage_rows(wa, edition, user)) == rows_m, thread_run(wa, user, tid, cid) == rec_m]
-    check("the conversation's map (0316): the button beside the arrows opens the Workflow map's drawer under the conversation's own name - how many steps, where they branch - with the thread's "
-          "buttons out of it. A box to a step, joined to the step it follows: on it what the coach said - the question as it was asked on the first - and under it what the step changed. The "
+    check("the conversation's map (0316; 0327): the maps drawer, its Pathfinding level pressed, holds the conversation's map - the level lit, saying how many steps and where they branch - "
+          "with the thread's buttons out of it; the Analysis level is greyed, the brief not being run. A box to a step, joined to the step it follows: on it what the coach said - the question as it was asked on the first - and under it what the step changed. The "
           "step on screen is the open box and the way to it is lit; the step that was left is faint. Under the pointer that box lights its own way, and the drawer's foot says what was said "
           "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the first sentence of the Architect's reply; the pointer gone, "
           "the way to the step on screen is lit again. A click on the box shuts the drawer, and both panes are that step's: the wording the coach gave in the box, the conversation of the way "
           "that was left - and nothing of the way taken since. Opened again, the map has that step open, its way lit and the other way faint, and its foot says what a click and the pointer do; its cross "
-          "shuts it. Its head (0324) is the drawer's one head: the Git branch mark, the name, what is on the map, then zoom, full screen and the close on one line - nothing on the map. "
+          "shuts it. Its head is the drawer's one head: the switch, then zoom, full screen and the close on one line - nothing on the map. "
           "Nothing went to the server, and the record is as it was",
-          m0["open"] and (m0["title"], m0["sub"], m0["says"], m0["rows"]) == ("Brief map", "5 steps · 1 branch", "Click a step to go to it. Hover over one to read what was said.", [])
-          and m0["head"] == map_head("branch")
+          m0["open"] and (m0["title"], m0["sub"], m0["says"], m0["rows"]) == ("Pathfinding", "5 steps · 1 branch", "Click a step to go to it. Hover over one to read what was said.", [])
+          and re.fullmatch(r"Workflow\d+ / Chain \d+ / Pathfinding5\* \| Analysis-", m0["switch"]) and list(m0["off"]) == ["analysis"]
+          and re.fullmatch(r"Chain \d+ has no turns to go back to", m0["off"]["analysis"]) and m0["head"] == map_head()
           and m0["boxes"] == [[cut(mod.TUTOR_QUESTION), "your question"], [cut(mod.TUTOR_CHOICES[0]), "question"], [cut(mod.ARCHITECT_OWN + own), "question"], [cut(mod.ARCHITECT_YES[0]), ""],
                               [cut(mod.ARCHITECT_UNREAD), ""]]
           and (m0["on"], m0["lit"], m0["thread"], m0["buttons"]) == ([5], [1, 2, 4, 5], 0, False)
@@ -1763,18 +1781,18 @@ def walk_draft(page, st, mod, wa, edition, user):
     page.wait_for_selector(".primary-dataset-pill", timeout=60000)
     page.wait_for_timeout(500)
     page.evaluate("(a) => loadThreadContent(a[0], a[1])", [str(tid), b_id])
-    page.wait_for_function("(c) => responses.length === 2 && String(currentData.chain_id) === c && !!document.querySelector('#streamOutput .sp-turnmap')", arg=b_id, timeout=30000)
+    page.wait_for_function("(c) => responses.length === 2 && String(currentData.chain_id) === c && !!document.querySelector('#streamOutput .sp-ids[data-branch]')", arg=b_id, timeout=30000)
     page.wait_for_timeout(500)
     again = page.evaluate("""() => ({ branches: responses.map(r => r.branch ? [String(r.branch.of), r.branch.turn, r.branch.hint] : null), analyses: BranchUI.analyses().map(e => String(e.chain_id)),
-        place: BranchUI.place(), badge: (document.querySelector('#streamOutput .sp-turnmap .n') || {}).textContent || '', hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent) })""")
-    page.evaluate("showWorkflowMap()")
+        place: BranchUI.place(), hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent) })""")
+    open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     thread_boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => (n.querySelector('.wf-node-branches') || {}).textContent || '')")
-    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    page.evaluate("MapsUI.shut()")
     map_again = open_turn_map(page)
     check("the saved thread opened again (0321): its two chains are one analysis, the branch saying what it went on from, after which turn and under what hint - from the thread's "
           "record; the Workflow map has one box, with its branch; the Analysis map shows both ways, the branch's first turn marked; and the saved analysis, opened to read, says its hint",
-          again["branches"] == [None, [str(cid), 1, mod.BRANCH_HINT]] and again["analyses"] == [b_id] and again["place"] == {"i": 1, "n": 1} and again["badge"] == "1"
+          again["branches"] == [None, [str(cid), 1, mod.BRANCH_HINT]] and again["analyses"] == [b_id] and again["place"] == {"i": 1, "n": 1}
           and again["hints"] == ["From turn 1" + mod.BRANCH_HINT] and thread_boxes == ["1 branch"]
           and map_again["sub"] == f"{len(map_again['boxes'])} turns · 1 branch" and [x[1].split(" · ")[0] for x in map_again["boxes"]] == ["Turn 1", "Turn 2", "Turn 2", "Turn 3"]
           and saved_b.get("hints") == [{"turn": 1, "text": mod.BRANCH_HINT}], (again, thread_boxes, map_again["sub"], map_again["boxes"], saved_b.get("hints")))
@@ -1810,21 +1828,22 @@ def walk_draft(page, st, mod, wa, edition, user):
     page.click("#streamOutput .sp-stream > .sp-turn[data-turn='1'] > summary .sp-branch")
     page.wait_for_function("() => BranchUI.standing() !== null && BranchUI.standing().turn === 1", timeout=10000)
     page.fill("#queryInput", more_hint)
+    maps_were = page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display")      # the drawer, open since the Analysis map was looked at
     page.click("#submitQuery")
     wait_run_end(page, 3)
     page.wait_for_function("() => responses.length === 3 && !responses[2].status", timeout=60000)
     third = page.evaluate("""() => { const e = responses[currentResponseIndex];
         return { chain: String(e.chain_id), branch: e.branch ? [String(e.branch.of), e.branch.turn, e.branch.hint] : null, place: BranchUI.place(), n: responses.length,
-                 badge: (document.querySelector('#streamOutput .sp-turnmap .n') || {}).textContent || '', hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent),
+                 hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent), maps: getComputedStyle(document.getElementById('workflowMapModal')).display,
                  fold: !!document.querySelector('#streamOutput .sp-stream > .ar-fold'), tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent.trim()) }; }""")
     ran_3 = thread_run(wa, user, tid, third["chain"])
     log_3 = open(logs_at, encoding="utf-8", errors="replace").read() if os.path.exists(logs_at) else ""
     save_here()
     mem_3, left_3 = remembered(lambda v: any(r["run"] == third["chain"] for r in v["runs"]))
     check("nothing is locked after saving (0321): from a turn of the saved thread - gone back to by its card's button (0323) - the analysis goes on a third way - a branch of the first run, in a kernel that ran the kept cell "
-          "again, under the brief, whose row and tab it has; the page counts one analysis with two branches. Saved again, the new branch is stored with the others; memory holds the "
-          "two ways the person saved from, each with its own hint, and the first run stays left",
-          third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["badge"] == "2" and third["hints"] == ["From turn 1" + more_hint]
+          "again, under the brief, whose row and tab it has; the page counts one analysis with two branches. The maps drawer, open when the hint was sent, shut as the analysis "
+          "started (0327). Saved again, the new branch is stored with the others; memory holds the two ways the person saved from, each with its own hint, and the first run stays left",
+          third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["hints"] == ["From turn 1" + more_hint] and (maps_were, third["maps"]) == ("flex", "none")
           and third["fold"] and "Brief" in third["tabs"]
           and ran_3.get("status") == "answered" and ran_3.get("branch") == {"of": str(cid), "turn": 1} and ran_3.get("hints") == [{"turn": 1, "text": more_hint}] and ran_3.get("brief") == ran.get("brief")
           and f"A fresh kernel for the branch: the 0 cells before chain {b_id} and the 1 it keeps of it are run again" in log_3
@@ -1862,6 +1881,55 @@ def walk_draft(page, st, mod, wa, edition, user):
           and cm_b["panel"] == "Cell 1 · turn 1 · kept" and not any("kept" in r[1] for r in cm_b["rows"][2:])
           and inv["hint"] == "Your hint " + more_hint and inv["before"] == 1 and inv["metas"][0].endswith(" · kept") and not any("kept" in x for x in inv["metas"][1:]) and inv["cells"] >= 2,
           (cm_b, inv))
+
+    # ---- the maps in one place (0327) ----
+    # One button on the left bar opens one drawer; its switch goes between the thread's map and the two maps of the chain on screen - the steps that made its
+    # brief, the turns of its analysis -, and so do the arrow keys; the drawer opens where it was left; a chain's box clicked leaves it open
+    shown = lambda: page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none'")      # noqa: E731
+    page.evaluate("activateTab('brief')")
+    ways_in = page.evaluate("""() => ({ above: document.querySelectorAll('#streamOutput .sp-ids button, #streamOutput .sp-turnmap').length,
+        brief: [...document.querySelectorAll('#content-brief .ar-ver button')].filter(b => getComputedStyle(b).display !== 'none').map(b => b.getAttribute('data-ar')),
+        rail: [document.getElementById('railMapButton').getAttribute('data-tip'), document.getElementById('railMapButton').getAttribute('aria-label')] })""")
+    w_map = open_maps(page, "workflow")
+    page.click("#workflowMapModal .wf-node")                 # the one analysis's box: its chain is on screen already, and the drawer stays
+    page.wait_for_timeout(300)
+    w_clicked = [shown(), conversation_map(page)["switch"]]
+    page.click("#workflowMapModal .workflow-close")
+    page.click("#queryInput")
+    page.click("#railMapButton")                             # opened again: where it was left, the level in use with the focus
+    page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none'", timeout=10000)
+    page.mouse.move(900, 620)
+    w_again = conversation_map(page)
+    p_map = open_maps(page, "pathfinding")
+    keys = []
+    for k in ("ArrowRight", "ArrowRight", "ArrowLeft"):
+        page.keyboard.press(k)
+        page.wait_for_timeout(250)
+        m = conversation_map(page)
+        keys.append([m["title"], m["focus"]])
+    a_map = conversation_map(page)
+    page.keyboard.press("Control+m")
+    page.wait_for_timeout(250)
+    shut_m = shown()
+    page.keyboard.press("Control+m")
+    page.wait_for_timeout(250)
+    back_m = conversation_map(page)
+    page.click("#workflowMapModal .workflow-close")
+    check("the maps in one place (0327): nothing above the analysis or beside the Brief tab's arrows opens a map - the left bar's button, named Maps, is the way in. It opens one drawer, "
+          "on the map it was left on, the level in use with the focus. The switch names the chain on screen between the thread's level and that chain's two: Workflow says how many "
+          "chains and branches, and has the thread's buttons under its map; Pathfinding holds the steps that made the brief, a box to each; Analysis the turns of the analysis and its "
+          "branches. A click on a chain's box leaves the drawer open. The right and left arrow keys go round the levels, the focus with them; Ctrl+M shuts the drawer and opens it "
+          "again where it was",
+          ways_in == {"above": 0, "brief": ["step", "step"], "rail": ["Maps (⌘M)", "Maps"]}
+          and (w_map["title"], w_map["sub"], w_map["buttons"], len(w_map["boxes"])) == ("Workflow", "1 chain · 2 branches", True, 1) and w_map["head"] == map_head() and w_map["off"] == {}
+          and re.fullmatch(r"Workflow1\* / Chain 1 / Pathfinding\d+ \| Analysis\d+", w_map["switch"]) and w_clicked == [True, w_map["switch"]]
+          and (w_again["open"], w_again["title"], w_again["focus"]) == (True, "Workflow", "workflow")
+          and p_map["title"] == "Pathfinding" and re.fullmatch(r"\d+ steps?( · \d+ branch(es)?)?", p_map["sub"]) and p_map["sub"].startswith(f"{len(p_map['boxes'])} step") and p_map["buttons"] is False
+          and f"Pathfinding{len(p_map['boxes'])}* |" in p_map["switch"] and p_map["says"] == "Click a step to go to it. Hover over one to read what was said." and p_map["head"] == map_head()
+          and keys == [["Analysis", "analysis"], ["Workflow", "workflow"], ["Analysis", "analysis"]]
+          and (a_map["title"], a_map["sub"], a_map["buttons"]) == ("Analysis", f"{len(a_map['boxes'])} turns · 2 branches", False) and a_map["switch"].endswith(f"| Analysis{len(a_map['boxes'])}*")
+          and shut_m is False and (back_m["open"], back_m["title"], back_m["focus"]) == (True, "Analysis", "analysis"),
+          (ways_in, w_map["switch"], w_map["sub"], w_clicked, w_again["title"], w_again["focus"], p_map["switch"], p_map["sub"], keys, a_map["switch"], a_map["sub"], shut_m, back_m["title"], back_m["focus"]))
 
 
 def turn_prompt(page, turn):
@@ -2065,7 +2133,7 @@ def main():
             check("Escape closes the list and leaves the map open, the focus on the button", page.evaluate("() => !document.querySelector('#codeMapModal .cm-pick.open') && document.getElementById('codeMapModal').style.display === 'flex' && document.activeElement && document.activeElement.id === 'cmDiagPick'"))
             page.click("#codeMapModal .cm-head button.x")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
-            page.evaluate("showWorkflowMap()")
+            open_maps(page, "workflow")
             page.wait_for_selector("#workflowMapModal .wf-node .wf-node-map", timeout=5000)
             page.hover("#workflowMapModal .wf-node")
             page.click("#workflowMapModal .wf-node .wf-node-map")
@@ -2228,7 +2296,7 @@ def main():
                 page.wait_for_timeout(400)
 
             # Save trajectory in the Workflow map (2.8): the whole thread at once - no dialog - and the map stays open
-            page.evaluate("showWorkflowMap()")
+            open_maps(page, "workflow")
             page.wait_for_selector("#trajectoryButton:not([disabled])", timeout=10000)
             page.click("#trajectoryButton")
             page.wait_for_function("() => /Saved the whole thread/.test(document.getElementById('summaryPopup').textContent)", timeout=30000)
@@ -2853,25 +2921,25 @@ def main():
             n_b = entry_b()["n"]
             page.wait_for_timeout(800)                       # the answer's own buttons settle a moment after the run ends
             whole = left_pane(page)
-            # the button's place (0321): the end of the ids' row, which stays under the strip - seen here in a pane too short for its analysis, at its end
-            head = page.evaluate("""() => { const p = document.getElementById('streamOutput'), b = p.querySelector('.sp-turnmap'), row = p.querySelector('.sp-ids'), strip = p.querySelector('.sp-strip');
+            # above the analysis (0327; a button to the Analysis map stood there, 0321): the row of the ids alone, on one line under the strip - seen here in a pane too short for its analysis, at its end
+            head = page.evaluate("""() => { const p = document.getElementById('streamOutput'), row = p.querySelector('.sp-ids'), strip = p.querySelector('.sp-strip');
                 const box = e => e.getBoundingClientRect();
                 p.style.maxHeight = '240px'; p.scrollTop = p.scrollHeight;
-                const out = { scrolled: p.scrollTop > 60, words: b.textContent, row: b.parentNode === row && row.lastElementChild === b, strip: !!strip.querySelector('.sp-turnmap'),
-                              end: Math.abs(box(b).right - (box(row).right - parseFloat(getComputedStyle(row).paddingRight))) < 2, under: Math.abs(box(row).top - box(strip).bottom) < 2,
-                              seen: box(b).top >= box(p).top && box(b).bottom <= box(p).bottom, line: box(row).height < 40 };
+                const out = { scrolled: p.scrollTop > 60, buttons: p.querySelectorAll('.sp-ids button, .sp-strip button, .sp-turnmap').length, goes_on: row.getAttribute('data-branch'),
+                              under: Math.abs(box(row).top - box(strip).bottom) < 2, line: box(row).height < 40 };
                 p.style.maxHeight = ''; p.scrollTop = p.scrollHeight;
                 return out; }""")
             map1 = open_turn_map(page)
-            check("the Analysis map (0320; the button's place 0321): a finished analysis has its button at the end of the ids' row, with its name - none on the strip; the row is one line "
-                  "and stays under the strip, so the button is in view with the pane at its end. It opens the Workflow map's drawer as the map of the analysis's turns - its name, how "
-                  "many turns, the thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box. Its head (0324): the Git "
-                  "branch mark, the name, what is on the map, then zoom, full screen and the close on one line - none of them on the map; the foot says what a click and the pointer do",
-                  head == {"scrolled": True, "words": "Analysis map", "row": True, "strip": False, "end": True, "under": True, "seen": True, "line": True}
-                  and map1["title"] == "Analysis map" and map1["sub"] == f"{len(map1['boxes'])} turns" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
-                  and map1["head"] == map_head("branch") and map1["says"] == "Click a turn to go back to it. Hover over one to see what it did."
+            check("the Analysis map (0320; in the maps drawer, 0327): nothing above a finished analysis opens a map - the row of its ids holds the ids alone, on one line under the strip, and "
+                  "says the analysis can be gone on from. The maps drawer, its Analysis level pressed, holds the map of the analysis's turns - the level lit, saying how many turns, the "
+                  "thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box. Its head: the switch, then zoom, "
+                  "full screen and the close on one line - none of them on the map; the foot says what a click and the pointer do",
+                  head == {"scrolled": True, "buttons": 0, "goes_on": "1", "under": True, "line": True}
+                  and map1["title"] == "Analysis" and map1["sub"] == f"{len(map1['boxes'])} turns" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
+                  and re.fullmatch(r"Workflow9 / Chain 9 / Pathfinding- \| Analysis" + str(len(map1["boxes"])) + r"\*", map1["switch"]) and map1["off"] == {"pathfinding": "Chain 9 was asked without the Architect"}
+                  and map1["head"] == map_head() and map1["says"] == "Click a turn to go back to it. Hover over one to see what it did."
                   and re.fullmatch(r"Turn 1 · In \[\d+\]", map1["boxes"][0][1]) and map1["boxes"][-1][1] == f"Turn {len(map1['boxes'])} · report" and map1["on"] == [len(map1["boxes"])]
-                  and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)) and whole["badge"] == "", (head, map1, whole["badge"]))
+                  and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)), (head, map1))
             used = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), q = s => d.querySelector(s), level = () => parseInt(q('.wf-zoom-level').textContent, 10);
                 const press = name => q('.map-drawer-tools button[aria-label="' + name + '"]').click(), wide = () => Math.round(q('.workflow-modal-content').getBoundingClientRect().width);
                 const full = () => [q('.wf-fullscreen-btn').getAttribute('aria-label'), q('.wf-fullscreen-btn').title, wide() > innerWidth - 100];
@@ -2906,7 +2974,7 @@ def main():
                   "the turn and the hint. The kernel went back - the app says so, the executor says it got there from that state's own snapshot with no step run again - and "
                   "the branch's cell finds what the path made and nothing a later chain made",
                   pane_g["turns"][:2] == [[1, True], [2, False]] and pane_g["hints"] == ["From turn 1" + mod.BRANCH_HINT] and pane_g["done"] is True and pane_g["hidden"] == 0 and pane_g["chip"] == ""
-                  and pane_g["controls"] == [True, True, True] and pane_g["standing"] is None and pane_g["position"] == "chain 9 of 9" and pane_g["badge"] == "1" and entry_g["n"] == n_b + 1
+                  and pane_g["controls"] == [True, True, True] and pane_g["standing"] is None and pane_g["position"] == "chain 9 of 9" and entry_g["n"] == n_b + 1
                   and entry_g["branch"] == {"of": int(last_b["id"]), "turn": 1, "hint": mod.BRANCH_HINT} and entry_g["q"] == mod.BACK_QUESTION and str(entry_g["parent"]) == str(last_b.get("parent"))
                   and run_g.get("branch") == {"of": last_b["id"], "turn": 1} and run_g.get("status") == "answered" and [c.get("kept") for c in cells_g] == ["kept", ""]
                   and "KEPT=1 LATER=0" in cells_g[-1]["stdout"] and f"The kernel went back to the state after turn 1 of chain {last_b['id']}" in logs_g["webapp"]
@@ -2922,9 +2990,9 @@ def main():
             turn_box(page, f"(sub) => sub === 'Turn {n1} · report'")
             page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=last_b["id"], timeout=10000)
             first_way = left_pane(page)
-            check("moving between branches (0320): a click on the last turn of the way that was left brings that chain back, tabs and pane, whole; its Analysis map's button says the analysis has a branch",
+            check("moving between branches (0320): a click on the last turn of the way that was left brings that chain back, tabs and pane, whole",
                   first_way["turns"] == [[n, False] for n in range(1, n1 + 1)] and first_way["hidden"] == 0 and first_way["done"] is True and first_way["hints"] == [] and first_way["standing"] is None
-                  and first_way["answer"] == whole["answer"] > 0 and pane_g["answer"] != whole["answer"] and first_way["position"] == "chain 9 of 9" and first_way["badge"] == "1"
+                  and first_way["answer"] == whole["answer"] > 0 and pane_g["answer"] != whole["answer"] and first_way["position"] == "chain 9 of 9"
                   and entry_b()["chain"] == int(last_b["id"]), (first_way, whole["answer"], pane_g["answer"]))
 
             # the first analysis, after the turn that pooled the soil types
@@ -2956,13 +3024,10 @@ def main():
                   (back_b, pane_b, entry_b2, run_b.get("branch"), run_b.get("status"), run_b.get("replay_status"), [c.get("stdout", "")[-60:] for c in cells_b[-1:]]))
 
             # the Workflow map and the arrows count analyses
-            page.click("#railMapButton")
-            page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none' && document.querySelector('#workflowMapModal h2').textContent === 'Workflow map'", timeout=10000)
+            thread_drawer = open_maps(page, "workflow")
             thread_map = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), boxes = [...d.querySelectorAll('.wf-node')];
-                return { sub: document.getElementById('mapDrawerSub').textContent, boxes: boxes.length, branches: boxes.map(x => (x.querySelector('.wf-node-branches') || {}).textContent || '').filter(Boolean),
-                         on: boxes.filter(x => x.classList.contains('wf-node--active')).map(x => x.querySelector('.wf-node-chain').textContent), cls: d.className,
-                         buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none' }; }""")
-            thread_drawer = conversation_map(page)
+                return { boxes: boxes.length, branches: boxes.map(x => (x.querySelector('.wf-node-branches') || {}).textContent || '').filter(Boolean),
+                         on: boxes.filter(x => x.classList.contains('wf-node--active')).map(x => x.querySelector('.wf-node-chain').textContent), level: d.getAttribute('data-level') }; }""")
             page.click("#railMapButton")
             page.click("#nextResponse")
             page.wait_for_timeout(500)
@@ -2971,11 +3036,13 @@ def main():
             page.wait_for_timeout(500)
             came_back = [left_pane(page)["position"], entry_b()["chain"]]
             check("the Workflow map and the arrows count analyses, not branches (0320): eleven chains in the thread, nine boxes - the two analyses that went on another way each saying "
-                  "so -, the open box that of the analysis on screen, showing the branch; the arrows step to the next analysis and back to the branch that was on screen. The map's head "
-                  "(0324) is the drawer's one head, with the rail's mark, and its foot says what a click and the pointer do",
-                  thread_map["boxes"] == 9 and entry_b2["n"] == n_b + 2 == 11 and thread_map["sub"] == "9 chains · 2 branches" and thread_map["branches"] == ["1 branch", "1 branch"]
-                  and thread_drawer["head"] == map_head("tree") and (thread_drawer["title"], thread_drawer["says"]) == ("Workflow map", "Click a chain to open it. Hover over one to see its question.")
-                  and thread_map["on"] == [f"Chain: {entry_b2['chain']}"] and thread_map["buttons"] is True and "turns" not in thread_map["cls"]
+                  "so -, the open box that of the analysis on screen, showing the branch; the arrows step to the next analysis and back to the branch that was on screen. The drawer's "
+                  "Workflow level is lit and says how many chains and branches; the thread's buttons are in view, the head is the drawer's one head, and its foot says what a click and "
+                  "the pointer do; the left bar's button, pressed again, shuts the drawer",
+                  thread_map["boxes"] == 9 and entry_b2["n"] == n_b + 2 == 11 and thread_drawer["sub"] == "9 chains · 2 branches" and thread_map["branches"] == ["1 branch", "1 branch"]
+                  and thread_drawer["head"] == map_head() and (thread_drawer["title"], thread_drawer["says"]) == ("Workflow", "Click a chain to open it. Hover over one to see its question.")
+                  and thread_map["on"] == [f"Chain: {entry_b2['chain']}"] and thread_drawer["buttons"] is True and thread_map["level"] == "workflow"
+                  and page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display") == "none"
                   and stepped != at_first and came_back == [at_first, entry_b2["chain"]], (thread_map, at_first, stepped, came_back))
 
             # a branch the server does not start: the request is changed on its way so that it names a turn the analysis never had

@@ -1,12 +1,12 @@
 // branch.js - the branches of an analysis on the page (docs/BRANCH_DESIGN.md §5; 2.9, 2026-11-21).
 //
-// An analysis is a line of turns. The Analysis map - in the Workflow map's own drawer and with its drawing
-// (workflowGraph.js), opened from the row of the ids in the left pane - shows every turn of it and of the ways it went
-// on: a box to a turn, joined to the turn it follows. A click on a turn goes back to it: the chain that holds the turn
-// comes on screen, the left pane ends at it, the tabs stay as they are, and the composer takes a hint. Sent, the hint
-// starts a branch - a chain of its own, which keeps the turns up to that one and goes on from there another way (the
-// server's part: BambooAI.pd_agent_converse with `after`). A click on a turn that ended its chain brings the chain back
-// whole.
+// An analysis is a line of turns. The Analysis map - a level of the maps drawer (maps.js), in the Workflow map's
+// drawing (workflowGraph.js) - shows every turn of it and of the ways it went on: a box to a turn, joined to the turn
+// it follows. A click on a turn goes back to it: the chain that holds the turn comes on screen, the left pane ends at
+// it, the tabs stay as they are, and the composer takes a hint. Sent, the hint starts a branch - a chain of its own,
+// which keeps the turns up to that one and goes on from there another way (the server's part:
+// BambooAI.pd_agent_converse with `after`). A click on a turn that ended its chain brings the chain back whole. The
+// button on a turn's card goes back to that turn with no map opened.
 //
 // A branch belongs to its analysis. The Workflow map and the arrows count analyses, and show of each the chain that
 // was last on screen. A chain's entry keeps `branch`: {of: the chain whose turn it went on from, turn, hint}.
@@ -14,7 +14,7 @@
 // The pane itself is not touched by going back: what follows the turn is hidden by a rule of this module's own, so
 // nothing of the moment is kept with the chain.
 //
-// window.BranchUI = { initialize, openMap, onChain, hint, started, announced, heard, unstarted, notStarted, leave, dress, from,
+// window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, dress, from,
 //                     analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
 // standing(): the turn gone back to - {chain, turn} - or null.
 
@@ -22,9 +22,9 @@
     'use strict';
 
     const WORDS = {
-        map: 'Analysis map', mapRest: 'Click a turn to go back to it. Hover over one to see what it did.',
-        mapSub: (n, branches) => n + (n === 1 ? ' turn' : ' turns') + (branches ? ' · ' + WORDS.branches(branches) : ''),
-        branches: n => n + (n === 1 ? ' branch' : ' branches'),
+        mapRest: 'Click a turn to go back to it. Hover over one to see what it did.',
+        mapSaid: (n, branches) => n + (n === 1 ? ' turn' : ' turns') + (branches ? ' · ' + branches + (branches === 1 ? ' branch' : ' branches') : ''),
+        mapOff: { running: 'An analysis is running', none: n => 'Chain ' + n + ' has no turns to go back to' },
         turn: n => 'Turn ' + n, from: n => 'From turn ' + n, left: n => n + (n === 1 ? ' turn left' : ' turns left'),
         say: n => 'Say how the analysis should go on from turn ' + n,
         end: 'Back to the end', hinted: 'hint', onScreen: 'on screen', ways: n => n + ' ways',
@@ -144,11 +144,14 @@
     }
 
     // ------------------------------------------------------------ the button on a turn's card
-    // Every turn the analysis can go on from has a button beside its prompt's, in a pane whose run ended with turns to
-    // go on from - it has the Analysis map's button: a run that has just ended (stream-pane.js), or a chain kept from
-    // before the button existed, when it comes on screen. The turns are the map's (turnsIn, can)
+    // Whether a pane's run ended with turns to go on from: the row of its ids says so (stream-pane.js) - or, in a pane
+    // kept by a build before the maps had one drawer, the button to the Analysis map that stood there
+    const goesOn = pane => !!pane && !!(pane.querySelector('.sp-ids[data-branch]') || pane.querySelector('.sp-turnmap'));
+    // Every turn the analysis can go on from has a button beside its prompt's, in such a pane: a run that has just
+    // ended, or a chain kept from before the button existed, when it comes on screen. The turns are the map's
+    // (turnsIn, can)
     function dress(pane) {
-        const stream = pane && pane.querySelector('.sp-turnmap') ? pane.querySelector('.sp-stream') : null;
+        const stream = goesOn(pane) ? pane.querySelector('.sp-stream') : null;
         if (!stream) return;
         const on = turnsIn(stream).filter(can).map(t => t.n);
         Array.prototype.forEach.call(stream.children, el => {
@@ -208,6 +211,7 @@
         const pane = byId('streamOutput'), input = byId('queryInput');
         if (pane) pane.scrollTop = pane.scrollHeight;
         if (input && typeof input.focus === 'function') input.focus();
+        window.MapsUI.follow();
     }
     // back to the end of the chain: the pane whole, the composer its own
     function leave() {
@@ -215,7 +219,7 @@
         back = null;
         ends(null);
         composer();
-        mapFollows(onScreen());
+        window.MapsUI.follow();
     }
     // To a turn of a chain: the chain comes on screen, and where the analysis can go on from the turn, the left pane
     // ends there and the composer takes the hint; a turn that ended the chain shows it whole
@@ -225,24 +229,23 @@
     }
 
     // ------------------------------------------------------------ the Analysis map
-    // Every turn of the analysis on screen, and of its branches, in the Workflow map's drawer: a box says what the turn
-    // did and, under it, its number and its cell; a branch's first turn carries the mark of a hint. The way to the turn
-    // on screen is lit. Under the pointer a box lights its own way and the drawer's foot says what the turn was, the
-    // hint it was made under, how many ways the analysis went on from it and what its cell printed. A click goes to
-    // the turn and shuts the drawer: on the chain on screen where the turn is on its way, else on the turn's own chain.
-    // Not while an analysis runs: a turn of a run under way cannot be gone on from
-    function openMap() {
-        const entry = onScreen(), drawer = byId('workflowMapModal');
-        if (!entry || !drawer || !window.WorkflowGraph) return;
-        if (busy()) { say(WORDS.busy); return; }
-        const all = boxes(entry), on = boxOnScreen(all, entry);
-        if (!all.length) return;
+    // A level of the maps drawer (maps.js): every turn of the analysis on screen, and of its branches. A box says what
+    // the turn did and, under it, its number and its cell; a branch's first turn carries the mark of a hint. The way to
+    // the turn on screen is lit. Under the pointer a box lights its own way and the drawer's foot says what the turn
+    // was, the hint it was made under, how many ways the analysis went on from it and what its cell printed. A click
+    // goes to the turn and shuts the drawer, which lies over the pane the turn is in: on the chain on screen where the
+    // turn is on its way, else on the turn's own chain.
+    // What the drawer asks of the level: how many turns; that in words; why the map cannot be shown - an analysis is
+    // running, and a turn of a run under way cannot be gone on from, or the chain on screen, the `n`th of its thread,
+    // has no turns to go on from -; and the drawing
+    function map(n) {
+        const entry = onScreen(), all = entry && goesOn(holder(entry.streamOutput)) ? boxes(entry) : [];
+        return { n: all.length, said: WORDS.mapSaid(all.length, entry ? members(entry).length - 1 : 0),
+                 off: busy() ? WORDS.mapOff.running : all.length ? '' : WORDS.mapOff.none(n), draw: () => drawMap(entry, all) };
+    }
+    function drawMap(entry, all) {
+        const on = boxOnScreen(all, entry);
         const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
-        drawer.classList.remove('steps');
-        drawer.classList.add('turns');                          // the thread's own buttons are not this map's
-        drawer.setAttribute('data-chain', first(entry).chain_id);
-        window.WorkflowGraph.head(WORDS.map, WORDS.mapSub(all.length, members(entry).length - 1), WORDS.mapRest);
-        drawer.style.display = 'flex';
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map(b => ({ chain_id: b.key, parentChainId: b.from, queryText: b.turn.peek || did(b.turn) })), on, {
             sub: (item, i) => WORDS.turn(all[i].turn.n) + ' · ' + did(all[i].turn),
             tag: (item, i) => (all[i].entry.branch && all[i].turn.n === all[i].entry.branch.turn + 1 ? WORDS.hinted : ''),
@@ -255,33 +258,19 @@
             },
             pick: (item, i) => {
                 const b = all[i], here = onScreen();
-                drawer.style.display = 'none';
+                window.MapsUI.shut();
                 go(here && owner(here, b.turn.n) === b.entry ? here : b.entry, b.turn.n);
             }
         });
-    }
-    // The map, while its drawer is open, follows the chain on screen: drawn again - another turn may be the one on
-    // screen, a branch may have been added - and shut once a chain of another analysis is on screen, or a run begins
-    function mapFollows(entry) {
-        const drawer = byId('workflowMapModal');
-        if (!drawer || !drawer.classList.contains('turns') || drawer.style.display !== 'flex') return;
-        if (entry && same(drawer.getAttribute('data-chain'), first(entry).chain_id) && !busy()) openMap();
-        else drawer.style.display = 'none';
+        window.WorkflowGraph.rest(WORDS.mapRest);
     }
     // A chain is on screen (updateNavigationButtons): it is the one its analysis shows from now on; a turn gone back to
-    // on another chain is left; the Analysis map's button says how many branches the analysis has; the map follows
+    // on another chain is left; and its turns have their buttons, where it was kept from before they had
     function onChain(entry) {
         if (entry) shown[String(first(entry).chain_id)] = entry.chain_id;
         if (back && !(entry && same(back.chain, entry.chain_id))) { back = null; ends(null); }
         composer();
-        const pane = byId('streamOutput'), button = pane ? pane.querySelector('.sp-turnmap') : null, n = entry ? members(entry).length - 1 : 0;
-        dress(pane);                                             // a chain kept from before its turns had a button
-        if (button) {
-            const count = button.querySelector('.n');
-            if (count) count.textContent = n ? String(n) : '';
-            button.setAttribute('title', WORDS.map + (n ? ': ' + WORDS.branches(n) : ''));
-        }
-        mapFollows(entry);
+        dress(byId('streamOutput'));
     }
 
     // ------------------------------------------------------------ a hint sent
@@ -345,6 +334,6 @@
         if (input) input.addEventListener('keydown', e => { if (e.key === 'Escape' && back) leave(); });
     }
 
-    window.BranchUI = { initialize, openMap, onChain, hint, started, announced, heard, unstarted, notStarted, leave, analyses, place, step, items, open,
+    window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, analyses, place, step, items, open,
                         dress, from, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
 })();
