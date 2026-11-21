@@ -9,7 +9,7 @@ A failure is recorded, never raised: the chain is answered whether or not it has
 import copy
 import time
 
-VERSION = 3      # 3 (2026-10-24): each recipe carries the lines behind its number, for the notebook; 2 (2026-10-21): short labels told apart, longer texts; older maps are rebuilt on request
+VERSION = 4      # 4 (2026-11-21): a branch's map says so - the steps it kept, each hint where it was given; 3 (2026-10-24): each recipe carries the lines behind its number, for the notebook; 2 (2026-10-21): short labels told apart, longer texts; older maps are rebuilt on request
 
 
 def build_record(doc, primary_name=None):

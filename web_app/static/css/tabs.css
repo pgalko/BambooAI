@@ -136,6 +136,9 @@
 }
 .briefing-content div.nb-step--warn .nb-out-label { color: var(--error-color); }
 .briefing-content div.nb-step--ask .nb-out-label { color: var(--accent-replay); }
+/* a hint (a branch, 2.9): what the person said, whole - the row grows with it; the left pane's colours */
+.briefing-content div.nb-step--hint { height: auto; min-height: 28px; padding: 5px 8px; align-items: baseline; border-left: 2px solid var(--accent-color); color: var(--text-primary); line-height: 1.45; }
+.briefing-content div.nb-step--hint .nb-out-label { font-weight: 600; }
 
 /* ---- Code, Results and Plots tabs (2026-09-08): one code block, one plot card ----
    content-rendering.js builds: Code = h3 + .markdown-content > .code-header (label, copy, download) + pre code;

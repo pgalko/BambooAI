@@ -156,6 +156,8 @@ show(q0); const onQ = [same(B.place(), { i: 1, n: 4 }), B.step(-1) === q0, B.ste
 check('the arrows count analyses: four of them in a thread of seven chains, in the order they began. Of an analysis they show the chain that was last on screen - a branch brought back '
   + 'stays the one its analysis shows; where none was, its newest - and go to the analysis before or after, staying at either end',
   same(fresh, [10, 23, 30, 40]) && same(onC, [[10, 23, 30, 40], true]) && same(onA, [[10, 20, 30, 40], true, true, true]) && same(onS, [true, true, true]) && same(onQ, [true, true, true]), [fresh, onC, onA, onS, onQ]);
+check('... asked of a chain, the place is that chain\'s, whichever is on screen: a branch has the number of the analysis it is a way of - the code map names chains so (0322)',
+  same([q0, a, b1, c, f, s].map(e => B.place(e).i), [1, 2, 2, 2, 3, 4]) && same(B.place(c), { i: 2, n: 4 }) && same(B.place(), { i: 1, n: 4 }), [q0, a, b1, c, f, s].map(e => B.place(e)));
 show(b1);
 const items = B.items();
 check('the thread map\'s boxes: a box to an analysis - the chain of it last on screen - with how many branches it has and where its chain stands in the thread; a chain asked from a branch '

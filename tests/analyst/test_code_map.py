@@ -705,6 +705,84 @@ t0 = time.perf_counter(); j = wc.get("/code_map/4010/6010").get_json(); dt_now =
 check("the same thread without any stored map: the last chain built now, its nine ancestors first, in under a second; the thread file with ten maps stays small",
       j.get("built") == "now" and dt_now < 1.0 and j["map"]["inputs"][0]["name"] == "From {chain:6009}" and bytes_l < 400_000, (dt_now, bytes_l, {k_: v for k_, v in j.items() if k_ != "map"}))
 
+# ---- a branch (2.9, patch 0322; docs/BRANCH_DESIGN.md §6): its map is of its whole way - the turns it kept, then its own -
+# ---- and says which steps it kept, what the person said and where, and after which turn it went on
+def _bcell(n, turn, code, text, think):
+    return Turn(kind="cell", thinking=think, code=code, stdout="RESULT: " + text + "\n", cell_no=n, carry={"turn": turn},
+                results=[dict(text=text, typed=False, test=None, corrects=None, line=len(code.splitlines()))])
+
+
+def _breview(turn):
+    return Turn(kind="review", text=f"after turn {turn}", thinking="Verdict: REPORT", note="- Most consequential problem: none")
+
+
+def _rows(cm):
+    return [(x["type"], x.get("turn"), x.get("kept"), x.get("text") if x["type"] == "hint" else None) for x in (cm.get("view") or {}).get("rows", [])]
+
+
+nbb = Notebook("tb")
+b0 = nbb.new_run("Mean yield?"); b0.mode, b0.data = "Deep", dict(r1.data)
+b0.turns = [_bcell(1, 1, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:.2f} t/ha\")", "mean yield: 4.87 t/ha", "The mean yield first."), Turn(kind="report", text="done")]
+b0.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"
+b1 = nbb.branch(b0.id, 1, "Take each soil type on its own.")
+b1.turns += [Turn(kind="cell", thinking="This turn groups the plots by soil type.", code="g = df.groupby('soil').spread()", error="Traceback (most recent call last):\nAttributeError: no spread", carry={"turn": 2}),
+             _bcell(2, 3, "g = df.groupby('soil')['yield_t_ha'].mean()\nRESULT(f\"clay: {g['clay']:.2f} t/ha\")", "clay: 4.61 t/ha", "The mean of each soil type."),
+             _breview(3), Turn(kind="show", stdout="--- cell 2 ---", carry={"turn": 4}), Turn(kind="report", text="done")]
+b1.report = "## By soil type\nOn clay 4.61 t/ha [cell 2].\n"
+b2 = nbb.branch(b1.id, 4, "One chart to a soil type.")
+b2.turns[2].kept = "differs"                              # the kept cell 2, run again in a new kernel, printed something else
+b2.turns += [_breview(4), _bcell(3, 5, "lo = g['loam']\nRESULT(f\"loam: {lo:.2f} t/ha\")", "loam: 5.02 t/ha", "Loam, for its chart."), Turn(kind="report", text="done")]
+b2.report = "## By soil type, a chart each\nOn loam 5.02 t/ha [cell 3].\n"
+cmb = {r.id: codemap.build(nbb, r) for r in (b0, b1, b2)}
+doc_b = R.chain_record(nbb, b2)
+check("a branch's record: the cells and the failed attempt it kept say so - a kept cell that printed something else when run again says that -, each hint is an event "
+      "at its turn, and the record says after which turn the run went on and how many turns it kept; a chain that is no branch says none of it",
+      [c["kept"] for c in doc_b["cells"]] == ["kept", "differs", ""] and [f["kept"] for f in doc_b["failed"]] == [True]
+      and [(e["turn"], e["text"]) for e in doc_b["events"] if e["type"] == "hint"] == [(1, "Take each soil type on its own."), (4, "One chart to a soil type.")]
+      and doc_b["branch"] == {"turn": 4} and doc_b["kept"] == 4 and doc_b["turns"] == 6
+      and R.chain_record(nbb, b0)["branch"] == {} and R.chain_record(nbb, b0)["kept"] == 0 and [c["kept"] for c in R.chain_record(nbb, b0)["cells"]] == [""]
+      and not [e for e in R.chain_record(nbb, b0)["events"] if e["type"] == "hint"], ({k_: doc_b[k_] for k_ in ("branch", "kept", "turns", "events")}, doc_b["failed"]))
+vb2 = cmb[b2.id].get("view") or {}
+check("a branch's map: every step of its way in order, a kept step marked - the failed attempt too -, and each hint in a row where the person gave it: after what ran up "
+      "to its turn, the review of an earlier turn with it, and before what was made under it - the review of its own turn first",
+      "error" not in cmb[b2.id]
+      and _rows(cmb[b2.id]) == [("step", 1, "kept", None), ("hint", 1, None, "Take each soil type on its own."), ("failed", 2, "kept", None), ("step", 3, "differs", None),
+                                ("review", 3, None, None), ("hint", 4, None, "One chart to a soil type."), ("review", 4, None, None), ("step", 5, None, None), ("report", 6, None, None)]
+      and _rows(cmb[b1.id]) == [("step", 1, "kept", None), ("hint", 1, None, "Take each soil type on its own."), ("failed", 2, None, None), ("step", 3, None, None),
+                                ("review", 3, None, None), ("report", 5, None, None)], (cmb[b2.id].get("error"), _rows(cmb[b2.id]), _rows(cmb[b1.id])))
+check("... its header: after which turn it went on, and how many of its turns it kept, in the line of facts; the panel of a kept step says kept as its row does",
+      vb2.get("branch") == {"turn": 4} and vb2.get("meta") == "Deep · 6 turns, 4 kept · 3 cells · 1 failed attempt · 2 reviews · 3 RESULT lines"
+      and cmb[b1.id]["view"]["branch"] == {"turn": 1} and cmb[b1.id]["view"]["meta"].startswith("Deep · 5 turns, 1 kept · 2 cells · ")
+      and [vb2["steps"][n].get("kept") for n in ("1", "2", "3")] == ["kept", "differs", None] and cmb[b2.id]["version"] == codemap.VERSION == 4,
+      (vb2.get("branch"), vb2.get("meta"), cmb[b1.id]["view"].get("meta")))
+vb0 = cmb[b0.id]["view"]
+check("... the chain it went on from is drawn as it was: no branch, no hint, nothing kept - and so is any chain that is no branch",
+      "branch" not in vb0 and _rows(cmb[b0.id]) == [("step", 1, None, None), ("report", 2, None, None)] and vb0["meta"] == "Deep · 2 turns · 1 cell · 1 RESULT line"
+      and not any("kept" in x for x in vb0["rows"]) and "kept" not in vb0["steps"]["1"] and "branch" not in cm1["view"] and "kept" not in cm1["view"]["meta"],
+      (_rows(cmb[b0.id]), vb0["meta"]))
+b3 = nbb.new_run("Mean yield?"); b3.mode, b3.data = "Deep", dict(r1.data)
+b3.turns = [Turn(kind="names", stdout="df", carry={"turn": 1}), Turn(kind="show", stdout="df", carry={"turn": 2}),
+            _bcell(1, 3, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:.2f} t/ha\")", "mean yield: 4.87 t/ha", "The mean yield."), Turn(kind="report", text="done")]
+_median = [_bcell(1, 3, "md = df['yield_t_ha'].median()\nRESULT(f\"median yield: {md:.2f} t/ha\")", "median yield: 4.80 t/ha", "The median yield."), Turn(kind="report", text="done")]
+b4 = nbb.branch(b3.id, 1, "The median, not the mean.")
+b4.turns += [Turn(kind="show", stdout="df", carry={"turn": 2})] + _median
+b6 = nbb.branch(b4.id, 2, "And say how many plots.")
+b6.turns += _median
+b4.report = b6.report = "## Median yield\nThe median is 4.80 t/ha [cell 1].\n"
+check("... a hint given before any cell ran stands first, and two that land at one place stand in the order they were given; W.meta_line says the kept turns after the "
+      "turns, and nothing where there are none",
+      _rows(codemap.build(nbb, b4)) == [("hint", 1, None, "The median, not the mean."), ("step", 3, None, None), ("report", 4, None, None)]
+      and _rows(codemap.build(nbb, b6)) == [("hint", 1, None, "The median, not the mean."), ("hint", 2, None, "And say how many plots."), ("step", 3, None, None), ("report", 4, None, None)]
+      and W.meta_line("Deep", 11, 6, True, 2, 0, 12, kept=5) == "Deep · 11 turns, 5 kept · 6 cells and a figures cell · 2 failed attempts · 12 RESULT lines"
+      and W.meta_line("Deep", 11, 6, True, 2, 0, 12) == "Deep · 11 turns · 6 cells and a figures cell · 2 failed attempts · 12 RESULT lines",
+      (_rows(codemap.build(nbb, b4)), _rows(codemap.build(nbb, b6))))
+b5 = nbb.new_run("Mean yield?"); b5.mode, b5.data = "Deep", dict(r1.data)
+b5.turns = [_bcell(1, 1, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:.2f} t/ha\")", "mean yield: 4.87 t/ha", "The mean yield."), _breview(1),
+            Turn(kind="show", stdout="--- cell 1 ---", carry={"turn": 2}), _breview(2), Turn(kind="report", text="done")]
+b5.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"
+check("two reviews and the report that follow the same step stand in the order they came (0322: the report stood before the review that came before it, and the "
+      "later review before the earlier)", [x[:2] for x in _rows(codemap.build(nbb, b5))] == [("step", 1), ("review", 1), ("review", 2), ("report", 3)], _rows(codemap.build(nbb, b5)))
+
 os.chdir("/"); shutil.rmtree(work, ignore_errors=True)
 
 n_fail = sum(1 for _, ok in results if not ok)

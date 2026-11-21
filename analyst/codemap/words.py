@@ -120,8 +120,9 @@ def check_patterns(names) -> str:
 
 
 # the header's facts and the one line of a chain that ran no code
-def meta_line(mode, turns, cells, figures_cell, failed, reviews, n_results, refused=0) -> str:
-    parts = ([mode] if mode else []) + [f"{turns} turn{'s' if turns != 1 else ''}",
+def meta_line(mode, turns, cells, figures_cell, failed, reviews, n_results, refused=0, kept=0) -> str:
+    """`kept`: the turns a branch kept of the run it went on from - they are among its turns, and so are their cells."""
+    parts = ([mode] if mode else []) + [f"{turns} turn{'s' if turns != 1 else ''}" + (f", {kept} kept" if kept else ""),
                                         f"{cells} cell{'s' if cells != 1 else ''}" + (" and a figures cell" if figures_cell else "")]
     if failed:
         parts.append(f"{failed} failed attempt{'s' if failed != 1 else ''}")

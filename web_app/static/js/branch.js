@@ -67,9 +67,9 @@
         responses.forEach(r => { if (r && firsts.indexOf(first(r)) < 0) firsts.push(first(r)); });
         return firsts.map(f => { const all = members(f); return all.find(m => same(m.chain_id, shown[String(f.chain_id)])) || all[all.length - 1]; });
     }
-    // where the chain on screen stands among the analyses, as the arrows count them
-    function place() {
-        const all = analyses(), f = onScreen() ? first(onScreen()) : null;
+    // where a chain - the one on screen where none is given - stands among the analyses, as the arrows count them
+    function place(entry) {
+        const all = analyses(), of = entry || onScreen(), f = of ? first(of) : null;
         return { i: all.findIndex(m => first(m) === f) + 1, n: all.length };
     }
     // the chain the arrows go to: of the analysis before, or after, the one last on screen

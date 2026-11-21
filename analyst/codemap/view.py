@@ -659,13 +659,21 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
         for e in extra:
             if e.get("after_cell") == r["cell"]:
                 ordered.append(e)
-    # turn-ordered events (reviews, report) go after the step whose turn precedes them
+    # turn-ordered events (reviews, report) go after the step whose turn precedes them - the latest first, so that two
+    # which follow the same step stand in the order they came (0322: they stood the other way round)
     final = list(ordered)
-    for e in [e for e in extra if e["type"] in ("review", "report")]:
+    for e in reversed([e for e in extra if e["type"] in ("review", "report")]):
         k = max([i for i, r in enumerate(final) if (r.get("turn") or 0) <= e["turn"] and r["type"] in ("step", "failed") and r.get("turn") is not None] or [len(final) - 1])
         final.insert(k + 1, e)
     for e in [e for e in extra if e["type"] == "final"]:
         final.append(e)
+    # a hint (a branch, 2.9) stands where the person gave it: after what ran up to its turn - the reviews of earlier
+    # turns with it - and before what was made under it, the review of its own turn included. The later hint first,
+    # so two that land at one place stand in the order given
+    for e in sorted((e for e in extra if e["type"] == "hint"), key=lambda e: -e["turn"]):
+        k = max([i for i, r in enumerate(final) if r.get("turn") is not None
+                 and (r["turn"] <= e["turn"] if r["type"] in ("step", "failed") else r["type"] == "review" and r["turn"] < e["turn"])] or [-1])
+        final.insert(k + 1, e)
 
     recipes = {}
     for r in m["results"]:
@@ -882,8 +890,17 @@ def build_view(m, doc, primary_name="primary dataset"):
         v["checks"] = cites_checks(doc, own) + v["checks"]
         k = counts(doc)
         n_res = sum(1 for r in m["results"] if r.get("kind", "result") == "result")
-        v["meta"] = W.meta_line(doc.get("mode") or "", k["turns"], k["cells"], k["figures_cell"], k["failed"], k["reviews"], n_res, refused=k["refused"])
+        v["meta"] = W.meta_line(doc.get("mode") or "", k["turns"], k["cells"], k["figures_cell"], k["failed"], k["reviews"], n_res, refused=k["refused"],
+                                kept=doc.get("kept") or 0)
         v["title"] = report_title(doc)
+        # a branch (2.9): the steps it kept of the run it went on from say so - a cell by its number, a failed attempt by its turn
+        kept = {c.get("cell"): c["kept"] for c in doc["cells"] if c.get("kept")}
+        kept_failed = {f.get("turn") for f in doc.get("failed") or [] if f.get("kept")}
+        for row in v["rows"]:
+            if row.get("type") == "step" and row.get("cell") in kept:
+                row["kept"] = v["steps"][str(row["cell"])]["kept"] = kept[row["cell"]]      # the row, and the step's panel
+            elif row.get("type") == "failed" and row.get("turn") in kept_failed:
+                row["kept"] = "kept"
         # the reach report (2026-10-28): each step row's tag for what the cell touched outside the data, and the summary's section
         by_cell = {c.get("cell"): c.get("reaches") or [] for c in doc["cells"]}
         for row in v["rows"]:
@@ -893,6 +910,8 @@ def build_view(m, doc, primary_name="primary dataset"):
         view = v
     view.update(path=path, pathTitles={c: titles.get(c, "") for c in path}, chain_id=chain_id,
                 titles={c: titles.get(c, "") for c in sorted(set(path) | {str(x) for x in referenced_chains(view)})})
+    if doc.get("branch"):
+        view["branch"] = dict(doc["branch"])             # the header says after which turn the analysis went on another way
     return view
 
 

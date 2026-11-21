@@ -1765,6 +1765,36 @@ def walk_draft(page, st, mod, wa, edition, user):
           and len(os.listdir(os.path.join(storage, "favourites", str(tid)))) == 3,
           (third, ran_3.get("status"), ran_3.get("branch"), ran_3.get("hints"), sorted(mem_3), left_3, [l for l in log_3.splitlines() if "kernel for the branch" in l][-2:]))
 
+    # ---- the code map and the Investigation tab of a branch (0322, docs/BRANCH_DESIGN.md §6) ----
+    # Both show the branch's whole way and now say what of it is the branch's: the step it kept is marked, the hint stands where the person gave it, and the
+    # map's header says after which turn the analysis went on - under the number the arrows show for it, one analysis whatever its branches
+    page.click("#streamOutput .sp-done .sp-codemap")
+    page.wait_for_selector("#codeMapModal .cm-map .cm-row.step", timeout=15000)
+    page.wait_for_timeout(300)
+    cm_b = page.evaluate("""() => { const m = document.getElementById('codeMapModal');
+        return { no: m.querySelector('.cm-chain-no').textContent, branch: (m.querySelector('.cm-branch') || {}).textContent || '', facts: (m.querySelector('.cm-facts') || {}).textContent || '',
+                 rows: [...m.querySelectorAll('.cm-map .cm-row')].map(r => [r.className.replace('cm-row ', ''), [...r.querySelectorAll('.cm-cell .sub')].map(s => s.textContent).join('|')]),
+                 hint: (m.querySelector('.cm-row.band.hint') || {}).textContent || '',
+                 colour: m.querySelector('.cm-row.band.hint .k') ? getComputedStyle(m.querySelector('.cm-row.band.hint .k')).color === getComputedStyle(m.querySelector('.cm-branch')).color : null }; }""")
+    page.click("#codeMapModal .cm-map .cm-row.step .cm-cell-no")
+    page.wait_for_selector("#codeMapModal .cm-pane.step .cm-big.cell", timeout=5000)
+    cm_b["panel"] = page.evaluate("() => document.querySelector('#codeMapModal .cm-pane.step .cm-big.cell').textContent")
+    page.keyboard.press("Escape")
+    page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
+    page.evaluate("paneOpenTab('Investigation')")
+    page.wait_for_selector(".briefing-content .nb-cell", timeout=5000)
+    inv = page.evaluate("""() => { const nb = document.querySelector('.briefing-content .nb'), kids = [...nb.children], hint = nb.querySelector('.nb-step--hint');
+        return { hint: hint ? hint.textContent : '', metas: [...nb.querySelectorAll('.nb-cell-head .nb-cell-meta')].map(x => x.textContent),
+                 before: hint ? kids.slice(0, kids.indexOf(hint)).filter(x => x.classList.contains('nb-cell')).length : -1, cells: nb.querySelectorAll('.nb-cell').length }; }""")
+    check("the code map of a branch (0322): its header says the analysis's number as the arrows count it - one analysis, whatever its branches - and after which turn it went on, "
+          "and its line of facts how many turns it kept; the step it kept says kept under its turn and in its panel, its own step says nothing; the hint stands in a row of "
+          "its own after the kept step, in the header's colour. The Investigation tab says the same: kept in the head of the kept cell, the hint in a row after it",
+          cm_b["no"] == "chain 1" and cm_b["branch"] == "branch from turn 1" and " turns, 1 kept · " in cm_b["facts"]
+          and cm_b["rows"][:3] == [["step", "turn 1|kept"], ["band hint", ""], ["step", "turn 2"]] and cm_b["hint"] == "Hint · after turn 1 · " + more_hint and cm_b["colour"] is True
+          and cm_b["panel"] == "Cell 1 · turn 1 · kept" and not any("kept" in r[1] for r in cm_b["rows"][2:])
+          and inv["hint"] == "Your hint " + more_hint and inv["before"] == 1 and inv["metas"][0].endswith(" · kept") and not any("kept" in x for x in inv["metas"][1:]) and inv["cells"] >= 2,
+          (cm_b, inv))
+
 
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""

@@ -44,7 +44,10 @@ def inputs_from_data(run, context=False):
 
 def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_start=None):
     """The record of one run. `inputs` is the host's list (7.6) or None; `earlier` the merged exports of the computed
-    path's earlier runs; `registry_start` what the kernel held when the chain began."""
+    path's earlier runs; `registry_start` what the kernel held when the chain began. A branch (docs/BRANCH_DESIGN.md)
+    holds the turns it kept and then its own, so its record is of its whole way: `kept` marks a cell or a failed
+    attempt it kept - "differs" where the cell printed something else when it was run again -, each hint is an event
+    at the turn it was given after, and `branch` says after which turn the run went on, `kept` how many turns it kept."""
     nums = turn_numbers(run)
     cells, failed, events = [], [], []
     last_cell = 0
@@ -62,14 +65,14 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
             cells.append(dict(cell=t.cell_no, turn=None if figures else num, kind="figures" if figures else "analysis",
                               step=("Figures: " + " | ".join(caps)) if figures else (t.thinking or ""), code=t.code or "", output=t.stdout or "",
                               registry=dict(getattr(t, "registry", {}) or {}), results=[dict(k) for k in (t.results or [])],
-                              figures=len(t.figures or []), captions=caps,
+                              figures=len(t.figures or []), captions=caps, kept=str(getattr(t, "kept", "") or ""),
                               reaches=[dict(r) for r in (getattr(t, "reaches", None) or [])]))     # what the cell touched outside the data (2026-10-28)
             last_cell = t.cell_no
         elif t.kind == "cell" and t.error:
             # a cell the executor refused before it ran rides with the failed attempts, with its restricted word: the view shows
             # it as its own state, not a failure of the code (2026-10-28)
             failed.append(dict(turn=num, after_cell=last_cell, step=purpose_of(t), error=tools.exception_line(t.error),
-                               refused=str(getattr(t, "refused", "") or "")))
+                               refused=str(getattr(t, "refused", "") or ""), kept=bool(getattr(t, "kept", ""))))
         elif t.kind == "review":
             m = _VERDICT_RE.search(t.thinking or "")
             p = _PROBLEM_RE.search(t.note or "")
@@ -81,6 +84,8 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
                                    text=(p.group(1) if p else "")[:220]))
         elif t.kind == "report":
             events.append(dict(type="report", turn=num))
+    events += [dict(type="hint", turn=h["turn"], text=h["text"]) for h in getattr(run, "hints", None) or []]
+    branch = getattr(run, "branch", None) or {}
     path_ids = [r.id for r in path]
     path_cells = {}
     for r in path:
@@ -94,4 +99,5 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
                 ideas=any(t.kind == "ideas" for t in run.turns),
                 path=path_ids, path_cells=path_cells, titles=titles,
                 registry_start=dict(registry_start or {}), earlier=earlier or dict(names={}, funcs={}),
+                branch=dict(turn=branch["turn"]) if branch else {}, kept=sum(1 for t, n in zip(run.turns, nums) if n and getattr(t, "kept", "")),
                 sandbox=dict(getattr(run, "sandbox", None) or {}))              # the box the cells ran on, for the reach report (2026-10-28)

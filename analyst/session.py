@@ -42,8 +42,12 @@ CONTRACT_REVIEWS = open(os.path.join(_HERE, "contract_reviews.md"), encoding="ut
 # the brief's section and its parts of the report ride only when the run has a brief (docs/ARCHITECT_DESIGN.md §2.5): how
 # the result stands against it where the brief gives something to hold it against (brief.held), what did not fit always
 CONTRACT_BRIEF = open(os.path.join(_HERE, "contract_brief.md"), encoding="utf-8").read()
-# the hint's section rides only in a branch (docs/BRANCH_DESIGN.md): the person went back to a turn and said how to go on
-CONTRACT_HINT = open(os.path.join(_HERE, "contract_hint.md"), encoding="utf-8").read()
+# the hint's section rides only in a branch (docs/BRANCH_DESIGN.md): the person went back to a turn and said how to go on.
+# Under a brief it says which of the two holds where they part: the hint, the person's later word (decision 15)
+_HINT_TEMPLATE = open(os.path.join(_HERE, "contract_hint.md"), encoding="utf-8").read()
+HINT_OVER_BRIEF = ("- It outranks the brief too: where it departs from what BRIEF fixes, the hint is what you compute, and the\n"
+                   "  report says where it departs.\n")
+CONTRACT_HINT = _HINT_TEMPLATE.replace("{OVER_BRIEF}", "")
 BRIEF_AGAINST = ("- against the brief, under the heading `## Against the brief`: for what the person expects to see, a line\n"
                  "  `Expected:` with `met`, `not met` or `cannot tell` and the number that says so; for what would change their\n"
                  "  mind, a line `Would change their mind:` with `seen`, `not seen` or `cannot tell`; then one line for each Also\n"
@@ -65,16 +69,18 @@ REVIEWER_BRIEF_ITEM = ("- BRIEF: what the person fixed with the question before 
 # the hint among what the reviewer receives, present only in a branch: the turns since it are judged against it
 REVIEWER_HINT_ITEM = ("- HINT: what the person said when they went back to a turn of this analysis and had it go on from there.\n"
                       "  The analyst is held to it from that turn on: judge the turns since against it\n")
+REVIEWER_HINT_OVER_BRIEF = "  - and where it departs from what BRIEF fixes, the hint holds\n"      # under a brief: the person's later word
 
 
 def reviewer(context: bool = False, brief: bool = False, hint: bool = False) -> str:
     """The reviewer's prompt; with context, the Words lens among the perspectives and its line in the format; with a
-    brief, the brief among what it receives; in a branch, the person's hint."""
+    brief, the brief among what it receives; in a branch, the person's hint - which, under a brief, holds where the
+    two part."""
     return (_REVIEWER_TEMPLATE.replace("{LENSES}", "six" if context else "five")
                               .replace("{WORDS_LENS}", REVIEWER_WORDS_LENS if context else "")
                               .replace("{WORDS_LINE}", REVIEWER_WORDS_LINE if context else "")
                               .replace("{BRIEF_ITEM}", REVIEWER_BRIEF_ITEM if brief else "")
-                              .replace("{HINT_ITEM}", REVIEWER_HINT_ITEM if hint else ""))
+                              .replace("{HINT_ITEM}", REVIEWER_HINT_ITEM + (REVIEWER_HINT_OVER_BRIEF if brief else "") if hint else ""))
 
 
 REVIEWER = reviewer(False)
@@ -98,7 +104,8 @@ def contract(documents: bool = False, review_every: int = 0, context: bool = Fal
     Format and the READ row in the actions table; with context (the words written beside the data), the Context
     section after it and the READ CTX row; with reviews during the run, the Reviews section after Results; with a
     brief, The brief after How you work and its parts among the report's - how the result stands against it only
-    where the report is `held` to something (brief.held); in a branch, A hint from the person after those."""
+    where the report is `held` to something (brief.held); in a branch, A hint from the person after those - which
+    says, under a brief, that the hint outranks it."""
     sections = ("\n" + CONTRACT_DOCUMENTS if documents else "") + ("\n" + CONTRACT_CONTEXT if context else "")
     rows = (READ_ROW if documents else "") + (READ_ROW_CONTEXT if context else "")
     return (_CONTRACT_TEMPLATE.replace("{DOCUMENTS}", sections)
@@ -106,7 +113,7 @@ def contract(documents: bool = False, review_every: int = 0, context: bool = Fal
                               .replace("{REVIEWS}", "\n" + CONTRACT_REVIEWS.replace("{ordinal}", _ordinal(review_every))
                                        if review_every else "")
                               .replace("{BRIEF}", "\n" + CONTRACT_BRIEF if brief else "")
-                              .replace("{HINT}", "\n" + CONTRACT_HINT if hint else "")
+                              .replace("{HINT}", "\n" + _HINT_TEMPLATE.replace("{OVER_BRIEF}", HINT_OVER_BRIEF if brief else "") if hint else "")
                               .replace("{BRIEF_PARTS}", ((BRIEF_AGAINST if held else "") + BRIEF_MISFIT) if brief else ""))
 
 CONTRACT = contract(False)
@@ -188,6 +195,10 @@ FIGURES_FAILED = ("YOUR LAST CELL FAILED - it was rolled back (attempt {k} of {n
 # cell that drew their draft, where one was drawn -, a reply that leaves one out is asked again once - before anything
 # runs - and the report says where one was not drawn
 FIGURES_AGREED = "THE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word):"
+# in a branch the hint is the person's later word: it holds where it asks for another drawing, and a figure it takes out is
+# not asked for again (docs/BRANCH_DESIGN.md, decision 15)
+FIGURES_AGREED_HINT = FIGURES_AGREED[:-2] + "; where the hint asks for another drawing, of these or of their draft, the hint holds):"
+FIGURES_LEFT_OUT_HINT = " A figure the hint takes out stays out."
 FIGURES_DRAFT = "THE DRAFT THE PERSON SAW"
 FIGURES_LEFT_OUT = ("YOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt {k} of {n}): {titles}. Nothing was run. Write the "
                     "cell again with every agreed figure in it, each under its title, word for word.")
@@ -1374,7 +1385,8 @@ class Session:
                 run.turns.append(turn)
                 self._emit_turn(run, turn)
                 reasons.append(why)
-                error_note = "\n\n" + (FIGURES_LEFT_OUT.format(k=attempt, n=FIGURES_ATTEMPTS, titles="; ".join(f'"{t}"' for t in left_out)) if left_out else
+                error_note = "\n\n" + (FIGURES_LEFT_OUT.format(k=attempt, n=FIGURES_ATTEMPTS, titles="; ".join(f'"{t}"' for t in left_out))
+                                       + (FIGURES_LEFT_OUT_HINT if run.hints else "") if left_out else
                                        (FIGURES_CUT if usage.get("truncated") else FIGURES_NO_BLOCK).format(k=attempt, n=FIGURES_ATTEMPTS))
                 continue
             turn = Turn(kind="cell", note=run.note, code=code, usage=dict(usage), step="figures")
@@ -1444,7 +1456,7 @@ class Session:
         results = result_lines(run)
         agreed = [f"{k}. {line}" for k, line in enumerate(briefs.figure_lines(run.brief), 1)]
         parts = ([f"QUESTION:\n{run.question.strip()}"] + ([hint_block(run)] if run.hints else [])      # a hint may be about the drawing
-                 + ([FIGURES_AGREED + "\n" + "\n".join(agreed)] if agreed else []))
+                 + ([(FIGURES_AGREED_HINT if run.hints else FIGURES_AGREED) + "\n" + "\n".join(agreed)] if agreed else []))
         for d in drafts.agreed(run):                  # the cell that drew them before the run: the figure follows its draft
             drew = ", ".join(f'"{t}"' for t in d["titles"]) + (" - on made-up numbers: " + ", ".join(f'"{t}"' for t in d["made_up"]) if d["made_up"] else "")
             parts.append(f"{FIGURES_DRAFT} (it drew {drew}):\n```python\n{d['code'].rstrip()}\n```")

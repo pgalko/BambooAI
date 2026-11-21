@@ -60,6 +60,11 @@ _MAP_EYE = ('<button type="button" class="nb-cell-map" data-cell="{n}" title="Th
             '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg></button>')
 
 
+# a cell a branch kept of the run it went on from (docs/BRANCH_DESIGN.md), in the left pane's words: as it ran there, or
+# run again in a new kernel, where it printed something else
+_KEPT = {"kept": " · kept", "differs": " · kept · run again: output changed"}
+
+
 def _cell_html(turn: Turn, index: int) -> str:
     refused = str(getattr(turn, "refused", "") or "")  # a cell the executor refused before it ran (2026-10-28): its own state, not a failure of the code
     failed = bool(turn.error) and not refused
@@ -72,7 +77,7 @@ def _cell_html(turn: Turn, index: int) -> str:
     parts.append(f'<div class="nb-cell-head"><span class="nb-cell-idx">{idx}</span>'
                  f'<span class="nb-cell-title">{title}</span>'
                  f'<span class="nb-cell-meta">{lines} lines{" · failed, rolled back" if failed else ""}{" · not run" if skipped or refused else ""}'
-                 f'{" · figures step" if getattr(turn, "step", "") == "figures" else ""}'
+                 f'{" · figures step" if getattr(turn, "step", "") == "figures" else ""}{_KEPT.get(getattr(turn, "kept", ""), "")}'
                  f'{" · " + str(len(turn.figures)) + " fig" if turn.figures else ""}</span>' + reach
                  + (_MAP_EYE.format(n=turn.cell_no) if turn.cell_no else "") + '</div>')
     if turn.thinking:
@@ -139,10 +144,15 @@ def _step_html(turn: Turn, index: int) -> str:
 
 
 def notebook_html(run: Run) -> str:
-    """The whole run as one HTML block: the working note, then every turn."""
+    """The whole run as one HTML block: the working note, then every turn. A branch holds the turns it kept and then
+    its own: what the person said stands after the turn they said it after, a hint a row."""
+    hints = {h["turn"]: h["text"] for h in run.hints or []}
     parts: List[str] = ['<div class="nb">', _note_html(run.note)]
     for i, t in enumerate(run.turns, 1):
         parts.append(_cell_html(t, i) if t.kind == "cell" else _step_html(t, i))
+        said = hints.get((t.carry or {}).get("turn"))
+        if said:
+            parts.append(f'<div class="nb-step nb-step--hint"><span class="nb-out-label">Your hint</span> {html.escape(" ".join(said.split()), quote=False)}</div>')
     parts.append("</div>")
     out = "".join(p for p in parts if p)
     # one HTML block: never a blank line inside

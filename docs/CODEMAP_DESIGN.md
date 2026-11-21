@@ -1,4 +1,4 @@
-# The code map — design v1.5 (2026-10-28)
+# The code map — design v1.6 (2026-11-21)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -98,6 +98,11 @@ ids and tokens. The golden fixtures pin the prototype's output; the departures a
   executor refused before it ran rides here with `refused` (the restricted word) and is shown as its own state;
 - `sandbox`: the box the cells ran on, as the kernel saw itself (2026-10-28);
 - `events[]`: the reviews (turn, verdict, the most consequential problem), the review of the report, the report turn;
+- a branch (2.9, `docs/BRANCH_DESIGN.md` §7) holds the turns it kept of the run it went on from and then its own, so
+  its record is of its whole way: a cell or a failed attempt it kept carries `kept` (`differs` for a kept cell that
+  printed something else when it was run again), each hint the person gave is an event (`type: hint`, the turn it
+  was given after, its text), and the record says after which turn the run went on (`branch.turn`) and how many
+  turns it kept (`kept`);
 - `path`, `path_cells`, `titles`: the chain's path root first, which chain each cell number belongs to, the question
   of every chain the view names;
 - `registry_start`: what the kernel held when the chain began (the earlier cells' registries merged);
@@ -161,8 +166,9 @@ view (`traced: false`) and is listed in `selfcheck`; nothing blocks the chain.
 
 ## 5. What is stored, and the route
 
-`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 3 since 2026-10-24: the recipes carry the
-lines behind each number); on failure `{version, built, error, inputs}`,
+`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 4 since 2026-11-21: a branch's map
+says what it kept and what the person said; 3 since 2026-10-24: the recipes carry the lines behind each number); on
+failure `{version, built, error, inputs}`,
 and when even the import fails, `{"error": ...}`. `exports` (the names and helpers the chain left in the kernel, for
 later chains) and `inputs` (as the chain ended, with the auxiliary files' columns) let a later rebuild give the same
 map without the host. `view` is one chain's entry of the fixtures' `viewmodel.json`, with chain ids in place of
@@ -201,7 +207,13 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   came out empty, a cited printout, the figures; a chip's label up to 96 characters, wrapping to two lines, the whole
   label in its tooltip), or a note (carried forward to N later steps; printed what the report cites; printed only; N figures
   drawn after the report; not mapped). Failed attempts on a red tint with their error; review bands; the report
-  turn. A selection fades the rows and lanes outside its recipe.
+  turn - two that follow the same step in the order they came (0322: they stood the other way round). A selection
+  fades the rows and lanes outside its recipe.
+- **A branch** (2.9, `docs/BRANCH_DESIGN.md` §7): the header says *branch from turn N* after the chain's number, and
+  the facts how many turns it kept; a step it kept says *kept* under its turn - *changed* under that where the cell
+  printed something else when it was run again - and in its panel; each hint has a band where the person gave it,
+  *Hint · after turn N* and their words whole. The chain's number is the one the arrows show: they count analyses,
+  and a branch has its analysis's.
 - **Recipe diagram**: a picker of every result, printout and figure — a button and a listbox of the map's own, so the
   list always drops below the button (a native select's menu opens wherever the browser puts it) and a long label
   wraps; arrows, Home and End move, Enter picks, Escape closes the list and not the map, a click elsewhere closes it;

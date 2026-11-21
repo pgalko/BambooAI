@@ -202,6 +202,31 @@ check('a chain with no code: the one line with its citation as a link, the summa
   el(b.nocode(T5, { titles: T5.titles, built: 'now', number: id => (id === '1' ? 1 : 0), chainId: '5' })).querySelector('.cm-nocode a.cm-chain[data-chain="1"]').textContent === 'chain 1'
   && el(b.summary(T5, { titles: T5.titles, built: 'now', number: () => 1, chainId: '5' })).querySelectorAll('.cm-h').map(h => h.textContent).join('|') === 'Data this chain used|Worth checking');
 
+// ---- a branch (2.9, patch 0322): the header says so and from which turn, a step it kept says kept beside its turn, each hint has a row ----
+const BR = JSON.parse(JSON.stringify(TRIAL));
+BR.branch = { turn: 3 }; BR.meta = 'Deep · 6 turns, 3 kept · 2 cells and a figures cell · 1 failed attempt · 1 RESULT line';
+BR.rows[0].kept = 'kept'; BR.rows[1].kept = 'kept'; BR.steps['1'].kept = 'kept';
+BR.rows.splice(2, 0, { type: 'hint', turn: 3, text: 'Take each soil type <on its own>.' });
+const noFocus = { cells: null, inputs: null, recipe: null };
+const hb = el(b.header(BR, c1, { view: 'steps', state: '' })), stb = el(b.steps(BR, c1, null, noFocus)), rb = stb.querySelectorAll('.cm-row');
+check('a branch: the header says after which turn it went on, beside the chain\'s number, and the line of facts is the server\'s - with the turns kept; a chain that is no branch says neither',
+  hb.querySelector('.cm-chain-no').textContent === 'chain 1' && hb.querySelector('.cm-branch').textContent === 'branch from turn 3' && hb.querySelector('.cm-facts').textContent === BR.meta
+  && hb.querySelector('.cm-head-line').children.map(x => x.className).join('|').startsWith('title|cm-chain-no|cm-branch|cm-facts')
+  && !el(b.header(TRIAL, c1, { view: 'steps', state: '' })).querySelector('.cm-branch'), hb.querySelector('.cm-head-line').innerHTML);
+check('... a step it kept says kept under its turn - a failed attempt too -, a step of its own says nothing; a kept cell that printed something else when run again says changed under that, the hover and its panel saying it whole',
+  rb[0].querySelectorAll('.cm-cell .sub').map(x => x.textContent).join('|') === 'turn 1|kept' && rb[1].className === 'cm-row failed' && rb[1].querySelector('.cm-cell-no').textContent === 'Turn 3'
+  && rb[1].querySelector('.cm-cell .sub').textContent === 'kept' && rb[3].querySelector('.cm-cell .sub').textContent === 'turn 4' && rows[0].querySelector('.cm-cell .sub').textContent === 'turn 1'
+  && !rows[1].querySelector('.cm-cell .sub')
+  && el(b.row(TRIAL, Object.assign({}, TRIAL.rows[0], { kept: 'differs' }), c1, null, noFocus)).querySelectorAll('.cm-cell .sub').map(x => x.textContent + ':' + (x.getAttribute('title') || '')).join('|') === 'turn 1:|kept:|changed:run again: output changed'
+  && el(b.step(Object.assign({}, BR, { steps: Object.assign({}, BR.steps, { '1': Object.assign({}, BR.steps['1'], { kept: 'differs' }) }) }), c1, 1)).querySelector('.cm-big.cell').textContent === 'Cell 1 · turn 1 · kept · run again: output changed'
+  && el(b.row(TRIAL, Object.assign({}, TRIAL.rows[1], { kept: 'kept', refused: 'socket' }), c1, null, noFocus)).querySelector('.cm-cell .sub').textContent === 'kept',
+  rb.map(r => r.className + ': ' + r.querySelectorAll('.cm-cell .sub').map(x => x.textContent).join('|')));
+check('... a hint has a row where it was given: the person\'s words whole, after the head that says after which turn - a band, faded with the others when a step is in focus; the panel of a kept step says kept',
+  rb.map(r => r.className).join('|') === 'cm-row step|cm-row failed|cm-row band hint|cm-row step|cm-row step' && rb[2].querySelector('.k').textContent === 'Hint · after turn 3'
+  && rb[2].textContent === 'Hint · after turn 3 · Take each soil type <on its own>.' && !rb[2].querySelector('on')
+  && el(b.steps(BR, c1, { t: 's', id: 2 }, { cells: [2], inputs: null, recipe: null })).querySelectorAll('.cm-row')[2].className === 'cm-row band hint faded'
+  && el(b.step(BR, c1, 1)).querySelector('.cm-big.cell').textContent === 'Cell 1 · turn 1 · kept' && el(b.step(BR, c1, 2)).querySelector('.cm-big.cell').textContent === 'Cell 2 · turn 4', rb[2].innerHTML);
+
 // ---- the module on the mini DOM, with a scripted route ----
 const route = (thread, chain, view, built) => [200, { thread_id: thread, chain_id: chain, built: built || 'end', map: view }];
 answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': route('1001', '2', TRIAL2, 'now'), '/code_map/1001/3': [200, { thread_id: '1001', chain_id: '3', state: 'running' }],
@@ -340,6 +365,16 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
     css.includes('background: var(--scrim-heavy); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);') && (tokens.match(/--scrim-heavy:/g) || []).length === 2
     && css.includes('#codeMapModal .cm-purpose span { display: -webkit-box; -webkit-line-clamp: 3;') && css.includes('#codeMapModal .cm-res .t { display: -webkit-box; -webkit-line-clamp: 2;')
     && css.includes('#codeMapModal .cm-node .step { display: -webkit-box; -webkit-line-clamp: 3;') && (TRIAL.diagrams[Object.keys(TRIAL.diagrams)[0]].nodes.every(n => String(n.step || '').length <= 200)));
+
+  // the chain's number is the one the arrows show (0322): where the page counts analyses (branch.js), a chain has its analysis's number - a branch its
+  // analysis's - and the path and the lanes name the chains the same way; without that module, its place in the navigator, as before
+  w.BranchUI = { place: entry => ({ i: String(entry.chain_id) === '2' ? 1 : 4, n: 4 }) };
+  w.CodeMapUI.open('2'); await tick(); await tick();
+  const counted = [m.querySelector('.cm-chain-no').textContent, m.querySelector('.cm-path .cm-path-here').textContent, m.querySelector('.cm-path a.cm-chain').textContent, m.querySelector('.cm-lane.chain .name').textContent];
+  delete w.BranchUI;
+  w.CodeMapUI.close(); w.CodeMapUI.open('2'); await tick(); await tick();
+  check('the chain\'s number is the one the arrows show: with the page counting analyses, the header, the path and the lane of an earlier chain say those numbers; without, the place in the navigator',
+    counted.join('|') === 'chain 1|1|4|From chain 4' && m.querySelector('.cm-chain-no').textContent === 'chain 2' && m.querySelector('.cm-lane.chain .name').textContent === 'From chain 1', counted);
 
   const failed = results.filter(r => !r[1]);
   results.forEach(r => console.log((r[1] ? '  ok   ' : '  FAIL ') + r[0] + (r[1] ? '' : '  <- ' + String(r[2] == null ? '' : (typeof r[2] === 'string' ? r[2] : JSON.stringify(r[2]))).slice(0, 700))));

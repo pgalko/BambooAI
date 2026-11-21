@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.4 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage)
+# Branching an analysis — design v0.5 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -42,6 +42,9 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
 13. Memory takes the branch the person saved from or went on from. A branch they left is stored for the map only.
     The hint is kept with its branch, and memory shows it.
 14. The person pays for the new turns only.
+15. A hint outranks the brief (2026-11-21): where it departs from what the brief fixes, the hint holds, and the
+    report says where it departs.
+16. A run that failed gets no Turn map (2026-11-21).
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -222,10 +225,33 @@ thread - in the ledger's line of the chain, and in the chain opened whole (`SHOW
 one (`EARLIER`), memory's reader. What a hint names - a file, an address - counts as asked for in the reach record,
 on the branch and on a question asked from it.
 
-## 7. To build
+## 7. The code map, the Investigation tab, the hint over the brief (0322, built)
 
-- **Open.** A hint that departs from what the brief fixes: nothing says which holds. A run that failed has no
-  closing card, so no Turn map, though the engine could go on from its last turn.
+**Why.** A branch's record holds the turns it kept and then its own, so that the report, the replay check, the code
+map and the export read it as any chain (§4). The code map of the first live branch of a branch (the product owner,
+2026-11-21) was right - every row, number and *replaced by* mark checked against the run log - and did not say it
+was a branch: the Analyst's words in its rows spoke of "the hint", and the map showed none; the steps it kept looked
+like its own; and its header numbered it "chain 3" where the arrows count one analysis.
+
+**The code map** (`analyst/codemap`, version 4; `docs/CODEMAP_DESIGN.md` §3, §6). The record of a branch says which
+cells and failed attempts it kept (`kept`; `differs` for a kept cell that printed something else when it was run
+again), each hint as an event at the turn it was given after, the turn the run went on after (`branch`) and how many
+turns it kept. The view: a kept step says *kept* under its turn and in its panel; a hint has a row of its own where
+the person gave it - after what ran up to its turn, before what was made under it; the header says *branch from turn
+N*, and the line of facts *11 turns, 5 kept*. A chain's number is the one the arrows show (`BranchUI.place(entry)`):
+a branch has its analysis's. A chain that is no branch has a map as before; a map of an older version is built again
+when it is opened.
+
+**The Investigation tab** (`render.notebook_html`). The notebook view of a branch is of its whole way too: a cell it
+kept says *kept* in its head, and each hint stands in a row - *Your hint* - after the turn it was given after.
+
+**The hint over the brief** (decision 15). Read only by a run that has both. The contract's hint section gains a
+line (`HINT_OVER_BRIEF`): where the hint departs from what BRIEF fixes, the hint is what is computed, and the report
+says where it departs. The reviewer is told the same with the hint (`REVIEWER_HINT_OVER_BRIEF`). The step that draws
+the figures is given the agreed figures under a heading that says the hint holds where it asks for another drawing
+(`FIGURES_AGREED_HINT`); a reply that leaves an agreed figure out is still asked again once, told that a figure the
+hint takes out stays out (`FIGURES_LEFT_OUT_HINT`), and the report names an agreed figure that was not drawn, as
+before.
 
 ## 8. The build
 
@@ -235,7 +261,8 @@ on the branch and on a question asked from it.
 | 0319 | Engine: a branch after a turn, with a hint. | built |
 | 0320 | Page: the Turn map, going back, the hint, moving between branches; the Git branch icon. | built |
 | 0321 | Save, memory, usage; the Turn map's button at the end of the ids' row. | built |
-| 0322 | Release 2.9.0. | |
+| 0322 | The code map and the Investigation tab of a branch; a hint outranks the brief. | built |
+| 0323 | Release 2.9.0. | |
 
 ## 9. Tests
 
@@ -254,3 +281,7 @@ as a later question's Analyst, the Architect and the reach record are given them
 takes and the ways left, a run's hints, search; `test_reader.py`: the hint in what is read of a run; `test_usage.py`
 and `test_usage_page.js`: a branch's facts and its row; the walk: a thread saved from a branch, the memory view after
 it, the saved thread opened again with its branch, a branch more made from it, and a branch in the Usage dialog.
+(0322) `test_code_map.py`: a branch's record and its rows - the kept steps, the hints in their places, the header;
+`test_code_map.js`: the same on the page, and a chain's number as the arrows count it; `test_analyst.py`: the hint
+over the brief in the contract, the reviewer's prompt and the figures step, and the Investigation tab of a branch;
+the walk: the code map and the Investigation tab of a branch in a browser.

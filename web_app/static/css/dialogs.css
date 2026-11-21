@@ -1082,6 +1082,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-head-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 #codeMapModal .cm-head-line .title { font-size: var(--fs-title); font-weight: 600; color: var(--text-primary); }
 #codeMapModal .cm-chain-no { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--c-kernel); }
+#codeMapModal .cm-branch { font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--accent-color); }      /* a branch (2.9): from which turn it went on */
 #codeMapModal .cm-path { display: inline-flex; align-items: baseline; gap: 2px; font-size: var(--fs-small); color: var(--text-tertiary); }
 #codeMapModal .cm-path .k { margin-right: 3px; }
 #codeMapModal .cm-path a, #codeMapModal .cm-path b, #codeMapModal .cm-path .cm-chain-earlier { font-family: var(--font-mono); font-size: var(--fs-meta); padding: 0 2px; }
@@ -1140,6 +1141,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-row.failed { background: var(--chip-fail-bg); }
 #codeMapModal .cm-row.band { padding: 8px 14px; background: var(--bg-secondary); font-size: var(--fs-meta); line-height: 1.45; color: var(--text-secondary); }
 #codeMapModal .cm-row.band .k, #codeMapModal .cm-h, #codeMapModal .cm-kicker span, #codeMapModal .cm-diag-head .k { font-size: var(--fs-small); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
+#codeMapModal .cm-row.band.hint { color: var(--text-primary); }      /* what the person said where they went back to a turn: the left pane's colours */
+#codeMapModal .cm-row.band.hint .k { color: var(--accent-color); }
 #codeMapModal .cm-cell { padding: 10px 6px 10px 14px; }
 #codeMapModal .cm-cell-no { border: 0; background: none; padding: 0; text-align: left; cursor: pointer; font-family: var(--font-mono); font-size: var(--fs-meta); font-weight: 600; color: var(--c-kernel); white-space: nowrap; }
 #codeMapModal .cm-cell-no.fail { color: var(--c-fail); cursor: default; }

@@ -4062,6 +4062,86 @@ check("branch: whether the kernel went back to what the record shows is read fro
       went_back(_Kern([]), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_now, _old])
       and went_back(_Kern(_ran(_much)), [_long]) and not went_back(_Kern(_ran("2\n")), [_old, _now]) and not went_back(_Kern(_ran("", "boom", step=5)), [_old, _now])
       and went_back(_Kern(_ran("a step that is no cell's", step=2)), [_old, _now]) and went_back(object(), [_now]))
+# a hint outranks the brief (0322; docs/BRANCH_DESIGN.md §2, decision 15): under a brief the hint's section says so, the reviewer is told it with the hint,
+# and the step that draws is given the agreed figures with the hint's word over them - a figure the hint takes out is asked for once, with that said
+from analyst.session import HINT_OVER_BRIEF, REVIEWER_HINT_OVER_BRIEF, FIGURES_AGREED_HINT, FIGURES_LEFT_OUT_HINT
+_cbh = contract(False, 0, brief=True, hint=True)
+check("branch: a hint outranks the brief - under a brief the hint's section says that where the hint departs from what the brief fixes the hint is what is computed, and "
+      "that the report says where: one line, after the line on the plan, in a run with both and in no other; the reviewer is told the same with the hint, there only",
+      HINT_OVER_BRIEF == ("- It outranks the brief too: where it departs from what BRIEF fixes, the hint is what you compute, and the\n  report says where it departs.\n")
+      and "- The hint outranks your plan: the next turn acts on it, and every turn after follows it to the report.\n" + HINT_OVER_BRIEF + "- Write it under the note's" in _cbh
+      and _cbh.replace(HINT_OVER_BRIEF, "", 1).replace("\n" + CONTRACT_HINT, "", 1) == contract(False, 0, brief=True)
+      and not any("outranks the brief" in t or "{OVER_BRIEF}" in t for t in (contract(False, 0, hint=True), contract(False, 0, brief=True), CONTRACT, CONTRACT_HINT))
+      and REVIEWER_HINT_ITEM + REVIEWER_HINT_OVER_BRIEF + "- DATA:" in reviewer_text(False, brief=True, hint=True)
+      and REVIEWER_HINT_OVER_BRIEF == "  - and where it departs from what BRIEF fixes, the hint holds\n"
+      and not any(REVIEWER_HINT_OVER_BRIEF in t for t in (reviewer_text(False, hint=True), reviewer_text(False, brief=True), reviewer_text(False))),
+      _cbh[_cbh.index("## A hint from the person"):][:700])
+
+
+def _fig_branch(steps, hint="One figure is enough: leave the rise in percent out."):
+    """The analysis of _fig_run under the brief _fgb, then a branch of it from its turn 1 under `hint`: the branch, and what its seats were sent."""
+    seen = {"figures": [], "analyst": [], "first": 0}
+    def first(system, user, **h):
+        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
+        if system.startswith("You are drawing the figures"): return _draws("After against before", "The rise in percent"), {"cost": 0.002}
+        seen["first"] += 1; return (_CELL if seen["first"] == 1 else _bact(_BREPORT)), {"cost": 0.001}
+    def then(system, user, **h):
+        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
+        if system.startswith("You are drawing the figures"):
+            seen["figures"].append(user); return steps[min(len(seen["figures"]) - 1, len(steps) - 1)], {"cost": 0.002}
+        seen["analyst"].append((system, user)); return _bact(_BREPORT), {"cost": 0.001}
+    k = PersistentKernel(df=_bdf); nb = Notebook("tfh")
+    try:
+        src = Session(k, nb, first, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=6, dollars=1.0), brief=_fgb)
+        _tools.goto(k, src.cells()[0].snap)
+        run = Session(k, nb, then, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).go_on(src.id, 1, hint)
+    finally:
+        k.cleanup()
+    return src, run, seen
+
+
+_pp10 = os.environ.get("PYTHONPATH")
+if "plotly" in _stubs.FAKE:                  # the kernel's worker imports plotly: the stack's stand-in where the real one is absent
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp10 if _pp10 else "")
+try:
+    _fh_src, _fh, _fh_seen = _fig_branch([_draws("After against before")])
+finally:
+    if _pp10 is None: os.environ.pop("PYTHONPATH", None)
+    else: os.environ["PYTHONPATH"] = _pp10
+_FHINT = "HINT FROM THE PERSON (given after turn 1; it holds from there to the report):\nOne figure is enough: leave the rise in percent out."
+check("branch: under a brief with figures, in a run - the analyst's instructions carry the line; the step that draws is given the hint and then the agreed figures, "
+      "under a heading that says the hint holds where it asks for another drawing; a reply that leaves an agreed figure out is asked again once, told that a figure the "
+      "hint takes out stays out; the cell that leaves it out again runs, and the report says which agreed figure was not drawn",
+      _fh.status == "answered" and _fh.branch == {"of": _fh_src.id, "turn": 1} and _fh.brief == _fh_src.brief and HINT_OVER_BRIEF in _fh_seen["analyst"][0][0]
+      and FIGURES_AGREED_HINT == ("THE FIGURES AGREED WITH THE PERSON (draw these first, in this order, each as described and under its title, word for word; "
+                                  "where the hint asks for another drawing, of these or of their draft, the hint holds):")
+      and _fh_seen["figures"][0].startswith("QUESTION:\nDid it work?\n\n" + _FHINT + "\n\n" + FIGURES_AGREED_HINT + '\n1. "After against before" - bars; ')
+      and _FAGREED + "\n" not in _fh_seen["figures"][0] and len(_fh_seen["figures"]) == 2
+      and _fh_seen["figures"][1] == _fh_seen["figures"][0] + ('\n\nYOUR LAST REPLY LEFT OUT a figure agreed with the person (attempt 1 of 4): "The rise in percent". Nothing was run. '
+                                                              'Write the cell again with every agreed figure in it, each under its title, word for word. A figure the hint takes out stays out.')
+      and FIGURES_LEFT_OUT_HINT == " A figure the hint takes out stays out."
+      and '\n\n> A figure agreed in the brief was not drawn: "The rise in percent".' in _fh.report and "- [fig 2] After against before" in _fh.report
+      and "the hint" not in _fa_seen["figures"][1].split("YOUR LAST REPLY LEFT OUT")[1] and _FAGREED + "\n1. " in _fa_seen["figures"][0],
+      (_fh.status, _fh_seen["figures"][0][:420], _fh_seen["figures"][-1][-260:], _fh.report[-300:]))
+
+# the Investigation tab of a branch (0322): the notebook view of its whole way - a cell it kept says so, and what the person said stands after the turn they said it after
+from analyst.render import notebook_html
+_nbh, _nba = notebook_html(rb_), notebook_html(ra_)
+_cell_metas = lambda h: [m_ for m_ in re.findall(r'<span class="nb-cell-meta">([^<]*)</span>', h) if " lines" in m_]      # noqa: E731
+_nk = Notebook("tk"); _k0 = _nk.new_run("q"); _k0.turns = [Turn(kind="cell", cell_no=1, code="x = 1", carry={"turn": 1}), Turn(kind="show", stdout="--- cell 1 ---", carry={"turn": 2}), Turn(kind="report")]
+_k1 = _nk.branch(_k0.id, 2, "Keep the soil  types\napart <now>"); _k1.turns[0].kept = "differs"; _k1.turns.append(Turn(kind="cell", cell_no=2, code="z = 3", carry={"turn": 3}))
+_nbk = notebook_html(_k1)
+check("branch: the Investigation tab shows its whole way - a cell it kept says kept in its head, a failed one too, a cell of its own says nothing - and the person's hint "
+      "stands in a row after the turn it was given after, before the branch's own turns; a kept cell that printed something else when run again says so; the run it "
+      "went on from shows neither",
+      _cell_metas(_nbh) == ["2 lines · kept", "1 lines · failed, rolled back · kept", "2 lines · kept", "2 lines"]
+      and _nbh.count('<div class="nb-step nb-step--hint"><span class="nb-out-label">Your hint</span> keep the two blocks apart</div>') == 1 == _nbh.count("nb-step--hint")
+      and _nbh.index("pooled = base * 2") < _nbh.index("nb-step--hint") < _nbh.index("apart = pooled - base")
+      and "nb-step--hint" not in _nba and "kept" not in " ".join(_cell_metas(_nba)) and len(_cell_metas(_nba)) == 4
+      and _cell_metas(_nbk) == ["1 lines · kept · run again: output changed", "1 lines"]
+      and '<div class="nb-step nb-step--hint"><span class="nb-out-label">Your hint</span> Keep the soil types apart &lt;now&gt;</div>' in _nbk
+      and _nbk.index("Re-opened a cell") < _nbk.index("nb-step--hint") < _nbk.index("z = 3"), (_cell_metas(_nbh), _cell_metas(_nbk), re.findall(r'<div class="nb-step nb-step--hint">.*?</div>', _nbh + _nbk)))
+
 # a branch read afterwards (0321): its hints are part of what the person asked - a later question's analyst, the Architect and the reach record are told them
 from analyst.notebook import hint_lines
 _nl = Notebook("tl"); _l0 = _nl.new_run("Does regime B yield more than A?"); _l0.status, _l0.report = "answered", "## B against A\n\nB yields more."
@@ -4091,9 +4171,9 @@ check("branch: what a hint names is asked for - the reach record reads the threa
       and [reach.mark(_csv, Session._questions(_sess, r))[0]["asked"] for r in (_l1, _l2, _l3, _l0, _l4)] == [True, True, True, False, False],
       [Session._questions(_sess, r) for r in (_l2, _l3, _l4)])
 _hint_run = Notebook("th").new_run("q"); _hint_run.hints = [{"turn": 2, "text": "one"}, {"turn": 5, "text": "two"}]
-_htexts = {"contract (hint)": contract(False, 0, hint=True), "reviewer (hint)": reviewer_text(False, hint=True), "the hint's section": CONTRACT_HINT, "the block": hint_block(_hint_run), "the lines": "\n".join(hint_lines(_hint_run.hints)), "run again": AGAIN_LINE}
+_htexts = {"contract (hint)": contract(False, 0, hint=True), "reviewer (hint)": reviewer_text(False, hint=True), "the hint's section": CONTRACT_HINT, "the block": hint_block(_hint_run), "the lines": "\n".join(hint_lines(_hint_run.hints)), "over the brief": HINT_OVER_BRIEF + REVIEWER_HINT_OVER_BRIEF + FIGURES_AGREED_HINT + FIGURES_LEFT_OUT_HINT, "run again": AGAIN_LINE}
 check("branch: the standing rules hold for its texts too - none of the tested tasks' vocabulary, and no section named for thinking or reasoning, in the contract with "
-      "a hint, the reviewer's prompt with one, the block's own words, the lines a later reader is given and the mark of a cell run again; a run without a hint has no block",
+      "a hint, the reviewer's prompt with one, the block's own words, the lines a later reader is given, what says the hint outranks the brief and the mark of a cell run again; a run without a hint has no block",
       not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)}
       and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in _htexts.values()) and hint_block(Notebook("tn0").new_run("q")) == "",
       {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)})
