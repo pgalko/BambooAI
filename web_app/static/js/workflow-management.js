@@ -616,24 +616,20 @@ function initializeWorkflowMap() {
 function showWorkflowMap() {
     var modal = document.getElementById('workflowMapModal');
     var container = document.getElementById('workflowMapContainer');
-    modal.classList.remove('steps');                           // the drawer may last have held the map of a brief's conversation (architect.js): its title and its foot are the thread's again
-    modal.classList.remove('turns');                           // ... or the map of an analysis's turns (branch.js)
-    modal.querySelector('h2').textContent = 'Thread map';
-    document.getElementById('nodeTaskContent').innerHTML = 'Hover over a chain to see its question and where it sits';
-    document.getElementById('nodePlotPreview').innerHTML = '';
+    modal.classList.remove('steps');                           // the drawer may last have held the Brief map (architect.js): its mark and its foot are the thread's again
+    modal.classList.remove('turns');                           // ... or the Analysis map (branch.js)
     modal.style.display = 'flex';
     updateSynthesisButtonState();
     updateTrajectoryButtonState();
     // a box to an analysis: a branch is its analysis's, and the box shows the chain of it that was last on screen (branch.js)
     var boxes = window.BranchUI ? window.BranchUI.items() : responses;
     WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);
-    // the drawer's subtitle: how many chains, and how many branches their analyses have between them
-    var sub = document.getElementById('mapDrawerSub');
-    if (sub) {
-        var branches = (boxes || []).reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);
-        var n = (boxes || []).length;
-        sub.textContent = n ? (n + ' chain' + (n === 1 ? '' : 's') + (branches ? ' · ' + branches + ' branch' + (branches === 1 ? '' : 'es') : '') + ' · click one to open it') : 'no chains yet';
-    }
+    // the drawer's head: the map's name; how many chains, and how many branches their analyses have between them; and what its foot says until a chain is under the pointer
+    var branches = (boxes || []).reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);
+    var n = (boxes || []).length;
+    WorkflowGraph.head('Workflow map',
+        n ? n + ' chain' + (n === 1 ? '' : 's') + (branches ? ' · ' + branches + ' branch' + (branches === 1 ? '' : 'es') : '') : 'no chains yet',
+        n ? 'Click a chain to open it. Hover over one to see its question.' : '');
 }
 
 function updateSynthesisButtonState() {

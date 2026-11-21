@@ -8,7 +8,7 @@
 
 The story: cold page -> the dataset uploaded through the file input -> the question typed ->
 Deep run (screenshots while it runs and when it completes) -> each right-pane tab -> the
-simplified view -> a follow-up on the warm kernel -> the chain navigation -> the thread map ->
+simplified view -> a follow-up on the warm kernel -> the chain navigation -> the Workflow map ->
 Save as favourite -> Saved workflows -> the settings dialogs -> a question framed with the
 Architect, its analysis, and the next questions that follow it.
 Page errors and console errors are written to <out>/console.txt; a non-empty errors list makes
@@ -221,7 +221,7 @@ def story(w, mod, dataset, questions):
     # the Architect (docs/ARCHITECT_DESIGN.md §2.11-§2.14, §2.18): a question typed with the switch on, the conversation that
     # fills its brief, the parts + Add offers, the check of what it rests on against the data, the explanation it proposes and
     # the coach ticks, a line changed by hand, an earlier step of the conversation on screen, the analysis started from the brief,
-    # the report against it, the thread map
+    # the report against it, the Workflow map
     brief_question = getattr(mod, "BRIEF_QUESTION", None)
     if brief_question and p.query_selector("#architectSwitch"):
         def write(path, text, keep=True):

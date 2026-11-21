@@ -3,8 +3,8 @@
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
 once, mechanically, when the chain ends — from the committed cells and the kernel's own record, by rules, with no
-model call — and kept with the chain. A reader opens it from the closing card's **Code map** button or from the eye
-on a chain's box in the thread map. Nothing of it reaches a prompt: the analyst never sees the map, and the map never
+model call — and kept with the chain. A reader opens it from the closing card's **Code map** button or from the eye on
+a chain's box in the Workflow map. Nothing of it reaches a prompt: the analyst never sees the map, and the map never
 changes what the analyst sees.
 
 The story in one paragraph. A coach reads "regime B out-yields A by 0.57 t/ha within soil type" and wants to know
@@ -72,7 +72,7 @@ chain ends (_finish)                       request
 | the host's inputs | `bambooai/bambooai.py` `_map_inputs`: the primary with its columns, each auxiliary file with its columns (one executor call), the context, the documents |
 | the route | `web_app/code_map_routes.py`, registered after the codebook |
 | the modal | `web_app/static/js/code-map.js`; rules under `#codeMapModal` in `dialogs.css`; tokens in `tokens.css` |
-| the ways in | the closing card and the report's `[cell n]` chips (`stream-pane.js`), the thread map's eye (`workflowGraph.js`), the eye on a notebook cell (`analyst/render.py`); the navigator hook (`ui-controls.js`) |
+| the ways in | the closing card and the report's `[cell n]` chips (`stream-pane.js`), the Workflow map's eye (`workflowGraph.js`), the eye on a notebook cell (`analyst/render.py`); the navigator hook (`ui-controls.js`) |
 | tests | `tests/analyst/test_code_map.py`, `tests/analyst/test_code_map.js`, the stack walk; fixtures under `tests/analyst/fixtures/codemap/` |
 
 Behaviour was ported from a research prototype (the design package of 2026-10-20), not its structure: the prototype's
@@ -189,7 +189,7 @@ place.
 
 ## 6. The modal
 
-`#codeMapModal` sits past the rail and the top bar like the thread map drawer, 24 px from the edges, so the chain
+`#codeMapModal` sits past the rail and the top bar like the Workflow map drawer, 24 px from the edges, so the chain
 navigator stays usable: the open map follows it (`CodeMapUI.onChain` at the end of `updateNavigationButtons`), and
 opening another chain from inside the map moves the app there (`navigateToChainId`); a chain the navigator does not
 hold (not favourited before a reload) is read straight from the route and named "an earlier chain", its question as
@@ -222,7 +222,7 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   SVG string (centre to centre under the harness's stand-in, which gives none); a box carries its label, its names
   and up to three lines of its first steps (200 characters; the rest in its tooltip); a box opens its step, a "From
   chain k" input opens that chain, the result opens its recipe. The area scrolls both ways. **Zoom** (2026-10-24),
-  as the thread map has it: out, the level, in, fit, at the diagram head's end; Ctrl/Cmd and the wheel; 30 %–200 %
+  as the Workflow map has it: out, the level, in, fit, at the diagram head's end; Ctrl/Cmd and the wheel; 30 %–200 %
   in steps of 15 %. A diagram shown for the first time is fitted to the frame (never enlarged past 100 %); a reader's
   zoom stays while the same diagram is on screen; the frame takes the scaled size, so the area scrolls no further
   than the drawing.
@@ -250,7 +250,7 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   working window under it is dimmed by a heavy scrim (`--scrim-heavy`, both themes) and blurred.
 - **Ways in**: the closing card's **Code map** button, beside **Next questions** (2026-11-19: until then a button
   on the card's line of links, which is gone; for an answered chain that ran code; the chain id rides in the saved
-  markup, so a restored card still opens its map); the eye on a chain's box in the thread map drawer, shown on the
+  markup, so a restored card still opens its map); the eye on a chain's box in the Workflow map drawer, shown on the
   hovered box and the open chain's (it moves the app to the chain, closes the drawer, opens the map); and a
   `[cell n]` citation in the report or its
   plain-language version (2026-10-24): the chip opens the map on the Recipe diagram at that cell's recorded number -
@@ -258,7 +258,7 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   an end of its interval, the report's rounding allowed for) - and otherwise on the Steps view at the cell's row.
   The chip hands the map the words before it in its block, from the last sentence end. The cell's code is a click
   further, from the panel's *Open in the notebook*. And the eye on each committed cell's header in the Investigation
-  tab (`analyst/render.py`, 2026-10-24), the thread map's glyph, opens the map on the Steps view at that cell - the
+  tab (`analyst/render.py`, 2026-10-24), the Workflow map's glyph, opens the map on the Steps view at that cell - the
   loop closed from the notebook's side; inline, so a saved favourite's cells keep it. The map never opens on its own.
 
 All of the modal's own words sit in `WORDS` at the top of `code-map.js`; the map's content comes from `words.py`.
@@ -293,7 +293,7 @@ every chain style that breaks the extractor goes into the fixtures.
 1. Colours as in the mockups, adjusted to the app's tokens (data inputs in the look-up blue).
 2. "Recorded" instead of "stands", and the line "The map shows how this number was made, not whether it is right".
 3. The run's mode on the header (`Run.mode`).
-4. Two ways in: the thread map's eye on each chain box (shown on hover and on the open chain's) and the closing
+4. Two ways in: the Workflow map's eye on each chain box (shown on hover and on the open chain's) and the closing
    card's button; the map never pops up on its own; no Code tab entry. *Amended 2026-10-24: a third way in - a
    `[cell n]` citation in the report opens the map on that cell's number (the cell's code is a click further, from
    the panel); and a fourth, the eye on a committed cell in the Investigation tab, which opens the Steps view at

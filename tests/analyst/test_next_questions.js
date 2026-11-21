@@ -3,7 +3,7 @@
 // run opens on - and the module driven on the mini DOM with a scripted server: the button on a finished analysis'
 // closing card, the panel it opens in the card, a way picked, the set that comes back in the list's place and kept
 // with the chain, the list again, more of one way, a question changed and run, its row marked once its analysis is
-// on, the thread map's mark. Then the page's hooks, read from the source.
+// on, the Workflow map's mark. Then the page's hooks, read from the source.
 // Run: node tests/analyst/test_next_questions.js
 'use strict';
 const fs = require('fs'), path = require('path');
@@ -353,7 +353,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     live.next === next && rows.length === 1 && el(rows[0]).querySelector('.nq-from').textContent === 'Next question·Follow emergence'
     && same(beforeId, [['-', '-', '1700000099'], ['-'], ['-', '-']]) && same(marks(), [['-', '1700000100', '1700000099'], ['-'], ['-', '-']]) && same(stored, [['responses', 6]]) && pane.innerHTML === '', [rows, beforeId, marks()]);
   const done = { chain_id: 1700000100, thread_id: 7, parentChainId: 11, queryText: live.queryText, streamOutput: PANE(rows[0] + DONE) };
-  check('the thread map\'s mark: a chain started from a question says next question - while it runs by what it carries, afterwards by the row its kept pane opens on; an analysis typed by the coach says '
+  check('the Workflow map\'s mark: a chain started from a question says next question - while it runs by what it carries, afterwards by the row its kept pane opens on; an analysis typed by the coach says '
     + 'nothing, one framed with the Architect says so',
     N.made(live) === true && N.made(done) === true && N.made(A2) === false && N.made(null) === false && window.ArchitectUI.mark(live) === 'next question' && window.ArchitectUI.mark(done) === 'next question'
     && window.ArchitectUI.mark(A2) === '' && window.ArchitectUI.mark({ tabContent: '<div id="tab-brief" class="tab">Brief</div>', streamOutput: done.streamOutput }) === 'Architect', null);

@@ -7,8 +7,8 @@
 // the rules are in dialogs.css under #codeMapModal. The map's content comes from the server (analyst/codemap/words.py);
 // the modal's own words sit in WORDS below. Nothing here reaches a prompt.
 //
-// Ways in: the closing card's "Code map" button (stream-pane.js) and the eye on a chain's box in the Thread map drawer
-// (workflowGraph.js). window.CodeMapUI = { initialize, open, close, onChain, build }.
+// Ways in: the closing card's "Code map" button (stream-pane.js) and the eye on a chain's box in the Workflow map
+// drawer (workflowGraph.js). window.CodeMapUI = { initialize, open, close, onChain, build }.
 
 (function () {
     'use strict';
@@ -407,7 +407,7 @@
                 '<div class="cm-diag-wrap"><div class="cm-diag-frame" style="width: ' + Math.round(lay.w * z) + 'px; height: ' + Math.round(lay.h * z) + 'px">' +
                 '<div class="cm-diag" style="width: ' + lay.w + 'px; height: ' + lay.h + 'px; transform: scale(' + z + ')">' + svg + nodes + '</div></div></div>';
         },
-        // the zoom (2026-10-24), as the thread map has it: out, the level, in, fit; Ctrl/Cmd and the wheel as well
+        // the zoom (2026-10-24), as the Workflow map has it: out, the level, in, fit; Ctrl/Cmd and the wheel as well
         zoomControls(z) {
             const ic = { out: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>',
                          in: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
@@ -561,7 +561,7 @@
     // ------------------------------------------------------------ state and the server
     const st = { open: false, threadId: null, chainId: null, view: 'steps', sel: null, diag: null, data: null, built: 'end', state: '', pending: null, laneHi: null, seq: 0,
                  zoom: { key: null, z: 1, fit: 1 } };                               // the drawing's scale, per diagram: fitted when it first shows, then as the reader left it
-    const ZOOM = { min: 0.3, max: 2, step: 0.15 };                                   // the thread map's numbers
+    const ZOOM = { min: 0.3, max: 2, step: 0.15 };                                   // the Workflow map's numbers
     let modal = null, opener = null;
 
     function fetchJson(url) {
@@ -581,7 +581,7 @@
         document.body.appendChild(modal);
         modal.addEventListener('click', onClick);
         modal.addEventListener('keydown', onKey);                                                                   // the picker's keys
-        modal.addEventListener('wheel', e => {                                                                       // Ctrl/Cmd and the wheel zoom the drawing, as on the thread map
+        modal.addEventListener('wheel', e => {                                                                       // Ctrl/Cmd and the wheel zoom the drawing, as on the Workflow map
             if ((e.ctrlKey || e.metaKey) && st.view === 'diagram' && e.target && e.target.closest && e.target.closest('.cm-map')) { e.preventDefault(); applyZoom(st.zoom.z + (e.deltaY > 0 ? -ZOOM.step : ZOOM.step)); }
         }, { passive: false });
         document.addEventListener('keydown', e => { if (e.key === 'Escape' && st.open) { e.stopPropagation(); close(); } });   // wherever the focus sits

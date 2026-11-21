@@ -2,11 +2,10 @@
 // re-marked HTML, and the shell's structure is in place. Parsed with the mini DOM, like the pane tests.
 'use strict';
 const fs = require('fs'), path = require('path');
-const { makeDocument } = require(path.join(__dirname, 'minidom.js'));
+const { makeDocument, fragment: pageFragment } = require(path.join(__dirname, 'minidom.js'));
 const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'templates', 'index.html'), 'utf8');
 const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
-function fragment(id) { const s = html.indexOf(`id="${id}"`); const start = html.lastIndexOf('<div', s); let depth = 0, i = start; const re = /<\/?div\b[^>]*>/g; re.lastIndex = start; let m;
-  while ((m = re.exec(html))) { if (m[0].startsWith('</')) { depth--; if (depth === 0) return html.slice(start, m.index + m[0].length); } else if (!m[0].endsWith('/>')) depth++; } return html.slice(start); }
+const fragment = id => pageFragment(html, id);
 function hooks(jsFile, prefix) { const js = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', jsFile), 'utf8');
   const ids = new Set([...js.matchAll(/getElementById\('([^']+)'\)/g)].map(m => m[1]).concat([...js.matchAll(new RegExp(`#${prefix}[^']*?#([\\w-]+)`, 'g'))].map(m => m[1])));
   const classes = new Set([...js.matchAll(/querySelector(?:All)?\('([^']+)'\)/g)].flatMap(m => [...m[1].matchAll(/\.([\w-]+)/g)].map(x => x[1])).concat([...js.matchAll(/closest\('\.([\w-]+)'\)/g)].map(m => m[1])));

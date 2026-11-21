@@ -309,7 +309,7 @@ function continueAppInitialization() {
         window.CodebookUI.initialize();
     }
 
-    // The code map (docs/CODEMAP_DESIGN.md): the modal behind the closing card's button and the thread map's eye
+    // The code map (docs/CODEMAP_DESIGN.md): the modal behind the closing card's button and the Workflow map's eye
     if (typeof window.CodeMapUI !== 'undefined' && typeof window.CodeMapUI.initialize === 'function') {
         window.CodeMapUI.initialize();
     }
@@ -319,7 +319,7 @@ function continueAppInitialization() {
         window.ArchitectUI.initialize();
     }
 
-    // Branches (docs/BRANCH_DESIGN.md §5): the Turn map behind the strip's button, the composer as a hint's
+    // Branches (docs/BRANCH_DESIGN.md §5): the Analysis map behind the button of the ids' row, the composer as a hint's
     if (typeof window.BranchUI !== 'undefined' && typeof window.BranchUI.initialize === 'function') {
         window.BranchUI.initialize();
     }

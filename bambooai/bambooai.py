@@ -362,7 +362,7 @@ class BambooAI:
 
     def _closing_card(self, run, budget, rep=None):
         """The pane's closing card for a run that ended or was stopped: its counts, what its replay said, the datasets
-        it saved, what its cells reached - and whether it has turns to go on from, for the page's Turn map."""
+        it saved, what its cells reached - and whether it has turns to go on from, for the page's Analysis map."""
         rep = rep or {}
         files = [{'path': f, 'name': str(f).split('/')[-1]} for f in (rep.get('datasets') or [])]
         if files:
@@ -377,7 +377,7 @@ class BambooAI:
                    seconds=round(sum(float((t.usage or {}).get('elapsed') or 0) + float(t.elapsed or 0) for t in run.turns if not t.kept), 1),   # a branch's own turns
                    replay_status=run.replay_status or '', replay_line=replay_line, plots=len(rep.get('plots') or []), files=files,
                    reaches=reach_mod.summary(run),                 # the reach report: what the cells touched outside the data (2026-10-28)
-                   turn_map=bool(branch_points(run)) and not run.figure_asked)   # it has turns to go on from: the page offers its Turn map (2.9)
+                   turn_map=bool(branch_points(run)) and not run.figure_asked)   # it has turns to go on from: the page offers its Analysis map (2.9)
 
     def _no_branch(self, src, turn, data_now):
         """Why no branch can go on from turn `turn` of run `src` - '' when one can (docs/BRANCH_DESIGN.md §2)."""

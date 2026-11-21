@@ -23,7 +23,7 @@
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
 //   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded},
-//                                         turn_map}    turn_map: it has turns to go on from - the ids' row gets the button to its Turn map (branch.js)
+//                                         turn_map}    turn_map: it has turns to go on from - the ids' row gets the button to its Analysis map (branch.js)
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -89,7 +89,7 @@
     }
     const ICON_SEARCH = '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
     const ICON_MAP = '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="6" rx="1.2"/><rect x="14" y="15" width="7" height="6" rx="1.2"/><path d="M10 6h5a3 3 0 0 1 3 3v6"/></svg>';
-    // a branch: the Git branch mark (the Turn map's button, the row of a hint)
+    // a branch: the Git branch mark (the Analysis map's button, the row of a hint)
     const ICON_BRANCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
         '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
     const ICON_DOWNLOAD = '<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>';
@@ -119,7 +119,7 @@
         // the way to the map of an analysis's turns (branch.js), at the end of the ids' row. The number is how many
         // branches the analysis has - branch.js writes it when the chain comes on screen
         turnMap() {
-            return '<button type="button" class="sp-turnmap" title="Turn map" onclick="if(window.BranchUI)BranchUI.openMap()">' + ICON_BRANCH + '<span>Turn map</span><span class="n"></span></button>';
+            return '<button type="button" class="sp-turnmap" title="Analysis map" onclick="if(window.BranchUI)BranchUI.openMap()">' + ICON_BRANCH + '<span>Analysis map</span><span class="n"></span></button>';
         },
         // what the person said when they went back to a turn: the row stands where the branch's own turns begin
         hint(b) {

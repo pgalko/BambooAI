@@ -9,7 +9,7 @@
 #streamOutput .sp-strip .bar i { display: block; height: 100%; background: var(--accent-color); transition: width .3s; }
 #streamOutput .sp-strip .live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); animation: sp-pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
 #streamOutput .sp-strip .live.idle { animation: none; opacity: .35; }
-/* the way to the Turn map, at the end of the ids' row: the Git branch mark, the map's name, and how many branches the analysis has */
+/* the way to the Analysis map, at the end of the ids' row: the Git branch mark, the map's name, and how many branches the analysis has */
 #streamOutput .sp-turnmap { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; padding: 2px 9px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; color: var(--accent-color); font: inherit; white-space: nowrap; cursor: pointer; }
 #streamOutput .sp-turnmap:hover { background: var(--accent-bg-hover); }
 #streamOutput .sp-turnmap svg { display: block; width: 13px; height: 13px; }

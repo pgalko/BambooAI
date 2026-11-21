@@ -96,7 +96,7 @@
             <div id="workflowManagerPill" class="workflow-manager-pill rb" data-tip="Saved workflows"><span class="workflow-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="workflow-manager-text">Workflows</span></div>
             <button id="routinesPill" class="rb" data-tip="Routines" aria-label="Routines"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg></button>
             <div id="datasetManagerPill" class="dataset-manager-pill rb" data-tip="Dataset cache"><span class="dataset-manager-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg></span><span class="dataset-manager-text">Dataset Cache</span></div>
-            <button id="railMapButton" class="rb" data-tip="Thread map (⌘M)" aria-label="Thread map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg></button>
+            <button id="railMapButton" class="rb" data-tip="Workflow map (⌘M)" aria-label="Workflow map"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg></button>
             <span class="rail-gap"></span>
             <div class="settings-container" data-tip="Settings">
             <button class="settings-button" aria-label="Settings">
@@ -369,15 +369,17 @@
     <div id="workflowMapModal" class="modal map-drawer">
         <div class="modal-content workflow-modal-content">
             <div class="modal-header map-drawer-head">
-                <div><h2>Thread map</h2><div class="map-drawer-sub" id="mapDrawerSub">the chains of this thread; click one to open it</div></div>
-                <span class="sp"></span>
-                <button class="close workflow-close" aria-label="Close">&times;</button>
+                <!-- the head, one for the three maps the drawer holds: the map's mark (shell.css shows the one that is its own), its name and what is on it; then zoom and full screen (workflowGraph.js) and the close -->
+                <svg class="map-drawer-icon tree" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="6" rx="1.5"/><rect x="14" y="3" width="7" height="6" rx="1.5"/><rect x="8.5" y="15" width="7" height="6" rx="1.5"/><path d="M6.5 9v3h11V9M12 12v3"/></svg>
+                <svg class="map-drawer-icon branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>
+                <div class="map-drawer-name"><h2>Workflow map</h2><div class="map-drawer-sub" id="mapDrawerSub"></div></div>
+                <div class="map-drawer-tools"><span id="mapDrawerTools"></span><button class="close workflow-close" aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg></button></div>
             </div>
             <div class="modal-body workflow-body">
                 <div id="workflowMapContainer" class="workflow-map-container"></div>
                 <div id="workflowDetailsPane" class="workflow-details-pane">
                     <div class="details-content">
-                        <div id="nodeTaskContent" class="details-text">Hover over a chain to see its question</div>
+                        <div id="nodeTaskContent" class="details-text"></div>
                         <div id="nodePlotPreview" class="details-plot-preview"></div>
                     </div>
                 </div>

@@ -334,7 +334,7 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   w.CodeMapUI.close(); w.CodeMapUI.open('8', { view: 'diagram', cell: 2, near: 'the regimes differ, as the table shows' }); await tick(); await tick();
   check('a citation of a cell with two recorded numbers: the sentence\'s number picks one (exact, or the report\'s rounding of it); a sentence with no number of theirs lands on the Steps view at the cell\'s row',
     pickedBySentence === 'r1' && pickedRounded === 'r9' && !m.querySelector('.cm-diag') && m.querySelector('.cm-pane.step .cm-big.cell').textContent === 'Cell 2 · turn 4', [pickedBySentence, pickedRounded, m.querySelector('.cm-panel .cm-kicker') && m.querySelector('.cm-panel .cm-kicker').textContent]);
-  // the zoom (2026-10-24): the thread map's controls at the head's end; in, out, fit; Ctrl and the wheel; the frame takes the scaled size
+  // the zoom (2026-10-24): the Workflow map's controls at the head's end; in, out, fit; Ctrl and the wheel; the frame takes the scaled size
   w.CodeMapUI.close(); w.CodeMapUI.open('1', { view: 'diagram' }); await tick(); await tick();
   m.dispatch('click', m.querySelector('.cm-res[data-id="r1"]')); await tick();
   m.dispatch('click', m.querySelector('.cm-switch button[data-view="diagram"]')); await tick();
@@ -354,11 +354,11 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
     at100 && in1 && wheelOut && out2 && kept && lvl() === '100%' && scale() === 'scale(1)', [at100, in1, wheelOut, out2, kept, lvl(), scale()]);
   w.CodeMapUI.close();
   const graph = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'), 'utf8');
-  check('the thread map drawer: an eye on each chain box that moves the app to the chain, closes the drawer and opens its map', graph.includes("eye.className = 'wf-node-map'") && graph.includes('window.CodeMapUI.open(resp.chain_id)') && graph.includes("drawer.style.display = 'none'"));
+  check('the Workflow map drawer: an eye on each chain box that moves the app to the chain, closes the drawer and opens its map', graph.includes("eye.className = 'wf-node-map'") && graph.includes('window.CodeMapUI.open(resp.chain_id)') && graph.includes("drawer.style.display = 'none'"));
   const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'ui-controls.js'), 'utf8');
   check('the navigator hands the chain on screen to the map (onChain) at the end of updateNavigationButtons', ui.includes('window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id)'));
   const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');
-  check('the styles sit under #codeMapModal in dialogs.css, past the rail and the top bar like the thread map drawer', css.includes('#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0;') && css.includes('#codeMapModal .cm-lane .rot { writing-mode: vertical-rl;'));
+  check('the styles sit under #codeMapModal in dialogs.css, past the rail and the top bar like the Workflow map drawer', css.includes('#codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0;') && css.includes('#codeMapModal .cm-lane .rot { writing-mode: vertical-rl;'));
   // the working window is dimmed under the map (2026-10-21): a heavy scrim in both themes and a blur; the text has room - three lines of a step, two of a chip, three in a box
   const tokens = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tokens.css'), 'utf8');
   check('the backdrop dims the working window: --scrim-heavy in both themes, with a blur; a step keeps three lines, a chip two, a diagram box three',

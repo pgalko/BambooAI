@@ -119,7 +119,7 @@ function initializeScrollBehavior() {
 //--------------------
 
 function initializeRail() {
-    // the rail's own buttons (2026-09-08): New workflow and the thread map; the other pills bind themselves
+    // the rail's own buttons (2026-09-08): New workflow and the Workflow map; the other pills bind themselves
     const railNewButton = document.getElementById('railNewButton');
     if (railNewButton) {
         railNewButton.addEventListener('click', function (event) {
@@ -387,7 +387,7 @@ function updateNavigationButtons() {
 
     if (!prevButton || !nextButton || !navContainer) return;
 
-    // the arrows count analyses: a branch is its analysis's, and the Turn map is the way between branches (branch.js)
+    // the arrows count analyses: a branch is its analysis's; the Analysis map is the way between branches (branch.js)
     const at = window.BranchUI ? window.BranchUI.place() : { i: currentResponseIndex + 1, n: responses.length };
     if (at.n <= 1) {
         navContainer.style.display = 'none';

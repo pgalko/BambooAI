@@ -10,7 +10,7 @@
 // The panel is part of the analysis' own pane, kept with the chain as the rest of the pane is - in the page's copy
 // and in a saved favourite - so a chain shown again has its questions with nothing else kept; sets kept under the
 // card by the page before the panel are taken into it. A question that was run is marked on its row, and the pane
-// of the run it started opens on a row saying so: that row is how the run's box on the thread map is marked. The
+// of the run it started opens on a row saying so: that row is how the run's box on the Workflow map is marked. The
 // page's words sit in WORDS; nothing here reaches a prompt.
 //
 // window.NextQuestionsUI = { initialize, dress, restore, holds, started, ran, made, build }
@@ -334,7 +334,7 @@
             card.insertAdjacentHTML('beforeend', build.was(chainId));
         });
     }
-    // whether a chain's question was a next question, for its box on the thread map (§2.9): the live chain says so
+    // whether a chain's question was a next question, for its box on the Workflow map (§2.9): the live chain says so
     // itself, a kept one by the row its pane opens on
     function made(r) { return !!(r && (r.next || /class="nq-from"/.test(r.streamOutput || ''))); }
 

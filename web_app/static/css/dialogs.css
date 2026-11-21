@@ -1074,7 +1074,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #savedAnalysisModal .ar-code pre.said { font-family: inherit; white-space: pre-wrap; }      /* the conversation and the brief it ran under: words, not code */
 
 /* ---- the code map (2026-10-20, code-map.js; docs/CODEMAP_DESIGN.md): a chain's steps with its inputs as lanes, the recipe
-   diagram, and the panel. Past the rail and the top bar, like the thread map drawer, so the chain navigator stays usable. ---- */
+   diagram, and the panel. Past the rail and the top bar, like the Workflow map drawer, so the chain navigator stays usable. ---- */
 #codeMapModal { display: none; position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; background: var(--scrim-heavy); -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); z-index: 1001; padding: 14px 24px 24px; box-sizing: border-box; align-items: stretch; justify-content: center; }
 #codeMapModal .ui-dlg.cm-dlg { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; background: var(--bg-primary); overflow: hidden; }
 #codeMapModal .cm-head { align-items: flex-start; flex-wrap: wrap; gap: 10px 24px; padding: 13px 18px 12px; background: var(--bg-primary); }
@@ -1203,7 +1203,7 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-diag-wrap { padding: 28px 24px 32px; }
 #codeMapModal .cm-diag-frame { position: relative; margin: 0 auto; }                  /* the drawing's scaled size (2026-10-24): the area scrolls no further than it */
 #codeMapModal .cm-diag { position: relative; transform-origin: top left; }
-/* the zoom (2026-10-24), the thread map's look: out, the level, in, fit, at the head's end */
+/* the zoom (2026-10-24): out, the level, in, fit, in a frame at the head's end */
 #codeMapModal .cm-zoom { display: flex; align-items: center; gap: 2px; padding: 2px; margin-left: auto; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-primary); }
 #codeMapModal .cm-zoom-btn { width: 24px; height: 24px; border: none; border-radius: 4px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; }
 #codeMapModal .cm-zoom-btn:hover:not(:disabled) { background: var(--bg-tertiary); color: var(--text-primary); }

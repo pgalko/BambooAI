@@ -776,7 +776,7 @@ check("...with a model that takes images: the picture rides as an image part on 
       and all(not img for (a, u), img in zip(state["calls"][-len(state["images"]):], state["images"]) if "TASK: turn" not in u), (_turns, [u[:60] for a, u in state["calls"][-len(state["images"]):]]))
 _last = json.load(open(_runlog))[-1]
 check("...the run log keeps a placeholder for the picture, never the base64", not any(_png in json.dumps(e.get("messages")) for e in json.load(open(_runlog))[-4:]) and "<image, " in json.dumps(json.load(open(_runlog))[-3:]), json.dumps(_last.get("messages"))[-300:])
-check("the closing card says whether the analysis has turns to go on from (0320: the page offers its Turn map): not where the picture rode with the question - "
+check("the closing card says whether the analysis has turns to go on from (0320: the page offers its Analysis map): not where the picture rode with the question - "
       "no branch can be given it -, but where the model did not take it",
       _map_seen is False and _map_blind is True, (_map_seen, _map_blind))
 FakeModels.multimodal = "false"
@@ -2846,7 +2846,7 @@ try:
           and _h.cells()[-1].stdout.strip() == "goes on: True False", (_halt.status, _h and _h.cells()[-1].stdout))
     _chain([_REPORT], _talk.id)
     _map_none = next((m for m in _chain.sent if m.get("type") == "pane_run_end"), {}).get("turn_map")
-    check("0320: the closing card of a stopped analysis that kept a turn offers the Turn map; one whose first reply was its report has no turn to go on from, and offers none",
+    check("0320: the closing card of a stopped analysis that kept a turn offers the Analysis map; one whose first reply was its report has no turn to go on from, and offers none",
           _map_halt is True and _map_none is False, (_map_halt, _map_none))
     _two = _chain([_cell("aa = 1\nprint('aa')"), _cell("bb = 2\nprint('bb')"), _REPORT], _talk.id)
     _send = BAMBOO.output_manager.send_chain_id

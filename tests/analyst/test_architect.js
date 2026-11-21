@@ -1,6 +1,6 @@
 // The Architect on the page (docs/ARCHITECT_DESIGN.md §2.6, §2.8, §2.9, §2.11, §2.12; 2026-11-15): architect.js. Its pure
 // parts - the brief with one line changed, the Brief tab's markup in each state, the conversation's, the report's part
-// "Against the brief" taken out of the answer for the run's Brief tab (0312), the thread map's mark - and the module
+// "Against the brief" taken out of the answer for the run's Brief tab (0312), the Workflow map's mark - and the module
 // driven on the mini DOM with a scripted server: a
 // typed question opens its brief and the Architect takes its first turn, the coach answers with a click or in words, a
 // line is changed where it stands and kept as a version, the steps of the conversation are gone through - with the
@@ -11,7 +11,7 @@
 // Run: node tests/analyst/test_architect.js
 'use strict';
 const fs = require('fs'), path = require('path');
-const { makeDocument } = require(path.join(__dirname, 'minidom.js'));
+const { makeDocument, fragment } = require(path.join(__dirname, 'minidom.js'));
 const doc = makeDocument(); global.document = doc;
 const calls = []; let answers = {};
 // the scripted server: an answer is [status, body] - the body an object, or the text of a stream - 'down', or a promise of one
@@ -35,13 +35,12 @@ const host = doc.createElement('div'); doc.body.appendChild(host);
 host.innerHTML = '<button id="architectSwitch" class="ar-switch" aria-pressed="false"></button><textarea id="queryInput"></textarea><button id="submitQuery"></button>' +
   '<div id="streamOutput"></div><div id="tabContainer"></div><div id="contentOutput"></div>';
 const $ = id => doc.getElementById(id);
-// the drawer the thread map and the map of a brief's conversation share, as index.html has it, and the drawing they share (workflowGraph.js) on the harness's dagre
+// the drawer the Workflow map and the Brief map share - index.html's own - and the drawing they share (workflowGraph.js) on the harness's dagre
 const drawerHost = doc.createElement('div'); doc.body.appendChild(drawerHost);
-drawerHost.innerHTML = '<div id="workflowMapModal" class="modal map-drawer"><h2>Thread map</h2><div id="mapDrawerSub">the chains of this thread; click one to open it</div>' +
-  '<div id="workflowMapContainer" class="workflow-map-container"></div><div id="nodeTaskContent">Hover over a chain to see its question</div><div id="nodePlotPreview"></div><div class="map-drawer-foot"></div></div>';
+drawerHost.innerHTML = fragment(fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'templates', 'index.html'), 'utf8'), 'workflowMapModal');
 $('workflowMapModal').style.display = 'none';
 doc.createElementNS = (ns, tag) => doc.createElement(tag);      // the drawing asks for SVG elements: here they are elements like any other
-// what the thread map's own boxes ask of the page (content-rendering.js): what a chain was asked, and no plot
+// what the Workflow map's own boxes ask of the page (content-rendering.js): what a chain was asked, and no plot
 global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText }); global.extractPlotDataFromResponse = () => null;
 $('queryInput').placeholder = 'Enter your query here';      // the mini DOM keeps properties apart from attributes
 // the page's own parts, as far as the module leans on them
@@ -467,7 +466,7 @@ check('the Brief tab of a conversation that branched (0316): beside "Step" the a
   && tabAt(2) === 'span=Step|button-1|b=2 of 5|button1|buttonmap / 2 / Start analysis from step 2 / decision / What it is for'
   && tabAt(3) === 'span=Step|button-1|b=3 of 3|button1 off|buttonmap / 3 / Start analysis /  / What it is for|What it will look like'
   && tabAt(1) === 'span=Step|button-1 off|b=1 of 5|button1|buttonmap / 1 / Start analysis from step 1 /  / '
-  && mapBtn.getAttribute('title') === 'Conversation map' && mapBtn.getAttribute('aria-label') === 'Conversation map' && mapBtn.getAttribute('type') === 'button' && mapBtn.querySelector('svg')
+  && mapBtn.getAttribute('title') === 'Brief map' && mapBtn.getAttribute('aria-label') === 'Brief map' && mapBtn.getAttribute('type') === 'button' && mapBtn.querySelector('svg')
   && verS(tabS(FS, { held: true })) === 'span=Step|button-1 off|b=5 of 5|button1 off|buttonmap off' && verS(tabS(A.go(FS, 2), { held: true })) === 'span=Step|button-1 off|b=2 of 5|button1 off|buttonmap off'
   && verS(tabS(FS, { state: 'run', shown: 3 })) === 'span=Step|button-1|b=3 of 3|button1 off|buttonmap' && !tabS(FS, { state: 'run', shown: 3 }).querySelector('[data-ar="start"]')
   && tabS(FS, { state: 'run', shown: 3 }).getAttribute('data-shown') === '3' && tabS(FS, { state: 'run', shown: 9 }).getAttribute('data-shown') === '6'
@@ -721,7 +720,7 @@ check('the Brief tab of a run whose report said how it stands against the brief 
   && olderT.getAttribute('data-against') === cut.against && !olderT.querySelector('.ar-against') && olderT.querySelector('.ar-ver b').textContent === '1 of 2'
   && !noneT.hasAttribute('data-against') && !noneT.querySelector('.ar-against'), withT.outerHTML);
 
-// ------------------------------------------------------------ the thread map's mark
+// ------------------------------------------------------------ the Workflow map's mark
 check('how a chain\'s question was made: a brief not yet run; framed with the Architect - by its versions while it runs, by its Brief tab once kept; nothing for a typed question',
   A.mark({ status: 'framing', framing: F1 }) === 'not run' && A.mark({ status: 'running', framing: F1, tabContent: '' }) === 'Architect'
   && A.mark({ tabContent: '<div id="tab-brief" class="tab">Brief</div><div id="tab-answer" class="tab active">Answer</div>' }) === 'Architect'
@@ -1625,7 +1624,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
       && after90 === '3 of 3 / 7 / 6 / Start analysis / What it is for|Measured by / Architect$0.06 / arch|Architect⌘The measure is the median. / span=Step|button-1|b=3 of 3|button1 off|buttonmap / false',
       [sent90, mid90, after90]);
 
-    // the map: the thread map's drawer and its drawing, with the steps for boxes
+    // the map: the Workflow map's drawer and its drawing, with the steps for boxes
     const drawer = $('workflowMapModal'), boxes = () => $('workflowMapContainer').querySelectorAll('.wf-node');
     const lit = () => boxes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
     const foot = () => [$('nodeTaskContent').textContent].concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
@@ -1645,14 +1644,14 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     boxes()[2].dispatch('mouseleave');
     const left3 = lit();
     const feet = [0, 1, 4, 5, 6].map(i => { boxes()[i].dispatch('mouseenter'); const f = foot(); boxes()[i].dispatch('mouseleave'); return f; });
-    check('the map of a conversation (0316): the button beside the arrows opens the thread map\'s drawer as the conversation\'s - its name, how many steps and where they branch, a line that says '
-      + 'what hovering does, the thread\'s own buttons out of it. Every step is a box, drawn by the thread map\'s drawing and joined to the step it follows: on it what the coach said - the '
+    check('the map of a conversation (0316): the button beside the arrows opens the Workflow map\'s drawer as the conversation\'s - its name, how many steps and where they branch, in the foot '
+      + 'what a click and the pointer do, the thread\'s own buttons out of it. Every step is a box, drawn by the Workflow map\'s drawing and joined to the step it follows: on it what the coach said - the '
       + 'question as it was asked on the first, and what was done where they said nothing - and under that what the step changed, in the tab\'s words. The step on screen is the open box, and '
-      + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the thread map\'s marks. Under the pointer a box lights its own way and the foot says, as the thread map '
+      + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the Workflow map\'s marks. Under the pointer a box lights its own way and the foot says, as the Workflow map '
       + 'does of a chain: what was said, where the step stands as the arrows would count it - "on screen" for the one that is -, what it follows, how many follow it, what it changed, and the '
       + 'first sentence of what the Architect replied; when the pointer leaves, the way to the step on screen is lit again. Without the drawing on the page the button does nothing; nothing is sent',
-      noDrawing === 'none' && same(opened, { shown: 'flex', cls: 'modal map-drawer steps', chain: '90', title: 'Conversation map', sub: '7 steps · 1 branch · click one to go to it',
-        foot: 'Hover over a step to read what was said',
+      noDrawing === 'none' && same(opened, { shown: 'flex', cls: 'modal map-drawer steps', chain: '90', title: 'Brief map', sub: '7 steps · 1 branch',
+        foot: 'Click a step to go to it. Hover over one to read what was said.',
         boxes: ['Is B above A? > your question', 'Keep one arm > what it is for', 'Show it by week > figure', 'Only the first half > period', 'You changed a line > what you think', 'Is that all you need? > ',
                 'Compare the medians instead > measured by'],
         kinds: 'wf-node wf-node--normal', on: '7', lit: '1,2,7', wrap: 'wf-graph wf-path-active', edges: '0>1,1>2,1>3,3>4,4>5,1>6', thread: 0 })
@@ -1679,10 +1678,10 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const elsewhere = drawer.style.display + '/' + stepped.framing.step;
     show90();
     check('a box clicked (0316): the drawer shuts and the step is the one on screen and in use - at the end of the way that was left, the tab shows its figure and the pane that exchange, and '
-      + 'nothing of the ways taken since; the steps off that way are set aside. Opened again, the map has that step open and its way lit, and its foot says what hovering does - nothing of the box last under the pointer. While the drawer is open the map follows its brief: an '
+      + 'nothing of the ways taken since; the steps off that way are set aside. Opened again, the map has that step open and its way lit, and its foot says what a click and the pointer do - nothing of the box last under the pointer. While the drawer is open the map follows its brief: an '
       + 'arrow pressed, and the box of the step now on screen is the open one. A click on the end of another way goes there. With another chain on screen the drawer shuts. Nothing is sent',
       picked === 'none / 3 of 3 / 3 / 6 / Start analysis / What it is for|What it will look like / true / false / true' && asideNow === '4,6,7'
-      && same(again, { on: '3', lit: '1,2,3', foot: 'Hover over a step to read what was said' }) && same(followed, { shown: 'flex', on: '2', lit: '1,2', ver: '2 of 3' })
+      && same(again, { on: '3', lit: '1,2,3', foot: 'Click a step to go to it. Hover over one to read what was said.' }) && same(followed, { shown: 'flex', on: '2', lit: '1,2', ver: '2 of 3' })
       && toSix === 'none / 5 of 5 / 6 / 8 / Start analysis / What it is for|What you think|Period' && elsewhere === 'none/6' && calls.length === n, [picked, asideNow, again, followed, toSix, elsewhere]);
 
     // the tab of a run: the map is read
@@ -1700,15 +1699,15 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     openIt();
     doc.dispatch('click', brief().querySelector('[data-step="-1"]'));      // an arrow on the run's tab, the map open: the map follows
     const ranFollows = [drawer.style.display, brief().querySelector('.ar-ver b').textContent, boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit()].join(' / ');
-    // the thread map in the drawer: the conversation's is not drawn over it
-    drawer.classList.remove('steps'); drawer.querySelector('h2').textContent = 'Thread map'; $('workflowMapContainer').innerHTML = '<div class="thread">the thread\'s chains</div>';
+    // the Workflow map in the drawer: the conversation's is not drawn over it
+    drawer.classList.remove('steps'); drawer.querySelector('h2').textContent = 'Workflow map'; $('workflowMapContainer').innerHTML = '<div class="thread">the thread\'s chains</div>';
     doc.dispatch('click', brief().querySelector('[data-step="1"]'));
     const threads = [drawer.style.display, drawer.querySelector('h2').textContent, $('workflowMapContainer').textContent, brief().querySelector('.ar-ver b').textContent].join(' / ');
     drawer.style.display = 'none';
     check('the map while its drawer is open (0316): an arrow pressed on a run\'s tab - back from a step off the way the run took, to the step where the ways part, counted on the run\'s way '
-      + 'again - and the box of the step now on screen is the open one, its way lit. Where the drawer holds the thread map, the conversation\'s map is not drawn over it: the tab steps - forward, '
+      + 'again - and the box of the step now on screen is the open one, its way lit. Where the drawer holds the Workflow map, the conversation\'s map is not drawn over it: the tab steps - forward, '
       + 'along the run\'s way - and the drawer is the thread\'s',
-      ranFollows === 'flex / 2 of 3 / 2 / 1,2' && threads === 'flex / Thread map / the thread\'s chains / 3 of 3', [ranFollows, threads]);
+      ranFollows === 'flex / 2 of 3 / 2 / 1,2' && threads === 'flex / Workflow map / the thread\'s chains / 3 of 3', [ranFollows, threads]);
 
     // the map's words: a conversation of one step; a step in which the question was read, one in which the Architect went on by itself, a step that changed two lines of one part
     const mapOf = framing => { const e = { chain_id: 92, thread_id: 7, queryText: 'Q?', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
@@ -1728,16 +1727,16 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     const one = mapOf(ONE), wordy = mapOf(WORDY);
     check('the map\'s words (0316): a conversation of one step is said so - "1 step", and no word of branches where it has none. A box where the coach said nothing says what was done: the '
       + 'question was read; the Architect went on. Under a box each part the step changed is named once, whatever the lines; the foot gives the Architect\'s last reply of the step. What a box '
-      + 'says makes it no fork of the thread map\'s: the coach\'s own words may be the thread map\'s',
-      same(one, { sub: '1 step · click one to go to it', boxes: ['wf-node wf-node--normal: Is B above A? > your question'],
+      + 'says makes it no fork of the Workflow map\'s: the coach\'s own words may be the Workflow map\'s',
+      same(one, { sub: '1 step', boxes: ['wf-node wf-node--normal: Is B above A? > your question'],
                   feet: ['Is B above A? | Step=1 of 1 · on screen | Follows=the start | Follow-ups=none | Changed=nothing'], forks: 0 })
-      && wordy.sub === '4 steps · click one to go to it' && wordy.forks === 0
+      && wordy.sub === '4 steps' && wordy.forks === 0
       && same(wordy.boxes, ['wf-node wf-node--normal: Is B above A? > your question', 'wf-node wf-node--normal: User requested variations o... > why you think so · other explanations',
                             'wf-node wf-node--normal: Question check > ', 'wf-node wf-node--normal: The Architect went on > '])
       && same(wordy.feet.slice(1), ['User requested variations of the plot, on two grounds. | Step=2 of 4 | Follows=step 1 | Follow-ups=1 | Changed=why you think so · other explanations | Architect=Both hold. Anything else?',
                                     'Question check | Step=3 of 4 | Follows=step 2 | Follow-ups=1 | Changed=nothing',
                                     'The Architect went on | Step=4 of 4 · on screen | Follows=step 3 | Follow-ups=none | Changed=nothing | Architect=A draft of the figure is drawn.']), [one, wordy]);
-    // the thread map, drawn by the same drawing with nothing said of another map: as it was
+    // the Workflow map, drawn by the same drawing with nothing said of another map: as it was
     const CHAINS = [{ chain_id: 11, parentChainId: null, queryText: 'A first question', streamOutput: '', technicalAnswer: '<p>B is above A by two units, on plot means.</p>' },
                     { chain_id: 12, parentChainId: 11, queryText: 'User requested variations', streamOutput: '' }, { chain_id: 13, parentChainId: 11, queryText: 'A brief', status: 'framing', framing: F1 }];
     window.WorkflowGraph.render($('workflowMapContainer'), CHAINS, 0);
@@ -1747,7 +1746,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     boxes()[2].dispatch('mouseenter');
     const threadOver = [foot(), wrap(), lit()].join(' / ');
     boxes()[2].dispatch('mouseleave');
-    check('the thread map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code map\'s eye unless '
+    check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code map\'s eye unless '
       + 'it is a brief not yet run; a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
       + 'the chain, what it follows, its follow-ups',
       same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
@@ -1829,7 +1828,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && cr.includes("const _root = (typeof liveTargets === 'function') ? liveTargets().content : document.getElementById('contentOutput');")
     && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);
   const graph = js('workflowGraph.js');
-  check('the thread map: a box says how its question was made; a brief not yet run has no code map to open',
+  check('the Workflow map: a box says how its question was made; a brief not yet run has no code map to open',
     graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
     && graph.includes("if (!of && resp && resp.chain_id && made !== 'not run') {"));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
@@ -1884,16 +1883,16 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
     && fs.readFileSync(path.join(root, '..', 'bambooai', 'bambooai.py'), 'utf8').includes('label="Question check"')
     && engine('cold.py').includes('run.framing = steps.take({**framing, "turns": list(framing.get("turns") or []) + [turn], "read": done + [at]})')
     && engine('cold.py').includes('turn = {"who": "reader", "missing": missing, "v": at,'));
-  check('the map of a conversation, 0316, from the sources: the page has the drawer and the places in it the map writes to; the thread map takes the drawer back as its own - its title, its '
+  check('the map of a conversation, 0316, from the sources: the page has the drawer and the places in it the map writes to; the Workflow map takes the drawer back as its own - its head, its '
     + 'foot; the button is styled in tabs.css beside the arrows, and the thread\'s buttons are out of the drawer while it holds the steps; the drawing is told what is the map\'s own in its '
-    + 'last argument, and the thread map tells it nothing; the words are plain ones; the module gives go() and the steps, and nothing of 0308\'s use()',
-    ['id="workflowMapModal"', '<h2>Thread map</h2>', 'id="mapDrawerSub"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t))
-    && wm.includes("modal.classList.remove('steps');") && wm.includes("modal.querySelector('h2').textContent = 'Thread map';") && wm.includes('WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);')
+    + 'last argument, and the Workflow map tells it nothing; the words are plain ones; the module gives go() and the steps, and nothing of 0308\'s use()',
+    ['id="workflowMapModal"', '<h2>Workflow map</h2>', 'id="mapDrawerSub"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t))
+    && wm.includes("modal.classList.remove('steps');") && wm.includes("WorkflowGraph.head('Workflow map',") && wm.includes('WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);')
     && tabsCss.includes('#content-brief .ar-ver .ar-map {') && tabsCss.includes('#content-brief .ar-ver button:disabled {') && shell.includes('#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }')
     && /#workflowMapModal\.steps \.wf-node-chain, #workflowMapModal\.turns \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
     && graph.includes('function render(container, responses, activeIndex, of) {') && graph.includes('if (of) { of.pick(resp, idx); return; }')
     && graph.includes('if (of) of.show(resp, idx); else updateDetailPane(idx, resp, nodeContents, nodePlots, responses);') && graph.includes("chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;")
-    && ["map: 'Conversation map',", "mapHover: 'Hover over a step to read what was said', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',",
+    && ["map: 'Brief map',", "mapRest: 'Click a step to go to it. Hover over one to read what was said.', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Architect went on',",
         "info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Architect' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',",
         "question: 'QUESTION', updated: 'updated', stepN: k => 'step ' + k, brief: 'BRIEF', inUse: k => 'step ' + k + ' in use',"].every(t => own.includes(t))
     && /window\.ArchitectUI = \{[^}]*\bgo, steps, build\b/.test(own) && !/\buse\(|WORDS\.version|startWith|set aside'|setAside/.test(own));

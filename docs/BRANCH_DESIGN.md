@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.6 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card)
+# Branching an analysis — design v0.7 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -30,21 +30,25 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
 4. A branch runs in the mode of the first run, and the turns kept count as used. The Architect is not called for
    a branch, also when it is switched on.
 5. Only analyses made after the build can be branched.
-6. The map works as the thread map and the conversation map do: hover to read, click to go, type to branch.
-7. The map is the **Turn map**. Its button, and the conversation map's, carry the Git branch icon; the thread map
-   keeps its own.
+6. The map works as the Workflow map and the Brief map do: hover to read, click to go, type to branch.
+7. The map is the **Analysis map** (the *Turn map* until decision 17). Its button, and the Brief map's, carry the
+   Git branch icon; the Workflow map keeps its own.
 8. Going back moves the left pane only. The right pane keeps the result, so the person looks at the figure while
    they write the hint.
 9. A hint is required.
 10. The brief stays: a branch of a framed analysis runs under the same brief.
 11. The earliest place to go on from is after turn 1, the latest the turn before the report.
-12. The thread map and the chain arrows count analyses, not branches.
+12. The Workflow map and the chain arrows count analyses, not branches.
 13. Memory takes the branch the person saved from or went on from. A branch they left is stored for the map only.
     The hint is kept with its branch, and memory shows it.
 14. The person pays for the new turns only.
 15. A hint outranks the brief (2026-11-21): where it departs from what the brief fixes, the hint holds, and the
     report says where it departs.
-16. A run that failed gets no Turn map (2026-11-21).
+16. A run that failed gets no Analysis map (2026-11-21).
+17. The maps' names (2026-11-21): the **Workflow map** shows a thread's chains (it was the *Thread map*), the
+    **Analysis map** an analysis's turns (the *Turn map*), the **Brief map** the steps of a brief's conversation
+    (the *Conversation map*). The three have one head, on one line: the map's mark, its name, what is on it; then
+    zoom, full screen and the close. Nothing stands over the map.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -157,19 +161,19 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 
 ## 5. The page (0320, built)
 
-`web_app/static/js/branch.js`, with the left pane (`stream-pane.js`) and the thread map's drawing
+`web_app/static/js/branch.js`, with the left pane (`stream-pane.js`) and the Workflow map's drawing
 (`workflowGraph.js`).
 
-**The Turn map.** Its button - the Git branch mark and the map's name - stands at the end of the row of the ids,
+**The Analysis map.** Its button - the Git branch mark and the map's name - stands at the end of the row of the ids,
 under the strip, once the run has ended with turns to go on from (`turn_map` on the closing card; a stopped run now
-has a closing card too). Beside the name is the number of branches the analysis has. The row stays in view under
-the strip when the pane scrolls, on one line: an id that does not fit is cut short, the frame's first (0321; the
-product owner, 2026-11-21: on the strip the button was hard to find). The map opens in the thread map's drawer: every
-turn of the analysis and of its branches is a box, joined to the turn it follows. A box says what the turn did,
-and under that its number and its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The
-first turn of a branch carries the mark *hint*. The way to the turn on screen is lit. Under the pointer the
-drawer's foot says what the turn did, the hint its branch was given, how many ways the analysis went on from it
-and what its cell printed. The map does not open while an analysis runs.
+has a closing card too). Beside the name is the number of branches the analysis has. The row stays in view under the
+strip when the pane scrolls, on one line: an id that does not fit is cut short, the frame's first (0321; the product
+owner, 2026-11-21: on the strip the button was hard to find). The map opens in the Workflow map's drawer: every turn
+of the analysis and of its branches is a box, joined to the turn it follows. A box says what the turn did, and under
+that its number and its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn
+of a branch carries the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says
+what the turn did, the hint its branch was given, how many ways the analysis went on from it and what its cell
+printed. The map does not open while an analysis runs.
 
 **Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by
 a rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the
@@ -178,13 +182,12 @@ the Architect's switch and the files. The cross on that row, Escape in the compo
 screen leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain
 back whole. The turn a run was stopped in ended nothing: it has no box.
 
-**The button on a turn's card** (0323; the product owner, 2026-11-21: to branch without looking for the turn on
-the map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git
-branch mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is
-no turn. A click is a click on the turn's box of the map - the pane ends at the turn, the composer takes the hint -
-and its button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a
-pane that has the Turn map's button: when its run ends, and when a chain kept from before the button existed comes
-on screen.
+**The button on a turn's card** (0323; the product owner, 2026-11-21: to branch without looking for the turn on the
+map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git branch
+mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is no turn. A
+click is a click on the turn's box of the map - the pane ends at the turn, the composer takes the hint - and its
+button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a pane that has
+the Analysis map's button: when its run ends, and when a chain kept from before the button existed comes on screen.
 
 **The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
 chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
@@ -197,19 +200,33 @@ back at its turn, the hint is in the composer again, and the server's sentence i
 **Moving between branches.** On the map a turn on the way of the chain on screen keeps that chain; a turn of
 another branch brings that branch on screen, tabs and pane.
 
-**The thread map and the arrows** count analyses. A box, or a step of the arrows, is an analysis, shown as the
+**The Workflow map and the arrows** count analyses. A box, or a step of the arrows, is an analysis, shown as the
 chain of it that was last on screen (the newest where none was). The box says how many branches it has; a chain
 asked from a branch hangs under its analysis's box.
 
-**The icon.** The Git branch mark is on the Turn map's button and on the conversation map's; the thread map keeps
+**The icon.** The Git branch mark is on the Analysis map's button and on the Brief map's; the Workflow map keeps
 its own.
+
+**The maps' names and their head** (0324; the product owner, 2026-11-21: the head was misaligned and the three names
+did not say what each map is of). The drawer holds one of three maps - the Workflow map, the Analysis map, the Brief
+map (decision 17) - and has one head for them, on one line (`index.html`, `shell.css`): the map's mark, its name, and
+what is on it (*2 chains · 3 branches*, *11 turns · 2 branches*, *5 steps · 1 branch*); then zoom - out, the level,
+in, fit - a line, full screen, and the close. The mark is the rail's while the drawer holds a thread's chains and the
+Git branch mark for the other two, by the drawer's class. Zoom and full screen were in the map's corners, over the
+drawing: `workflowGraph.js` now puts them into the head each time a map is drawn, and a map with nothing on it has
+neither. The full-screen button says what a click does, also on a map drawn again while the drawer is over the page.
+What a click and the pointer do is said in the drawer's foot, until a box is under the pointer (*Click a turn to go
+back to it. Hover over one to see what it did.*), and no longer in the head: `WorkflowGraph.head(name, counts, rest)`
+writes the three for whichever map opens. The small grey text of the drawer - the counts, the level, a box's second
+line, that line of the foot - is one shade lighter than it was. In the code the names of what the map is of stay:
+`turn_map` on the closing card, `.sp-turnmap`, the drawer's `.turns` and `.steps`.
 
 ## 6. Save, memory, usage (0321, built)
 
 **Save** (decision 2). A thread saved as a favourite stores every chain of it, so every branch. Opened again, the
 page is told which chains are branches from the thread's record (`/load_thread`: `branch` of each chain - the chain
-and the turn it went on from, and its hint), so the analysis has its branches, its Turn map and its place on the
-thread map as when they were made. Nothing is locked: a turn of a saved thread is gone back to as any, the data it
+and the turn it went on from, and its hint), so the analysis has its branches, its Analysis map and its place on the
+Workflow map as when they were made. Nothing is locked: a turn of a saved thread is gone back to as any, the data it
 ran on loaded; the kernel is a new one, which runs the kept cells again (§4). The new chain is stored at the next
 save.
 
@@ -267,11 +284,12 @@ before.
 |---|---|---|
 | 0318 | The kernel keeps its state after every cell and goes back to any; executor image v75; cloudpickle. | built |
 | 0319 | Engine: a branch after a turn, with a hint. | built |
-| 0320 | Page: the Turn map, going back, the hint, moving between branches; the Git branch icon. | built |
-| 0321 | Save, memory, usage; the Turn map's button at the end of the ids' row. | built |
+| 0320 | Page: the Analysis map, going back, the hint, moving between branches; the Git branch icon. | built |
+| 0321 | Save, memory, usage; the Analysis map's button at the end of the ids' row. | built |
 | 0322 | The code map and the Investigation tab of a branch; a hint outranks the brief. | built |
 | 0323 | The branch button on a turn's card. | built |
-| 0324 | Release 2.9.0. | |
+| 0324 | The maps' names - Workflow map, Analysis map, Brief map - and one head for the three. | built |
+| 0325 | Release 2.9.0. | |
 
 ## 9. Tests
 
@@ -280,11 +298,11 @@ client, and the record. `tests/analyst/test_app_path.py` (0318): the host's use 
 through the instance - the kernel going back, the cells run again, the marks, what is refused. `test_analyst.py`:
 a cell's record; (0319) the branch in the engine - the carry, the prompt that is the first run's, the hint, the
 reviewer, the kept turns' events; (0320) the closing card's `turn_map`, a stopped run's card.
-`tests/analyst/test_branch.js` (0320): the page's part on the mini DOM - the left pane of a branch, the Turn map,
-going back, the hint sent and the branch the server did not start, the analyses the arrows and the thread map
+`tests/analyst/test_branch.js` (0320): the page's part on the mini DOM - the left pane of a branch, the Analysis map,
+going back, the hint sent and the branch the server did not start, the analyses the arrows and the Workflow map
 count. The walk (`tests/e2e/test_stack.py`): a chain asked from an earlier chain; (0320) branches in a browser -
-the Turn map, going back, a hint sent from a turn whose state the kernel holds and from one it must rebuild,
-moving between branches, the thread map and the arrows, a branch the server does not start, a request that names
+the Analysis map, going back, a hint sent from a turn whose state the kernel holds and from one it must rebuild,
+moving between branches, the Workflow map and the arrows, a branch the server does not start, a request that names
 no turn, and a branch of a framed analysis with the Architect switched on. (0321) `test_analyst.py`: a branch's hints
 as a later question's Analyst, the Architect and the reach record are given them; `test_memory.py`: the ways memory
 takes and the ways left, a run's hints, search; `test_reader.py`: the hint in what is read of a run; `test_usage.py`
@@ -295,4 +313,7 @@ it, the saved thread opened again with its branch, a branch more made from it, a
 over the brief in the contract, the reviewer's prompt and the figures step, and the Investigation tab of a branch;
 the walk: the code map and the Investigation tab of a branch in a browser. (0323) `test_branch.js`: the button on
 a turn's card - which cards have one, a click and a second click, a chain kept from before it; the walk: the buttons
-in a browser, and a branch started from one.
+in a browser, and a branch started from one. (0324) `test_branch.js`, now on the page's own drawer: the Workflow
+map's head as the page's opener writes it, a thread with no chain; the head's buttons - where they stand, their
+names, the zoom's level, full screen and a map drawn again meanwhile; `test_shell.js`: the head's markup and its
+styles; the walk: the head of each of the three maps as a browser lays it out, and its buttons used.

@@ -42,7 +42,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 21 | A lookup may count, list or total what is there, to check an anchor. It may not compare, model or test. |
 | 22 | What the Architect proposes, and each saved analysis it finds, stays unticked until the coach accepts it. *For saved analyses, replaced by decision 40.* |
 | 23 | A candidate question runs straight from its card: the coach picks one, or changes it slightly, and runs it. A new analysis starts. |
-| 24 | The thread map records a single box for it. Each Architect run is also a single box, however many turns it took, on follow-ups too. |
+| 24 | The Workflow map records a single box for it. Each Architect run is also a single box, however many turns it took, on follow-ups too. |
 | 25 | An Architect run and the analysis it starts share one box. |
 | 26 | Saved work in the old record format is left out. Memory starts from what was saved in the current format, and grows from there. |
 | 27 | The memory defaults of §3.1: the three marks, runs added after a save, a single run removed, across athletes, what is not memory. |
@@ -75,7 +75,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 54 | Next questions are a panel inside the closing card, not a list that drops over the page. The panel says what the questions are and what each of the five ways does, a sentence each, in the words of what the Architect is told to do at that way. The questions of the way picked take the list's place, in rows of the same look. The row a run opens on says the way and not what the question came from (0314, the first of three mockups, the product owner's choice: "very little explanation what the feature does, what the options mean", and of *From did not fit* on the run's row: "What does from did not fit even mean"; §2.24). |
 | 55 | What the coach says or changes, with what the Architect does in reply, is a step of the conversation. The coach can go back to any step and go on from it: another way. The Architect then reads the way to that step and nothing of the others, so a direction that led nowhere needs no correcting - it is left. The way that was left stays, to go back to and to go on from (2026-11-19, the product owner's idea; §2.25). |
 | 56 | What is on screen is in use. The arrows count the steps of the way being walked - *Step 3 of 5* - and both panes show the step on screen: the brief as it stood there, the conversation up to it. A step off that way is out of the conversation; no row lists what was left (the product owner, of a row that did: "It should go, it is confusing. Irrelevant steps should be simply removed from the left pane"; §2.25). |
-| 57 | The steps have a map: the thread map's own drawer and drawing, a box to a step, opened by a button beside the arrows. The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
+| 57 | The steps have a map: the Workflow map's own drawer and drawing, a box to a step, opened by a button beside the arrows. The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
 
 ## 2. The Architect
 
@@ -170,7 +170,7 @@ How the sapling worked until then:
   questions at that level.
 - They appear on an Explore tab as five cards. A card can be edited in place, and a click runs it as the next
   analysis.
-- The five questions are recorded as a chain of their own, so the thread map shows a fork and which questions were
+- The five questions are recorded as a chain of their own, so the Workflow map shows a fork and which questions were
   run.
 
 What changes (agreed):
@@ -220,7 +220,7 @@ What goes: the Analyst's ideas path and the Explore tab.
   analysis. On a candidate question: the pencil and the arrow on its card. The two are never on screen for the same
   question.
 
-### 2.9 The thread map (agreed)
+### 2.9 The Workflow map (agreed)
 
 One box per question.
 
@@ -320,7 +320,7 @@ would change the coach's mind, each with its verdict, then a row for each check.
 tell" is marked. A part the rows cannot hold whole, such as a table, goes as the report wrote it. *Did not fit*
 stays the report's own section, in the answer.
 
-**The thread map.** A tag on the box's top edge says how its question was made: *Architect*, or *not run* for a
+**The Workflow map.** A tag on the box's top edge says how its question was made: *Architect*, or *not run* for a
 brief whose analysis was never started. A box that was not run is dashed and has no code map.
 
 **Stop and ask, on the page.** The Analyst's question ends the run, as before. The coach's answer typed with the
@@ -559,7 +559,7 @@ again; each stays. The cards are part of the analysis' own pane, kept with the c
 **A question that is run.** The arrow starts a new analysis at once, under the one it follows (`/query` with
 `next`): no brief, and the Architect's switch does not apply. The pencil changes the question first; a changed
 question loses its title. The run's pane opens on a row that says it was a next question, at which level and from
-what. On the record and on its card the question is marked with the chain it started; on the thread map the run is
+what. On the record and on its card the question is marked with the chain it started; on the Workflow map the run is
 one box, marked *next question* (§2.9). While a set is being written no analysis starts, and the other way round.
 
 **Old threads.** A sapling chain made before this patch keeps its box on the map, as a fork. Its Explore page still
@@ -1289,7 +1289,7 @@ every turn, with a line that the coach had gone back, and a saved analysis kept 
 **What was agreed** (decisions 55 to 57). Branching until Start analysis; a way that is gone back from is fully
 out - the Architect is given the conversation from the start to the step the coach stands on, and nothing after;
 the button to the map beside the arrows; *Step* in the place of *Version*; no row for what was left; the map as
-the thread map is, hover and all.
+the Workflow map is, hover and all.
 
 **A step** is what the coach said or changed, with what the Architect did in reply: its message, a round of
 lookups, a reading of the saved analyses, a draft, and the versions of the brief all that made. A change by hand
@@ -1336,13 +1336,14 @@ command to branch.
   analysis from step 3** names the step unless it is the last of its way. Stepping sends nothing.
 - **While the Architect replies** the arrows and the map's button are off: what is on its way goes on from the
   step it left.
-- **The map.** The button after the arrows opens the thread map's drawer (§2.9) as the *Conversation map*: how
-  many steps, where they branch. The drawing is the thread map's own (`workflowGraph.js`, which now takes
+- **The map.** The button after the arrows opens the Workflow map's drawer (§2.9) as the *Brief map* (the
+  *Conversation map* until 0324, when the Thread map became the Workflow map; docs/BRANCH_DESIGN.md §5): how
+  many steps, where they branch. The drawing is the Workflow map's own (`workflowGraph.js`, which now takes
   another map's boxes and is told what is that map's own): a box to a step, joined to the step it follows. On
   a box: what the coach said - the question as it was asked on the first; *You changed a line*, *Question check*
   where they said nothing - and under it what the step changed, in the tab's words. The way to the step on
   screen is lit, the rest faint. Under the pointer a box lights its own way and the drawer's foot says, as the
-  thread map does of a chain: what was said, *Step* (as the arrows would count it), *Follows*, *Follow-ups*,
+  Workflow map does of a chain: what was said, *Step* (as the arrows would count it), *Follows*, *Follow-ups*,
   *Changed*, and the first sentence of the Architect's reply. A click goes to the step and shuts the drawer.
   While the drawer is open the map follows its brief - an arrow pressed, a step added - and it shuts when another
   chain comes on screen.
@@ -1371,8 +1372,8 @@ branched, with the framing as each step leaves it: the engine's suite checks it 
 page's suite holds `architect.js` to the same file, so the two cannot drift apart. `test_app_path.py`: the step
 through each route - an answer, a change by hand, the question's read and Start analysis from an earlier step,
 and what the run keeps. `test_architect.js`: the helpers, both panes at a step, the arrows, a message from an
-earlier step, and the map driven on the page with the thread map's own drawing - its boxes, the lit way, the
-foot under the pointer, a click, the map following its brief - and the thread map, drawn by the same code, as
+earlier step, and the map driven on the page with the Workflow map's own drawing - its boxes, the lit way, the
+foot under the pointer, a click, the map following its brief - and the Workflow map, drawn by the same code, as
 it was. The walk: the arrows through the Architect's
 conversation with both panes following; in the tutor's, a step back and another way from it - the Architect's
 prompt read through the message's button, with not a word of the way left -, the map in the browser, the way
@@ -1761,13 +1762,13 @@ The removed `memory_path` option of the library is why the release is 2.8.0 and 
   data), and the closing card's shape.
 - New in 0314: Next questions as a panel in the closing card (the page only).
 - New in 0316: the steps of a brief's conversation (`analyst/steps.py`), the step each request names, and their
-  map on the page; the thread map's drawing takes another map's boxes.
+  map on the page; the Workflow map's drawing takes another map's boxes.
 - The thread record: the brief, the framing conversation and the next questions are stored with the run.
 - New: the Architect, the memory view, the reader.
 - The web app: routes for framing and next questions; the memory routes removed.
 - The page: the conversation, the Brief tab, the switch, changing in place, the Next questions button and cards,
   the two report parts; the plant button in the question box, the Explore tab, the Memory and rating dialogs removed.
-- The thread map: one box per question, marked Architect or next question. The sapling's box is no longer made.
+- The Workflow map: one box per question, marked Architect or next question. The sapling's box is no longer made.
 - Models: seats for the Architect, the reader and its second model; the Knowledge Distiller seat removed.
 - The usage record and dialog: the new seats.
 - README, design documents, tests.
@@ -1804,7 +1805,7 @@ on the last one.
 | 0313 | From the product owner's live test: the question is written for the Analyst and points to nothing it is not given; before an analysis starts its question is read as the Analyst will read it, and what cannot be placed goes back to the Architect (§2.22). The closing card: the numbers beside the title, two buttons, no links (§2.23). | built |
 | 0314 | From the product owner, of the list of five levels: Next questions are a panel inside the closing card - what the questions are, the five ways with a sentence each, the questions of the way picked in the list's place; the row a run opens on says the way only (§2.24). | built |
 | 0315 | The README's three sections on the Architect and memory cut to what a reader needs, from the product owner's review; the detail stays here. | built |
-| 0316 | 2.8.1, the product owner's idea: the conversation with the Architect in steps, with a map of them. Go back to any step and go on from it - another way, with nothing of the way left in what the Architect reads; the arrows count steps and both panes show the one on screen; the map in the thread map's drawer; a run and memory keep the way that was run (§2.25). | built |
+| 0316 | 2.8.1, the product owner's idea: the conversation with the Architect in steps, with a map of them. Go back to any step and go on from it - another way, with nothing of the way left in what the Architect reads; the arrows count steps and both panes show the one on screen; the map in the Workflow map's drawer; a run and memory keep the way that was run (§2.25). | built |
 | 0317 | Release 2.8.1. | built |
 
 ## 8. Not in this release

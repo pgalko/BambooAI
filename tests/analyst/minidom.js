@@ -9,7 +9,7 @@ class Node { constructor() { this.parent = null; } }
 class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data = t; } get textContent() { return this.data; } get outerHTML() { return encodeText(this.data); } }
 class Element extends Node {
   constructor(tag) { super(); this.nodeType = 1; this.tag = tag.toLowerCase(); this.tagName = this.tag.toUpperCase(); this.attrs = {}; this.children = []; const self = this;
-    this.classList = { add: c => self._cls(c, true), remove: c => self._cls(c, false), contains: c => self._c().includes(c), toggle: (c, on) => self._cls(c, on === undefined ? !self._c().includes(c) : on) };
+    this.classList = { add: c => self._cls(c, true), remove: c => self._cls(c, false), contains: c => self._c().includes(c), toggle: (c, on) => { const to = on === undefined ? !self._c().includes(c) : !!on; self._cls(c, to); return to; } };      // toggle() says, as the browser's does, whether the class is now there
     this.style = {}; this.dataset = new Proxy({}, { get: (_, k) => self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())] }); }
   _c() { return (this.attrs['class'] || '').split(/\s+/).filter(Boolean); }
   _cls(c, on) { const cs = this._c().filter(x => x !== c); if (on) cs.push(c); this.attrs['class'] = cs.join(' '); }
@@ -91,4 +91,13 @@ function makeDocument() {
     dispatch(type, target, extra) { const ev = Object.assign({ type, target, preventDefault() { ev.defaulted = true; }, stopPropagation() { ev.stopped = true; } }, extra || {}); for (const fn of (this.listeners[type] || [])) fn(ev); return ev; } };
   return doc;
 }
-module.exports = { Element, Text, makeDocument, parseInto };
+// The markup of the page's element with that id, cut from the page's source: the <div> that carries the id, up to
+// its own end. A suite that runs a script on a part of the page takes the part from the page, not from a copy of it
+function fragment(html, id) {
+  const start = html.lastIndexOf('<div', html.indexOf(`id="${id}"`)), re = /<\/?div\b[^>]*>/g;
+  let depth = 0, m;
+  re.lastIndex = start;
+  while ((m = re.exec(html))) { if (m[0].startsWith('</')) { depth--; if (depth === 0) return html.slice(start, m.index + m[0].length); } else if (!m[0].endsWith('/>')) depth++; }
+  return html.slice(start);
+}
+module.exports = { Element, Text, makeDocument, parseInto, fragment };

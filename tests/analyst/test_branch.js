@@ -1,14 +1,15 @@
 // The branches of an analysis on the page (docs/BRANCH_DESIGN.md §5; 2.9, patch 0320): branch.js, on the mini DOM, with
-// panes written by the pane's own functions (stream-pane.js) as the server's events arrive, and the thread map's drawing
-// (workflowGraph.js) on the harness's dagre. The turns a branch keeps and the row of its hint in the left pane; the
-// turns of a chain read back from its pane; an analysis as a chain with its branches - what the arrows and the thread
-// map count; the Turn map - its boxes, what the drawer says, the way that is lit; going back to a turn - the pane that
-// ends there, the composer as a hint's; the hint sent, a branch the server started and one it did not; then the page's
-// hooks, read from the sources.
+// panes written by the pane's own functions (stream-pane.js) as the server's events arrive, and the Workflow map's
+// drawing (workflowGraph.js) on the harness's dagre. The turns a branch keeps and the row of its hint in the left pane;
+// the turns of a chain read back from its pane; an analysis as a chain with its branches - what the arrows and the
+// Workflow map count; the Analysis map - its boxes, what the drawer says, the way that is lit; going back to a turn -
+// the pane that ends there, the composer as a hint's; the hint sent, a branch the server started and one it did not;
+// then the page's hooks, read from the sources.
 // Run: node tests/analyst/test_branch.js
 'use strict';
 const fs = require('fs'), path = require('path');
-const { makeDocument } = require(path.join(__dirname, 'minidom.js'));
+const { makeDocument, fragment } = require(path.join(__dirname, 'minidom.js'));
+const html = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'templates', 'index.html'), 'utf8');
 const doc = makeDocument(); global.document = doc; global.window = {};
 const results = []; const check = (n, c, d) => results.push([n, !!c, d]);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -17,8 +18,7 @@ const host = doc.createElement('div'); doc.body.appendChild(host);
 host.innerHTML = '<div id="streamOutput"></div><div id="tabContainer"></div><div id="contentOutput"></div>' +
   '<div class="input-area"><div class="textarea-container"><textarea id="queryInput"></textarea><div class="icon-row"><div class="attach-menu-container"></div><div id="modeSliderPopup"></div>' +
   '<button id="architectSwitch" class="ar-switch"></button></div><button id="submitQuery"></button></div></div>' +
-  '<div id="workflowMapModal" class="modal map-drawer"><h2>Thread map</h2><div id="mapDrawerSub"></div><div id="workflowMapContainer" class="workflow-map-container"></div>' +
-  '<div id="nodeTaskContent"></div><div id="nodePlotPreview"></div><div class="map-drawer-foot"></div></div>';
+  fragment(html, 'workflowMapModal');                              // the maps' drawer: the page's own
 $('workflowMapModal').style.display = 'none'; $('queryInput').placeholder = 'Enter your query here';
 doc.createElementNS = (ns, tag) => doc.createElement(tag);
 // the page's own parts, as far as the module leans on them
@@ -97,10 +97,10 @@ check('... a kept cell that printed something else when it was run again says so
   differs.length === 1 && differs[0].getAttribute('data-cell') === '3' && differs[0].querySelector('.t').textContent.startsWith('run again: output changed')
   && /printed something else than the first time/.test(differs[0].querySelector('.t').getAttribute('title')) && !/run again/.test(pb.querySelector('.sp-stream').textContent));
 const stripOf = e => holder(e.streamOutput).querySelector('.sp-strip'), idsOf = e => holder(e.streamOutput).querySelector('.sp-ids');
-check('the way to the Turn map (0321: out of the strip): where the run ended with turns to go on from, the row of the ids ends on a button - the Git branch mark, the map\'s name, a place '
+check('the way to the Analysis map (0321: out of the strip): where the run ended with turns to go on from, the row of the ids ends on a button - the Git branch mark, the map\'s name, a place '
   + 'for the number of branches; the strip holds no button, and keeps the run\'s limit of turns; an analysis with no turn to go on from has no such button; a stopped one has it',
   !!idsOf(a).querySelector('.sp-turnmap svg circle') && idsOf(a).querySelector('.sp-turnmap').getAttribute('onclick') === 'if(window.BranchUI)BranchUI.openMap()'
-  && idsOf(a).querySelector('.sp-turnmap').textContent === 'Turn map' && idsOf(a).querySelector('.sp-turnmap .n').textContent === '' && idsOf(a).elements.slice(-1)[0].className === 'sp-turnmap'
+  && idsOf(a).querySelector('.sp-turnmap').textContent === 'Analysis map' && idsOf(a).querySelector('.sp-turnmap').getAttribute('title') === 'Analysis map' && idsOf(a).querySelector('.sp-turnmap .n').textContent === '' && idsOf(a).elements.slice(-1)[0].className === 'sp-turnmap'
   && holder(a.streamOutput).querySelectorAll('.sp-turnmap').length === 1 && !stripOf(a).querySelector('.sp-turnmap') && stripOf(a).getAttribute('data-of') === '8'
   && stripOf(a).elements.map(e => e.className || e.tag).slice(0, 4).join() === 'live idle,mode,span,bar' && !holder(q0.streamOutput).querySelector('.sp-turnmap') && !!idsOf(s).querySelector('.sp-turnmap')
   && holder(s.streamOutput).querySelector('.sp-done .title').textContent === 'Run stopped');
@@ -147,7 +147,7 @@ const orphan = entry(61, null, 'How do the two blocks compare?', keep(A.slice(0,
 responses.push(orphan);
 const alone = B.boxes(orphan).map(x => [x.key, x.from]);
 responses.pop();
-check('... the Turn map of a branch whose chain is not in the thread has every turn of its pane, the kept ones first, in one line',
+check('... the Analysis map of a branch whose chain is not in the thread has every turn of its pane, the kept ones first, in one line',
   same(alone, [['61:1', null], ['61:2', '61:1'], ['61:4', '61:2'], ['61:5', '61:4']]), alone);
 show(c); const onC = [ids(), same(B.place(), { i: 2, n: 4 })];
 show(a); const onA = [ids(), same(B.place(), { i: 2, n: 4 }), B.step(1) === f, B.step(-1) === q0];
@@ -160,12 +160,12 @@ check('... asked of a chain, the place is that chain\'s, whichever is on screen:
   same([q0, a, b1, c, f, s].map(e => B.place(e).i), [1, 2, 2, 2, 3, 4]) && same(B.place(c), { i: 2, n: 4 }) && same(B.place(), { i: 1, n: 4 }), [q0, a, b1, c, f, s].map(e => B.place(e)));
 show(b1);
 const items = B.items();
-check('the thread map\'s boxes: a box to an analysis - the chain of it last on screen - with how many branches it has and where its chain stands in the thread; a chain asked from a branch '
+check('the Workflow map\'s boxes: a box to an analysis - the chain of it last on screen - with how many branches it has and where its chain stands in the thread; a chain asked from a branch '
   + 'is joined to that branch\'s analysis, whichever chain of it the box shows; the chains themselves are not changed',
   same(items.map(i => [i.chain_id, i.parentChainId, i.branches, i.at]), [[10, null, 0, 0], [21, 10, 3, 2], [30, 21, 0, 3], [40, null, 0, 6]]) && f.parentChainId === 21 && items[1] !== b1 && items[1].streamOutput === b1.streamOutput
   && (show(a), same(B.items().map(i => [i.chain_id, i.parentChainId]), [[10, null], [20, 10], [30, 20], [40, null]])), items.map(i => [i.chain_id, i.parentChainId, i.branches, i.at]));
 
-// ---- the thread map, drawn from those boxes
+// ---- the Workflow map, drawn from those boxes
 const drawer = $('workflowMapModal'), nodes = () => $('workflowMapContainer').querySelectorAll('.wf-node');
 const foot = () => [$('nodeTaskContent').textContent].concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
 const lit = () => nodes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
@@ -176,15 +176,37 @@ const tm = { boxes: nodes().map(x => x.querySelector('.wf-node-label').textConte
 nodes()[1].dispatch('mouseenter'); const tmFoot = foot(); nodes()[1].dispatch('mouseleave');
 drawer.style.display = 'flex'; const before = loaded.length;
 nodes()[2].dispatch('click');
-check('the thread map counts analyses: a box each, the one with branches saying how many - on the box and in the drawer\'s foot -, the open box that of the analysis on screen; a click on a '
+check('the Workflow map counts analyses: a box each, the one with branches saying how many - on the box and in the drawer\'s foot -, the open box that of the analysis on screen; a click on a '
   + 'box opens the chain it stands for and shuts the drawer',
   same(tm, { boxes: ['What is in the data? > Chain: 10 > ', 'How do the two blocks compare? > Chain: 20 > 3 branches', 'And by soil type? > Chain: 30 > ', 'Stopped on the way > Chain: 40 > '], on: '2', edges: '0>1,1>2' })
   && /Chain=2 of 4/.test(tmFoot) && /Branches=3/.test(tmFoot) && /Follow-ups=1/.test(tmFoot) && same(loaded.slice(before), [30]) && responses[currentResponseIndex] === f && drawer.style.display === 'none', [tm, tmFoot, loaded.slice(before)]);
 
-// ---- the Turn map
+// ---- the Workflow map's head (0324): the page's own opener (workflow-management.js), taken from its source and run on the drawer
+const wmSrc = fs.readFileSync(path.join(JS, 'workflow-management.js'), 'utf8');
+const showMap = list => new Function('responses', 'currentResponseIndex', 'updateSynthesisButtonState', 'updateTrajectoryButtonState', 'WorkflowGraph',
+  wmSrc.slice(wmSrc.indexOf('function showWorkflowMap() {'), wmSrc.indexOf('\nfunction updateSynthesisButtonState() {')) + '\nreturn showWorkflowMap;')(list, -1, () => {}, () => {}, w.WorkflowGraph)();
+const headNow = () => ({ cls: drawer.className, shown: drawer.style.display, title: drawer.querySelector('h2').textContent, counts: $('mapDrawerSub').textContent, rest: $('nodeTaskContent').innerHTML,
+                         tools: $('mapDrawerTools').elements.length, boxes: nodes().length });
+drawer.className = 'modal map-drawer turns'; drawer.style.display = 'none';      // the drawer last held an Analysis map
+showMap(responses);
+const wfHead = headNow();
+const branchUI = w.BranchUI; w.BranchUI = null; drawer.className = 'modal map-drawer steps';      // a page without branches; the drawer last held a Brief map
+showMap([]);
+const emptyHead = headNow(), emptyMap = $('workflowMapContainer').textContent;
+showMap([{ chain_id: 1, parentChainId: null, queryText: 'One question', branches: 1 }]);
+const oneHead = headNow();
+w.BranchUI = branchUI;
+check('the Workflow map\'s head (0324): its name; how many chains, and how many branches their analyses have between them; in the foot, what a click and the pointer do; the drawer is the '
+  + 'thread\'s again after either other map. A thread with no chain yet: the head says so, the foot says nothing, and there is no zoom or full screen to offer; one chain with one branch is "1 chain · 1 branch"',
+  same(wfHead, { cls: 'modal map-drawer', shown: 'flex', title: 'Workflow map', counts: '4 chains · 3 branches', rest: '<span class="map-rest">Click a chain to open it. Hover over one to see its question.</span>',
+                 tools: 2, boxes: 4 })
+  && same(emptyHead, { cls: 'modal map-drawer', shown: 'flex', title: 'Workflow map', counts: 'no chains yet', rest: '', tools: 0, boxes: 0 }) && emptyMap === 'No workflow data to display.'
+  && oneHead.counts === '1 chain · 1 branch' && oneHead.tools === 2 && oneHead.rest === wfHead.rest, [wfHead, emptyHead, emptyMap, oneHead]);
+
+// ---- the Analysis map
 show(a);
 const all = B.boxes(a);
-check('the boxes of an analysis\'s Turn map: the first run\'s turns in a line; each branch\'s own turns after it, the first joined to the turn the branch went on from - two branches from '
+check('the boxes of an analysis\'s Analysis map: the first run\'s turns in a line; each branch\'s own turns after it, the first joined to the turn the branch went on from - two branches from '
   + 'one turn both to that turn, a branch of a branch to the turn of the branch',
   same(all.map(x => [x.key, x.from]), [['20:1', null], ['20:2', '20:1'], ['20:3', '20:2'], ['20:4', '20:3'], ['20:5', '20:4'], ['20:6', '20:5'], ['21:4', '20:3'], ['21:5', '21:4'], ['22:4', '20:3'],
                                        ['23:5', '21:4'], ['23:6', '23:5']]) && all[6].entry === b1 && all[9].turn.n === 5, all.map(x => [x.key, x.from]));
@@ -198,19 +220,58 @@ nodes()[2].dispatch('mouseenter'); const over3 = { foot: foot(), lit: lit() }; n
 nodes()[7].dispatch('mouseenter'); const over8 = { foot: foot(), lit: lit() }; nodes()[7].dispatch('mouseleave');
 nodes()[5].dispatch('mouseenter'); const over6 = foot(); nodes()[5].dispatch('mouseleave');
 nodes()[1].dispatch('mouseenter'); const over2 = foot(); nodes()[1].dispatch('mouseleave');
-check('the Turn map: the strip\'s button opens the thread map\'s drawer as the analysis\'s - its name, how many turns and branches, a line that says what hovering does, the thread\'s own '
+check('the Analysis map: the strip\'s button opens the Workflow map\'s drawer as the analysis\'s - its name, how many turns and branches, in the foot what a click and the pointer do, the thread\'s own '
   + 'buttons and marks out of it. Every turn is a box, joined to the turn it follows: on it what the turn did, and under that its number and its cell - or that the cell failed, or what '
   + 'else the turn was; the first turn of a branch carries the mark of its hint. The turn on screen - the last of the chain on screen - is the open box, and the way to it is lit',
-  same(opened, { shown: 'flex', cls: 'modal map-drawer turns', chain: '20', title: 'Turn map', sub: '11 turns · 3 branches · click one to go back to it',
+  same(opened, { shown: 'flex', cls: 'modal map-drawer turns', chain: '20', title: 'Analysis map', sub: '11 turns · 3 branches',
     boxes: ['This turn loads both blocks. > Turn 1 · In [2]', 'This turn pools them. > Turn 2 · failed', 'This turn pools the two blo... > Turn 3 · In [3]', 'This turn lists what the ke... > Turn 4 · look-up',
             'This turn compares the blocks. > Turn 5 · In [4]', 'Everything asked is establi... > Turn 6 · report', 'This turn splits them. > Turn 4 · In [4] > hint', 'Each block has its own figure. > Turn 5 · report',
             'Nothing more is needed. > Turn 4 · report > hint', 'This turn compares them. > Turn 5 · In [5] > hint', 'B is the larger. > Turn 6 · report'],
-    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restFoot === 'Hover over a turn to see what it did', [opened, restFoot]);
+    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restFoot === 'Click a turn to go back to it. Hover over one to see what it did.', [opened, restFoot]);
 check('... under the pointer a box lights its own way, and the foot says what the turn did, its number - "on screen" for the one that is -, what it was, the hint its branch was given, how '
   + 'many ways the analysis went on from it, and what its cell printed; when the pointer leaves, the way to the turn on screen is lit again',
   same(over3, { foot: 'This turn pools the two blocks. | Turn=3 | Did=cell In [3] | Went on=3 ways | Printed=pooled 20', lit: '1,2,3' })
   && same(over8, { foot: 'Each block has its own figure. | Turn=5 | Did=report | Hint=keep the two blocks apart', lit: '1,2,3,7,8' })
   && over6 === 'Everything asked is established. | Turn=6 · on screen | Did=report' && over2 === 'This turn pools them. | Turn=2 | Did=a cell that failed' && lit() === '1,2,3,4,5,6', [over3, over8, over6, over2]);
+// ---- the drawer's head (0324): zoom and full screen stand in it, before the close
+const mapHead = drawer.querySelector('.map-drawer-head'), mapTools = $('mapDrawerTools'), mapSheet = drawer.querySelector('.workflow-modal-content');
+const inHead = () => ({ tools: mapTools.elements.map(e => e.className).join(' | '), zoom: mapTools.querySelector('.wf-zoom-controls').elements.map(e => e.className).join(' | '),
+                        names: mapHead.querySelectorAll('button').map(x => x.getAttribute('aria-label')).join(' | '), level: mapTools.querySelector('.wf-zoom-level').textContent,
+                        onMap: drawer.querySelector('.workflow-body').querySelectorAll('.wf-zoom-controls, .wf-zoom-btn, .wf-fullscreen-btn').length });
+const zoomBtn = i => mapTools.querySelectorAll('.wf-zoom-btn')[i], fullBtn = () => mapTools.querySelector('.wf-fullscreen-btn');
+$('workflowMapContainer').clientWidth = 2000; $('workflowMapContainer').clientHeight = 2000;      // a frame the whole map fits: it is drawn at 100%
+B.openMap();
+const headTurns = inHead(), restTurns = $('nodeTaskContent').innerHTML;
+B.openMap();                                                       // the map drawn again: one set of buttons
+const headAgain = inHead();
+zoomBtn(1).dispatch('click'); const zoomedIn = inHead().level;
+zoomBtn(0).dispatch('click'); zoomBtn(0).dispatch('click'); const zoomedOut = inHead().level;
+for (let i = 0; i < 5; i++) zoomBtn(0).dispatch('click');
+const zoomLow = [inHead().level, zoomBtn(0).disabled, zoomBtn(1).disabled];
+zoomBtn(2).dispatch('click'); const zoomFit = [inHead().level, zoomBtn(0).disabled];
+for (let i = 0; i < 8; i++) zoomBtn(1).dispatch('click');
+const zoomHigh = [inHead().level, zoomBtn(1).disabled, !!zoomBtn(2).disabled];
+zoomBtn(2).dispatch('click'); const zoomHome = [inHead().level, zoomBtn(1).disabled];
+check('the drawer\'s head (0324): zoom and full screen stand in the head, before the close - out, the level, in, fit, then full screen - each button with its name for a reader; none of them '
+  + 'stands on the map; a map drawn again has one set of them; the level in the head follows the zoom - at its smallest the way further out is shut, at its largest the way further in, and fit never - and fit brings the map back to its frame; the foot says, until a box is under the pointer, '
+  + 'what a click and the pointer do',
+  same(headTurns, { tools: 'wf-zoom-controls | wf-fullscreen-btn', zoom: 'wf-zoom-btn | wf-zoom-level | wf-zoom-btn | wf-zoom-btn wf-zoom-reset',
+                    names: 'Zoom out | Zoom in | Fit to the frame | Full screen | Close', level: '100%', onMap: 0 }) && same(headAgain, headTurns)
+  && restTurns === '<span class="map-rest">Click a turn to go back to it. Hover over one to see what it did.</span>' && zoomedIn === '115%' && zoomedOut === '85%'
+  && same(zoomLow, ['30%', true, false]) && same(zoomFit, ['100%', false]) && same(zoomHigh, ['200%', true, false]) && same(zoomHome, ['100%', false]),
+  [headTurns, headAgain, restTurns, zoomedIn, zoomedOut, zoomLow, zoomFit, zoomHigh, zoomHome]);
+const fullLooks = () => [mapSheet.classList.contains('wf-fullscreen'), fullBtn().title, fullBtn().getAttribute('aria-label'), fullBtn().innerHTML];
+const fullOff = fullLooks();
+fullBtn().dispatch('click');
+const fullOn = fullLooks();
+B.openMap();                                                       // drawn again while the drawer is over the whole page
+const fullDrawn = fullLooks();
+fullBtn().dispatch('click');
+const fullBack = fullLooks();
+check('full screen: the button says what a click does - "Full screen" with the arrows that part, and "Leave full screen" with the arrows that meet while the drawer is over the whole page; a map drawn again meanwhile '
+  + 'keeps saying so; a click brings the drawer back to its side',
+  same(fullOff.slice(0, 3), [false, 'Full screen', 'Full screen']) && same(fullOn.slice(0, 3), [true, 'Leave full screen', 'Leave full screen']) && /points="15 3 21 3 21 9"/.test(fullOff[3]) && /points="4 14 10 14 10 20"/.test(fullOn[3])
+  && same(fullDrawn, fullOn) && same(fullBack, fullOff), [fullOff.slice(0, 3), fullOn.slice(0, 3), fullDrawn.slice(0, 3), fullBack.slice(0, 3)]);
 const graphWas = w.WorkflowGraph; w.WorkflowGraph = null; drawer.style.display = 'none'; B.openMap(); const noDrawing = drawer.style.display; w.WorkflowGraph = graphWas;
 queryRunning = true; B.openMap(); const whileRun = [drawer.style.display, toasts.slice(-1)[0]]; queryRunning = false;
 show(q0); B.openMap(); const noTurns = drawer.style.display;      // one turn, the report: a map of one box
@@ -257,14 +318,14 @@ responses.push(k); show(k); B.openMap(); nodes()[0].dispatch('click'); const kBa
 B.openMap(); nodes()[1].dispatch('click'); const kAsked = comp();
 check('a stopped analysis can be gone on from the last turn it finished: the turn it was stopped in ended nothing, and has no box; the turn in which the analyst asked the person a '
   + 'question shows the chain whole, while the turn before it can be gone on from',
-  same(sMap, ['2 turns · click one to go back to it', '2']) && same(sBack, { chain: 40, turn: 2 }) && same(kBack, { chain: 70, turn: 1 }) && same(kAsked, own), [sMap, sBack, kBack, kAsked]);
+  same(sMap, ['2 turns', '2']) && same(sBack, { chain: 40, turn: 2 }) && same(kBack, { chain: 70, turn: 1 }) && same(kAsked, own), [sMap, sBack, kBack, kAsked]);
 responses.push(e0); show(e0); B.openMap();
 const noOwn = [state().sub, state().on, state().lit, B.boxes(e0).length];
 responses.push({ chain_id: 80, thread_id: 7, parentChainId: null, queryText: 'no turn yet', streamOutput: '<div class="sp-stream"></div>' });
 drawer.style.display = 'none'; show(responses[responses.length - 1]); B.openMap(); const noBox = drawer.style.display;
 responses.splice(responses.indexOf(e0), 1); responses.splice(responses.length - 1, 1); responses.splice(responses.indexOf(k), 1);
 check('a branch that made no turn of its own adds no box: on the map its place is the turn it went on from; a chain with no turn has no map to open',
-  same(noOwn, ['11 turns · 4 branches · click one to go back to it', '2', '1,2', 11]) && noBox === 'none', [noOwn, noBox]);
+  same(noOwn, ['11 turns · 4 branches', '2', '1,2', 11]) && noBox === 'none', [noOwn, noBox]);
 show(a); B.openMap(); nodes()[2].dispatch('click');
 B.leave(); const left = comp();
 B.openMap(); nodes()[2].dispatch('click'); $('queryInput').dispatch('keydown', null, { key: 'a' }); const typed = !!B.standing();
@@ -282,11 +343,11 @@ check('where the composer is held, the hold\'s words stay on it: the hint\'s wai
   same(heldLeft, ['A fill is running', 'Enter your query here', null]) && same(heldBack, ['A fill is running', 'Say how the analysis should go on from turn 3']) && freed === 'Say how the analysis should go on from turn 3'
   && q.placeholder === 'Enter your query here', [heldLeft, heldBack, freed, q.placeholder]);
 
-// ---- the Turn map's button and the map, as chains come on screen
+// ---- the Analysis map's button and the map, as chains come on screen
 const button = () => $('streamOutput').querySelector('.sp-turnmap'), badge = () => (button() ? [button().querySelector('.n').textContent, button().getAttribute('title')] : null);
 show(a); const badgeA = badge(); show(s); const badgeS = badge(); show(q0); const badgeQ = badge(); show(c); const badgeC = badge();
-check('the Turn map\'s button says how many branches the analysis of the chain on screen has, on any chain of it; none, it says nothing',
-  same(badgeA, ['3', 'Turn map: 3 branches']) && same(badgeS, ['', 'Turn map']) && badgeQ === null && same(badgeC, ['3', 'Turn map: 3 branches']) && a.streamOutput.indexOf('<span class="n"></span>') > 0, [badgeA, badgeS, badgeQ, badgeC]);
+check('the Analysis map\'s button says how many branches the analysis of the chain on screen has, on any chain of it; none, it says nothing',
+  same(badgeA, ['3', 'Analysis map: 3 branches']) && same(badgeS, ['', 'Analysis map']) && badgeQ === null && same(badgeC, ['3', 'Analysis map: 3 branches']) && a.streamOutput.indexOf('<span class="n"></span>') > 0, [badgeA, badgeS, badgeQ, badgeC]);
 show(a); B.openMap(); show(b1); const followed = [drawer.style.display, state().on, state().lit];
 show(f); const other = drawer.style.display;
 show(a); B.openMap(); queryRunning = true; updateNavigationButtons(); const running = drawer.style.display; queryRunning = false;
@@ -319,7 +380,7 @@ check('a hint sent: with a turn gone back to, what is typed is a hint - the bran
 // the run ends as any does: the chain is saved with its branch (saveCurrentResponse), and is the one its analysis shows
 responses[liveState.index] = entry(24, 10, going.question, keep(A.slice(0, 2)).concat([{ n: 3, kind: 'report', step: 'Started over.' }]), { branch: { of: 20, turn: 2, hint: going.hint }, entryBranch: currentData.branch });
 Object.assign(liveState, { running: false, index: null }); const d = responses[responses.length - 1]; show(d);
-check('... once saved the branch is one more way of its analysis: its Turn map has its turns, joined to the turn it went on from, and it is the chain the arrows show for the analysis',
+check('... once saved the branch is one more way of its analysis: its Analysis map has its turns, joined to the turn it went on from, and it is the chain the arrows show for the analysis',
   same(B.boxes(a).slice(-1).map(x => [x.key, x.from]), [['24:3', '20:2']]) && same(ids(), [10, 24, 30, 40]) && badge()[0] === '4' && $('streamOutput').querySelector('.sp-hint').textContent === 'From turn 2start over from the slip');
 // a branch the server did not start: it said why before it announced a chain
 show(b1); B.openMap(); nodes()[2].dispatch('click');
@@ -349,7 +410,7 @@ check('a framed analysis\'s branch runs under the same brief: when the server an
 // ---- the page's hooks, from the sources
 const js = n => fs.readFileSync(path.join(JS, n), 'utf8'), css = n => fs.readFileSync(path.join(JS, '..', 'css', n), 'utf8');
 const qp = js('query-processing.js'), wm = js('workflow-management.js'), uc = js('ui-controls.js'), graph = js('workflowGraph.js'), core = js('core.js'), ar = js('architect.js');
-const html = fs.readFileSync(path.join(JS, '..', '..', 'templates', 'index.html'), 'utf8'), shell = css('shell.css'), paneCss = css('pane.css');
+const shell = css('shell.css'), paneCss = css('pane.css');
 check('the composer\'s send: a typed text is offered to the branch first - a hint where a turn is gone back to - and the Architect is not asked for a branch; the chain begun keeps the '
   + 'analysis\'s question and the branch; the request names the turn; a branch the server did not start - the limit, the network, its own refusal - is undone, and nothing is saved of it',
   qp.includes("const branch = typed && window.BranchUI ? window.BranchUI.hint(query) : null;") && qp.includes("if (window.ArchitectUI && !framed && !branch) {")
@@ -365,7 +426,7 @@ check('the stream: the chain\'s announcement is handed to the branch, and so is 
   && uc.includes("const at = window.BranchUI ? window.BranchUI.place() : { i: currentResponseIndex + 1, n: responses.length };") && uc.includes("prevButton.disabled = at.i <= 1;") && uc.includes("nextButton.disabled = at.i >= at.n;")
   && uc.indexOf('window.BranchUI.onChain(responses[currentResponseIndex])') > 0 && uc.indexOf('window.BranchUI.onChain(responses[currentResponseIndex])') < uc.indexOf('window.ArchitectUI.onChain(responses[currentResponseIndex])')
   && core.includes("window.BranchUI.initialize();") && html.indexOf("js/branch.js") > html.indexOf("js/next-questions.js") && html.indexOf("js/branch.js") < html.indexOf("js/workflowGraph.js"));
-check('the thread map: its boxes are the analyses, the open one that of the chain on screen, the line under its name counting chains and their branches; the drawer is the thread\'s again '
+check('the Workflow map: its boxes are the analyses, the open one that of the chain on screen, the head counting chains and their branches; the drawer is the thread\'s again '
   + 'after either other map; a box clicked opens its chain through the branch; the drawing takes a map\'s own mark for a box; the Architect\'s map has the Git branch mark, and takes the '
   + 'drawer from the turns\' map',
   wm.includes("var boxes = window.BranchUI ? window.BranchUI.items() : responses;") && wm.includes("WorkflowGraph.render(container, boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
@@ -375,8 +436,8 @@ check('the thread map: its boxes are the analyses, the open one that of the chai
   && ar.includes('<line x1="6" y1="3" x2="6" y2="15"/>') && !ar.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>') && ar.includes("drawer.classList.remove('turns');")
   && html.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>'));
 check('the stylesheets: with a turn gone back to the composer shows no file menu, no mode and no Architect switch, and the row of the turn is styled; the drawer hides the thread\'s '
-  + 'buttons while it holds the turns; the thread map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row is '
-  + 'styled; the Turn map\'s button stands at the end of the ids\' row, which stays in view under the strip, on one line, its last id giving way first',
+  + 'buttons while it holds the turns; the Workflow map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row is '
+  + 'styled; the Analysis map\'s button stands at the end of the ids\' row, which stays in view under the strip, on one line, its last id giving way first',
   shell.includes("body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-panel #modeSliderPopup, body.br-hint .left-panel .icon-row .ar-switch { display: none !important; }")
   && shell.includes(".left-panel .icon-row .br-chip {") && shell.includes("#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }") && shell.includes("#workflowMapModal .wf-node-branches {")
   && paneCss.includes("#streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }") && paneCss.includes("#streamOutput .sp-row.differs .t {") && paneCss.includes("#streamOutput .sp-hint {")

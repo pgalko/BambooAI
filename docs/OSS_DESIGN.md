@@ -313,7 +313,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
 - **Status 2026-11-20: 2.8.1 (patches 0316-0317).** The conversation with the Architect in steps, with a map of
   them (docs/ARCHITECT_DESIGN.md §2.25). What the person says or changes, with the Architect's reply, is a step.
-  They go back to any step - with the arrows on the Brief tab, or on a map of the steps in the thread map's
+  They go back to any step - with the arrows on the Brief tab, or on a map of the steps in the Workflow map's
   drawer - and go on from it: another way, of which the Architect reads the conversation up to that step and
   nothing after. The way that was left stays on the map, to go back to and to go on from. Both panes show the
   step on screen; an analysis starts from it, and the run - and memory, once it is saved - keep the way that ran.
@@ -397,16 +397,17 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   state names out of the registry - patch 0234. Executor build v65.
 - **Status 2026-10-24: 2.5.1.** The code map's ways in and out: a `[cell n]` citation in the report opens the map on
   that number; the eye on each notebook cell opens it at that cell; the recipe panel offers the other view; *Open in
-  the notebook* lights the lines behind the number in the cell (map version 3). The diagram zooms as the thread map
+  the notebook* lights the lines behind the number in the cell (map version 3). The diagram zooms as the Workflow map
   does. The `[cell n]` chip and the panel's buttons in the result colour; the light theme's result border. The
   README's figure. The stack's fake wellness on a cycle every window holds - patches 0220-0228. No kernel change:
   executor build v63 stands.
 - **Status 2026-10-21: 2.5.0.** The code map (docs/CODEMAP_DESIGN.md): how a chain got from its data to its numbers,
-  read mechanically from the committed cells and the kernel's record - no model call, nothing of it in a prompt - built
-  at the chain's end and kept with it; the Steps view with the inputs as lanes, the recipe diagram of each number, the
-  panel and the checks worth making; opened from the closing card's link or the thread map's eye - patches 0210-0217.
-  The record's registry per cell, each RESULT's line and the run's mode (0210); the note surviving a review, CTX's
-  tables typed (0208); the README's figure (0218). Executor build v63 (0210): the image is rebuilt with this ship.
+  read mechanically from the committed cells and the kernel's record - no model call, nothing of it in a prompt -
+  built at the chain's end and kept with it; the Steps view with the inputs as lanes, the recipe diagram of each
+  number, the panel and the checks worth making; opened from the closing card's link or the Workflow map's eye -
+  patches 0210-0217. The record's registry per cell, each RESULT's line and the run's mode (0210); the note surviving
+  a review, CTX's tables typed (0208); the README's figure (0218). Executor build v63 (0210): the image is rebuilt
+  with this ship.
 - **Status 2026-10-18: 2.4.2.** The context's reading: each code with which way it points against the person's usual
   state, said or inferred, and the day it describes; a tag a label and a copy read once; each passage with its
   activity's day; earlier passages beside each batch; the calendar's categories on the map; the profile's custom sets

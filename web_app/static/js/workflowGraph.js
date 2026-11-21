@@ -3,16 +3,19 @@
 //  Replaces Mermaid-based workflow map rendering
 //  Dependency: dagre.js (https://cdnjs.cloudflare.com/ajax/libs/dagre/0.8.5/dagre.min.js)
 //
-//  The thread map draws a thread's chains. The same drawing serves another map - the steps of a brief's
-//  conversation (architect.js; docs/ARCHITECT_DESIGN.md §2.25) - which gives its boxes as chains are given
+//  The Workflow map draws a thread's chains. The same drawing serves another map - the Brief map, the steps of a
+//  brief's conversation (architect.js; docs/ARCHITECT_DESIGN.md §2.25) - which gives its boxes as chains are given
 //  ({chain_id, parentChainId, queryText}) and says, in render()'s last argument, what is its own:
 //      sub(item, i)    a box's second line
 //      show(item, i)   what the drawer's foot says of the box under the pointer
 //      pick(item, i)   a box clicked
 //      tag(item, i)    a mark on a box's corner, where the map has one
-//  and has the way to the box in use lit while no box is under the pointer. The turns of an analysis are a third map
-//  (branch.js; docs/BRANCH_DESIGN.md §5). The thread's own boxes are analyses: where one has branches its box says
-//  how many (`branches`), and a click opens the chain of it the box stands for (BranchUI.open).
+//  and has the way to the box in use lit while no box is under the pointer. The turns of an analysis are a third map,
+//  the Analysis map (branch.js; docs/BRANCH_DESIGN.md §5). The thread's own boxes are analyses: where one has branches
+//  its box says how many (`branches`), and a click opens the chain of it the box stands for (BranchUI.open).
+//
+//  The three share the drawer's head (2.9): head() writes a map's name, what is on it, and what the drawer's foot says
+//  until a box is under the pointer; render() puts zoom and full screen into the head, before its close.
 //--------------------
 
 window.WorkflowGraph = (function () {
@@ -70,16 +73,15 @@ window.WorkflowGraph = (function () {
         currentZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
         wrapper.style.transform = 'scale(' + currentZoom + ')';
 
-        var mapContainer = wrapper.closest('.workflow-map-container') || wrapper.parentElement;
-        var host = mapContainer.parentElement || mapContainer;
-        var label = host.querySelector('.wf-zoom-level');
+        var tools = document.getElementById('mapDrawerTools');
+        var label = tools.querySelector('.wf-zoom-level');
         if (label) label.textContent = Math.round(currentZoom * 100) + '%';
 
-        var controls = host.querySelector('.wf-zoom-controls');
+        var controls = tools.querySelector('.wf-zoom-controls');
         if (controls) {
             var btns = controls.querySelectorAll('.wf-zoom-btn');
             btns[0].disabled = (currentZoom <= MIN_ZOOM);
-            btns[2].disabled = (currentZoom >= MAX_ZOOM);
+            btns[1].disabled = (currentZoom >= MAX_ZOOM);       // the way further in; the third button is fit, which is never shut
         }
     }
 
@@ -113,22 +115,30 @@ window.WorkflowGraph = (function () {
         controls.appendChild(level);
         controls.appendChild(btnIn);
         controls.appendChild(btnReset);
+        [btnOut, btnIn, btnReset].forEach(function (b) { b.setAttribute('aria-label', b.title); });       // a button of a mark alone: its name, for a reader
 
         container.appendChild(controls);
     }
 
-    // ── Fullscreen ──────────────────────────────────────────
+    // ── Full screen ─────────────────────────────────────────
+
+    var FULLSCREEN_ICON = {
+        off: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>',
+        on: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
+    };
+
+    // the button says what a click does: the drawer over the whole page, or back at its side
+    function fullscreenLooks(btn, isFs) {
+        btn.innerHTML = isFs ? FULLSCREEN_ICON.on : FULLSCREEN_ICON.off;
+        btn.title = isFs ? 'Leave full screen' : 'Full screen';
+        btn.setAttribute('aria-label', btn.title);
+    }
 
     function createFullscreenButton(container) {
         var btn = document.createElement('button');
         btn.className = 'wf-fullscreen-btn';
-        btn.title = 'Toggle fullscreen';
-        btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
-
-        btn.addEventListener('click', function () {
-            toggleFullscreen();
-        });
-
+        fullscreenLooks(btn, !!document.querySelector('.workflow-modal-content.wf-fullscreen'));       // a map drawn again while the drawer is over the whole page
+        btn.addEventListener('click', toggleFullscreen);
         container.appendChild(btn);
     }
 
@@ -138,12 +148,7 @@ window.WorkflowGraph = (function () {
 
         var isFs = modal.classList.toggle('wf-fullscreen');
         var btn = document.querySelector('.wf-fullscreen-btn');
-        if (btn) {
-            btn.innerHTML = isFs
-                ? '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>'
-                : '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
-            btn.title = isFs ? 'Exit fullscreen' : 'Toggle fullscreen';
-        }
+        if (btn) fullscreenLooks(btn, isFs);
     }
 
     // ── Layout ──────────────────────────────────────────────
@@ -200,7 +205,9 @@ window.WorkflowGraph = (function () {
     // ── Render ──────────────────────────────────────────────
 
     function render(container, responses, activeIndex, of) {
+        var tools = document.getElementById('mapDrawerTools');       // zoom and full screen stand in the drawer's head (2.9); a map with nothing on it has neither
         container.innerHTML = '';
+        tools.innerHTML = '';
         currentZoom = 1;
 
         if (!responses || responses.length === 0) {
@@ -326,7 +333,7 @@ window.WorkflowGraph = (function () {
                 div.appendChild(madeSpan);
                 if (made === 'not run') div.classList.add('wf-node--notrun');
             }
-            // an analysis that went on more than one way: how many branches it has (their turns are on its Turn map)
+            // an analysis that went on more than one way: how many branches it has (their turns: the Analysis map)
             if (!of && resp && resp.branches) {
                 var branchSpan = document.createElement('span');
                 branchSpan.className = 'wf-node-branches';
@@ -386,18 +393,10 @@ window.WorkflowGraph = (function () {
         container.appendChild(wrapper);
         atRest();
 
-        // ── Zoom controls + fullscreen button ──
-        // Attach to scrollable parent (.workflow-map-container) so they stay fixed during scroll
+        // ── Zoom and full screen, in the drawer's head ──
         var mapContainer = container.closest('.workflow-map-container') || container;
-        // the controls sit on the scroller's parent (2026-09-08): anchored to the frame's corners whatever is dragged
-        var controlsHost = mapContainer.parentElement || mapContainer;
-        var oldControls = controlsHost.querySelector('.wf-zoom-controls');
-        if (oldControls) oldControls.remove();
-        var oldFs = controlsHost.querySelector('.wf-fullscreen-btn');
-        if (oldFs) oldFs.remove();
-
-        createZoomControls(controlsHost, wrapper);
-        createFullscreenButton(controlsHost);
+        createZoomControls(tools, wrapper);
+        createFullscreenButton(tools);
         // the graph is scaled to fit the frame, now and whenever the frame changes size (fullscreen, resize)
         fitToFrame(wrapper, mapContainer, W, H);
         if (fitObserver) fitObserver.disconnect();
@@ -496,8 +495,19 @@ window.WorkflowGraph = (function () {
         }
     }
 
+    // ── The drawer's head ───────────────────────────────────
+
+    // What the drawer says of the map it holds: its name; what is on it; and, in its foot until a box is under the
+    // pointer, what a click and the pointer do - nothing, for a map with nothing on it
+    function head(name, counts, rest) {
+        document.getElementById('workflowMapModal').querySelector('h2').textContent = name;
+        document.getElementById('mapDrawerSub').textContent = counts;
+        document.getElementById('nodeTaskContent').innerHTML = rest ? '<span class="map-rest">' + rest + '</span>' : '';
+        document.getElementById('nodePlotPreview').innerHTML = '';
+    }
+
     // ── Public API ──────────────────────────────────────────
 
-    return { render: render, toggleFullscreen: toggleFullscreen };
+    return { render: render, head: head, toggleFullscreen: toggleFullscreen };
 
 })();
