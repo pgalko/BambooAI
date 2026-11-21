@@ -12,7 +12,8 @@
 // shown is greyed and says why under the pointer. The drawer follows what is on screen: drawn again when another
 // chain comes on screen or the one there changes, and on Workflow from then on where its level cannot be shown. It
 // lies over the left pane, so it shuts when an analysis starts (query-processing.js), as it does when a step or a turn
-// is clicked.
+// is clicked. The page under it is dimmed, as under a dialog, and a click there shuts it (shell.css,
+// workflow-management.js).
 //
 // window.MapsUI = { initialize, toggle, shut, follow }
 

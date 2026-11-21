@@ -2,7 +2,7 @@
    Loaded after components.css. Migrated so far: the account dialog (#subscriptionModal). */
 
 /* ---- the shell applied to a legacy .modal element (shown by the JS with display:flex) ---- */
-.modal.ui-modal { position: fixed; inset: 0; width: auto; height: auto; margin: 0; padding: 24px; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; overflow: hidden; }
+.modal.ui-modal { position: fixed; inset: 0; width: auto; height: auto; margin: 0; padding: 24px; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; overflow: hidden; pointer-events: auto; }      /* the dimmed page takes the click (0329): it shuts the dialog, as each of these asks, and reaches nothing under it - .modal let it through */
 .modal.ui-modal > .modal-content.ui-dlg { position: static; margin: 0; padding: 0; max-width: none; min-width: 0; height: auto; transform: none; animation: none; text-align: left; background: var(--bg-secondary); border: 1px solid var(--border-color); box-shadow: var(--shadow-dialog); }
 .modal.ui-modal .ui-dlg-h, .modal.ui-modal .ui-dlg-b, .modal.ui-modal .ui-dlg-f { text-align: left; }
 .modal.ui-modal .ui-dlg-h .title { margin: 0; }

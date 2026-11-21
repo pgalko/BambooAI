@@ -206,13 +206,43 @@ check('the drawer follows what is on screen: the page\'s hook for a chain on scr
 check('the stylesheet: the head is one line - the switch, which takes the room left, then the tools; a level is a button of the head\'s size, the one in use lit as the mode control\'s is, '
   + 'a greyed one faint under a pointer that says no; the chain\'s two levels are one control; the chain\'s name is the part that gives way; the thread\'s buttons show on the Workflow '
   + 'map alone; the drawer is wide enough for two digits on every level',
-  /#workflowMapModal\.map-drawer \{[^}]*width: 560px;/.test(shell) && shell.includes('#workflowMapModal .map-levels { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }')
+  shell.includes('#workflowMapModal.map-drawer .workflow-modal-content { flex: 0 0 560px; width: 560px;') && shell.includes('#workflowMapModal .map-levels { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }')
   && /#workflowMapModal \.map-level \{[^}]*flex-shrink: 0;[^}]*height: 26px;[^}]*font-size: var\(--fs-meta\);[^}]*white-space: nowrap;/.test(shell)
   && shell.includes('#workflowMapModal .map-level[aria-pressed="true"], #workflowMapModal .map-level[aria-pressed="true"] .n { background: var(--bg-tertiary); color: var(--c-model); }')
   && shell.includes('#workflowMapModal .map-level[aria-disabled="true"] { background: none; color: var(--text-quaternary); cursor: not-allowed; }')
   && /#workflowMapModal \.map-chain \{ min-width: 0; overflow: hidden; text-overflow: ellipsis;/.test(shell) && /#workflowMapModal \.map-of-chain \{[^}]*overflow: hidden;/.test(shell)
   && shell.includes('#workflowMapModal .map-of-chain .map-level + .map-level { border-left: 1px solid var(--border-color); }')
   && shell.includes('#workflowMapModal:not([data-level="workflow"]) .map-drawer-foot { display: none; }') && !/map-drawer-(icon|name|sub)|#workflowMapModal\.(steps|turns)/.test(shell));
+
+// ---- the drawer over the page, as a dialog (0329)
+// the page's own wiring of the drawer (workflow-management.js, from its source): the cross, the thread's buttons, the click on the drawer's own element
+global.requestSynthesis = () => {}; global.saveTrajectory = () => {};
+new Function(wm.slice(wm.indexOf('function initializeWorkflowMap() {'), wm.indexOf('\n// The Workflow map - the first level')) + '\ninitializeWorkflowMap();')();
+const isOpen = () => drawer.style.display === 'flex';
+show(two); if (isOpen()) M.shut();
+M.toggle();
+drawer.dispatch('click', drawer.querySelector('.workflow-modal-content'));      // a click in the drawer
+const inDrawer = isOpen();
+drawer.dispatch('click', $('workflowMapContainer'));
+const onMap = isOpen();
+drawer.dispatch('click', drawer);                                              // a click on the dimmed page: the drawer's own element
+const onDim = isOpen();
+M.toggle(); drawer.querySelector('.workflow-close').dispatch('click');
+const onCross = isOpen();
+const dlg = css('dialogs.css');
+check('the drawer lies over the page as a dialog does (0329): its own element is the scrim - the whole window, the dialogs\' dim, taking the pointer - with the drawer past the rail and under '
+  + 'the top bar; a click on the dimmed page shuts it, a click in it does not, the cross does; full screen needs no rule of the scrim\'s. A dialog\'s dim takes the pointer too: the click '
+  + 'that shuts it reaches nothing under it. The page\'s message stands over the drawer\'s dim, so what a button of the drawer did can be read',
+  same([inDrawer, onMap, onDim, onCross], [true, true, false, false])
+  && /#workflowMapModal\.map-drawer \{ position: fixed; inset: 0; width: auto; height: auto; margin: 0; padding: 40px 0 0 46px; background: var\(--scrim\);[^}]*z-index: 1001; pointer-events: auto; \}/.test(shell)
+  && !shell.includes('#workflowMapModal:has(.wf-fullscreen)') && shell.includes('#workflowMapModal .workflow-modal-content.wf-fullscreen { position: fixed; left: 46px; top: 40px; right: 0; bottom: 0; width: auto; height: auto; }')
+  && /\n\.modal\.ui-modal \{ position: fixed; inset: 0;[^}]*background: var\(--scrim\);[^}]*pointer-events: auto; \}/.test(dlg)
+  && /if \(event\.target === workflowMapModal\) \{\s+window\.MapsUI\.shut\(\);/.test(wm)
+  && /\.summary-popup \{[^}]*z-index: 1002;/.test(css('styles.css').replace(/\r/g, '')), [inDrawer, onMap, onDim, onCross]);
+check('the pane under the map has one height, whatever the box under the pointer says (0329): the map above it keeps its frame, and the zoom fitted to that frame holds - the pane grew '
+  + 'and shrank from box to box, and the map was fitted again each time. What does not fit scrolls in the pane; the map is still fitted when the frame itself changes',
+  /#workflowMapModal \.workflow-details-pane \{ flex: 0 0 152px; box-sizing: border-box; overflow: auto;/.test(shell) && !/\.workflow-details-pane \{[^}]*(max-height|flex: 0 0 auto)/.test(shell)
+  && graph.includes('fitObserver = new ResizeObserver(function () { fitToFrame(wrapper, mapContainer, W, H); });') && graph.includes('fitObserver.observe(mapContainer);'));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + JSON.stringify(d === undefined ? '' : d).slice(0, 1800))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

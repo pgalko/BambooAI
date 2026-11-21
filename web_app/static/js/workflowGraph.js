@@ -343,22 +343,22 @@ window.WorkflowGraph = (function () {
                 div.appendChild(branchSpan);
             }
 
-            // the code trace's way in (2026-10-20): an eye on the hovered box and on the open chain's; the app moves to
-            // the chain, the drawer shuts, the map opens
+            // the code trace's way in (2026-10-20): its name - the closing card's button, in small (0329; an eye before) - on
+            // the hovered box and on the open chain's; the app moves to the chain, the drawer shuts, the trace opens
             if (!of && resp && resp.chain_id && made !== 'not run') {
-                var eye = document.createElement('button');
-                eye.className = 'wf-node-map';
-                eye.type = 'button';
-                eye.title = 'Code trace: how this chain got its numbers';
-                eye.setAttribute('aria-label', 'Code trace of chain ' + (idx + 1));
-                eye.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"></path></svg>';
-                eye.addEventListener('click', function (e) {
+                var trace = document.createElement('button');
+                trace.className = 'wf-node-map';
+                trace.type = 'button';
+                trace.title = 'How this chain got from its data to its numbers';
+                trace.setAttribute('aria-label', 'Code trace of chain ' + (idx + 1));
+                trace.textContent = 'Code trace';
+                trace.addEventListener('click', function (e) {
                     e.stopPropagation();
                     if (typeof navigateToChainId === 'function' && String(resp.chain_id) !== String(currentData.chain_id)) navigateToChainId(resp.chain_id);
                     window.MapsUI.shut();
                     if (window.CodeMapUI && typeof window.CodeMapUI.open === 'function') window.CodeMapUI.open(resp.chain_id);
                 });
-                div.appendChild(eye);
+                div.appendChild(trace);
             }
 
             // ── Hover ──

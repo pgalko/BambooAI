@@ -1790,6 +1790,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     thread_boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => (n.querySelector('.wf-node-branches') || {}).textContent || '')")
     page.evaluate("MapsUI.shut()")
     map_again = open_turn_map(page)
+    page.click("#workflowMapModal .workflow-close")      # the page under the drawer is dimmed and takes no click (0329)
     check("the saved thread opened again (0321): its two chains are one analysis, the branch saying what it went on from, after which turn and under what hint - from the thread's "
           "record; the Workflow map has one box, with its branch; the Analysis map shows both ways, the branch's first turn marked; and the saved analysis, opened to read, says its hint",
           again["branches"] == [None, [str(cid), 1, mod.BRANCH_HINT]] and again["analyses"] == [b_id] and again["place"] == {"i": 1, "n": 1}
@@ -1827,9 +1828,11 @@ def walk_draft(page, st, mod, wa, edition, user):
     more_hint = "Now leave the sandy plots out."
     page.click("#streamOutput .sp-stream > .sp-turn[data-turn='1'] > summary .sp-branch")
     page.wait_for_function("() => BranchUI.standing() !== null && BranchUI.standing().turn === 1", timeout=10000)
+    page.keyboard.press("Control+m")                       # the drawer opened by the keys, over the page: the hint is typed and sent by the keys too
+    page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none'", timeout=10000)
     page.fill("#queryInput", more_hint)
-    maps_were = page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display")      # the drawer, open since the Analysis map was looked at
-    page.click("#submitQuery")
+    maps_were = page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display")
+    page.press("#queryInput", "Control+Enter")
     wait_run_end(page, 3)
     page.wait_for_function("() => responses.length === 3 && !responses[2].status", timeout=60000)
     third = page.evaluate("""() => { const e = responses[currentResponseIndex];
@@ -1915,6 +1918,72 @@ def walk_draft(page, st, mod, wa, edition, user):
     page.wait_for_timeout(250)
     back_m = conversation_map(page)
     page.click("#workflowMapModal .workflow-close")
+    # ---- the drawer over the dimmed page, the map steady under the pointer, the branches' arrows (0329) ----
+    open_maps(page, "analysis")
+    page.mouse.move(900, 620)
+    frame = "() => { const d = document.getElementById('workflowMapModal'); return [d.querySelector('.wf-zoom-level').textContent, document.getElementById('workflowMapContainer').clientHeight, document.getElementById('workflowDetailsPane').offsetHeight]; }"
+    steady = [page.evaluate(frame)]
+    said_under = set()
+    for i in range(len(a_map["boxes"])):
+        page.hover(f"#workflowMapModal .wf-node >> nth={i}")
+        page.wait_for_timeout(120)
+        steady.append(page.evaluate(frame))
+        said_under.add(page.evaluate("() => document.getElementById('workflowDetailsPane').textContent"))
+    dim = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), c = getComputedStyle(d), s = d.querySelector('.workflow-modal-content').getBoundingClientRect(),
+        dialog = document.querySelector('.modal.ui-modal'), under = document.elementFromPoint(900, 620);
+        return { bg: c.backgroundColor, dialog: getComputedStyle(dialog).backgroundColor, takes: [c.pointerEvents, getComputedStyle(dialog).pointerEvents], over: [c.left, c.top, c.right, c.bottom],
+                 sheet: [Math.round(s.left), Math.round(s.top), Math.round(s.bottom) === innerHeight], under: under === d, tab: (document.querySelector('#tabContainer .tab.active') || {}).id }; }""")
+    spot = page.evaluate("() => { const r = [...document.querySelectorAll('#tabContainer .tab')].find(t => !t.classList.contains('active')).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }")
+    page.mouse.click(spot[0], spot[1])                       # on the dimmed page, where a tab stands: the drawer shuts, and the tab is not gone to
+    page.wait_for_timeout(300)
+    dimmed_click = [shown(), page.evaluate("() => (document.querySelector('#tabContainer .tab.active') || {}).id")]
+    page.click("#datasetManagerPill")                        # a dialog: a click on its dim shuts it too
+    page.wait_for_function("() => { const m = document.getElementById('datasetManagerModal'); return !!m && getComputedStyle(m).display !== 'none'; }", timeout=10000)
+    page.mouse.click(12, 400)
+    page.wait_for_timeout(300)
+    cache_shut = page.evaluate("() => getComputedStyle(document.getElementById('datasetManagerModal')).display")
+    # the arrows: this analysis went on three ways, and its Investigation tab has the row; the Brief tab's stepper is the measure of its look
+    look = """(sel) => { const root = document.querySelector(sel), pick = e => { const c = getComputedStyle(e), r = e.getBoundingClientRect();
+        return [c.fontFamily, c.fontSize, c.fontWeight, c.lineHeight, c.letterSpacing, c.textTransform, c.color, c.backgroundColor, c.borderTopColor, c.borderTopWidth, c.borderRadius, c.padding, c.cursor,
+                e.tagName === 'BUTTON' ? Math.round(r.width) + 'x' + Math.round(r.height) : ''].join(';'); };
+        const kids = [...root.children];
+        return { row: pick(root.parentNode).split(';').slice(0, 7), box: pick(root), k: pick(root.querySelector('.k')), b: pick(root.querySelector('b')), off: kids.filter(x => x.disabled).map(pick)[0] || null,
+                 on: kids.filter(x => x.tagName === 'BUTTON' && !x.disabled).map(pick)[0] || null,
+                 gaps: kids.slice(1).map((c, i) => Math.round(c.getBoundingClientRect().left - kids[i].getBoundingClientRect().right)), top: Math.round(root.getBoundingClientRect().top) }; }"""
+    page.evaluate("activateTab('brief')")
+    look_brief = page.evaluate(look, "#content-brief .ar-ver")
+    page.evaluate("activateTab('plan')")
+    row = """() => { const r = document.querySelector('#content-plan .br-top');
+        return { chain: String(currentData.chain_id), tab: (document.querySelector('#tabContainer .tab.active') || {}).id, rows: document.querySelectorAll('#content-plan .br-top').length,
+                 first: document.getElementById('content-plan').firstElementChild === r, from: (r.querySelector('.label') || {}).textContent || '', said: (r.querySelector('.br-said') || {}).textContent || '',
+                 which: r.querySelector('.br-ver b').textContent, name: r.querySelector('.br-ver .k').textContent, off: [...r.querySelectorAll('.br-ver button')].map(b => b.disabled) }; }"""
+    arrows = [page.evaluate(row)]
+    look_last = page.evaluate(look, "#content-plan .br-ver")
+    for _ in range(2):
+        page.click("#content-plan .br-ver button >> nth=0")
+        page.wait_for_timeout(300)
+        arrows.append(page.evaluate(row))
+    look_first = page.evaluate(look, "#content-plan .br-ver")
+    page.click("#content-plan .br-ver button >> nth=1")
+    page.click("#content-plan .br-ver button >> nth=1")
+    page.wait_for_timeout(300)
+    arrows.append(page.evaluate(row))
+    same_look = {part: (look_first if part == "off" else look_last)[part] == look_brief[part] for part in ("row", "box", "k", "b", "on", "off", "gaps", "top")}
+    chains3 = page.evaluate("() => BranchUI.members(responses[currentResponseIndex]).map(e => String(e.chain_id))")
+    check("the maps drawer lies over the page as a dialog does (0329): the page under it is dimmed with the dialogs' own dim and takes no click - a click there shuts the drawer and goes "
+          "no further, as a click on a dialog's dim shuts the dialog. The map is steady under the pointer: from box to box the pane under it says something else and keeps its height, "
+          "so the map's frame and its zoom stay as they were when it was opened",
+          dim["bg"] == dim["dialog"] and dim["bg"].startswith("rgba(0, 0, 0, 0.") and dim["takes"] == ["auto", "auto"] and dim["over"] == ["0px"] * 4 and dim["sheet"] == [46, 40, True]
+          and dim["under"] is True and dimmed_click == [False, dim["tab"]] and cache_shut == "none"
+          and len(steady) == len(a_map["boxes"]) + 1 and len({tuple(s) for s in steady}) == 1 and len(said_under) > 1, (dim, dimmed_click, cache_shut, steady, len(said_under)))
+    check("the branches' arrows in the Investigation tab (0329): an analysis that went on three ways has a row at the head of the tab - where the branch on screen went on from and its "
+          "hint, then which branch it is between the arrows; the arrows go through the original and the branches in the order they were made, each on its Investigation tab, and "
+          "stop at the ends. The row and its arrows look as the Brief tab's do, to the pixel",
+          [(x["chain"], x["which"], x["off"]) for x in arrows] == [(chains3[2], "2 of 2", [False, True]), (chains3[1], "1 of 2", [False, False]), (chains3[0], "original", [True, False]),
+                                                                  (chains3[2], "2 of 2", [False, True])]
+          and all(x["tab"] == "tab-plan" and x["rows"] == 1 and x["first"] and x["name"] == "Branch" for x in arrows)
+          and [(x["from"], x["said"]) for x in arrows[:3]] == [("From turn 1", more_hint), ("From turn 1", mod.BRANCH_HINT), ("", "")] and all(same_look.values()),
+          (arrows, chains3, same_look, look_brief, look_last, look_first))
     check("the maps in one place (0327): nothing above the analysis or beside the Brief tab's arrows opens a map - the left bar's button, named Maps, is the way in. It opens one drawer, "
           "on the map it was left on, the level in use with the focus. The switch names the chain on screen between the thread's level and that chain's two: Workflow says how many "
           "chains and branches, and has the thread's buttons under its map; Pathfinding holds the steps that made the brief, a box to each; Analysis the turns of the analysis and its "
@@ -2095,14 +2164,19 @@ def main():
             page.click("#codeMapModal .cm-zoom-btn[data-dir='fit']")
             page.keyboard.press("Escape")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
-            # the fourth way in (2026-10-24): the eye on a cell in the Investigation tab opens the map on the Steps view at that cell
+            # the fourth way in (2026-10-24): the trace's name on a cell in the Investigation tab (0329; an eye before) opens the map on the Steps view at that cell
             page.evaluate("paneOpenTab('Investigation')")
             page.wait_for_selector(".briefing-content .nb-cell-map", timeout=5000)
             eye_cell = page.evaluate("() => document.querySelector('.briefing-content .nb-cell-map').dataset.cell")
+            ways_look = page.evaluate("""() => { const look = e => { const c = getComputedStyle(e); return [c.color, c.borderTopColor, c.borderTopStyle, c.backgroundColor]; };
+                const cell = document.querySelector('.briefing-content .nb-cell-map'), card = document.querySelector('#streamOutput .sp-done .sp-codemap');
+                return { says: cell.textContent, icons: cell.querySelectorAll('svg').length, cell: look(cell), card: look(card) }; }""")
             page.click(".briefing-content .nb-cell-map")
             page.wait_for_selector("#codeMapModal .cm-pane.step", timeout=15000)
             cm_eye = page.evaluate("() => ({ open: document.getElementById('codeMapModal').style.display === 'flex', steps: !!document.querySelector('#codeMapModal .cm-steps'), cell: (document.querySelector('#codeMapModal .cm-pane.step .cm-big.cell') || {}).textContent || '' })")
-            check("the eye on a notebook cell opens the map on the Steps view with that cell's row selected", cm_eye["open"] and cm_eye["steps"] and cm_eye["cell"].startswith("Cell " + eye_cell), (eye_cell, cm_eye))
+            check("a notebook cell's way into the code trace says its name, with no icon, in the green and the border of the closing card's button (0329; an eye before), and opens the map on "
+                  "the Steps view with that cell's row selected", cm_eye["open"] and cm_eye["steps"] and cm_eye["cell"].startswith("Cell " + eye_cell)
+                  and (ways_look["says"], ways_look["icons"]) == ("Code trace", 0) and ways_look["cell"] == ways_look["card"], (eye_cell, cm_eye, ways_look))
             page.keyboard.press("Escape")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
 
@@ -2136,9 +2210,15 @@ def main():
             open_maps(page, "workflow")
             page.wait_for_selector("#workflowMapModal .wf-node .wf-node-map", timeout=5000)
             page.hover("#workflowMapModal .wf-node")
+            box_way = page.evaluate("""() => { const look = e => { const c = getComputedStyle(e); return [c.color, c.borderTopColor, c.borderTopStyle, c.backgroundColor]; };
+                const way = document.querySelector('#workflowMapModal .wf-node .wf-node-map'), card = document.querySelector('#streamOutput .sp-done .sp-codemap');
+                return { says: way.textContent, icons: way.querySelectorAll('svg').length, shown: getComputedStyle(way).opacity, way: look(way), card: look(card) }; }""")
             page.click("#workflowMapModal .wf-node .wf-node-map")
             page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
-            check("the Workflow map's eye opens the chain's code trace and closes the drawer", page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'"))
+            check("a chain's box on the Workflow map has the code trace's name under the pointer, with no icon, in the green and the border of the closing card's button (0329; an eye before); "
+                  "a click opens the chain's code trace and closes the drawer",
+                  page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'")
+                  and (box_way["says"], box_way["icons"], box_way["shown"]) == ("Code trace", 0, "1") and box_way["way"] == box_way["card"], box_way)
             page.click("#codeMapModal .cm-head button.x")
             page.wait_for_timeout(200)
             # the lines behind a number (2026-10-24): Open in the notebook from a recipe lights the statements the number rests on
@@ -2300,11 +2380,12 @@ def main():
             page.wait_for_selector("#trajectoryButton:not([disabled])", timeout=10000)
             page.click("#trajectoryButton")
             page.wait_for_function("() => /Saved the whole thread/.test(document.getElementById('summaryPopup').textContent)", timeout=30000)
-            traj = page.evaluate("""() => ({ map: getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none', dialog: !!document.getElementById('rankModal'),
-                marks: responses.map(r => r.bookmark_type || null), thread: String(currentData.thread_id) })""")
+            traj = page.evaluate("""() => { const said = document.getElementById('summaryPopup'), at = said.getBoundingClientRect(), top = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+                return { map: getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none', dialog: !!document.getElementById('rankModal'), said_over: !!top && said.contains(top),
+                         marks: responses.map(r => r.bookmark_type || null), thread: String(currentData.thread_id) }; }""")
             traj_docs = [json.load(open(f)) for f in glob.glob(os.path.join(workdir, "webapp", "storage", USER, "favourites", traj["thread"], "*.json"))]
-            check("Save trajectory saves the whole thread in one click (2.8): every chain stored alongside, none picked, no rating; the page says so and the map stays open",
-                  traj["map"] and not traj["dialog"] and traj["marks"] == ["trajectory"] * 4 and len(traj_docs) == 4
+            check("Save trajectory saves the whole thread in one click (2.8): every chain stored alongside, none picked, no rating; the page says so - over the drawer's dim (0329) - and the map stays open",
+                  traj["map"] and traj["said_over"] and not traj["dialog"] and traj["marks"] == ["trajectory"] * 4 and len(traj_docs) == 4
                   and all(d.get("bookmark_type") == "trajectory" and "rank" not in d for d in traj_docs), (traj, [d.get("bookmark_type") for d in traj_docs]))
             # what was saved is memory (2.8, docs/ARCHITECT_DESIGN.md §3.5): the view follows behind the save, from the thread's record
             record = json.load(open(os.path.join(store_dir, "threads", traj["thread"] + ".json")))["runs"]
@@ -3028,7 +3109,8 @@ def main():
             thread_map = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), boxes = [...d.querySelectorAll('.wf-node')];
                 return { boxes: boxes.length, branches: boxes.map(x => (x.querySelector('.wf-node-branches') || {}).textContent || '').filter(Boolean),
                          on: boxes.filter(x => x.classList.contains('wf-node--active')).map(x => x.querySelector('.wf-node-chain').textContent), level: d.getAttribute('data-level') }; }""")
-            page.click("#railMapButton")
+            rail_at = page.evaluate("() => { const r = document.getElementById('railMapButton').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }")
+            page.mouse.click(rail_at[0], rail_at[1])       # where the left bar's button stands, under the drawer's dim (0329)
             page.click("#nextResponse")
             page.wait_for_timeout(500)
             stepped = left_pane(page)["position"]
@@ -3038,7 +3120,7 @@ def main():
             check("the Workflow map and the arrows count analyses, not branches (0320): eleven chains in the thread, nine boxes - the two analyses that went on another way each saying "
                   "so -, the open box that of the analysis on screen, showing the branch; the arrows step to the next analysis and back to the branch that was on screen. The drawer's "
                   "Workflow level is lit and says how many chains and branches; the thread's buttons are in view, the head is the drawer's one head, and its foot says what a click and "
-                  "the pointer do; the left bar's button, pressed again, shuts the drawer",
+                  "the pointer do; a click where the left bar's button stands - the page is dimmed under the drawer (0329) - shuts the drawer",
                   thread_map["boxes"] == 9 and entry_b2["n"] == n_b + 2 == 11 and thread_drawer["sub"] == "9 chains · 2 branches" and thread_map["branches"] == ["1 branch", "1 branch"]
                   and thread_drawer["head"] == map_head() and (thread_drawer["title"], thread_drawer["says"]) == ("Workflow", "Click a chain to open it. Hover over one to see its question.")
                   and thread_map["on"] == [f"Chain: {entry_b2['chain']}"] and thread_drawer["buttons"] is True and thread_map["level"] == "workflow"

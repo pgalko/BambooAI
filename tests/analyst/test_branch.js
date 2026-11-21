@@ -539,5 +539,58 @@ check('the stylesheet: the branch button stands before the prompt\'s in a card\'
   /#streamOutput \.sp-branch \{ order: 1;[^}]*width: 22px; height: 18px; margin: 0 -10px 0 6px;/.test(paneCss) && paneCss.includes("#streamOutput .sp-turn > summary .sp-prompt { order: 2; box-sizing: border-box; min-width: 22px; height: 18px; margin-bottom: 0; justify-content: center; }")
   && paneCss.includes("#streamOutput .sp-turn.kept > summary .sp-branch { margin-right: 28px; }") && paneCss.includes("#streamOutput .sp-branch:hover { color: var(--accent-color); border-color: var(--accent-color); }"));
 
+// ---- the arrows at the head of the Investigation tab (0329)
+// a thread of its own: a first question; an analysis that went on three ways - two from its third turn, one from the first of those; and a follow-up, an analysis of one run
+const NOTEBOOK = '<div class="briefing-content"><div class="nb">the notebook</div></div>';
+const tabbed = (e, more, stale) => Object.assign({}, e, more || {}, { tabContent: '<div class="tab" id="tab-answer">Answer</div><div class="tab" id="tab-plan">Investigation</div>',
+  contentOutput: '<div id="content-answer">the answer</div><div id="content-plan" class="tab-content">' + (stale || '') + NOTEBOOK + '</div>' });
+const nbA = tabbed(a), nbB1 = tabbed(b1), nbF = tabbed(f, null, '<div class="br-top"><div class="br-ver"><b>9 of 9</b></div></div>'),
+      nbB2 = tabbed(b2, { branch: { of: 20, turn: 3, hint: 'another <way> & "more"' } }, '<div class="br-top"><div class="br-ver"><b>1 of 1</b></div></div>'), nbC = tabbed(c), bare = Object.assign({}, a, { chain_id: 26, branch: { of: 20, turn: 2, hint: 'no tab' } });
+responses.splice(0); responses.push(q0, nbA, nbB1, nbF, nbB2, nbC); B.leave();
+const activated = []; global.activateTabInView = t => activated.push('in view: ' + t); global.activateTab = t => activated.push(t);
+const head = () => { const tab = $('content-plan'), row = tab ? tab.querySelector('.br-top') : null, ver = row ? row.querySelector('.br-ver') : null;
+  return { chain: currentData.chain_id, rows: tab ? tab.querySelectorAll('.br-top').length : null, first: tab ? tab.elements[0].className : null,
+           from: row && row.querySelector('.label') ? row.querySelector('.label').textContent : '', said: row && row.querySelector('.br-said') ? [row.querySelector('.br-said').textContent, row.querySelector('.br-said').getAttribute('title')] : null,
+           ver: ver ? ver.elements.map(x => x.tag + (x.className ? '.' + x.className : '') + '=' + x.textContent + (x.tag === 'button' ? '|' + x.getAttribute('aria-label') + '|' + x.getAttribute('title') + (x.hasAttribute('disabled') ? '|off' : '') + '|' + x.getAttribute('onclick') : '')) : null }; };
+const arrow = (way, to, off) => 'button=' + (to < 0 ? '‹' : '›') + '|The branch ' + way + '|The branch ' + way + (off ? '|off' : '') + '|if (window.BranchUI) BranchUI.flip(' + to + ');';
+const verOf = (said, offBefore, offAfter) => ['span.k=Branch', arrow('before', -1, offBefore), 'b=' + said, arrow('after', 1, offAfter)];
+show(nbA); const atOriginal = head();
+B.flip(1); const at1 = head(), act1 = activated.splice(0);
+B.flip(1); const at2 = head();
+B.flip(1); const at3 = head(), loadedTo = loaded.length;
+B.flip(1); const atEnd = head(), loadedEnd = loaded.length - loadedTo;      // no branch after the last: nothing moves
+B.flip(-1); B.flip(-1); B.flip(-1); const backAt = head();
+B.flip(-1); const beforeFirst = [head().chain, loaded.length - loadedTo];
+activated.splice(0); delete global.activateTabInView;
+B.flip(1); const actPlain = activated.splice(0);                                 // a page without the live view's way to a tab: the tab's own
+show(nbF); const single = head();                                                  // an analysis of one run, its tab kept with a row
+show(q0); const noTab = head();                                                   // a chain with no Investigation tab
+B.onChain(null); B.onChain(undefined);
+responses.push(bare); show(nbA); B.flip(1); B.flip(1); B.flip(1); B.flip(1);       // to a branch with no Investigation tab
+const toBare = [currentData.chain_id, $('content-plan'), activated.splice(0)];
+responses.pop();
+const tabsCss = css('tabs.css');
+check('the arrows in the Investigation tab (0329): an analysis that went on more than one way has a row at the head of the tab - for a branch, the turn it went on from and its hint, whole '
+  + 'under the pointer and as text; then "Branch", and between the arrows the original, or the branch by its place among them in the order they were made; an arrow with nothing beyond is '
+  + 'off. An arrow brings the next branch on screen on its Investigation tab, and past the last or before the first nothing moves. The row is drawn when a chain comes on screen: one kept '
+  + 'with the tab is drawn again, and gone where the analysis has one run. A chain with no Investigation tab has none, and is still gone to',
+  same(atOriginal, { chain: 20, rows: 1, first: 'br-top', from: '', said: null, ver: verOf('original', true, false) })
+  && same(at1, { chain: 21, rows: 1, first: 'br-top', from: 'From turn 3', said: ['keep the two blocks apart', 'keep the two blocks apart'], ver: verOf('1 of 3', false, false) }) && same(act1, ['in view: plan'])
+  && same(at2, { chain: 22, rows: 1, first: 'br-top', from: 'From turn 3', said: ['another <way> & "more"', 'another <way> & "more"'], ver: verOf('2 of 3', false, false) })
+  && same(at3, { chain: 23, rows: 1, first: 'br-top', from: 'From turn 4', said: ['and say which is larger', 'and say which is larger'], ver: verOf('3 of 3', false, true) })
+  && same(atEnd, at3) && loadedEnd === 0 && same(backAt, atOriginal) && same(beforeFirst, [20, 3]) && same(actPlain, ['plan'])
+  && same(single, { chain: 30, rows: 0, first: 'briefing-content', from: '', said: null, ver: null }) && same(noTab, { chain: 10, rows: null, first: null, from: '', said: null, ver: null })
+  && same(toBare, [26, null, ['plan', 'plan', 'plan']]),
+  [atOriginal, at1, at2, at3, atEnd, loadedEnd, backAt, beforeFirst, actPlain, single, noTab, toBare]);
+check('the stylesheet: the row and its arrows are the Brief tab\'s own - each rule of the Brief\'s head row and of its stepper names the Investigation tab\'s beside it, so the two cannot '
+  + 'differ; the row sets its own type, which the Brief\'s took from its brief; the hint is the part that gives way, on one line',
+  ['#content-brief .ar-top, #content-plan .br-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }',
+   '#content-brief .ar-top .label, #content-plan .br-top .label {', '#content-brief .ar-ver, #content-plan .br-ver {', '#content-brief .ar-ver .k, #content-plan .br-ver .k {', '#content-brief .ar-ver b, #content-plan .br-ver b {',
+   '#content-brief .ar-ver button, #content-plan .br-ver button {', '#content-brief .ar-ver button:not(:disabled):hover, #content-plan .br-ver button:not(:disabled):hover {',
+   '#content-brief .ar-ver button:disabled, #content-plan .br-ver button:disabled {', '#content-plan .br-top { flex-wrap: nowrap; }', '#content-plan .br-top .label, #content-plan .br-top .br-ver { flex-shrink: 0; }',
+   '#content-plan .br-top .br-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'].every(r => tabsCss.includes(r))
+  && !/#content-brief \.ar-(top|ver)[^,{]*\{/.test(tabsCss.replace('#content-brief .ar-ver .ar-map {', '')) && !/\n#content-plan \.br-ver[^,{]*\{/.test(tabsCss)
+  && js('ui-controls.js').includes('window.BranchUI.onChain(responses[currentResponseIndex])'));
+
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + JSON.stringify(d === undefined ? '' : d).slice(0, 1500))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

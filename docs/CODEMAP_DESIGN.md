@@ -1,10 +1,16 @@
-# The code map — design v1.8 (2026-11-21)
+# The code map — design v1.9 (2026-11-22)
 
 **The name (0328).** Since 2.9 the code map is called the **Code trace** on the page and in the README. The product
 owner, 2026-11-21: it is not a map in the sense the Workflow, Pathfinding and Analysis maps are. It follows a number
 back to its data. This document keeps the name it was written under, as do the names in the code
 (`analyst/codemap`, `code_map`, `CodeMapUI`, `/code_map/...`). Its ways in are as they were: the closing card's
 button, a `[cell n]` citation, a cell's eye in the Investigation tab, the eye on a chain's box of the Workflow map.
+
+**The eyes (0329).** The two eyes are the trace's name now - *Code trace* in a green rectangle, the closing card's
+button in small, with no icon (the product owner, 2026-11-22: one look for the ways in). On a chain's box it shows
+under the pointer and on the open chain's, as the eye did (`workflowGraph.js`); on a cell's header it is always
+there (`analyst/render.py`). A notebook kept with the eye says the name when its chain comes on screen
+(`workflow-management.js`). Where this document says *eye*, that is what it means.
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built

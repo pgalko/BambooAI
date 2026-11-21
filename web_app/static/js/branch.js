@@ -9,13 +9,14 @@
 // button on a turn's card goes back to that turn with no map opened.
 //
 // A branch belongs to its analysis. The Workflow map and the arrows count analyses, and show of each the chain that
-// was last on screen. A chain's entry keeps `branch`: {of: the chain whose turn it went on from, turn, hint}.
+// was last on screen. A chain's entry keeps `branch`: {of: the chain whose turn it went on from, turn, hint}. From
+// one branch of an analysis to the next, with no map opened: the arrows at the head of its Investigation tab.
 //
 // The pane itself is not touched by going back: what follows the turn is hidden by a rule of this module's own, so
 // nothing of the moment is kept with the chain.
 //
 // window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, dress, from,
-//                     analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
+//                     flip, analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
 // standing(): the turn gone back to - {chain, turn} - or null.
 
 (function () {
@@ -31,7 +32,8 @@
         failed: 'failed', notRun: 'not run', aCell: n => 'cell In [' + n + ']', aFailed: 'a cell that failed', aNotRun: 'a cell that was not run',
         info: { turn: 'Turn', did: 'Did', hint: 'Hint', ways: 'Went on', printed: 'Printed' },
         busy: 'An analysis is running: wait for it, or stop it, then go back to a turn',
-        branchFrom: n => 'Branch from turn ' + n
+        branchFrom: n => 'Branch from turn ' + n,
+        branch: 'Branch', original: 'original', of: (k, n) => k + ' of ' + n, before: 'The branch before', after: 'The branch after'
     };
     const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
         '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
@@ -171,6 +173,32 @@
         if (back && same(back.chain, entry.chain_id) && back.turn === n) leave(); else go(entry, n);
     }
 
+    // ------------------------------------------------------------ the arrows in the Investigation tab
+    // An analysis that went on more than one way has a row at the head of its Investigation tab: for a branch, the turn
+    // it went on from and its hint; then which one is on screen - the original, or a branch by its place among them,
+    // in the order they were made - between the arrows to the one before and the one after, as the Brief tab has them
+    // for its steps (tabs.css styles the two as one). The row is of the moment a chain comes on screen: how many
+    // branches the analysis has is the thread's to say then, so a row the tab was kept with is drawn again
+    function arrows(entry) {
+        const tab = byId('content-plan'), was = tab ? tab.querySelector('.br-top') : null;
+        if (was) was.remove();
+        const all = tab && entry ? members(entry) : [], i = all.indexOf(entry);
+        if (all.length < 2 || i < 0) return;
+        const arrow = (to, glyph, title) => '<button type="button" title="' + title + '" aria-label="' + title + '"' + (all[i + to] ? '' : ' disabled') +
+            ' onclick="if (window.BranchUI) BranchUI.flip(' + to + ');">' + glyph + '</button>';
+        tab.insertAdjacentHTML('afterbegin', '<div class="br-top">' +
+            (entry.branch ? '<span class="label">' + WORDS.from(entry.branch.turn) + '</span><span class="br-said" title="' + esc(entry.branch.hint) + '">' + esc(entry.branch.hint) + '</span>' : '') +
+            '<div class="br-ver"><span class="k">' + WORDS.branch + '</span>' + arrow(-1, '‹', WORDS.before) + '<b>' + (i ? WORDS.of(i, all.length - 1) : WORDS.original) + '</b>' +
+            arrow(1, '›', WORDS.after) + '</div></div>');
+    }
+    // An arrow pressed: the branch made before the one on screen, or after it, comes on screen - on its Investigation tab
+    function flip(to) {
+        const entry = onScreen(), all = entry ? members(entry) : [], next = all[all.indexOf(entry) + to];
+        if (!next) return;
+        show(next);
+        if (byId('tab-plan')) (typeof activateTabInView === 'function' ? activateTabInView : activateTab)('plan');
+    }
+
     // ------------------------------------------------------------ going back to a turn
     // The left pane ends at the turn: the cards after it, what stands under them, and the row of a hint given later
     // are out of sight. The rule is this module's, in the page's head: the pane's markup stays as the chain keeps it
@@ -265,12 +293,14 @@
         window.WorkflowGraph.rest(WORDS.mapRest);
     }
     // A chain is on screen (updateNavigationButtons): it is the one its analysis shows from now on; a turn gone back to
-    // on another chain is left; and its turns have their buttons, where it was kept from before they had
+    // on another chain is left; its turns have their buttons, where it was kept from before they had; and its
+    // Investigation tab has the arrows to the other branches of its analysis
     function onChain(entry) {
         if (entry) shown[String(first(entry).chain_id)] = entry.chain_id;
         if (back && !(entry && same(back.chain, entry.chain_id))) { back = null; ends(null); }
         composer();
         dress(byId('streamOutput'));
+        arrows(entry);
     }
 
     // ------------------------------------------------------------ a hint sent
@@ -335,5 +365,5 @@
     }
 
     window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, analyses, place, step, items, open,
-                        dress, from, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
+                        dress, from, flip, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
 })();

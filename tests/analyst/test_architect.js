@@ -1767,15 +1767,15 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     window.WorkflowGraph.render($('workflowMapContainer'), CHAINS, 0);
     const wrap = () => $('workflowMapContainer').querySelector('.wf-graph').className;
     const thread = { boxes: boxes().map(x => x.className + ': ' + x.textContent), rest: wrap(), forks: $('workflowMapContainer').querySelectorAll('.wf-edge-label').map(x => x.textContent).join(),
-                     eyes: boxes().map(x => !!x.querySelector('.wf-node-map')).join() };
+                     traces: boxes().map(x => !!x.querySelector('.wf-node-map')).join() };
     boxes()[2].dispatch('mouseenter');
     const threadOver = [foot(), wrap(), lit()].join(' / ');
     boxes()[2].dispatch('mouseleave');
-    check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code trace\'s eye unless '
+    check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code trace\'s name unless '
       + 'it is a brief not yet run; a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
       + 'the chain, what it follows, its follow-ups',
-      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
-                             'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', eyes: 'true,true,false' })
+      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11Code trace', 'wf-node wf-node--fork: User requested variationsChain: 12Code trace',
+                             'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', traces: 'true,true,false' })
       && threadOver === 'A brief | Chain=3 of 3 13 | Follows=chain 1 | Follow-ups=none / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
 
     // the branch button on the Pathfinder's cards (0325): the way to a step with no map opened
@@ -1940,7 +1940,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     + 'what the readings found are styled in tabs.css; what a reading found under its row in pane.css. The pencil is in view at rest; the cross shows under the mouse, and stays in view on a saved '
     + 'analysis built on. Nothing is left of the wording\'s card, the parts on offer by chips, a passage as a line, or the button that had the saved analyses read; the page\'s words for the Brief tab '
     + 'are plain ones, and none says a part is "not said" or "left to" anyone',
-    ['.ar-top {', '.ar-top .label {', '.ar-gets {', '.ar-ver {', '.ar-ver .k {', '.ar-ver b {', '.ar-ver button {', '.ar-ver button:disabled {', '.ar-always {', '.ar-more {', '.ar-add {', '.ar-kinds {', '.ar-kinds button {',
+    ['.ar-top, #content-plan .br-top {', '.ar-top .label, #content-plan .br-top .label {', '.ar-gets {', '.ar-ver, #content-plan .br-ver {', '.ar-ver .k, #content-plan .br-ver .k {', '.ar-ver b, #content-plan .br-ver b {',
+     '.ar-ver button, #content-plan .br-ver button {', '.ar-ver button:disabled, #content-plan .br-ver button:disabled {', '.ar-always {', '.ar-more {', '.ar-add {', '.ar-kinds {', '.ar-kinds button {',
      '.ar-built {', '.ar-memory {', '.ar-memory .note {', '.ar-memory .q {', '.ar-memory .qt {', '.ar-memory .why {', '.ar-memory .tag {'].every(s => tabsCss.includes('#content-brief ' + s))
     && ['.ar-found {', '.ar-found .hd {', '.ar-found .q {', '.ar-found .ar-open {'].every(s => paneCss.includes('#streamOutput ' + s))
     && /#content-brief \.ar-line \.pen, #content-brief \.ar-line \.drop \{[^}]* opacity: \.85; \}/.test(tabsCss) && tabsCss.includes('#content-brief .ar-line .drop { opacity: 0; }')
@@ -1985,7 +1986,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     + 'module gives the level, go() and the steps, and nothing of 0308\'s use()',
     ['id="workflowMapModal"', 'id="mapLevels"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t)) && !html.includes('mapDrawerSub')
     && wm.includes("WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
-    && tabsCss.includes('#content-brief .ar-ver .ar-map { display: none; }') && tabsCss.includes('#content-brief .ar-ver button:disabled {') && shell.includes('#workflowMapModal:not([data-level="workflow"]) .map-drawer-foot { display: none; }')
+    && tabsCss.includes('#content-brief .ar-ver .ar-map { display: none; }') && tabsCss.includes('#content-brief .ar-ver button:disabled, #content-plan .br-ver button:disabled {') && shell.includes('#workflowMapModal:not([data-level="workflow"]) .map-drawer-foot { display: none; }')
     && /#workflowMapModal:not\(\[data-level="workflow"\]\) \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
     && !own.includes('data-ar="map"') && !own.includes('mapFollows') && !own.includes('openMap') && own.includes("pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }")
     && (own.match(/window\.MapsUI\.follow\(\);/g) || []).length === 2 && /window\.ArchitectUI = \{[^}]*\bmark, map, apply\b/.test(own)

@@ -407,6 +407,8 @@ function _reattachRestoredListeners() {
             const staleControls = container.querySelector('.graph-controls');
             if (staleControls) staleControls.remove();
         }
+        // a cell's way into the code trace was an eye until 0329: a notebook kept from before says the trace's name (analyst/render.py)
+        tab.querySelectorAll('.nb-cell-map').forEach(way => { if (way.querySelector('svg')) way.textContent = 'Code trace'; });
 
         if (typeof hljs !== 'undefined') {
             tab.querySelectorAll('pre code').forEach(block => {
@@ -603,7 +605,7 @@ function initializeWorkflowMap() {
         trajectoryButton.addEventListener('click', saveTrajectory);
     }
     
-    // Close the modal if user clicks outside of it
+    // a click on the dimmed page shuts the drawer, as it shuts a dialog (0329: the drawer's own element is the scrim)
     if (workflowMapModal) {
         workflowMapModal.addEventListener('click', function(event) {
             if (event.target === workflowMapModal) {

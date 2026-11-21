@@ -303,9 +303,11 @@ check("the Investigation tab renders a READ as a step - 'Read the context' or 'R
 from analyst.notebook import Run as _Run, Turn as _Turn
 _he = _nbh(_Run(id="e", parent=None, question="q", turns=[_Turn(kind="cell", thinking="t", code="x = 1", stdout="", cell_no=1), _Turn(kind="cell", thinking="t", code="y", stdout="", cell_no=None, error="boom"),
                                                           _Turn(kind="cell", thinking="t", code="z = 2", stdout="", cell_no=2), _Turn(kind="cell", thinking="t", code="plt.plot()", stdout="", cell_no=None)]))
-check("the Investigation tab's committed cells carry the code trace's eye (2026-10-24): a button with the cell number that opens the map at that cell, inline so a saved favourite keeps it; a failed or skipped cell has none",
+check("the Investigation tab's committed cells carry the code trace's way in (2026-10-24): a button with the cell number that opens the trace at that cell, inline so a saved favourite keeps it; "
+      "it says the trace's name and holds no icon (0329: an eye before); a failed or skipped cell has none",
       _he.count('class="nb-cell-map"') == 2 and 'data-cell="1"' in _he and 'data-cell="2"' in _he and 'onclick="if(window.CodeMapUI)CodeMapUI.open(null,{cell:1})"' in _he
-      and 'title="This cell in the code trace"' in _he, _he.count('class="nb-cell-map"'))
+      and 'title="This cell in the code trace"' in _he and _he.count('onclick="if(window.CodeMapUI)CodeMapUI.open(null,{cell:2})">Code trace</button>') == 1 and "<svg" not in _he,
+      _he.count('class="nb-cell-map"'))
 # the reach record in the Investigation tab (2026-10-28): a cell the executor refused is its own state, not red, with "Not run"
 # and the restricted word; a cell that reached outside the data carries the tag in its header, the kernel's colour unless asked for
 _hr = _nbh(_Run(id="r", parent=None, question="q", turns=[

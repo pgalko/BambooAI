@@ -957,7 +957,7 @@
     width: 320px;
     max-width: calc(100vw - 40px);
     max-height: calc(100vh - 40px); /* Prevent going off-screen */
-    z-index: 1000;
+    z-index: 1002; /* over a dimmed page - a dialog's, the maps drawer's (0329): what was done there is said here */
     backdrop-filter: var(--backdrop-blur);
     -webkit-backdrop-filter: var(--backdrop-blur);
 }

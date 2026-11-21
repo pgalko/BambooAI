@@ -81,10 +81,9 @@
 .briefing-content .nb-reach.unasked { border-color: var(--chip-kernel-border); color: var(--c-kernel); }
 .briefing-content .nb-cell-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: 'Courier New', Courier, monospace; }
 .briefing-content .nb-cell-meta { color: var(--text-quaternary); white-space: nowrap; margin-left: auto; }
-/* the code trace's eye on a cell (2026-10-24), the Workflow map's glyph: quiet until hovered */
-.briefing-content .nb-cell-map { width: 22px; height: 20px; border: none; border-radius: 4px; background: none; color: var(--text-quaternary); display: grid; place-items: center; padding: 0; cursor: pointer; flex: 0 0 auto; }
-.briefing-content .nb-cell-map:hover { color: var(--text-primary); background: var(--bg-tertiary); }
-.briefing-content .nb-cell-map svg { width: 13px; height: 13px; }
+/* the code trace's way in on a cell (2026-10-24; 0329: its name, in the look of the closing card's button - an eye before) */
+.briefing-content .nb-cell-map { flex: 0 0 auto; padding: 0 7px; border: 1px solid var(--chip-model-border); border-radius: 4px; background: none; font: inherit; font-size: 11px; line-height: 16px; color: var(--accent-color); white-space: nowrap; cursor: pointer; }
+.briefing-content .nb-cell-map:hover { background: var(--accent-bg-hover); }
 /* the lines behind a number (2026-10-24): bars behind the code, lit from the code trace's Open in the notebook */
 .briefing-content .nb-hl { position: absolute; left: 0; right: 0; pointer-events: none; background: var(--accent-bg-hover); border-left: 3px solid var(--chip-model-border); z-index: 1; }   /* a translucent wash over the line; the code and its colouring untouched */
 .briefing-content .nb-hl.own { background: rgba(var(--accent-color-rgb), 0.16); border-left-color: var(--c-model); }
@@ -206,17 +205,23 @@
 /* ---- the Brief tab (docs/ARCHITECT_DESIGN.md §2.8, 2026-11-15; architect.js builds it): the question, the brief's versions and its parts; a line is changed where it stands ---- */
 #content-brief { padding-bottom: 0; }
 #content-brief .ar-brief { max-width: 78ch; padding-bottom: 18px; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
-#content-brief .ar-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; }   /* what the Analyst will be asked, and which version is on screen */
-#content-brief .ar-top .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
+/* the head row of the Brief tab - what the Analyst will be asked, and which step is on screen - and of the Investigation tab
+   of an analysis with branches - where the branch on screen went on from, and which branch it is (branch.js, 0329): one
+   set of rules for the two, the row and the arrows */
+#content-brief .ar-top, #content-plan .br-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin-bottom: 8px; font-size: 13.5px; line-height: 1.55; color: var(--text-primary); }
+#content-brief .ar-top .label, #content-plan .br-top .label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
+#content-plan .br-top { flex-wrap: nowrap; }      /* the hint gives way, on one line */
+#content-plan .br-top .label, #content-plan .br-top .br-ver { flex-shrink: 0; }
+#content-plan .br-top .br-said { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-secondary); }
 #content-brief .ar-brief h1 { margin: 0; padding: 10px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-wrap; }
 #content-brief .ar-gets { margin: 8px 0 0; font-size: 12px; color: var(--text-tertiary); }
 #content-brief .ar-brief h3 { margin: 15px 0 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
-#content-brief .ar-ver { display: flex; align-items: center; gap: 8px; margin-left: auto; }      /* which step of the conversation is on screen, and the arrows to the ones beside it (0316; versions, 0308) */
-#content-brief .ar-ver .k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
-#content-brief .ar-ver b { min-width: 44px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
-#content-brief .ar-ver button { width: 28px; height: 28px; padding: 0 0 2px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font: inherit; font-size: 18px; line-height: 1; color: var(--text-primary); cursor: pointer; }
-#content-brief .ar-ver button:not(:disabled):hover { border-color: var(--c-model); color: var(--c-model); }
-#content-brief .ar-ver button:disabled { background: none; color: var(--text-quaternary); cursor: default; }
+#content-brief .ar-ver, #content-plan .br-ver { display: flex; align-items: center; gap: 8px; margin-left: auto; }      /* which step of the conversation is on screen, and the arrows to the ones beside it (0316; versions, 0308); which branch, and the arrows to the ones beside it (0329) */
+#content-brief .ar-ver .k, #content-plan .br-ver .k { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--text-tertiary); }
+#content-brief .ar-ver b, #content-plan .br-ver b { min-width: 44px; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+#content-brief .ar-ver button, #content-plan .br-ver button { width: 28px; height: 28px; padding: 0 0 2px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); font: inherit; font-size: 18px; line-height: 1; color: var(--text-primary); cursor: pointer; }
+#content-brief .ar-ver button:not(:disabled):hover, #content-plan .br-ver button:not(:disabled):hover { border-color: var(--c-model); color: var(--c-model); }
+#content-brief .ar-ver button:disabled, #content-plan .br-ver button:disabled { background: none; color: var(--text-quaternary); cursor: default; }
 #content-brief .ar-ver .ar-map { display: none; }      /* a Brief tab kept by an earlier version has a button to the map of its steps here: the maps drawer's switch is the way now */
 #content-brief .ar-line { position: relative; display: flex; align-items: baseline; gap: 9px; padding: 2px 0; }
 #content-brief .ar-line .tx { min-width: 0; overflow-wrap: anywhere; }

@@ -362,8 +362,24 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
     at100 && in1 && wheelOut && out2 && kept && lvl() === '100%' && scale() === 'scale(1)', [at100, in1, wheelOut, out2, kept, lvl(), scale()]);
   w.CodeMapUI.close();
   const graph = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'), 'utf8');
-  check('the Workflow map drawer: an eye on each chain box that moves the app to the chain, shuts the drawer and opens its map',
-    graph.includes("eye.className = 'wf-node-map'") && /window\.MapsUI\.shut\(\);\s+if \(window\.CodeMapUI && typeof window\.CodeMapUI\.open === 'function'\) window\.CodeMapUI\.open\(resp\.chain_id\);/.test(graph));
+  const wmSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflow-management.js'), 'utf8'), sheet = n => fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', n), 'utf8');
+  // a notebook kept with the eye, as the page renews it when its chain comes on screen (the line is the page's own)
+  const keptNb = doc.createElement('div');
+  keptNb.innerHTML = '<div class="nb-cell-head"><button type="button" class="nb-cell-map" data-cell="1" title="This cell in the code trace"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle></svg></button></div>' +
+    '<div class="nb-cell-head"><button type="button" class="nb-cell-map" data-cell="2" title="This cell in the code trace">Code trace</button></div>';
+  new Function('tab', (wmSrc.match(/tab\.querySelectorAll\('\.nb-cell-map'\)[^\n]+/) || ['throw new Error("the line is gone")'])[0])(keptNb);
+  const renewed = keptNb.querySelectorAll('.nb-cell-map').map(x => x.textContent + '|' + x.getAttribute('data-cell') + '|' + x.querySelectorAll('svg').length).join();
+  check('the trace\'s name where an eye stood (0329), in the look of the closing card\'s button - its green, its border, no icon: on a chain\'s box of the Workflow map, where a click moves '
+    + 'the app to the chain, shuts the drawer and opens its trace; and on a cell\'s header in the Investigation tab, where a notebook kept with the eye says the name when it comes on screen',
+    graph.includes("trace.className = 'wf-node-map'") && graph.includes("trace.textContent = 'Code trace';") && graph.includes("trace.title = 'How this chain got from its data to its numbers';") && !/wf-node-map[\s\S]{0,600}<svg/.test(graph)
+    && renewed === 'Code trace|1|0,Code trace|2|0'
+    && /#streamOutput \.sp-act \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*color: var\(--accent-color\);/.test(sheet('pane.css'))
+    && /#workflowMapModal \.wf-node-map \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*background: none;[^}]*color: var\(--accent-color\);[^}]*opacity: 0; \}/.test(sheet('shell.css'))
+    && sheet('shell.css').includes('#workflowMapModal .wf-node:hover .wf-node-map, #workflowMapModal .wf-node--active .wf-node-map, #workflowMapModal .wf-node-map:focus-visible { opacity: 1; }')
+    && /\.briefing-content \.nb-cell-map \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*background: none;[^}]*color: var\(--accent-color\);/.test(sheet('tabs.css'))
+    && ['#workflowMapModal .wf-node-map:hover { background: var(--accent-bg-hover); }', '#streamOutput .sp-act:hover { background: var(--accent-bg-hover); }'].every((r, i) => sheet(i ? 'pane.css' : 'shell.css').includes(r))
+    && sheet('tabs.css').includes('.briefing-content .nb-cell-map:hover { background: var(--accent-bg-hover); }') && !/(wf-node-map|nb-cell-map) svg/.test(sheet('shell.css') + sheet('tabs.css'))
+    && /window\.MapsUI\.shut\(\);\s+if \(window\.CodeMapUI && typeof window\.CodeMapUI\.open === 'function'\) window\.CodeMapUI\.open\(resp\.chain_id\);/.test(graph));
   const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'ui-controls.js'), 'utf8');
   check('the navigator hands the chain on screen to the map (onChain) at the end of updateNavigationButtons', ui.includes('window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id)'));
   const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');

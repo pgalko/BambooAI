@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.11 (2026-11-21; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.12 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -56,6 +56,12 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
 19. The names (2026-11-21, 0328): the Architect is the **Pathfinder** (docs/ARCHITECT_DESIGN.md, decision 59) and
     the Code map the **Code trace** (docs/CODEMAP_DESIGN.md). Below, each part keeps the names it was written
     under; what is quoted of the page is as the page says it now.
+20. With the maps in use (2026-11-22, 0329), four things: the map must not zoom while the pointer goes from box
+    to box - fitted when it is opened, and left; the Investigation tab of an analysis with branches has arrows
+    from one branch to the next, looking as the Brief tab's arrows do, so that no map need be opened to move
+    between them; the way into the Code trace is its name in a green rectangle, as on the closing card, where an
+    eye stood; and the page under the maps drawer is dimmed as under the Cache or the Routines dialog - one look
+    and one behaviour for what lies over the page.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -252,6 +258,30 @@ a switch (decision 18):
   name gives way first should a number ever be longer.
 - **Found on the way.** The wheel with Ctrl or Cmd zoomed by one step for every time a map had been drawn in the
   drawer, the frame having kept a handler for each drawing; it has one now.
+- **Over the page, as a dialog** (0329, decision 20). The drawer's own element is the scrim: the whole window,
+  in the dialogs' dim (`--scrim`; they do not blur, nor does it), with the drawer past the rail and under the top
+  bar. A click on the dimmed page shuts the drawer and reaches nothing under it; the cross, the left bar's button
+  and Ctrl/Cmd+M shut it as before. Found on the way: the dialogs made of `.modal.ui-modal` - the Dataset cache,
+  the integrations', the account's - let a click through their dim to the page, `.modal` taking no pointer, so
+  the click that should shut them never reached them; their dim takes the pointer now, and they shut on a click
+  outside as the Routines dialog does. The page's message (`.summary-popup`) stands over a dimmed page: what a
+  button of the drawer did is said there.
+- **Steady under the pointer** (0329, decision 20). The pane under the map, which says what the box under the
+  pointer is, has one height (152 px; what does not fit scrolls in it). It took the height of what it said, so
+  the map's frame grew and shrank from box to box, and the map - fitted to its frame whenever the frame changes
+  size - changed its zoom under the pointer wherever its height was what the fit went by. The fit is as it was:
+  when a map is drawn, and when the drawer itself changes size.
+
+**The arrows in the Investigation tab** (0329, decision 20; `branch.js` `arrows`, `flip`). An analysis that went on
+more than one way has a row at the head of its Investigation tab. For a branch it says the turn it went on from
+and its hint - whole under the pointer, cut where the row is short. Then *Branch* and, between two arrows, which
+one is on screen: *original*, or the branch by its place among them in the order they were made (*2 of 3*), so
+the count is the one the Workflow map and the switch give. An arrow brings the one before or the one after on
+screen, on its Investigation tab; at either end the arrow is off. The row is drawn each time a chain comes on
+screen (`onChain`): how many branches there are is the thread's to say then, so a row kept in a tab's markup is
+drawn again, and an analysis of one run has none. It looks as the Brief tab's row and stepper do because the
+rules are the same ones: in `tabs.css` each rule of `.ar-top` and `.ar-ver` names `.br-top` and `.br-ver` beside
+it, and the row sets its own type size and line height.
 
 ## 6. Save, memory, usage (0321, built)
 
@@ -325,6 +355,7 @@ before.
 | 0326 | A correction of a result marks the line it replaced, not every line of its cell (docs/CODEMAP_DESIGN.md §4). Release 2.9.0. | built |
 | 0327 | The maps in one place: one button, one drawer, a switch between Workflow and the chain's Pathfinding and Analysis. | built |
 | 0328 | The names: the Architect is the Pathfinder, the Code map the Code trace (decision 19). | built |
+| 0329 | The drawer over the dimmed page, as a dialog; the map steady under the pointer; the arrows between branches in the Investigation tab; the Code trace's name where an eye stood (decision 20). | built |
 
 ## 9. Tests
 
@@ -356,4 +387,10 @@ styles; the walk: the head of each of the three maps as a browser lays it out, a
 follows the chain on screen, the arrow keys and the focus, the page's hooks; `test_branch.js` and
 `test_architect.js`: each level through the switch, a pane kept with the old button, the wheel; the walk: the three
 maps of a framed analysis with branches from the one button, the keys, and no button above an analysis or beside
-the Brief tab's arrows.
+the Brief tab's arrows. (0329) `test_branch.js`: the row and its arrows - the original and each branch, the ends,
+a kept row, an analysis of one run, a chain with no Investigation tab - and the rules they share with the Brief
+tab's; `test_maps.js`: a click on the dimmed page and one in the drawer, the scrim's rules and a dialog's, the
+pane's one height; `test_code_map.js` and `test_read.py`: the trace's name on a box and on a cell, a notebook kept
+with the eye; the walk: the dim against a dialog's, a click on the dimmed page that goes no further, the Dataset
+cache shut by a click on its dim, the frame and the zoom from box to box, the arrows through an analysis with two
+branches, and their look against the Brief tab's, measured.

@@ -228,7 +228,7 @@ After `REPORT`, BambooAI performs several distinct steps:
   the verdict and number of values checked; replayed figures appear in **Plots**.
 - **Code trace.** Built from committed code and kernel records, without an LLM. It traces each result to
   its cells, input data, intermediate values and choices such as seeds or thresholds. Open it from the
-  closing card or a report's `[cell n]` citation. It documents *how* a result was obtained, not whether
+  closing card, a report's `[cell n]` citation, or the **Code trace** label on a cell or on a chain's box. It documents *how* a result was obtained, not whether
   the method was sound. See [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md).
 - **Reach report.** Records activity outside the supplied data: network hosts and transfer sizes, files,
   environment-variable names and spawned programs, with the responsible cells. It also marks refused
@@ -301,7 +301,8 @@ between the thread's map and the two maps of the chain on screen.
   to that point and your hint, and writes a report of its own. The kernel returns to the state it held after that
   turn, so earlier cells are re-run only if that state is no longer available, and you pay only for the new turns.
   The branch keeps the original mode and brief and does not call the Pathfinder; where the hint and the brief
-  conflict, the hint takes precedence.
+  conflict, the hint takes precedence. Arrows at the top of the Investigation tab move between the original and
+  its branches.
 
 Saving a thread keeps all its branches. An analysis can be branched only if it was made with version 2.9 or later
 and its data is loaded; routine runs and questions about a plot cannot. See
