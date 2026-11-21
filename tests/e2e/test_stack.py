@@ -1737,10 +1737,37 @@ def walk_draft(page, st, mod, wa, edition, user):
           and again["hints"] == ["From turn 1" + mod.BRANCH_HINT] and thread_boxes == ["1 branch"]
           and map_again["sub"] == f"{len(map_again['boxes'])} turns · 1 branch · click one to go back to it" and [x[1].split(" · ")[0] for x in map_again["boxes"]] == ["Turn 1", "Turn 2", "Turn 2", "Turn 3"]
           and saved_b.get("hints") == [{"turn": 1, "text": mod.BRANCH_HINT}], (again, thread_boxes, map_again["sub"], map_again["boxes"], saved_b.get("hints")))
-    # nothing is locked: back to the turn both ways share, and a third way from it
-    more_hint = "Now leave the sandy plots out."
-    turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
+    # the branch button on a turn's card (0323): the way to a turn without the map. The branch on screen has one on the turn it kept and one on its own
+    # working turn, none on its report or on the cards that are no turns; a click goes back to the turn, a second click on the same button back to the end
+    cards = page.evaluate("""() => [...document.querySelectorAll('#streamOutput .sp-stream > .sp-turn')].map(c => { const b = c.querySelector('summary .sp-branch'), p = c.querySelector('summary .sp-prompt');
+        return { turn: c.getAttribute('data-turn'), kept: c.classList.contains('kept'), title: b ? b.getAttribute('title') : null, x: b ? Math.round(b.getBoundingClientRect().left) : null,
+                 before: b && p ? b.getBoundingClientRect().right <= p.getBoundingClientRect().left : null, end: p ? Math.round(p.getBoundingClientRect().right) : null,
+                 level: b && p ? Math.abs(b.getBoundingClientRect().top - p.getBoundingClientRect().top) < 1 && Math.abs(b.getBoundingClientRect().height - p.getBoundingClientRect().height) < 1 : null,
+                 middle: p ? Math.abs((p.getBoundingClientRect().top + p.getBoundingClientRect().bottom) - (c.querySelector('summary').getBoundingClientRect().top + c.querySelector('summary').getBoundingClientRect().bottom)) < 2 : null }; })""")
+    own_btn = "#streamOutput .sp-stream > .sp-turn[data-turn='2'] > summary .sp-branch"
+    was_open = page.evaluate("""() => document.querySelector("#streamOutput .sp-stream > .sp-turn[data-turn='2']").open""")
+    page.click(own_btn)
     page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+    lit = page.evaluate("""(sel) => { const b = document.querySelector(sel), accent = getComputedStyle(document.querySelector('#streamOutput .sp-turn .n')).color;
+        return { at: BranchUI.standing().turn, lit: getComputedStyle(b).color === accent, other: getComputedStyle(document.querySelector("#streamOutput .sp-turn[data-turn='1'] > summary .sp-branch")).color === accent,
+                 hidden: getComputedStyle(document.querySelector("#streamOutput .sp-stream > .sp-turn[data-turn='3']")).display, words: document.getElementById('queryInput').placeholder,
+                 open: document.querySelector("#streamOutput .sp-stream > .sp-turn[data-turn='2']").open }; }""", own_btn)
+    page.click(own_btn)
+    page.wait_for_function("() => BranchUI.standing() === null", timeout=10000)
+    whole = page.evaluate("""() => getComputedStyle(document.querySelector("#streamOutput .sp-stream > .sp-turn[data-turn='3']")).display""")
+    by_turn = {c["turn"]: c for c in cards}
+    check("the branch button on a turn's card (0323): every turn the analysis can go on from has one - the turn the branch kept and its own working turn -, the report's card and the "
+          "cards that are no turns have none; it stands before the prompt's button, on its line and of its height, in the middle of the card's head; the prompt's stays at the card's end, and the kept "
+          "turn's - a card with no prompt - stands in the same column. A click goes back to the turn without opening the card: the pane ends there, the button is lit, the composer asks for the hint; a second click brings the end back",
+          [c["turn"] for c in cards if c["title"]] == ["1", "2"] and by_turn["1"]["kept"] and by_turn["1"]["title"] == "Branch from turn 1" and by_turn["2"]["title"] == "Branch from turn 2"
+          and by_turn["2"]["before"] is True and by_turn["2"]["level"] is True and by_turn["2"]["middle"] is True and by_turn["3"]["middle"] is True
+          and abs(by_turn["1"]["x"] - by_turn["2"]["x"]) <= 1 and abs(by_turn["2"]["end"] - by_turn["3"]["end"]) <= 1
+          and lit == {"at": 2, "lit": True, "other": False, "hidden": "none", "words": "Say how the analysis should go on from turn 2", "open": was_open} and whole != "none",
+          (cards, lit, was_open, whole))
+    # nothing is locked: back to the turn both ways share - by the button on its card -, and a third way from it
+    more_hint = "Now leave the sandy plots out."
+    page.click("#streamOutput .sp-stream > .sp-turn[data-turn='1'] > summary .sp-branch")
+    page.wait_for_function("() => BranchUI.standing() !== null && BranchUI.standing().turn === 1", timeout=10000)
     page.fill("#queryInput", more_hint)
     page.click("#submitQuery")
     wait_run_end(page, 3)
@@ -1753,7 +1780,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     log_3 = open(logs_at, encoding="utf-8", errors="replace").read() if os.path.exists(logs_at) else ""
     save_here()
     mem_3, left_3 = remembered(lambda v: any(r["run"] == third["chain"] for r in v["runs"]))
-    check("nothing is locked after saving (0321): from a turn of the saved thread the analysis goes on a third way - a branch of the first run, in a kernel that ran the kept cell "
+    check("nothing is locked after saving (0321): from a turn of the saved thread - gone back to by its card's button (0323) - the analysis goes on a third way - a branch of the first run, in a kernel that ran the kept cell "
           "again, under the brief, whose row and tab it has; the page counts one analysis with two branches. Saved again, the new branch is stored with the others; memory holds the "
           "two ways the person saved from, each with its own hint, and the first run stays left",
           third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["badge"] == "2" and third["hints"] == ["From turn 1" + more_hint]

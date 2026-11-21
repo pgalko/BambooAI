@@ -13,7 +13,7 @@
 // The pane itself is not touched by going back: what follows the turn is hidden by a rule of this module's own, so
 // nothing of the moment is kept with the chain.
 //
-// window.BranchUI = { initialize, openMap, onChain, hint, started, announced, heard, unstarted, notStarted, leave,
+// window.BranchUI = { initialize, openMap, onChain, hint, started, announced, heard, unstarted, notStarted, leave, dress, from,
 //                     analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
 // standing(): the turn gone back to - {chain, turn} - or null.
 
@@ -29,7 +29,8 @@
         end: 'Back to the end', hinted: 'hint', onScreen: 'on screen', ways: n => n + ' ways',
         failed: 'failed', notRun: 'not run', aCell: n => 'cell In [' + n + ']', aFailed: 'a cell that failed', aNotRun: 'a cell that was not run',
         info: { turn: 'Turn', did: 'Did', hint: 'Hint', ways: 'Went on', printed: 'Printed' },
-        busy: 'An analysis is running: wait for it, or stop it, then go back to a turn'
+        busy: 'An analysis is running: wait for it, or stop it, then go back to a turn',
+        branchFrom: n => 'Branch from turn ' + n
     };
     const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
         '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
@@ -98,9 +99,9 @@
     // ------------------------------------------------------------ the turns of a chain, read from its left pane
     // Each numbered card is a turn: its number, what it was (the card's own word), what it did (the card's line), the
     // cell it ran - or that its cell failed - and what the cell printed. A card cut off before its turn ended - the
-    // run was stopped there - is no turn. Read from the markup the chain keeps
-    function turnsOf(entry) {
-        const stream = holder(entry.streamOutput).querySelector('.sp-stream');
+    // run was stopped there - is no turn. Read from the markup the chain keeps (turnsOf), or from the pane itself
+    function turnsOf(entry) { return turnsIn(holder(entry.streamOutput).querySelector('.sp-stream')); }
+    function turnsIn(stream) {
         const out = []; let turn = null;
         Array.prototype.forEach.call(stream ? stream.children : [], el => {
             if (el.nodeType !== 1) return;
@@ -141,6 +142,31 @@
         return entry.branch ? at(entryOf(entry.branch.of), entry.branch.turn) : -1;
     }
 
+    // ------------------------------------------------------------ the button on a turn's card
+    // Every turn the analysis can go on from has a button beside its prompt's, in a pane whose run ended with turns to
+    // go on from - it has the Turn map's button: a run that has just ended (stream-pane.js), or a chain kept from
+    // before the button existed, when it comes on screen. The turns are the map's (turnsIn, can)
+    function dress(pane) {
+        const stream = pane && pane.querySelector('.sp-turnmap') ? pane.querySelector('.sp-stream') : null;
+        if (!stream) return;
+        const on = turnsIn(stream).filter(can).map(t => t.n);
+        Array.prototype.forEach.call(stream.children, el => {
+            const head = el.nodeType === 1 && el.classList.contains('sp-turn') ? el.querySelector('summary') : null, n = head ? Number(el.getAttribute('data-turn')) : null;
+            if (!head || on.indexOf(n) < 0 || head.querySelector('.sp-branch')) return;
+            head.insertAdjacentHTML('beforeend', '<button type="button" class="sp-branch" title="' + WORDS.branchFrom(n) + '" aria-label="' + WORDS.branchFrom(n) + '" ' +
+                'onclick="event.preventDefault(); if (window.BranchUI) BranchUI.from(this);">' + ICON + '</button>');
+        });
+    }
+    // The button clicked: to its turn of the chain on screen, as a click on the turn's box of the map; on the turn
+    // already gone back to, back to the end. Not while an analysis runs
+    function from(button) {
+        const card = button && button.closest ? button.closest('.sp-turn') : null, entry = onScreen();
+        if (!card || !entry) return;
+        if (busy()) { say(WORDS.busy); return; }
+        const n = Number(card.getAttribute('data-turn'));
+        if (back && same(back.chain, entry.chain_id) && back.turn === n) leave(); else go(entry, n);
+    }
+
     // ------------------------------------------------------------ going back to a turn
     // The left pane ends at the turn: the cards after it, what stands under them, and the row of a hint given later
     // are out of sight. The rule is this module's, in the page's head: the pane's markup stays as the chain keeps it
@@ -149,7 +175,8 @@
         if (n == null) { if (rule) rule.remove(); return; }
         if (!rule) { rule = document.createElement('style'); rule.id = 'branchBack'; (document.head || document.body).appendChild(rule); }
         const turn = '#streamOutput .sp-stream > .sp-turn[data-turn="' + n + '"]';
-        rule.textContent = turn + ' ~ .sp-turn, ' + turn + ' ~ .sp-turn ~ *, ' + turn + ' ~ .sp-hint { display: none; }';
+        rule.textContent = turn + ' ~ .sp-turn, ' + turn + ' ~ .sp-turn ~ *, ' + turn + ' ~ .sp-hint { display: none; } ' +
+            turn + ' > summary .sp-branch { color: var(--accent-color); border-color: var(--accent-color); }';      // the button of the turn gone back to is lit
     }
     // the composer's words, kept apart from a hold's: where the composer is held (routines.js), the words wait under the hold's
     function words(input, to) { if (input.getAttribute('data-placeholder') != null) input.setAttribute('data-placeholder', to); else input.placeholder = to; }
@@ -250,6 +277,7 @@
         if (back && !(entry && same(back.chain, entry.chain_id))) { back = null; ends(null); }
         composer();
         const pane = byId('streamOutput'), button = pane ? pane.querySelector('.sp-turnmap') : null, n = entry ? members(entry).length - 1 : 0;
+        dress(pane);                                             // a chain kept from before its turns had a button
         if (button) {
             const count = button.querySelector('.n');
             if (count) count.textContent = n ? String(n) : '';
@@ -320,5 +348,5 @@
     }
 
     window.BranchUI = { initialize, openMap, onChain, hint, started, announced, heard, unstarted, notStarted, leave, analyses, place, step, items, open,
-                        turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
+                        dress, from, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
 })();

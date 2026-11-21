@@ -483,6 +483,7 @@
         if (lastStrip) renderStrip({ turn: r.turns, spent: r.cost != null ? r.cost : lastStrip.spent });
         const ids = p.querySelector('.sp-ids');
         if (r.turn_map && ids && !ids.querySelector('.sp-turnmap')) ids.insertAdjacentHTML('beforeend', build.turnMap());      // it has turns to go on from
+        if (window.BranchUI) window.BranchUI.dress(p);                   // ... and each of them a button on its card (branch.js)
         const strip = p.querySelector('.sp-strip');
         if (strip) { const live = strip.querySelector('.live'); if (live) live.classList.add('idle'); }
         append(build.runEnd(r));

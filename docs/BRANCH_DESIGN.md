@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.5 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch)
+# Branching an analysis — design v0.6 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -178,6 +178,14 @@ the Architect's switch and the files. The cross on that row, Escape in the compo
 screen leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain
 back whole. The turn a run was stopped in ended nothing: it has no box.
 
+**The button on a turn's card** (0323; the product owner, 2026-11-21: to branch without looking for the turn on
+the map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git
+branch mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is
+no turn. A click is a click on the turn's box of the map - the pane ends at the turn, the composer takes the hint -
+and its button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a
+pane that has the Turn map's button: when its run ends, and when a chain kept from before the button existed comes
+on screen.
+
 **The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
 chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
 keeps `branch` ({of, turn, hint}), its question is the analysis's, and it attaches where the analysis did. Its
@@ -262,7 +270,8 @@ before.
 | 0320 | Page: the Turn map, going back, the hint, moving between branches; the Git branch icon. | built |
 | 0321 | Save, memory, usage; the Turn map's button at the end of the ids' row. | built |
 | 0322 | The code map and the Investigation tab of a branch; a hint outranks the brief. | built |
-| 0323 | Release 2.9.0. | |
+| 0323 | The branch button on a turn's card. | built |
+| 0324 | Release 2.9.0. | |
 
 ## 9. Tests
 
@@ -284,4 +293,6 @@ it, the saved thread opened again with its branch, a branch more made from it, a
 (0322) `test_code_map.py`: a branch's record and its rows - the kept steps, the hints in their places, the header;
 `test_code_map.js`: the same on the page, and a chain's number as the arrows count it; `test_analyst.py`: the hint
 over the brief in the contract, the reviewer's prompt and the figures step, and the Investigation tab of a branch;
-the walk: the code map and the Investigation tab of a branch in a browser.
+the walk: the code map and the Investigation tab of a branch in a browser. (0323) `test_branch.js`: the button on
+a turn's card - which cards have one, a click and a second click, a chain kept from before it; the walk: the buttons
+in a browser, and a branch started from one.

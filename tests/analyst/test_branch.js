@@ -229,7 +229,8 @@ check('a click on a turn of the chain on screen goes back to it: the drawer shut
   + 'out of sight by a rule of the page\'s, the pane\'s own markup untouched -, the tabs stay as they are, and the composer is the hint\'s: its words ask for one, and the row under it says '
   + 'from which turn, with how many turns the analysis has left. On the map the turn is the open box, and the way to it is lit',
   same(back3, { hint: true, words: 'Say how the analysis should go on from turn 3', chip: 'From turn 3 · 5 turns left×',
-                rule: '#streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-turn, #streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-turn ~ *, #streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-hint { display: none; }',
+                rule: '#streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-turn, #streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-turn ~ *, #streamOutput .sp-stream > .sp-turn[data-turn="3"] ~ .sp-hint { display: none; } '
+                    + '#streamOutput .sp-stream > .sp-turn[data-turn="3"] > summary .sp-branch { color: var(--accent-color); border-color: var(--accent-color); }',
                 at: { chain: 20, turn: 3 } })
   && shut3 === 'none' && $('contentOutput').innerHTML === tabsWere && loaded.length === n0 && $('streamOutput').innerHTML === paneWas && same(map3, ['3', '1,2,3'])
   && $('branchChip').parentNode === doc.querySelector('.icon-row') && doc.querySelector('.icon-row').firstElementChild === $('branchChip') && !!$('branchChip').querySelector('svg')
@@ -383,6 +384,59 @@ check('the stylesheets: with a turn gone back to the composer shows no file menu
   && shell.includes(".left-panel #streamOutput .sp-ids-slot { position: sticky; top: 41px;") && shell.includes(".left-panel #streamOutput .sp-strip { top: 0; height: 41px;")
   && /#streamOutput \.sp-ids \{[^}]*white-space: nowrap;/.test(paneCss) && paneCss.includes("#streamOutput .sp-ids > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }")
   && paneCss.includes("#streamOutput .sp-ids > span:last-of-type { flex-shrink: 10000; }"));
+
+// ---- the branch button on a turn's card (0323): the way to a turn without the map
+const cardBtns = e => holder(e.streamOutput).querySelectorAll('.sp-turn').map(x => [x.getAttribute('data-turn'), (x.querySelector('summary .sp-branch') || { getAttribute: () => null }).getAttribute('title')]);
+const pressCard = n => B.from($('streamOutput').querySelectorAll('.sp-turn').find(x => x.getAttribute('data-turn') === String(n)).querySelector('summary .sp-branch'));
+check('the branch button on a turn\'s card: when a run ends with turns to go on from, every turn it can go on from has one in its card\'s head, after the prompt\'s button, saying its turn - '
+  + 'the turns a branch kept too; the report\'s card has none, nor a question\'s to the person, a review\'s, or the card of a turn the run was stopped in; a run with no turn to go on from has none',
+  same(cardBtns(a), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', 'Branch from turn 3'], ['4', 'Branch from turn 4'], ['review', null], ['5', 'Branch from turn 5'], ['6', null]])
+  && same(cardBtns(b1), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', 'Branch from turn 3'], ['4', 'Branch from turn 4'], ['5', null]])
+  && same(cardBtns(s), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', null]]) && same(cardBtns(k), [['1', 'Branch from turn 1'], ['2', null]]) && same(cardBtns(q0), [['1', null]])
+  && holder(a.streamOutput).querySelector('.sp-turn summary').elements.map(x => x.className.split(' ').pop()).join('|') === 'chev|n|kind|peek|meta|sp-prompt|sp-branch'
+  && holder(a.streamOutput).querySelector('.sp-branch').getAttribute('onclick') === 'event.preventDefault(); if (window.BranchUI) BranchUI.from(this);'
+  && holder(a.streamOutput).querySelector('.sp-branch').getAttribute('aria-label') === 'Branch from turn 1' && !!holder(a.streamOutput).querySelector('.sp-branch svg'),
+  [cardBtns(a), cardBtns(b1), cardBtns(s), cardBtns(k), cardBtns(q0)]);
+show(a);
+const cardPane = $('streamOutput').innerHTML, cardLoads = loaded.length;
+pressCard(3);
+const cardAt3 = comp(), cardSame = $('streamOutput').innerHTML === cardPane && loaded.length === cardLoads;
+pressCard(1);
+const cardAt1 = comp().at;
+pressCard(1);
+const cardOff = comp();
+queryRunning = true;
+const cardToasts = toasts.length;
+pressCard(2);
+const cardBusy = [comp().at, toasts.length - cardToasts, toasts.slice(-1)[0]];
+queryRunning = false;
+show(b1); pressCard(2);
+const cardKept = [responses[currentResponseIndex] === b1, comp().at, comp().chip];
+B.leave();
+check('... a click goes back to that turn of the chain on screen, as a click on its box of the map: the pane ends there by the page\'s rule - which lights the turn\'s button -, its markup '
+  + 'untouched, and the composer is the hint\'s; another turn\'s button goes to that turn; the button of the turn gone back to brings the end back; while an analysis runs it says so and '
+  + 'goes nowhere; a turn a branch kept is gone back to on the branch',
+  same(cardAt3.at, { chain: 20, turn: 3 }) && cardAt3.hint && cardAt3.chip === 'From turn 3 · 5 turns left×'
+  && cardAt3.rule.endsWith('[data-turn="3"] > summary .sp-branch { color: var(--accent-color); border-color: var(--accent-color); }')
+  && cardSame && same(cardAt1, { chain: 20, turn: 1 }) && same(cardOff, own) && same(cardBusy, [null, 1, B.WORDS.busy]) && same(cardKept, [true, { chain: 21, turn: 2 }, 'From turn 2 · 6 turns left×']),
+  [cardAt3, cardSame, cardAt1, cardOff, cardBusy, cardKept]);
+const oldChain = Object.assign({}, a, { chain_id: 90, parentChainId: null, streamOutput: a.streamOutput.replace(/<button type="button" class="sp-branch"[^>]*>.*?<\/button>/g, '') });
+const plainChain = entry(91, null, 'An analysis from before 2.9', [{ n: 1, kind: 'cell', step: 'First. This turn loads.', cell: 1, out: 'one' }, { n: 2, kind: 'report', step: 'Done.' }], { map: false });
+responses.push(oldChain, plainChain);
+const cardsBare = cardBtns(oldChain).filter(x => x[1]).length;
+show(oldChain);
+const cardsDressed = $('streamOutput').querySelectorAll('.sp-branch').length;
+B.dress($('streamOutput'));
+const cardsTwice = $('streamOutput').querySelectorAll('.sp-branch').length;
+pressCard(4);
+const cardOld = comp().at;
+B.leave(); show(plainChain);
+const cardsPlain = $('streamOutput').querySelectorAll('.sp-branch').length + holder(plainChain.streamOutput).querySelectorAll('.sp-branch').length;
+check('... a chain kept from before the button existed gets its buttons when it comes on screen - once, however often it is dressed - and they work; a chain with no way to the map - it cannot be gone on from - gets none, when its run ends or later',
+  cardsBare === 0 && cardsDressed === 5 && cardsTwice === 5 && same(cardOld, { chain: 90, turn: 4 }) && cardsPlain === 0, [cardsBare, cardsDressed, cardsTwice, cardOld, cardsPlain]);
+check('the stylesheet: the branch button stands before the prompt\'s in a card\'s head, whatever their order in the markup, in a box of its size, on its line; a kept turn, which has no prompt, leaves that place empty',
+  /#streamOutput \.sp-branch \{ order: 1;[^}]*width: 22px; height: 18px; margin: 0 -10px 0 6px;/.test(paneCss) && paneCss.includes("#streamOutput .sp-turn > summary .sp-prompt { order: 2; box-sizing: border-box; min-width: 22px; height: 18px; margin-bottom: 0; justify-content: center; }")
+  && paneCss.includes("#streamOutput .sp-turn.kept > summary .sp-branch { margin-right: 28px; }") && paneCss.includes("#streamOutput .sp-branch:hover { color: var(--accent-color); border-color: var(--accent-color); }"));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + JSON.stringify(d === undefined ? '' : d).slice(0, 1500))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

@@ -117,6 +117,15 @@
 #streamOutput .sp-sys.error { color: var(--error-color); border-left-color: var(--error-color); }
 #streamOutput .sp-prompt { position: static; bottom: auto; right: auto; margin-left: 6px; background: none; border: 1px solid var(--border-color); color: var(--text-quaternary); border-radius: 4px; font-size: 10px; line-height: 14px; padding: 0 5px; cursor: pointer; }
 #streamOutput .sp-prompt:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
+/* the branch button of a turn (2.9, branch.js): the Git branch mark in a box the size of the prompt's, before it - the prompt's button stays at the card's end,
+   and the two stand on one line, in the middle of the card's head (the prompt's stood 4px above it, by a margin meant for another place).
+   A turn a branch kept has no prompt of its own: the place of that button stays empty, so the branch buttons stand in one column */
+#streamOutput .sp-branch { order: 1; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; width: 22px; height: 18px; margin: 0 -10px 0 6px; padding: 0;
+    background: none; border: 1px solid var(--border-color); border-radius: 4px; color: var(--text-quaternary); cursor: pointer; }
+#streamOutput .sp-branch svg { display: block; width: 11px; height: 11px; }
+#streamOutput .sp-branch:hover { color: var(--accent-color); border-color: var(--accent-color); }
+#streamOutput .sp-turn > summary .sp-prompt { order: 2; box-sizing: border-box; min-width: 22px; height: 18px; margin-bottom: 0; justify-content: center; }
+#streamOutput .sp-turn.kept > summary .sp-branch { margin-right: 28px; }
 
 #streamOutput .sp-turn.quiet > summary .kind { color: var(--text-quaternary); }
 #streamOutput .sp-telemetry { margin-top: 8px; border-top: 1px solid var(--border-color); padding-top: 6px; }
