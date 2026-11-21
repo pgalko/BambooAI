@@ -126,10 +126,12 @@ check("the report's head rides before the answer as a top-level key (no tab for 
 # analysis after its thread file is discarded (a thread not saved as a favourite goes at the next sign-in)
 _ledger_path = os.path.join(work, "storage", "u1", "usage_ledger.jsonl")
 _lines = [json.loads(x) for x in open(_ledger_path, encoding="utf-8")] if os.path.exists(_ledger_path) else []
-check("the usage ledger: the run's line written at its end - the chain and the thread, the question, the mode, how it ended, its cells, when it started and how long it took; no outputs or figures",
+check("the usage ledger: the run's line written at its end - the chain and the thread, the question, the mode, how it ended, its cells, when it started and how long it took, and that it is no "
+      "branch (0321); no outputs or figures",
       len(_lines) == 1 and _lines[0]["chain"] == str(BAMBOO.chain_id) and _lines[0]["thread"] == "1001" and _lines[0]["question"] == "Is B higher than A?" and _lines[0]["mode"] in ("Deep", "Quick", "Adaptive")
       and _lines[0]["status"] == "answered" and _lines[0]["replay"] == "reproduced" and _lines[0]["cells"] == 2 and _lines[0]["created"] > 0 and _lines[0]["wall"] >= 0
-      and set(_lines[0]) == {"chain", "thread", "at", "question", "title", "mode", "status", "replay", "cells", "figures", "created", "wall", "failed_at", "refused"}, _lines)
+      and set(_lines[0]) == {"chain", "thread", "at", "question", "title", "mode", "status", "replay", "cells", "figures", "created", "wall", "failed_at", "refused", "branch"}
+      and _lines[0]["branch"] == {}, _lines)
 check("the plain-language version opens with the report's title line (the Rewriter forgot it; it is put there), then its text - the same anchor in both versions",
       any(str(e.get("data", "")).startswith("# B exceeds A\n\nPlain: B is higher") for e in events if e.get("type") == "simplified_answer"))
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
@@ -2052,6 +2054,22 @@ try:
           and _wac.get("/architect/saved/7401/7403").status_code == 404 and len(_mem3.view(_su3)["runs"]) == 1
           and _wac.get("/architect/saved/7301/9999").status_code == 404 and _wac.get("/architect/saved/1077/" + str(_c2)).status_code == 404
           and _wac.get("/architect/saved/1077/7302").status_code == 404, _one.get_json())
+    # a branch among the saved analyses (0321, docs/BRANCH_DESIGN.md §2, decision 13): the way saved from is memory, with its hint; the way left is not
+    _nbh = _NB3("7501")
+    _add3(_nbh, "7502", "Is B above A?", report="# B is above\n\nB is above A [cell 1].", cells=[("gap = b - a", "", [])])
+    _add3(_nbh, "7503", "Is B above A?", report="# B is above on loam\n\nOn loam B is above A [cell 1].", cells=[("gap = b - a", "", [])], at=5,
+          branch={"of": "7502", "turn": 1}, hints=[{"turn": 1, "text": "Keep the soil types apart."}])
+    _NBS3(_su3).save(_nbh)
+    _favh = [_fav3(_su3, 7501, 7502, "trajectory"), _fav3(_su3, 7501, 7503)]
+    _mem3.refresh(_su3)
+    _hinted, _way_left = _wac.get("/architect/saved/7501/7503"), _wac.get("/architect/saved/7501/7502")
+    for _f in _favh:
+        os.remove(_f)
+    _mem3.refresh(_su3)
+    check("/architect/saved of a branch (0321): the saved analysis says the hints it was made under, each with its turn - a run that is no branch says none; the way the person left for it "
+          "is no saved analysis to open",
+          _hinted.status_code == 200 and _hinted.get_json()["hints"] == [{"turn": 1, "text": "Keep the soil types apart."}] and _hinted.get_json()["question"] == "Is B above A?"
+          and _one.get_json()["hints"] == [] and _way_left.status_code == 404 and len(_mem3.view(_su3)["runs"]) == 1, (_hinted.get_json(), _way_left.status_code))
     _pane_was = BAMBOO._pane
     BAMBOO._pane = lambda kind, **kw: (_pane_was(kind, **kw), _wac.post("/architect/skip") if kind == "architect_saved" else None)[0]      # the person clicks Skip as the row opens
     state["architect"], state["memory"], state["memory_seen"] = [json.dumps({"say": "I am looking once more.", "recall": True})], _reads(), []
@@ -2753,6 +2771,10 @@ try:
           and _b.hints == [{"turn": 2, "text": "keep the two apart"}] and [t.kept for t in _b.turns[:2]] == ["kept", "kept"] and [c.cell_no for c in _b.cells()] == [1, 2, 3]
           and _b.status == "answered" and [c.cell_no for c in _first.cells()] == [1, 2, 3] and _first.cells()[2].code.startswith("three") and not any(t.kept for t in _first.turns),
           (_b.branch, _b.hints, _b.budget, [c.cell_no for c in _b.cells()]))
+    _line_b = BAMBOO.store.ledger().get(str(_b.id)) or {}
+    check("0321: the usage ledger's line of a branch counts its own cell - not the two it kept - and says the turn it went on from and the hint given there",
+          _line_b.get("cells") == 1 and _line_b.get("branch") == {"turn": 2, "hint": "keep the two apart"} and _line_b.get("question") == _first.question
+          and (BAMBOO.store.ledger().get(str(_first.id)) or {}).get("branch") == {} and (BAMBOO.store.ledger().get(str(_first.id)) or {}).get("cells") == 3, _line_b)
     check("0319: the analyst is given the hint in every prompt of the branch, the first at the turn after the one kept, and nothing of the turns that were left",
           len(_prompts) == 2 and all(_HINT % (2, "keep the two apart") in u for u in _prompts) and "TASK: turn 3;" in _prompts[0] and "TASK: turn 4;" in _prompts[1]
           and not any("three = two + 1" in u or "no_such_name" in u for u in _prompts), [u[-300:] for u in _prompts])
@@ -2896,13 +2918,17 @@ try:
     BAMBOO.output_manager.add_user_input("a brief that was started before"); _was = BAMBOO.chain_id
     BAMBOO.pd_agent_converse(thread_id="2909", chain_id=_b.id, run_id=_b.id)        # a brief that can no longer be started: refused too
     _no_brief = BAMBOO.chain_id == _was and any("can no longer be started" in json.loads(m).get("error", "") for m in list(q.queue))
-    state.update(i=0, script=FOLLOW[1:]); BAMBOO.output_manager.add_user_input("and after the refusals?")
+    state.update(i=0, script=FOLLOW[1:]); BAMBOO.output_manager.add_user_input("and after the refusals?"); _nf = len(state["calls"])
     BAMBOO.pd_agent_converse(thread_id="2909", chain_id=_b.id, mode="quick")
     while not q.empty(): q.get()
     _next = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    _told = next(u for a, u in state["calls"][_nf:] if "TASK: turn" in u)       # what the analyst of the chain asked from the branch was sent first
     check("0319: a refusal leaves nothing behind for the next question - what was typed for a branch, or for a brief that can no longer be started, is not asked in "
-          "its place - and a chain asked from a branch follows it as any chain",
-          _no_brief and _next.question == "and after the refusals?" and _next.parent == _b.id and _next.branch == {} and _next.hints == [], (_no_brief, _next.question, _next.parent))
+          "its place - and a chain asked from a branch follows it as any chain; its analyst is told what the person said on the branch's way, under the branch's "
+          "question in the thread's ledger (0321), and is under no hint itself",
+          _no_brief and _next.question == "and after the refusals?" and _next.parent == _b.id and _next.branch == {} and _next.hints == []
+          and f"Q: {_b.question}\n        HINT FROM THE PERSON after turn 2: keep the two apart\n        Conclusion: " in _told and _told.count("HINT FROM THE PERSON") == 1
+          and "HINT FROM THE PERSON (given" not in _told, (_no_brief, _next.question, _next.parent, _told[:900]))
     _luck = _chain([_cell("import random\nluck = random.random()\nprint('luck', round(luck, 6))"), _REPORT], _talk.id)
     _k9 = BAMBOO._kernel
     BAMBOO.df_id = "d9"                                      # the same file loaded again under another id: the same data, another frame

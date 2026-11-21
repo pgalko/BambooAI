@@ -166,7 +166,7 @@ def left_pane(page):
     """The left pane as the person sees it, with a turn gone back to or without (docs/BRANCH_DESIGN.md §5): the numbered turn cards in sight - each with whether
     the chain kept it from another -, how many cards the pane holds, the rows of hints in sight, whether the closing card is; the composer - the row of the turn
     gone back to, its words, and whether the files' menu, the mode and the Architect's switch are in sight; the turn the page stands at; the arrows' count; the
-    number on the strip's button; how long the tabs' markup is, and the answer's text."""
+    number on the Turn map's button; how long the tabs' markup is, and the answer's text."""
     return page.evaluate("""() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null;
         const s = document.querySelector('#streamOutput .sp-stream'), cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn]')];
         return { turns: cards.filter(e => /^\\d+$/.test(e.getAttribute('data-turn')) && vis(e)).map(e => [Number(e.getAttribute('data-turn')), e.classList.contains('kept')]),
@@ -1687,6 +1687,84 @@ def walk_draft(page, st, mod, wa, edition, user):
           and [[f.get("title") for f in t.get("figures", []) if isinstance(f, dict)] for t in ran_b.get("turns", []) if t.get("step") == "figures" and t.get("kind") == "cell"][-1:] == [[boxes, line]],
           (of_b, calls_b, ran_b.get("status"), ran_b.get("branch"), ran_b.get("report", "")[-300:]))
 
+    # ---- the branch saved (0321, docs/BRANCH_DESIGN.md §2, decisions 2 and 13) ----
+    # The thread is saved from the branch: both ways are stored, and memory takes the branch - with its hint - and leaves the first run. Opened again in a
+    # new workflow, the saved thread is one analysis with its branch; a turn of it is gone back to and the analysis goes on a third way - nothing is locked
+    storage, b_id = os.path.join(wa, "storage", user), str(of_b["chain"])
+    logs_at = os.path.join(os.path.dirname(wa), "logs", "webapp.log")
+
+    def save_here():
+        page.click("#saveButton")
+        page.wait_for_selector("#saveMenu", state="visible", timeout=10000)
+        page.click("#saveMenu .it[data-act='favourite']")
+        page.wait_for_function("() => document.getElementById('saveButton').classList.contains('saved')", timeout=30000)
+
+    def remembered(until):
+        view = kept_memory(storage, until)
+        return {r["run"]: r for r in view["runs"] if r["thread"] == str(tid)}, view["not_read"].get("left", 0)
+
+    left_before = kept_memory(storage)["not_read"].get("left", 0)
+    save_here()
+    mem_b, left_b = remembered(lambda v: any(r["run"] == b_id for r in v["runs"]))
+    stored = sorted(f[:-5] for f in os.listdir(os.path.join(storage, "favourites", str(tid))))
+    check("a thread saved from a branch (0321): both ways are stored - every branch is, with the thread - and memory takes the branch, picked, with the hint it was made under, its "
+          "brief and its own report; the first run, which the person left, is no memory and is counted as left",
+          stored == sorted([str(cid), b_id]) and list(mem_b) == [b_id] and mem_b[b_id]["marks"] == ["picked"] and mem_b[b_id]["hints"] == [{"turn": 1, "text": mod.BRANCH_HINT}]
+          and mem_b[b_id]["question"] == mod.FIGURES_QUESTION and "## Each soil type on its own" in mem_b[b_id]["report"] and mem_b[b_id]["brief"] and left_b == left_before + 1,
+          (stored, list(mem_b), mem_b.get(b_id, {}).get("hints"), left_before, left_b))
+    saved_b = page.evaluate("(a) => window.authService.fetch('/architect/saved/' + a[0] + '/' + a[1]).then(r => r.json())", [str(tid), b_id])
+    page.evaluate("handleNewConversation()")
+    page.wait_for_url("**/?new=true", timeout=60000)
+    page.wait_for_selector("#queryInput", state="visible", timeout=60000)
+    page.app_ready()
+    page.wait_for_function("() => /Ready|Local|Docker/.test(document.querySelector('#containerStatusText').textContent)", timeout=60000)
+    page.set_input_files("#primaryFile", st.dataset)
+    page.wait_for_selector(".primary-dataset-pill", timeout=60000)
+    page.wait_for_timeout(500)
+    page.evaluate("(a) => loadThreadContent(a[0], a[1])", [str(tid), b_id])
+    page.wait_for_function("(c) => responses.length === 2 && String(currentData.chain_id) === c && !!document.querySelector('#streamOutput .sp-turnmap')", arg=b_id, timeout=30000)
+    page.wait_for_timeout(500)
+    again = page.evaluate("""() => ({ branches: responses.map(r => r.branch ? [String(r.branch.of), r.branch.turn, r.branch.hint] : null), analyses: BranchUI.analyses().map(e => String(e.chain_id)),
+        place: BranchUI.place(), badge: (document.querySelector('#streamOutput .sp-turnmap .n') || {}).textContent || '', hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent) })""")
+    page.evaluate("showWorkflowMap()")
+    page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
+    thread_boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => (n.querySelector('.wf-node-branches') || {}).textContent || '')")
+    page.evaluate("document.getElementById('workflowMapModal').style.display = 'none'")
+    map_again = open_turn_map(page)
+    check("the saved thread opened again (0321): its two chains are one analysis, the branch saying what it went on from, after which turn and under what hint - from the thread's "
+          "record; the thread map has one box, with its branch; the Turn map shows both ways, the branch's first turn marked; and the saved analysis, opened to read, says its hint",
+          again["branches"] == [None, [str(cid), 1, mod.BRANCH_HINT]] and again["analyses"] == [b_id] and again["place"] == {"i": 1, "n": 1} and again["badge"] == "1"
+          and again["hints"] == ["From turn 1" + mod.BRANCH_HINT] and thread_boxes == ["1 branch"]
+          and map_again["sub"] == f"{len(map_again['boxes'])} turns · 1 branch · click one to go back to it" and [x[1].split(" · ")[0] for x in map_again["boxes"]] == ["Turn 1", "Turn 2", "Turn 2", "Turn 3"]
+          and saved_b.get("hints") == [{"turn": 1, "text": mod.BRANCH_HINT}], (again, thread_boxes, map_again["sub"], map_again["boxes"], saved_b.get("hints")))
+    # nothing is locked: back to the turn both ways share, and a third way from it
+    more_hint = "Now leave the sandy plots out."
+    turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
+    page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
+    page.fill("#queryInput", more_hint)
+    page.click("#submitQuery")
+    wait_run_end(page, 3)
+    page.wait_for_function("() => responses.length === 3 && !responses[2].status", timeout=60000)
+    third = page.evaluate("""() => { const e = responses[currentResponseIndex];
+        return { chain: String(e.chain_id), branch: e.branch ? [String(e.branch.of), e.branch.turn, e.branch.hint] : null, place: BranchUI.place(), n: responses.length,
+                 badge: (document.querySelector('#streamOutput .sp-turnmap .n') || {}).textContent || '', hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent),
+                 fold: !!document.querySelector('#streamOutput .sp-stream > .ar-fold'), tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent.trim()) }; }""")
+    ran_3 = thread_run(wa, user, tid, third["chain"])
+    log_3 = open(logs_at, encoding="utf-8", errors="replace").read() if os.path.exists(logs_at) else ""
+    save_here()
+    mem_3, left_3 = remembered(lambda v: any(r["run"] == third["chain"] for r in v["runs"]))
+    check("nothing is locked after saving (0321): from a turn of the saved thread the analysis goes on a third way - a branch of the first run, in a kernel that ran the kept cell "
+          "again, under the brief, whose row and tab it has; the page counts one analysis with two branches. Saved again, the new branch is stored with the others; memory holds the "
+          "two ways the person saved from, each with its own hint, and the first run stays left",
+          third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["badge"] == "2" and third["hints"] == ["From turn 1" + more_hint]
+          and third["fold"] and "Brief" in third["tabs"]
+          and ran_3.get("status") == "answered" and ran_3.get("branch") == {"of": str(cid), "turn": 1} and ran_3.get("hints") == [{"turn": 1, "text": more_hint}] and ran_3.get("brief") == ran.get("brief")
+          and f"A fresh kernel for the branch: the 0 cells before chain {b_id} and the 1 it keeps of it are run again" in log_3
+          and sorted(mem_3) == sorted([b_id, third["chain"]]) and mem_3[third["chain"]]["hints"] == [{"turn": 1, "text": more_hint}] and mem_3[b_id]["hints"] == [{"turn": 1, "text": mod.BRANCH_HINT}]
+          and mem_3[third["chain"]]["marks"] == ["picked"] and mem_3[b_id]["marks"] == ["picked"] and left_3 == left_before + 1
+          and len(os.listdir(os.path.join(storage, "favourites", str(tid)))) == 3,
+          (third, ran_3.get("status"), ran_3.get("branch"), ran_3.get("hints"), sorted(mem_3), left_3, [l for l in log_3.splitlines() if "kernel for the branch" in l][-2:]))
+
 
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
@@ -2677,12 +2755,23 @@ def main():
             n_b = entry_b()["n"]
             page.wait_for_timeout(800)                       # the answer's own buttons settle a moment after the run ends
             whole = left_pane(page)
+            # the button's place (0321): the end of the ids' row, which stays under the strip - seen here in a pane too short for its analysis, at its end
+            head = page.evaluate("""() => { const p = document.getElementById('streamOutput'), b = p.querySelector('.sp-turnmap'), row = p.querySelector('.sp-ids'), strip = p.querySelector('.sp-strip');
+                const box = e => e.getBoundingClientRect();
+                p.style.maxHeight = '240px'; p.scrollTop = p.scrollHeight;
+                const out = { scrolled: p.scrollTop > 60, words: b.textContent, row: b.parentNode === row && row.lastElementChild === b, strip: !!strip.querySelector('.sp-turnmap'),
+                              end: Math.abs(box(b).right - (box(row).right - parseFloat(getComputedStyle(row).paddingRight))) < 2, under: Math.abs(box(row).top - box(strip).bottom) < 2,
+                              seen: box(b).top >= box(p).top && box(b).bottom <= box(p).bottom, line: box(row).height < 40 };
+                p.style.maxHeight = ''; p.scrollTop = p.scrollHeight;
+                return out; }""")
             map1 = open_turn_map(page)
-            check("the Turn map (0320): the button on the strip of a finished analysis opens the thread map's drawer as the map of its turns - its name, how many turns, the "
-                  "thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box",
-                  map1["title"] == "Turn map" and map1["sub"] == f"{len(map1['boxes'])} turns · click one to go back to it" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
+            check("the Turn map (0320; the button's place 0321): a finished analysis has its button at the end of the ids' row, with its name - none on the strip; the row is one line "
+                  "and stays under the strip, so the button is in view with the pane at its end. It opens the thread map's drawer as the map of the analysis's turns - its name, how "
+                  "many turns, the thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box",
+                  head == {"scrolled": True, "words": "Turn map", "row": True, "strip": False, "end": True, "under": True, "seen": True, "line": True}
+                  and map1["title"] == "Turn map" and map1["sub"] == f"{len(map1['boxes'])} turns · click one to go back to it" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
                   and re.fullmatch(r"Turn 1 · In \[\d+\]", map1["boxes"][0][1]) and map1["boxes"][-1][1] == f"Turn {len(map1['boxes'])} · report" and map1["on"] == [len(map1["boxes"])]
-                  and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)) and whole["badge"] == "", (map1, whole["badge"]))
+                  and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)) and whole["badge"] == "", (head, map1, whole["badge"]))
             turn_box(page, "(sub) => sub.startsWith('Turn 1 ·')")
             page.wait_for_function("() => BranchUI.standing() !== null", timeout=10000)
             back1 = left_pane(page)
@@ -2722,7 +2811,7 @@ def main():
             turn_box(page, f"(sub) => sub === 'Turn {n1} · report'")
             page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=last_b["id"], timeout=10000)
             first_way = left_pane(page)
-            check("moving between branches (0320): a click on the last turn of the way that was left brings that chain back, tabs and pane, whole; its strip says the analysis has a branch",
+            check("moving between branches (0320): a click on the last turn of the way that was left brings that chain back, tabs and pane, whole; its Turn map's button says the analysis has a branch",
                   first_way["turns"] == [[n, False] for n in range(1, n1 + 1)] and first_way["hidden"] == 0 and first_way["done"] is True and first_way["hints"] == [] and first_way["standing"] is None
                   and first_way["answer"] == whole["answer"] > 0 and pane_g["answer"] != whole["answer"] and first_way["position"] == "chain 9 of 9" and first_way["badge"] == "1"
                   and entry_b()["chain"] == int(last_b["id"]), (first_way, whole["answer"], pane_g["answer"]))
@@ -2880,6 +2969,20 @@ def main():
                 page.wait_for_function("(c) => UsageUI.state.detail && UsageUI.state.detail.analysis.chain === c", arg=unsaved, timeout=10000)
                 pane2 = page.evaluate("() => { const d = document.querySelector('#usageModal .us-detail'); return { open: !!d.querySelector('.open'), notsaved: (d.querySelector('.us-detail-h .muted') || {}).textContent || '' }; }")
                 check("a run not saved as a favourite: no 'open the analysis' (the page opens a chain from its saved file), 'not saved' in its place", not pane2["open"] and pane2["notsaved"] == "· not saved", pane2)
+            # a branch in the ledger (0321, docs/BRANCH_DESIGN.md §2, decision 14): the branch of the first analysis made above
+            branch_c = str(entry_b2["chain"])
+            page.click(f"#usageModal .us-list .it[data-chain='{branch_c}']")
+            page.wait_for_function("(c) => UsageUI.state.detail && UsageUI.state.detail.analysis.chain === c", arg=branch_c, timeout=10000)
+            det_b = page.evaluate("() => { const d = document.querySelector('#usageModal .us-detail'); return { analysis: UsageUI.state.detail.analysis, q: d.querySelector('.us-detail-h .q').textContent, "
+                                  "hint: (d.querySelector('.us-detail-h .hint') || {}).textContent || '' }; }")
+            own_cells = sum(1 for t_ in run_b["turns"] if t_["kind"] == "cell" and t_.get("cell_no") and not t_.get("kept"))
+            check("a branch in the Usage dialog (0321): its row carries its analysis's question and says from which turn it went on; its cells are its own - not the two it kept - and "
+                  "its cost is that of its own calls; the detail shows the hint under the question; a run that is no branch says neither",
+                  led_by[branch_c]["q"] == mod.QUESTIONS[0] and f" · from turn {mod.BRANCH_TURN} · " in led_by[branch_c]["meta"] and "from turn" not in led_by[first]["meta"]
+                  and det_b["analysis"]["branch"] == {"turn": mod.BRANCH_TURN, "hint": mod.BRANCH_HINT} and det_b["hint"] == f"From turn {mod.BRANCH_TURN}" + mod.BRANCH_HINT and det_b["q"] == mod.QUESTIONS[0]
+                  and det_b["analysis"]["cells"] == own_cells == sum(1 for t_ in run_b["turns"] if t_["kind"] == "cell" and t_.get("cell_no")) - 2
+                  and f" · {own_cells} cell" in led_by[branch_c]["meta"] and close(led_by[branch_c]["cost"], sum(float(x["cost"] or 0) for x in by_chain[branch_c]))
+                  and det["analysis"]["branch"] == {}, (led_by[branch_c], det_b, own_cells))
             page.click("#usageModal .us-tabs [data-tab=calls]")
             page.wait_for_selector("#usageModal [data-table=calls] tbody tr", timeout=10000)
             calls_ui = page.evaluate("() => ({ n: document.querySelectorAll('#usageModal [data-table=calls] tbody tr').length, first: document.querySelector('#usageModal [data-table=calls] tbody tr td.link a').textContent, pager: document.querySelector('#usageModal .us-pager span').textContent, header_sticky: getComputedStyle(document.querySelector('#usageModal .us-scroll thead th')).position })")

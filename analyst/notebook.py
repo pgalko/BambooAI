@@ -246,6 +246,18 @@ def hint_block(run: Run) -> str:
             + "\n".join(f"- after turn {h['turn']}: {h['text']}" for h in hints))
 
 
+def hint_lines(hints: Optional[list]) -> List[str]:
+    """A run's hints as one who reads the run afterwards is told them, a line each: the analyst of a later question
+    of the thread, the Architect, memory's reader. From a Run's `hints`, or its dict's."""
+    return [f"HINT FROM THE PERSON after turn {h['turn']}: {' '.join(h['text'].split())}" for h in hints or []]
+
+
+def own_hint(branch: dict, hints: Optional[list]) -> str:
+    """What the person said when a branch went on from its turn - the hint given at that turn, not those its kept
+    turns were made under. From a Run's `branch` and `hints`, or its dict's."""
+    return next((h["text"] for h in reversed(hints or []) if h["turn"] == branch["turn"]), "")
+
+
 AGAIN_LINE = "(run again to rebuild the kernel: it printed something else than the first time, and this is the new output)\n"
 
 
@@ -528,7 +540,8 @@ class Notebook:
 
     def render_ancestry(self, run_id: str, whole: int = 2) -> str:
         """Earlier chains on the path. The LEDGER never collapses: every chain's
-        question, its conclusion, and the kernel names it left. The most recent
+        question - with the hints a branch was made under -, its conclusion, and
+        the kernel names it left. The most recent
         `whole` chains also ride with their final note and the answer's opening
         paragraph. Anything older is opened with SHOW RUN k. No character cut."""
         path = self.path(run_id)[:-1]
@@ -539,7 +552,7 @@ class Notebook:
         now = (self.runs.get(str(run_id)).data if self.runs.get(str(run_id)) is not None else None) or {}
         for k, run in enumerate(path, 1):
             q = re.sub(r"\s+", " ", run.question.strip())
-            parts.append(f"[run {k}] Q: {q}\n        Conclusion: {self.conclusion(run)}")
+            parts.append("\n        ".join([f"[run {k}] Q: {q}", *hint_lines(run.hints), f"Conclusion: {self.conclusion(run)}"]))
             if run.id in other:
                 parts.append("        " + self.other_data_line(run, now))     # the data changed since: context, not computation (2026-10-12)
                 continue
@@ -562,13 +575,13 @@ class Notebook:
         return "\n".join(parts)
 
     def render_run(self, run_id: str, k: int) -> str:
-        """SHOW RUN k: an earlier chain whole - question, final note, report."""
+        """SHOW RUN k: an earlier chain whole - question, the hints a branch was made under, final note, report."""
         path = self.path(run_id)[:-1]
         if not 1 <= k <= len(path):
             return f"(no run {k}; this thread has {len(path)} earlier chain(s))"
         run = path[k - 1]
-        return (f"--- run {k} ---\nQUESTION: {run.question.strip()}\nFINAL NOTE:\n{run.note.strip() or '(none)'}\n"
-                f"REPORT:\n{(run.report or '(no report)').strip()}")
+        return "\n".join([f"--- run {k} ---", f"QUESTION: {run.question.strip()}", *hint_lines(run.hints), f"FINAL NOTE:\n{run.note.strip() or '(none)'}",
+                          f"REPORT:\n{(run.report or '(no report)').strip()}"])
 
     def reads(self, run_id: str) -> List[Turn]:
         """Every document read on the path, in order (SHOW READ k opens one) - numbered along the path like searches."""
@@ -615,22 +628,26 @@ class Notebook:
 
 def run_facts(run) -> dict:
     """What the usage ledger shows of a run (docs/USAGE_DESIGN.md §3): the question and the title, the mode, how it
-    ended, its cells and figures, when it started and how long it took wall to wall. From a Run, or from its dict in
-    the thread file - never the cells' outputs or figures."""
+    ended, its cells and figures, when it started and how long it took wall to wall. A branch is counted by its own
+    turns - those it kept from the run it went on from were that run's, and paid for there - and says after which
+    turn it went on and under what hint (`branch`: {turn, hint}; {} for a run that is none). From a Run, or from its
+    dict in the thread file - never the cells' outputs or figures."""
     if isinstance(run, dict):
         g = run.get
         tg = lambda t, k, d=None: t.get(k, d)                                        # noqa: E731
     else:
         g = lambda k, d=None: getattr(run, k, d)                                     # noqa: E731
         tg = lambda t, k, d=None: getattr(t, k, d)                                   # noqa: E731
-    turns = g("turns") or []
+    turns = [t for t in g("turns") or [] if not tg(t, "kept")]
     cells = [t for t in turns if tg(t, "kind") == "cell" and tg(t, "cell_no") is not None]
+    branch = g("branch") or {}
     failed_at = next((tg(t, "cell_no") for t in reversed(cells) if tg(t, "error")), None)
     created = float(g("created") or 0)
     last = max([float(tg(t, "created") or 0) + float(tg(t, "elapsed") or 0) for t in turns] + [created])
     return {"question": g("question") or "", "title": g("title") or "", "mode": g("mode") or "", "status": g("status") or "", "replay": g("replay_status") or "",
             "cells": len(cells), "figures": sum(len(tg(t, "figures") or []) for t in cells), "created": created, "wall": round(max(0.0, last - created), 1),
-            "failed_at": failed_at, "refused": any(tg(t, "refused") for t in turns)}
+            "failed_at": failed_at, "refused": any(tg(t, "refused") for t in turns),
+            "branch": {"turn": branch["turn"], "hint": own_hint(branch, g("hints"))} if branch else {}}
 
 
 class NotebookStore:

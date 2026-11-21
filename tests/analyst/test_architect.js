@@ -508,6 +508,11 @@ check('a saved analysis opened beside the brief: a dialog with what was asked, t
   && dlg.querySelector('.ui-dlg-h button.x[data-ar="shut"]') && dlg.querySelector('.ui-dlg-b pre').textContent.indexOf('B led A by <3> units.') >= 0
   && dlg.querySelector('details.ar-code summary').textContent === 'Code' && dlg.querySelector('details.ar-code pre').textContent === 'gap = b - a  # <b>' && !dlg.querySelector('details.ar-code').hasAttribute('open')
   && el(b.savedDialog({ question: '', title: 'A synthesis', report: 'r', cells: [] })).querySelector('.title').textContent === 'A synthesis' && !el(b.savedDialog({ report: 'r' })).querySelector('details'), dlg.innerHTML);
+const dlgH = el(b.savedDialog({ question: 'Is B above A?', when: '2026-03-02T10:00:00Z', report: 'r', hints: [{ turn: 2, text: 'Keep the <soil> types apart.' }, { turn: 4, text: 'Leave the sandy plots out.' }] }));
+check('a saved analysis that is a branch (2.9): under what was asked and the day, the hints it was made under, each with the turn it was given after, as text; a run without one has no such line',
+  same([...dlgH.querySelectorAll('.ui-dlg-h .hint')].map(x => x.textContent), ['From turn 2Keep the <soil> types apart.', 'From turn 4Leave the sandy plots out.'])
+  && dlgH.querySelector('.ui-dlg-h .hint b').textContent === 'From turn 2' && dlgH.querySelector('.ui-dlg-h .sub').textContent === '2026-03-02'
+  && !dlg.querySelector('.ui-dlg-h .hint') && !el(b.savedDialog({ question: 'q', report: 'r', hints: [] })).querySelector('.hint'), dlgH.innerHTML);
 const KEEP = { who: 'architect', text: 'One line does not hold. Keep it, or change it?', choices: ['Keep it', 'Change it'], v: 2, cost: 0.01, call: 5 };
 const ROUND = { chain_id: 71, queryText: 'Is B above A?', framing: { versions: F1.versions, turns: [{ who: 'person', text: 'B well above A' }, { who: 'architect', text: 'Checking this against the data.', v: 1, call: 4 }, CHECK, KEEP] } };
 const round = b.talk(ROUND, { live: true }), between = el(b.talk({ chain_id: 71, queryText: 'q', framing: { turns: ROUND.framing.turns.slice(0, 3) } }, { live: true }));

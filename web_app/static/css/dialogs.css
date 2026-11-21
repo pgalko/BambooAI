@@ -178,6 +178,7 @@
 .us-detail .pick { color: var(--text-quaternary); font-size: var(--fs-meta); padding: 40px 0; text-align: center; }
 .us-detail-h .q { font-size: var(--fs-body); font-weight: 600; color: var(--text-primary); line-height: 1.4; }
 .us-detail-h .t { font-size: var(--fs-meta); color: var(--text-secondary); margin-top: 3px; line-height: 1.4; }
+.us-detail-h .t.hint b { margin-right: 7px; color: var(--c-model); font-weight: 600; }      /* a branch: from which turn, then the hint */
 .us-detail-h .m { font-size: var(--fs-small); color: var(--text-quaternary); margin-top: 5px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .us-detail-h .open { color: var(--c-model); text-decoration: none; margin-left: 6px; cursor: pointer; } .us-detail-h .open:hover { text-decoration: underline; }
 .us-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 8px; }
@@ -1064,6 +1065,8 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 /* a saved analysis opened beside the brief that names it (architect.js, 0303) */
 #savedAnalysisModal { display: none; position: fixed; inset: 0; background: var(--scrim); align-items: center; justify-content: center; z-index: 1000; padding: 24px; }
 #savedAnalysisModal .ui-dlg.ar-saved-dlg { width: min(860px, 100%); max-height: min(88vh, 860px); }
+#savedAnalysisModal .ui-dlg-h .hint { margin-top: 4px; font-size: var(--fs-meta); color: var(--text-secondary); }      /* a branch: what the person said when they went back to a turn */
+#savedAnalysisModal .ui-dlg-h .hint b { margin-right: 7px; color: var(--c-model); font-weight: 600; }
 #savedAnalysisModal .ar-code { margin-top: 14px; border-top: 1px solid var(--border-color); padding-top: 10px; font-size: 12px; color: var(--text-tertiary); }
 #savedAnalysisModal .ar-code summary { cursor: pointer; }
 #savedAnalysisModal .ar-code .cell-n { margin-top: 8px; font-size: 11px; color: var(--text-quaternary); }

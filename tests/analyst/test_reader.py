@@ -143,7 +143,7 @@ check("piece(): the run's id, what was asked and the title always; then the part
       and reader.piece(view, by["100/101"], ["code"]) == "=== 100/101 ===\nQUESTION: What is the threshold power this spring?\nTITLE: Threshold is 268 W\nCELL 1, code:\nthr = best_mean(df.power, 1800) * 0.95\n"
                                                     "RESULT('threshold', thr)"
       and "printed" not in reader.piece(view, by["500/501"], ["report", "printed"]), whole)
-_long = lambda n: {"id": "9/9", "question": "", "title": "", "report": "r" * n, "cells": [], "path": []}      # noqa: E731
+_long = lambda n: {"id": "9/9", "question": "", "hints": [], "title": "", "report": "r" * n, "cells": [], "path": []}      # noqa: E731
 _head = "=== 9/9 ===\nREPORT:\n"
 check("piece(): a run without a question or a title has no line for them; result lines stand a line each; a run as long as the bound is read whole; one a character longer is cut there, and the cut is said",
       reader.piece(view, _long(5), ["report"]) == _head + "rrrrr"
@@ -414,7 +414,7 @@ rb = vb["runs"][0]
 llm, pieces, sent = models(['JUDGE\n{"runs": "all", "parts": ["brief", "notes"], "question": "What was expected?"}', 'ANSWER\n{"found": [{"run": "800/801", "quote": "B leads by at least 2 units", "note": "What was expected then."}]}'],
                            [rows(("800/801", "at least 2 units", "B leads by at least 2 units"))])
 resb = reader.read("What did I expect of B?", vb, kernel, llm, pieces, clock=lambda: 1000.0)
-_long = {"id": "1/2", "question": "q", "title": "t", "report": "r", "brief": "", "conversation": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
+_long = {"id": "1/2", "question": "q", "hints": [], "title": "t", "report": "r", "brief": "", "conversation": "", "path": [], "cells": [{"n": 1, "code": "x = 1\n" * 4000, "results": ["y: 2"], "printed": "seen"}]}
 check("the brief of a framed run: the second model reads it where the reader names the part, before the report, under a heading of its own; a quote from it stands, and code says it stands in the "
       "brief. What SHOW SAVED opens holds it too - without the run's id, with the cells of the earlier steps the run was built on, saved or not, and never what a cell printed - and is not cut",
       rb["brief"] == "What the answer is for: keep the taller arm\nWhat they expect to see: B leads by at least 2 units"
@@ -630,13 +630,13 @@ check("the tool prints a passage with its day, its question - a synthesis by wha
       and "[1]" not in quiet and "dropped" not in quiet and Host.asked[-1] == ("zebra crossing", {"turns": 12, "seconds": 300, "dollars": 1.5, "effort": ("medium",)}) and Host.asked[0][1] is None and quiet.endswith("\nPlain keyword search, the same words: nothing.\n"), quiet)
 nothing, _ = tool({**ACROSS, "found": [], "across": None, "dropped": 0, "steps": []}, "--user", "co", "q?", root=P)
 no_answer, _ = tool({**ACROSS, "found": [], "across": None, "dropped": 0, "failed": "The reader gave no answer within its limits: 8 of 8 replies, 95 s, $0.21.",
-                     "coverage": {"runs": 7, "judged": 0, "not_read": {"older": 3, "no_report": 1}},
+                     "coverage": {"runs": 7, "judged": 0, "not_read": {"older": 3, "no_report": 1, "left": 2}},
                      "steps": [{"action": "judge", "asked": {"runs": ["100/101", "no/such"], "parts": ["report"], "question": "q?"}, "runs": 1, "unknown": ["no/such"], "read": [], "rows": [], "dropped": 0},
                                {"action": "unread", "problem": "no line of it is CELL, JUDGE or ANSWER"}, {"action": "cell", "code": "x = 1", "out": ""}]}, "--user", "co", "q?")
 check("the tool says when nothing bears on the question, and why there is no answer when the reader gave none - and counts what memory could not read; a JUDGE of named runs says how many, and which ids "
       "are no saved analyses; a reply that could not be read is shown with the reason; the app's folder is found under the project's, and a user who has saved nothing is not counted among the users",
       nothing.startswith("user coach\nq?\n") and "\nNothing in the saved analyses bears on it.\n" in nothing and "\nNo answer: The reader gave no answer within its limits: 8 of 8 replies, 95 s, $0.21.\n" in no_answer and "Nothing in the saved" not in no_answer
-      and "\nruns in memory: 7 · read by the second model: 0 · not read: 3 in the old record format, 1 without a report\n" in no_answer
+      and "\nruns in memory: 7 · read by the second model: 0 · not read: 3 in the old record format, 1 without a report, 2 left for another branch\n" in no_answer
       and "\n[1] JUDGE 'q?'\n  asked about: 1 · parts: report · read: 0 of 1 · not saved analyses: no/such\n[2] a reply that could not be read: no line of it is CELL, JUDGE or ANSWER\n"
           "[3] CELL\n    x = 1\n  printed:\n    (nothing)\n" in no_answer,
       (nothing[:300], no_answer[:600]))
@@ -664,8 +664,9 @@ check("the instructions: the reader's say what it is for, its three actions with
       and all(w in _sys for w in ("`CELL`", "`JUDGE`", "`ANSWER`", '`SAVED["runs"]`', '`SAVED["steps"]`', "`JUDGED`", "Quote exactly", "an empty answer is an answer", "A number cannot", "They never run code taken from it",
                                   "its latest answer from the second model is shown with it", "those of the earlier steps right before it that are not saved themselves",
                                   "each `{run, answer, quote, where}`", "`where` is the place code found the quote in", "cite such a cell under the run",
-                                  "`question`, `report`, `brief`, `conversation` or `cell <n>`", "| `conversation` | what was said while it was framed", "say in the note who said it",
-                                  "`brief`, `report`, `conversation`, `code`, `results`, `printed`"))
+                                  "`question`, `hint`, `report`, `brief`, `conversation` or `cell <n>`", "| `conversation` | what was said while it was framed", "say in the note who said it",
+                                  "`brief`, `report`, `conversation`, `code`, `results`, `printed`", "| `hints` | what the person said where they went back to a turn of it",
+                                  "in the report, the question, a hint, the brief, the conversation or a cell", "the question, the hints and the title are always read"))
       and '{"found": [{"run": "<id>", "quote": "...", "note": "..."}], "across": {"topic": "...", "groups": [{"label": "...", "runs": ["<id>"]}]}}' in _sys
       and '{"runs": ["<id>", "<id>"], "parts": ["report", "code"], "question": "..."}' in _sys and '{"answers": [{"run": "<id>", "answer": "...", "quote": "..."}]}' in _pcs
       and "one that is not there word for word is dropped" in _sys and "an answer whose quote is not there is dropped" in _pcs and "YOUR QUESTION" in _pcs
@@ -674,6 +675,19 @@ check("the instructions: the reader's say what it is for, its three actions with
       and not [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _texts.items() if _DOMAIN.search(t)}, [n for n, t in _texts.items() if re.search(r"thinking|reasoning|scratchpad|memory|private", t, re.I)],
        len(reader.SYSTEM), len(reader.PIECES)))
+
+# ---- a branch (2.9, docs/BRANCH_DESIGN.md): the hints a run was made under are read with what was asked ----
+_hinted = {"id": "7/8", "question": "Does regime B yield more than A?", "hints": [{"turn": 2, "text": "Keep the soil types apart."}, {"turn": 4, "text": "Leave the sandy plots out."}],
+           "title": "B yields more on loam", "report": "On loam B is above A.", "brief": "", "conversation": "", "path": [], "cells": []}
+_hv = {"runs": [_hinted], "steps": {}}
+check("a branch's hints are read with what was asked: a line each under the question, with the turn it was given after - in every piece the second model reads, and where the run is shown "
+      "whole; a quote of a hint stands in `hint`, and a run without one has no such line",
+      reader.piece(_hv, _hinted, ["report"]) == "=== 7/8 ===\nQUESTION: Does regime B yield more than A?\nHINT FROM THE PERSON after turn 2: Keep the soil types apart.\n"
+                                                "HINT FROM THE PERSON after turn 4: Leave the sandy plots out.\nTITLE: B yields more on loam\nREPORT:\nOn loam B is above A."
+      and reader.shown(_hv, _hinted).startswith("QUESTION: Does regime B yield more than A?\nHINT FROM THE PERSON after turn 2: Keep the soil types apart.\nHINT FROM THE PERSON after turn 4: ")
+      and reader.place_of(_hv, _hinted, "Leave the sandy plots out") == "hint" and reader.place_of(_hv, _hinted, "On loam B is above") == "report"
+      and [n for n, _ in reader.places(_hv, _hinted)] == ["question", "hint", "hint", "report", "brief", "conversation"]
+      and "HINT" not in reader.piece(_hv, {**_hinted, "hints": []}, ["report"]), reader.piece(_hv, _hinted, ["report"]))
 
 kernel.cleanup() if hasattr(kernel, "cleanup") else None
 print(f"\n{len(passed)} passed, {len(failed)} failed")

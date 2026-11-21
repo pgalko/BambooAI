@@ -285,7 +285,9 @@
         },
         // the ledger: every chain of the period with what it cost, grouped by day; pick one for its breakdown
         ledgerItem(e, mx, on) {
-            const meta = [timeLabel(e.when), e.mode || '', e.cells != null ? e.cells + ' cell' + (e.cells === 1 ? '' : 's') : '', e.wall != null && e.wall > 0 ? dur(e.wall) : dur(e.time)].filter(Boolean).map(esc).join(' · ');
+            // a branch (2.9) is its analysis's question, asked again from one of its turns: the row says from which
+            const from = e.branch && e.branch.turn != null ? 'from turn ' + e.branch.turn : '';
+            const meta = [timeLabel(e.when), e.mode || '', from, e.cells != null ? e.cells + ' cell' + (e.cells === 1 ? '' : 's') : '', e.wall != null && e.wall > 0 ? dur(e.wall) : dur(e.time)].filter(Boolean).map(esc).join(' · ');
             return '<div class="it' + (on ? ' on' : '') + '" data-chain="' + esc(e.chain) + '"><span class="q" title="' + esc(e.question) + '">' + esc(e.question || '(no question recorded)') + '</span><span class="c">' + money(e.cost) + '</span>'
                 + '<span class="m">' + meta + (e.outcome ? ' · ' + chip(e.outcome) : '') + '</span><span class="bar"><span style="width:' + Math.round(e.cost / mx * 100) + '%"></span></span></div>';
         },
@@ -307,7 +309,7 @@
         },
         filterLedger(entries, st) {
             const q = (st.find || '').trim().toLowerCase();
-            let out = entries.filter(e => (!q || (e.question + ' ' + e.title).toLowerCase().includes(q)) && (st.mode === 'all' || modeLabel(e) === st.mode)
+            let out = entries.filter(e => (!q || (e.question + ' ' + e.title + ' ' + ((e.branch || {}).hint || '')).toLowerCase().includes(q)) && (st.mode === 'all' || modeLabel(e) === st.mode)
                 && (st.outcome === 'all' || outcomeGroup(e.outcome) === st.outcome));
             if (st.ledgerSort === 'cost') out = out.slice().sort((a, b) => b.cost - a.cost || (a.when < b.when ? 1 : -1));
             else if (st.ledgerSort === 'time') out = out.slice().sort((a, b) => ((b.wall || b.time) - (a.wall || a.time)) || (a.when < b.when ? 1 : -1));
@@ -360,7 +362,8 @@
             if (t.compute) kpis.push([money(t.compute), 'compute charge']);
             const rank = (det.seats || []).map(s => '<div class="r"><i class="us-sw ' + (cls[s.seat] || 'us-s0') + '"></i><span class="n">' + esc(s.seat) + ' <small>· ' + s.calls + ' call' + (s.calls === 1 ? '' : 's') + '</small></span><span class="b"><span class="' + (cls[s.seat] || 'us-s0') + '" style="width:' + Math.round(s.cost / mx * 100) + '%"></span></span><span class="v">' + money(s.cost) + '</span></div>').join('');
             const models = (det.models || []).map(m => '<b>' + esc(m.model) + '</b><span>' + m.calls + ' call' + (m.calls === 1 ? '' : 's') + ' · ' + compact(m.tokens_in) + ' in' + (m.recorded_in ? ' (' + pct(m.cached_share) + ' cached)' : '') + ' · ' + compact(m.tokens_out) + ' out · ' + money(m.cost) + '</span>').join('');
-            return '<div class="us-detail-h"><div class="q">' + esc(a.question || '(no question recorded)') + '</div>' + (a.title ? '<div class="t">' + esc(a.title) + '</div>' : '')
+            const hint = a.branch && a.branch.turn != null ? '<div class="t hint"><b>From turn ' + esc(a.branch.turn) + '</b>' + esc(a.branch.hint || '') + '</div>' : '';      // a branch: the hint it went on under
+            return '<div class="us-detail-h"><div class="q">' + esc(a.question || '(no question recorded)') + '</div>' + hint + (a.title ? '<div class="t">' + esc(a.title) + '</div>' : '')
                 + '<div class="m">' + meta + (a.outcome ? ' · ' + chip(a.outcome) + ' <span class="gloss">' + esc(gloss(a.outcome)) + '</span>' : '') + (canOpen ? ' <a class="open" data-act="open" data-thread="' + esc(a.thread) + '" data-chain="' + esc(a.chain) + '">open the analysis →</a>' : (run ? ' <span class="muted" title="save the analysis as a favourite to open it from here">· not saved</span>' : '')) + '</div></div>'
                 + '<div class="us-kpis">' + kpis.map(([v, l]) => '<div><b>' + v + '</b><span>' + esc(l) + '</span></div>').join('') + '</div>'
                 + '<div class="us-sec"><div class="h">By seat <span class="n">— the cost of this analysis, who spent it</span></div><div class="us-rank">' + rank + '</div></div>'

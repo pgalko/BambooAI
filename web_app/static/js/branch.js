@@ -1,7 +1,7 @@
 // branch.js - the branches of an analysis on the page (docs/BRANCH_DESIGN.md §5; 2.9, 2026-11-21).
 //
 // An analysis is a line of turns. Its Turn map - the thread map's own drawer and drawing (workflowGraph.js), opened
-// from the strip of the left pane - shows every turn of it and of the ways it went on: a box to a turn, joined to
+// from the row of the ids in the left pane - shows every turn of it and of the ways it went on: a box to a turn, joined to
 // the turn it follows. A click on a turn goes back to it: the chain that holds the turn comes on screen, the left
 // pane ends at it, the tabs stay as they are, and the composer takes a hint. Sent, the hint starts a branch - a
 // chain of its own, which keeps the turns up to that one and goes on from there another way (the server's part:
@@ -122,12 +122,13 @@
     const did = t => (t.kind !== 'cell' ? t.kind : t.cell != null ? 'In [' + t.cell + ']' : t.failed ? WORDS.failed : WORDS.notRun);
     const didWhole = t => (t.kind !== 'cell' ? t.kind : t.cell != null ? WORDS.aCell(t.cell) : t.failed ? WORDS.aFailed : WORDS.aNotRun);
     // The boxes of an analysis's Turn map: each chain's own turns, in order - a branch's first one joined to the turn
-    // it went on from. {key, from: the key of the box it follows, entry: its chain, turn}
+    // it went on from. A branch whose chain is not in the thread - removed from a saved one - has the turns it kept
+    // for its own. {key, from: the key of the box it follows, entry: its chain, turn}
     function boxes(entry) {
         const out = [];
         members(entry).forEach(m => {
-            const kept = m.branch ? m.branch.turn : 0;
-            let before = m.branch ? m.branch.of + ':' + kept : null;
+            const kept = m.branch && entryOf(m.branch.of) ? m.branch.turn : 0;
+            let before = kept ? m.branch.of + ':' + kept : null;
             turnsOf(m).filter(t => t.n > kept).forEach(t => { const key = m.chain_id + ':' + t.n; out.push({ key, from: before, entry: m, turn: t }); before = key; });
         });
         return out;
@@ -243,7 +244,7 @@
         else drawer.style.display = 'none';
     }
     // A chain is on screen (updateNavigationButtons): it is the one its analysis shows from now on; a turn gone back to
-    // on another chain is left; the strip's button says how many branches the analysis has; the map follows
+    // on another chain is left; the Turn map's button says how many branches the analysis has; the map follows
     function onChain(entry) {
         if (entry) shown[String(first(entry).chain_id)] = entry.chain_id;
         if (back && !(entry && same(back.chain, entry.chain_id))) { back = null; ends(null); }

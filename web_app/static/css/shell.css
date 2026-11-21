@@ -164,6 +164,8 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 .left-panel .content-area { padding: 0; }
 .left-panel #streamOutput { padding: 0 12px 0; }
 .left-panel #streamOutput .sp-strip { top: 0; height: 41px; box-sizing: border-box; margin: 0 -12px 8px; padding: 0 22px; z-index: 20; }   /* flush with the pane's top edge, the tab strip's height: the two dividers align */
+/* the ids' row stays in view under the strip (2.9): the Turn map's button stands at its end, and a pane scrolled to its closing card still shows it */
+.left-panel #streamOutput .sp-ids-slot { position: sticky; top: 41px; z-index: 19; margin: 0 -12px; padding: 0 12px; background: var(--bg-primary); }
 .left-panel #streamOutput .sp-prompt, .left-panel #streamOutput .agent-instructions-btn { z-index: 1; }
 
 /* ---- the right pane: the tab strip and the Answer page (2026-09-08) ----

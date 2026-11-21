@@ -284,5 +284,27 @@ check("_ledger(): a reading of the saved analyses made for a brief is part of th
       and _arch.EFFORT[0] == "medium"
       and not any("Knowledge Distiller" in s for s in _tiers.values()), (_mled, {t: sorted(s) for t, s in _tiers.items()}))
 
+# a branch (2.9, docs/BRANCH_DESIGN.md §2, decision 14): the person pays for its own turns, and its entry counts those - not the turns it kept - and says after
+# which turn of its analysis it went on, and under what hint
+from analyst.notebook import run_facts    # noqa: E402
+_b0 = nb9.new_run("Does regime B yield more than A?", run_id="b0"); _b0.mode, _b0.status, _b0.created = "Deep", "answered", 1_790_000_000.0
+_b0.turns = [Turn(kind="cell", cell_no=1, code="a", elapsed=1.0, figures=[{"x": 1}], carry={"turn": 1}), Turn(kind="cell", cell_no=2, code="b", elapsed=1.0, carry={"turn": 2}),
+             Turn(kind="cell", cell_no=3, code="c", elapsed=1.0, carry={"turn": 3}), Turn(kind="report", text="r")]
+for _i, _t in enumerate(_b0.turns): _t.created = _b0.created + 10 * (_i + 1)
+_b1 = nb9.branch("b0", 2, "Keep the soil types apart.", run_id="b1"); _b1.status, _b1.created = "answered", _b0.created + 500
+_b1.turns += [Turn(kind="cell", cell_no=3, code="d", elapsed=4.0, figures=[{"x": 1}, {"y": 2}], created=_b1.created + 20, carry={"turn": 3}), Turn(kind="report", text="r", created=_b1.created + 40)]
+_b2 = nb9.branch("b1", 3, "Leave the sandy plots out.", run_id="b2"); _b2.status, _b2.created = "stopped", _b0.created + 900
+_f0, _f1, _f2 = run_facts(_b0), run_facts(_b1), run_facts(_b2)
+nbs.record(nb9, _b1)
+_bled = {e["chain"]: e for e in UR._ledger([_arow("b1", 11), _arow("n1", 12)], {"b1": "t9", "n1": "t9"}, STORAGE)}
+check("run_facts() of a branch: its own turns - one cell, its two figures, the time from its start to its last turn - not the two cells it kept; after which turn it went on and the hint "
+      "given there, not one a kept turn was made under; a branch that made no turn of its own counts nothing; a run that is no branch says none. From the thread file's dict the same",
+      (_f0["cells"], _f0["figures"], _f0["branch"]) == (3, 1, {}) and (_f1["cells"], _f1["figures"], _f1["wall"]) == (1, 2, 40.0) and _f1["branch"] == {"turn": 2, "hint": "Keep the soil types apart."}
+      and [h["turn"] for h in _b2.hints] == [2, 3] and (_f2["cells"], _f2["figures"], _f2["wall"]) == (0, 0, 0.0) and _f2["branch"] == {"turn": 3, "hint": "Leave the sandy plots out."}
+      and run_facts(nb9.to_dict()["runs"]["b1"]) == _f1, (_f0, _f1, _f2))
+check("_ledger(): a branch's entry carries its analysis's question, its own cell count, and the turn and the hint; a chain that is none carries neither",
+      (_bled["b1"]["question"], _bled["b1"]["cells"], _bled["b1"]["figures"]) == ("Does regime B yield more than A?", 1, 2) and _bled["b1"]["branch"] == {"turn": 2, "hint": "Keep the soil types apart."}
+      and _bled["n1"]["branch"] == {} and _aled["f1"]["branch"] == {}, _bled)
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

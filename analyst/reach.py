@@ -3,9 +3,9 @@
 The kernel records, per cell, the hosts a cell connected to and the bytes each way, the files it opened or listed
 outside the data, the environment names it read and the programs it started (containers/executor/kernel.py, the
 reaches block of the worker). The session keeps the records on the cell's Turn, each marked `asked`: whether the
-question, or an earlier question of the thread, named the host, the file or the name - the one mechanical sign that
-the person asked for the reach rather than the model deciding on it. A cell the executor refused before it ran
-carries the restricted word on `Turn.refused`; it is not an error of the code.
+question, an earlier question of the thread, or a hint given on the way (a branch, 2.9) named the host, the file or
+the name - the one mechanical sign that the person asked for the reach rather than the model deciding on it. A cell
+the executor refused before it ran carries the restricted word on `Turn.refused`; it is not an error of the code.
 
 Nothing here enters a prompt. The record is read by the closing card, the stream pane, the code map and the tally
 script (tools/reaches_report.py).

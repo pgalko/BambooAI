@@ -23,7 +23,7 @@
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
 //   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded},
-//                                         turn_map}    turn_map: it has turns to go on from - the strip gets the button to its Turn map (branch.js)
+//                                         turn_map}    turn_map: it has turns to go on from - the ids' row gets the button to its Turn map (branch.js)
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
 
 (function () {
@@ -112,15 +112,14 @@
             return '<span class="live"></span>' +
                 (h.mode ? '<span class="mode">' + esc(h.mode) + '</span>' : '') +
                 '<span>turn <b>' + esc(h.turn || 0) + '</b>' + (h.of ? ' of ' + esc(h.of) : '') + '</span>' +
-                (h.turnMap ? build.turnMap() : '') +
                 '<span class="bar"><i style="width:' + pct + '%"></i></span>' +
                 '<span>' + fmtCost(h.spent) + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
         },
-        // the way to the map of an analysis's turns (branch.js), beside their count: the Architect's steps have theirs beside
-        // the arrows. The number is how many branches the analysis has - branch.js writes it when the chain comes on screen
+        // the way to the map of an analysis's turns (branch.js), at the end of the ids' row. The number is how many
+        // branches the analysis has - branch.js writes it when the chain comes on screen
         turnMap() {
-            return '<button type="button" class="sp-turnmap" title="Turn map" aria-label="Turn map" onclick="if(window.BranchUI)BranchUI.openMap()">' + ICON_BRANCH + '<span class="n"></span></button>';
+            return '<button type="button" class="sp-turnmap" title="Turn map" onclick="if(window.BranchUI)BranchUI.openMap()">' + ICON_BRANCH + '<span>Turn map</span><span class="n"></span></button>';
         },
         // what the person said when they went back to a turn: the row stands where the branch's own turns begin
         hint(b) {
@@ -481,7 +480,9 @@
         window.paneTurnEnd({ turn: -1 });
         const p = ensure(); if (!p) return;
         hinted();                                    // a branch that ended before a turn of its own: its hint is said all the same
-        if (lastStrip) renderStrip({ turn: r.turns, spent: r.cost != null ? r.cost : lastStrip.spent, turnMap: !!r.turn_map });
+        if (lastStrip) renderStrip({ turn: r.turns, spent: r.cost != null ? r.cost : lastStrip.spent });
+        const ids = p.querySelector('.sp-ids');
+        if (r.turn_map && ids && !ids.querySelector('.sp-turnmap')) ids.insertAdjacentHTML('beforeend', build.turnMap());      // it has turns to go on from
         const strip = p.querySelector('.sp-strip');
         if (strip) { const live = strip.querySelector('.live'); if (live) live.classList.add('idle'); }
         append(build.runEnd(r));

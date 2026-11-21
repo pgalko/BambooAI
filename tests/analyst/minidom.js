@@ -28,7 +28,11 @@ class Element extends Node {
   set innerHTML(html) { this.children = []; parseInto(this, html); }
   get outerHTML() { const a = Object.entries(this.attrs).map(([k, v]) => ` ${k}="${encodeAttr(v)}"`).join(''); return VOID.has(this.tag) ? `<${this.tag}${a}/>` : `<${this.tag}${a}>${this.innerHTML}</${this.tag}>`; }
   get textContent() { return this.children.map(c => c.textContent).join(''); } set textContent(v) { this.children = [new Text(String(v))]; this.children[0].parent = this; }
-  insertAdjacentHTML(pos, html) { const tmp = new Element('div'); parseInto(tmp, html); for (const c of [...tmp.children]) this.appendChild(c); }
+  insertAdjacentHTML(pos, html) {      // 'afterbegin' before the first child, in order; any other position at the end
+    const tmp = new Element('div'); parseInto(tmp, html);
+    const first = pos === 'afterbegin' ? this.children[0] || null : null;
+    for (const c of [...tmp.children]) this.insertBefore(c, first);
+  }
   get lastElementChild() { for (let i = this.children.length - 1; i >= 0; i--) if (this.children[i].nodeType === 1) return this.children[i]; return null; }
   get firstElementChild() { for (const c of this.children) if (c.nodeType === 1) return c; return null; }
   // events and ancestry, enough for a module's click handler to be driven by a test (2026-10-16): listeners are kept per type,

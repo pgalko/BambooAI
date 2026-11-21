@@ -9,17 +9,20 @@
 #streamOutput .sp-strip .bar i { display: block; height: 100%; background: var(--accent-color); transition: width .3s; }
 #streamOutput .sp-strip .live { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); animation: sp-pulse 1.2s ease-in-out infinite; flex-shrink: 0; }
 #streamOutput .sp-strip .live.idle { animation: none; opacity: .35; }
-/* the way to the Turn map, beside the count of turns: the Git branch mark, and how many branches the analysis has */
-#streamOutput .sp-strip .sp-turnmap { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; height: 24px; min-width: 24px; box-sizing: border-box; padding: 0 5px; margin-left: -6px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary); font: inherit; font-size: 11px; cursor: pointer; }
-#streamOutput .sp-strip .sp-turnmap:hover { border-color: var(--c-model); color: var(--c-model); }
-#streamOutput .sp-strip .sp-turnmap svg { display: block; width: 14px; height: 14px; }
-#streamOutput .sp-strip .sp-turnmap .n:empty { display: none; }
+/* the way to the Turn map, at the end of the ids' row: the Git branch mark, the map's name, and how many branches the analysis has */
+#streamOutput .sp-turnmap { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; padding: 2px 9px; border: 1px solid var(--chip-model-border); border-radius: 5px; background: none; color: var(--accent-color); font: inherit; white-space: nowrap; cursor: pointer; }
+#streamOutput .sp-turnmap:hover { background: var(--accent-bg-hover); }
+#streamOutput .sp-turnmap svg { display: block; width: 13px; height: 13px; }
+#streamOutput .sp-turnmap .n { min-width: 15px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--accent-bg-hover); color: var(--text-primary); font-size: 10.5px; line-height: 15px; text-align: center; }
+#streamOutput .sp-turnmap .n:empty { display: none; }
 @keyframes sp-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
-#streamOutput .sp-ids { display: flex; align-items: center; gap: 14px; padding: 4px 10px 6px; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); }
+#streamOutput .sp-ids { display: flex; align-items: center; gap: 14px; padding: 4px 10px 6px; font-family: Arial, sans-serif; font-size: 11px; color: var(--text-secondary); border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+#streamOutput .sp-ids > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }      /* one line: an id that does not fit is cut short, and a click still copies it whole */
+#streamOutput .sp-ids > span:last-of-type { flex-shrink: 10000; }      /* the last one - the frame's, the longest - gives way before the others lose a character */
 #streamOutput .sp-ids .k { color: var(--accent-color); margin-right: 4px; }
 #streamOutput .sp-ids .v { font-family: 'Courier New', Courier, monospace; cursor: copy; }
 #streamOutput .sp-ids .v:hover { color: var(--text-primary); }
-#streamOutput .sp-ids .sep { color: var(--text-quaternary); }
+#streamOutput .sp-ids .sep { color: var(--text-quaternary); flex-shrink: 0; }
 #streamOutput .sp-stream { display: flex; flex-direction: column; gap: 8px; padding: 10px 0 30px; }
 #streamOutput .sp-turn { border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); }
 #streamOutput .sp-turn > summary { list-style: none; display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); cursor: pointer; user-select: none; }

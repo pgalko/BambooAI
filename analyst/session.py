@@ -1680,8 +1680,10 @@ class Session:
         return rv, cost
 
     def _questions(self, run: Run) -> List[str]:
-        """The question and the earlier questions of the thread: what the person asked for, as the reach record reads it."""
-        return [r.question for r in self.nb.path(run.id)]
+        """The question and the earlier questions of the thread, and the hints given on the way: what the person asked
+        for, as the reach record reads it."""
+        path = self.nb.path(run.id)
+        return [r.question for r in path] + [h["text"] for r in path for h in r.hints or []]
 
     def _emit_turn(self, run: Run, turn: Turn) -> None:
         ev = {"type": turn.kind, "run": run.id, "note": turn.note}

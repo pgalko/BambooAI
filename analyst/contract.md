@@ -127,7 +127,7 @@ outside this thread; then markdown headings for its parts:
 - how it was established, citing cells as [cell 7]
 - limitations, in three kinds: what the data cannot support; how much the answer moves under other
   defensible choices; anything you are not certain was computed as stated
-- two or three next steps
+- two or three next steps; drawing the figures is not one
 
 A sentence of context before each number; tables copied from cell outputs; LaTeX for formulas;
 not the whole notebook - the reader has it.

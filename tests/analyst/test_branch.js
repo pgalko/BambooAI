@@ -96,12 +96,13 @@ const differs = holder(b2.streamOutput).querySelectorAll('.sp-row').filter(r => 
 check('... a kept cell that printed something else when it was run again says so on its row, and why on hover; the others say nothing of it',
   differs.length === 1 && differs[0].getAttribute('data-cell') === '3' && differs[0].querySelector('.t').textContent.startsWith('run again: output changed')
   && /printed something else than the first time/.test(differs[0].querySelector('.t').getAttribute('title')) && !/run again/.test(pb.querySelector('.sp-stream').textContent));
-const stripOf = e => holder(e.streamOutput).querySelector('.sp-strip');
-check('the strip: where the run ended with turns to go on from it holds the way to the Turn map, beside the count of turns - the Git branch mark, a place for the number of branches - and '
-  + 'keeps the run\'s limit of turns; an analysis with no turn to go on from has no such button; a stopped one has it',
-  !!stripOf(a).querySelector('.sp-turnmap svg circle') && stripOf(a).querySelector('.sp-turnmap').getAttribute('onclick') === 'if(window.BranchUI)BranchUI.openMap()'
-  && stripOf(a).querySelector('.sp-turnmap').getAttribute('title') === 'Turn map' && stripOf(a).querySelector('.sp-turnmap .n').textContent === '' && stripOf(a).getAttribute('data-of') === '8'
-  && stripOf(a).elements.map(e => e.className || e.tag).slice(0, 5).join() === 'live idle,mode,span,sp-turnmap,bar' && !stripOf(q0).querySelector('.sp-turnmap') && !!stripOf(s).querySelector('.sp-turnmap')
+const stripOf = e => holder(e.streamOutput).querySelector('.sp-strip'), idsOf = e => holder(e.streamOutput).querySelector('.sp-ids');
+check('the way to the Turn map (0321: out of the strip): where the run ended with turns to go on from, the row of the ids ends on a button - the Git branch mark, the map\'s name, a place '
+  + 'for the number of branches; the strip holds no button, and keeps the run\'s limit of turns; an analysis with no turn to go on from has no such button; a stopped one has it',
+  !!idsOf(a).querySelector('.sp-turnmap svg circle') && idsOf(a).querySelector('.sp-turnmap').getAttribute('onclick') === 'if(window.BranchUI)BranchUI.openMap()'
+  && idsOf(a).querySelector('.sp-turnmap').textContent === 'Turn map' && idsOf(a).querySelector('.sp-turnmap .n').textContent === '' && idsOf(a).elements.slice(-1)[0].className === 'sp-turnmap'
+  && holder(a.streamOutput).querySelectorAll('.sp-turnmap').length === 1 && !stripOf(a).querySelector('.sp-turnmap') && stripOf(a).getAttribute('data-of') === '8'
+  && stripOf(a).elements.map(e => e.className || e.tag).slice(0, 4).join() === 'live idle,mode,span,bar' && !holder(q0.streamOutput).querySelector('.sp-turnmap') && !!idsOf(s).querySelector('.sp-turnmap')
   && holder(s.streamOutput).querySelector('.sp-done .title').textContent === 'Run stopped');
 $('streamOutput').innerHTML = '';
 w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1, branch: { of: 20, turn: 3, hint: 'stopped at once' } });
@@ -110,7 +111,7 @@ const shut = !$('streamOutput').querySelector('.sp-turn').hasAttribute('open');
 w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'x', kept: true });
 const midRun = !!$('streamOutput').querySelector('.sp-turnmap') || !!$('streamOutput').querySelector('.sp-hint');
 w.paneRunEnd({ status: 'stopped', turns: 1, of: 8, cells: 0, cost: 0, seconds: 0, chain_id: 99 });
-check('... while a run is under way its strip has no such button, and a kept turn\'s card is shut from the start; a branch that ended before a turn of its own still has the row of its '
+check('... while a run is under way there is no such button, and a kept turn\'s card is shut from the start; a branch that ended before a turn of its own still has the row of its '
   + 'hint, once, before its closing card',
   !midRun && shut && $('streamOutput').querySelector('.sp-stream').elements.map(e => e.className).join() === 'sp-turn kept,sp-hint,sp-done' && !$('streamOutput').querySelector('.sp-turnmap'));
 $('streamOutput').innerHTML = '';
@@ -141,6 +142,13 @@ check('a turn of a chain is a turn of its own, or - where the chain is a branch 
   + 'that ends, and the analysis is that run with every branch of it and of its branches; a branch whose chain is not in the thread stands alone',
   B.owner(c, 5) === c && B.owner(c, 4) === b1 && B.owner(c, 3) === a && B.owner(b2, 3) === a && B.owner(b2, 4) === b2 && B.owner(a, 1) === a && B.first(c) === a && B.first(b1) === a && B.first(f) === f
   && same(B.members(c).map(m => m.chain_id), [20, 21, 22, 23]) && same(B.members(f).map(m => m.chain_id), [30]) && B.owner(lone, 1) === lone && B.first(lone) === lone);
+// a branch whose chain is not in the thread - removed from a saved one - draws the turns it kept as its own
+const orphan = entry(61, null, 'How do the two blocks compare?', keep(A.slice(0, 2)).concat(B1), { branch: { of: 999, turn: 2, hint: 'x' }, entryBranch: { of: 999, turn: 2, hint: 'x' } });
+responses.push(orphan);
+const alone = B.boxes(orphan).map(x => [x.key, x.from]);
+responses.pop();
+check('... the Turn map of a branch whose chain is not in the thread has every turn of its pane, the kept ones first, in one line',
+  same(alone, [['61:1', null], ['61:2', '61:1'], ['61:4', '61:2'], ['61:5', '61:4']]), alone);
 show(c); const onC = [ids(), same(B.place(), { i: 2, n: 4 })];
 show(a); const onA = [ids(), same(B.place(), { i: 2, n: 4 }), B.step(1) === f, B.step(-1) === q0];
 show(s); const onS = [same(B.place(), { i: 4, n: 4 }), B.step(1) === s, B.step(-1) === f];
@@ -271,10 +279,10 @@ check('where the composer is held, the hold\'s words stay on it: the hint\'s wai
   same(heldLeft, ['A fill is running', 'Enter your query here', null]) && same(heldBack, ['A fill is running', 'Say how the analysis should go on from turn 3']) && freed === 'Say how the analysis should go on from turn 3'
   && q.placeholder === 'Enter your query here', [heldLeft, heldBack, freed, q.placeholder]);
 
-// ---- the strip's button and the map, as chains come on screen
+// ---- the Turn map's button and the map, as chains come on screen
 const button = () => $('streamOutput').querySelector('.sp-turnmap'), badge = () => (button() ? [button().querySelector('.n').textContent, button().getAttribute('title')] : null);
 show(a); const badgeA = badge(); show(s); const badgeS = badge(); show(q0); const badgeQ = badge(); show(c); const badgeC = badge();
-check('the strip\'s button says how many branches the analysis of the chain on screen has, on any chain of it; none, it says nothing',
+check('the Turn map\'s button says how many branches the analysis of the chain on screen has, on any chain of it; none, it says nothing',
   same(badgeA, ['3', 'Turn map: 3 branches']) && same(badgeS, ['', 'Turn map']) && badgeQ === null && same(badgeC, ['3', 'Turn map: 3 branches']) && a.streamOutput.indexOf('<span class="n"></span>') > 0, [badgeA, badgeS, badgeQ, badgeC]);
 show(a); B.openMap(); show(b1); const followed = [drawer.style.display, state().on, state().lit];
 show(f); const other = drawer.style.display;
@@ -364,12 +372,15 @@ check('the thread map: its boxes are the analyses, the open one that of the chai
   && ar.includes('<line x1="6" y1="3" x2="6" y2="15"/>') && !ar.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>') && ar.includes("drawer.classList.remove('turns');")
   && html.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>'));
 check('the stylesheets: with a turn gone back to the composer shows no file menu, no mode and no Architect switch, and the row of the turn is styled; the drawer hides the thread\'s '
-  + 'buttons while it holds the turns; the thread map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row and the '
-  + 'strip\'s button are styled',
+  + 'buttons while it holds the turns; the thread map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row is '
+  + 'styled; the Turn map\'s button stands at the end of the ids\' row, which stays in view under the strip, on one line, its last id giving way first',
   shell.includes("body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-panel #modeSliderPopup, body.br-hint .left-panel .icon-row .ar-switch { display: none !important; }")
   && shell.includes(".left-panel .icon-row .br-chip {") && shell.includes("#workflowMapModal.steps .map-drawer-foot, #workflowMapModal.turns .map-drawer-foot { display: none; }") && shell.includes("#workflowMapModal .wf-node-branches {")
   && paneCss.includes("#streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }") && paneCss.includes("#streamOutput .sp-row.differs .t {") && paneCss.includes("#streamOutput .sp-hint {")
-  && paneCss.includes("#streamOutput .sp-strip .sp-turnmap {") && paneCss.includes("#streamOutput .sp-strip .sp-turnmap .n:empty { display: none; }"));
+  && /#streamOutput \.sp-turnmap \{[^}]*margin-left: auto;/.test(paneCss) && paneCss.includes("#streamOutput .sp-turnmap .n:empty { display: none; }")
+  && shell.includes(".left-panel #streamOutput .sp-ids-slot { position: sticky; top: 41px;") && shell.includes(".left-panel #streamOutput .sp-strip { top: 0; height: 41px;")
+  && /#streamOutput \.sp-ids \{[^}]*white-space: nowrap;/.test(paneCss) && paneCss.includes("#streamOutput .sp-ids > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }")
+  && paneCss.includes("#streamOutput .sp-ids > span:last-of-type { flex-shrink: 10000; }"));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + JSON.stringify(d === undefined ? '' : d).slice(0, 1500))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

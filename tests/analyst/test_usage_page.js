@@ -160,6 +160,14 @@ check('the outcome words (2026-10-31, from the product owner reading "answered" 
   && el(chip_('failed at cell 4')).querySelector('.rt-status').getAttribute('title') === 'the run failed; the last error was in cell 4'
   && el(chip_('not run')).querySelector('.rt-status').getAttribute('title') === 'a brief written with the Architect; its analysis was not started' && txt(d, '.us-detail-h .gloss') === 'answered; the replay re-ran the cells and the cited numbers matched'
   && [...el(b.analysesTab(DATA, ST)).querySelectorAll('[data-outcome] option')].map(o => o.textContent).join('|') === 'Every outcome|answered — no replay on record|failed|reproduced — replay matched');
+// a branch (2.9): its analysis's question, asked again from one of its turns
+const BR = Object.assign({}, AN[2], { chain: 'b1', branch: { turn: 2, hint: 'Keep the soil types apart.' } });
+check('a branch of an analysis (2.9): its row says from which turn it went on, the detail pane shows the hint under the question, and the find box finds a word of the hint; a run that is no branch shows neither',
+  txt(el(b.ledgerItem(BR, 1, false)), '.m').startsWith('04:00 · Deep · from turn 2 · 14 cells · ') && !txt(el(b.ledgerItem(AN[2], 1, false)), '.m').includes('from turn')
+  && txt(el(b.detail(Object.assign({}, DET, { analysis: BR }))), '.us-detail-h .hint') === 'From turn 2Keep the soil types apart.' && !el(b.detail(DET)).querySelector('.us-detail-h .hint')
+  && el(b.detail(Object.assign({}, DET, { analysis: BR }))).querySelector('.us-detail-h').elements.map(e => e.className).join() === 'q,t hint,t,m'
+  && b.filterLedger([AN[2], BR], Object.assign({}, ST, { find: 'soil types' })).map(e => e.chain).join() === 'b1'
+  && !el(b.detail(Object.assign({}, DET, { analysis: Object.assign({}, AN[2], { branch: {} }) }))).querySelector('.us-detail-h .hint'));
 d = el(b.detail(Object.assign({}, DET, { analysis: AN[0] })));
 check('detail of a chain the thread store does not know (Save as routine): no title, no "open the analysis"', !d.querySelector('.open') && txt(d, '.us-detail-h .q') === 'Save as routine: the proposal' && !d.querySelector('.us-detail-h .muted'));
 d = el(b.detail(Object.assign({}, DET, { analysis: Object.assign({}, AN[2], { saved: false }) })));

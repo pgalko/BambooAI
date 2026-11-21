@@ -58,10 +58,12 @@ why the product owner's dialog named 15 of his 334 analyses (2026-10-31). So sin
 `pd_agent_converse`'s closing block; since 2.8 also at each exchange with the Architect while a brief is written)
 - the chain, the thread, and `run_facts(run)`: the question,
 the title, the mode, the status and the replay's verdict, the cells and figures, when it started and how long it
-took wall to wall. A few hundred bytes a run, never touched by the cleanup; the route reads the thread file when
-it is there and the line when it is not. Analyses from before the ledger whose thread is gone show as *An analysis
-that was not saved*, mode *not recorded*, no outcome. A routine's run makes no model call and has no row; the
-Promoter's Save-as-routine call has its own billing chain, and so has a set of next questions (2.8,
+took wall to wall. A branch of an analysis (2.9, `docs/BRANCH_DESIGN.md` §6) is counted by its own turns, and its
+line says after which turn it went on and under what hint (`branch`). A few hundred bytes a run, never touched by
+the cleanup; the route reads the thread file when it is there and the line when it is not. Analyses from before
+the ledger whose thread is gone show as *An analysis that was not saved*, mode *not recorded*, no outcome. A
+routine's run makes no model call and has no row; the Promoter's Save-as-routine call has its own billing chain,
+and so has a set of next questions (2.8,
 `docs/ARCHITECT_DESIGN.md` §2.15): the Architect's one call, made after the analysis' own chain is settled. What the
 call was *for* (a cell, the report, the
 review, the replay) is not kept and not needed yet: the seat says most of it.

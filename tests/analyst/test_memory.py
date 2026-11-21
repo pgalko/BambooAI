@@ -377,7 +377,7 @@ check("search(): a result line counts for more than a line of code, whichever co
 check("search(): a line of code is given without its indent, and a paragraph that runs over lines as one line",
       memory.search(sv, "hr")[0]["passages"] == [{"where": "cell 2, code", "text": "hr_drift_fit = fit(weekly)"}]
       and memory.search(sv, "lower")[0]["passages"][0] == {"where": "report", "text": "The analysis shows cadence 8 rpm lower on climbs [cell 1]."}, memory.search(sv, "hr")[0]["passages"])
-few = {"runs": [{"id": f"8/{k}", "thread": "8", "run": str(k), "kind": "analysis", "when": f"2026-02-0{k}T00:00:00Z", "question": "", "title": "", "marks": [], "cells": [], "path": [],
+few = {"runs": [{"id": f"8/{k}", "thread": "8", "run": str(k), "kind": "analysis", "when": f"2026-02-0{k}T00:00:00Z", "question": "", "hints": [], "title": "", "marks": [], "cells": [], "path": [],
                  "brief": "", "conversation": "", "report": report} for k, report in ((3, "The analysis is short.\n\nZebra crossings matter."), (2, "An analysis of load."), (1, "Another analysis."))], "steps": {}}
 check("search(): of two places with a word each, the one with the rarer word comes first; a place is found whatever its case",
       memory.search(few, "analysis zebra")[0]["passages"] == [{"where": "report", "text": "Zebra crossings matter."}, {"where": "report", "text": "The analysis is short."}],
@@ -388,7 +388,7 @@ check("search(): what a word counts for by where it stands - the question 3, the
       by_field == [3, 3, 2, 2, 1, 1] and memory.search(sv, "gap gap")[0]["score"] == memory.search(sv, "gap")[0]["score"], by_field)
 check("search(): the question of an earlier step that is a saved run itself counts the same way: the run it was asked in first, then the run built on it",
       [h["id"] for h in memory.search(memory.refresh(S4), "taper")] == ["700/701", "700/702"] and memory.search(memory.view(S4), "taper")[1]["words"] == ["taper"], memory.search(memory.view(S4), "taper"))
-many = {"runs": [{"id": f"9/{k}", "thread": "9", "run": str(k), "kind": "analysis", "when": f"2026-01-{k:02d}T00:00:00Z", "question": f"Is the tempo right in block {k}?", "title": "", "marks": [],
+many = {"runs": [{"id": f"9/{k}", "thread": "9", "run": str(k), "kind": "analysis", "when": f"2026-01-{k:02d}T00:00:00Z", "question": f"Is the tempo right in block {k}?", "hints": [], "title": "", "marks": [],
                   "report": "", "brief": "", "conversation": "", "cells": [], "path": []} for k in range(12, 0, -1)], "steps": {}}
 check("search(): ten hits unless asked for more or fewer", [len(memory.search(many, "tempo", **k)) for k in ({}, {"most": 12}, {"most": 3})] == [memory.MOST, 12, 3] and memory.MOST == 10)
 words = " ".join(f"w{k}" for k in range(300))
@@ -456,7 +456,7 @@ check("a framed run's brief is memory: the view holds what was agreed - the deci
       and (_by8["800/803"]["brief"], _by8["800/803"]["outcome"]) == ("What the answer is for: keep it above the line", {"expected": "", "would_change": ""})
       and [h["id"] for h in memory.search(_v8, "above")] == ["800/801", "800/803", "800/802"] and [h["id"] for h in memory.search(_v8, "height")] == ["800/801", "800/802"]
       and memory.search(_v8, "height")[0]["passages"] == [{"where": "brief", "text": "- measure: height"}] and memory.search(_v8, "chance") == [] and memory.search(_v8, "comparison") == []
-      and memory.FORMAT == 4 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 4,
+      and memory.FORMAT == 5 and json.load(open(os.path.join(S8, "memory", "view.json")))["format"] == 5,
       (_by8["800/801"]["brief"], _by8["800/801"]["outcome"], _hit8, [h["id"] for h in memory.search(_v8, "above")], memory.search(_v8, "height")))
 shutil.rmtree(S8, ignore_errors=True)
 
@@ -499,6 +499,67 @@ check("a framed run's conversation is memory: the view holds what the person and
       and round(memory.search(_v9, "butterfly")[0]["score"] / memory.search(_v9, "plot3")[0]["score"], 1) == 2.0 and dict(memory.FIELDS)["conversation"] == dict(memory.FIELDS)["brief"] == 2,
       (_by9["900/901"]["conversation"], memory.search(_v9, "butterfly"), memory.search(_v9, "plot3")))
 shutil.rmtree(S9, ignore_errors=True)
+
+# ---- branches (2.9, docs/BRANCH_DESIGN.md §2, decision 13): where an analysis went on more than one way, memory takes the ways the person saved from or
+# went on from - the newest where there is neither - and the ways they left are saved for the map only; a run's hints are in the view ----
+S10 = tempfile.mkdtemp(prefix="bamboo_memory_")
+_st10 = NotebookStore(S10)
+APART, SANDY = "Keep the soil types apart.", "Leave the sandy plots out."
+
+
+def _way(nb, rid, at, of=None, turn=None, hints=(), parent=None, report=True, question="Does regime B yield more than A?"):
+    """One way an analysis went: its first run, or - with `of` - a branch of run `of` after its turn `turn`, made under `hints` [(turn, text)]."""
+    return add(nb, rid, question, parent=parent, at=at, status="answered" if report else "stopped", report=f"# B yields more, as {rid} has it\n\nB is above A [cell 1]." if report else "",
+               cells=[(f"gap_{rid} = by_regime.loc['B'] - by_regime.loc['A']", "", [f"gap, {rid}: 0.5 t/ha"])],
+               **({"branch": {"of": of, "turn": turn}, "hints": [{"turn": t, "text": x} for t, x in hints]} if of else {}))
+
+
+def _thread10(thread, ways, marks):
+    nb = Notebook(thread)
+    for way in ways:
+        _way(nb, *way[:2], **(way[2] if len(way) > 2 else {}))
+    _st10.save(nb)
+    for chain, mark in marks.items():
+        favourite(S10, thread, chain, mark)
+
+
+_thread10("1000", [("1001", 1), ("1002", 2, {"of": "1001", "turn": 2, "hints": [(2, APART)]})], {"1001": "trajectory", "1002": "individual"})        # saved from the branch
+_thread10("1100", [("1101", 1), ("1102", 2, {"of": "1101", "turn": 1, "hints": [(1, APART)]}), ("1103", 3, {"parent": "1101", "question": "And over the dry seasons?"})],
+          {"1101": "trajectory", "1102": "trajectory", "1103": "trajectory"})                                                                                 # gone on from the first run
+_thread10("1200", [("1201", 1), ("1202", 2, {"of": "1201", "turn": 2, "hints": [(2, APART)]}), ("1203", 3, {"of": "1202", "turn": 3, "hints": [(2, APART), (3, SANDY)]}),
+                   ("1204", 4, {"question": "How many plots are there?"})], {"1201": "trajectory", "1202": "trajectory", "1203": "trajectory", "1204": "individual"})      # neither: saved from another analysis
+_thread10("1300", [("1301", 1), ("1302", 2, {"of": "1301", "turn": 2, "hints": [(2, APART)]})], {"1301": "individual", "1302": "individual"})        # saved from both, one after the other
+_thread10("1400", [("1401", 1, {"report": False}), ("1402", 2, {"of": "1401", "turn": 1, "hints": [(1, APART)]})], {"1401": "trajectory", "1402": "trajectory"})      # the first run was stopped
+_thread10("1500", [("1502", 2, {"of": "1501", "turn": 1, "hints": [(1, APART)]})], {"1502": "trajectory"})                                           # the run it went on from is not on the record
+_v10 = memory.refresh(S10)
+_by10 = {r["id"]: r for r in _v10["runs"]}
+check("an analysis that went on more than one way (2.9): memory takes the way the person saved from; a way a later question was asked from; both, where they saved from both; where there is "
+      "neither - the thread was saved from another analysis - the newest; the ways left are no memory, and are counted as left. A way that is alone among those that can be read - the other "
+      "ended without a report, or is not on the record - is memory as any run is",
+      sorted(_by10) == ["1000/1002", "1100/1101", "1100/1103", "1200/1203", "1200/1204", "1300/1301", "1300/1302", "1400/1402", "1500/1502"]
+      and _v10["not_read"] == {"left": 4, "no_report": 1} and _by10["1000/1002"]["marks"] == ["picked"] and _by10["1200/1203"]["marks"] == ["alongside"]
+      and _by10["1100/1103"]["path"] == ["1100/1101"] and _by10["1000/1002"]["path"] == [], (sorted(_by10), _v10["not_read"]))
+check("a run's hints are memory: what the person said where they went back to a turn, each with its turn - a branch of a branch holds both where it went on from a turn made under the "
+      "first; a run that is no branch holds none; the cells a branch kept are among its own",
+      _by10["1000/1002"]["hints"] == [{"turn": 2, "text": APART}] and _by10["1200/1203"]["hints"] == [{"turn": 2, "text": APART}, {"turn": 3, "text": SANDY}]
+      and _by10["1100/1101"]["hints"] == [] and _by10["1200/1204"]["hints"] == [] and [c["n"] for c in _by10["1000/1002"]["cells"]] == [1], _by10["1200/1203"]["hints"])
+_hit10 = memory.search(_v10, "sandy")
+check("search(): a word only a hint holds finds its run and says it stands in the hint; there it counts as in what was asked",
+      [h["id"] for h in _hit10] == ["1200/1203"] and _hit10[0]["passages"] == [{"where": "hint", "text": SANDY}] and dict(memory.FIELDS)["hints"] == dict(memory.FIELDS)["question"] == 3
+      and [h["id"] for h in memory.search(_v10, "apart")][:1] and all(p["where"] == "hint" for h in memory.search(_v10, "apart") for p in h["passages"]), _hit10)
+os.remove(os.path.join(S10, "favourites", "1200", "1203.json"))
+_gone10 = sorted(r["id"] for r in memory.refresh(S10)["runs"] if r["thread"] == "1200")
+os.remove(os.path.join(S10, "favourites", "1200", "1202.json"))
+_v10b = memory.refresh(S10)
+check("the way taken is removed: of the ways that stay saved the newest is memory in its place, and when one way is left it is memory as any run is; nothing left is counted for the thread then",
+      _gone10 == ["1200/1202", "1200/1204"] and sorted(r["id"] for r in _v10b["runs"] if r["thread"] == "1200") == ["1200/1201", "1200/1204"] and _v10b["not_read"] == {"left": 2, "no_report": 1},
+      (_gone10, _v10b["not_read"]))
+_r10 = tempfile.mkdtemp(prefix="bamboo_memory_root_")
+shutil.copytree(S10, os.path.join(_r10, "storage", "grower"))
+_tool10 = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "memory_view.py"), "--root", _r10], capture_output=True, text=True)
+check("the tool says how many saved runs are ways the person left", "in memory: 9 runs of 6 workflows · not read: 1 without a report, 2 left for another branch\n" in _tool10.stdout, _tool10.stdout + _tool10.stderr)
+shutil.rmtree(S10, ignore_errors=True)
+shutil.rmtree(_r10, ignore_errors=True)
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

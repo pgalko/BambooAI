@@ -693,6 +693,8 @@ check("contract: cells compute and draw nothing - a figure cell is not run; the 
       and "| `REPORT` | The report, on the lines after it in this reply" in c_all and "step of their own" not in c_all and "step of their own" not in FIGURES_LATER_
       and "from what the\nkernel holds - the figure the question asks for, or the estimate and its uncertainty, first" in c_all and "variables your cells defined" not in c_all
       and "a request for a figure is a short report - what is drawn, from what, what it shows -\nand the figure follows" in c_all and "settles a number" in c_all and "settles a figure" not in c_all)
+check("contract: the report's next steps are the person's - drawing the figures is not one (0321: two live reports began their next steps with 'Draw the figure', which the step after "
+      "the report then drew)", "- two or three next steps; drawing the figures is not one\n" in c_all)
 check("contract: an estimate is recorded with the kernel's RESULT(...), the words the analyst's and the numbers the cell's; a typed number is marked; a revised estimate gets a new line",
       "record it in that cell with the\nkernel's `RESULT(what, estimate, low, high, unit, direction)`" in c_all and "A number written into the call instead of computed is marked as typed" in c_all
       and "A revised estimate gets a new\nline" in c_all and "print it on one line" not in c_all)
@@ -4060,10 +4062,38 @@ check("branch: whether the kernel went back to what the record shows is read fro
       went_back(_Kern([]), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_old, _now]) and went_back(_Kern(_ran("two\n")), [_now, _old])
       and went_back(_Kern(_ran(_much)), [_long]) and not went_back(_Kern(_ran("2\n")), [_old, _now]) and not went_back(_Kern(_ran("", "boom", step=5)), [_old, _now])
       and went_back(_Kern(_ran("a step that is no cell's", step=2)), [_old, _now]) and went_back(object(), [_now]))
+# a branch read afterwards (0321): its hints are part of what the person asked - a later question's analyst, the Architect and the reach record are told them
+from analyst.notebook import hint_lines
+_nl = Notebook("tl"); _l0 = _nl.new_run("Does regime B yield more than A?"); _l0.status, _l0.report = "answered", "## B against A\n\nB yields more."
+_l0.turns = [Turn(kind="cell", cell_no=1, code="x = 1", carry={"turn": 1}), Turn(kind="cell", cell_no=2, code="y = 2", carry={"turn": 2}), Turn(kind="report")]
+_l1 = _nl.branch(_l0.id, 1, "Keep the soil types\n  apart, and write the table to plots_by_soil.csv"); _l1.turns.append(Turn(kind="cell", cell_no=2, code="z = 3", carry={"turn": 2}))
+_l2 = _nl.branch(_l1.id, 2, "Leave the sandy plots out"); _l2.status, _l2.report = "answered", "## By soil type\n\nOn loam B yields more."
+_l3, _l4 = _nl.new_run("And by plot size?", _l2.id), _nl.new_run("And by plot size?", _l0.id)
+_said = ["HINT FROM THE PERSON after turn 1: Keep the soil types apart, and write the table to plots_by_soil.csv", "HINT FROM THE PERSON after turn 2: Leave the sandy plots out"]
+check("branch: a question asked from a branch is told what the person said on the branch's way - each hint on a line of its own, in the order given, under the branch's "
+      "question: in the ledger of the thread, in the chain opened whole (SHOW RUN) and in what the Architect reads of the thread; a chain that is no branch has no such line",
+      hint_lines(_l2.hints) == _said and hint_lines([]) == [] and hint_lines(None) == []
+      and _nl.render_ancestry(_l3.id).startswith("EARLIER IN THIS THREAD - the ledger (every chain; SHOW RUN k opens one whole):\n[run 1] Q: Does regime B yield more than A?\n"
+                                                 f"        {_said[0]}\n        {_said[1]}\n        Conclusion: On loam B yields more.\n")
+      and _nl.render_ancestry(_l3.id).count("HINT FROM THE PERSON") == 2
+      and _nl.render_run(_l3.id, 1) == f"--- run 1 ---\nQUESTION: Does regime B yield more than A?\n{_said[0]}\n{_said[1]}\nFINAL NOTE:\n(none)\nREPORT:\n## By soil type\n\nOn loam B yields more."
+      and arch.earlier(_nl, _l3.id) == f"EARLIER (the analyses this question follows, oldest first):\n[1] Q: Does regime B yield more than A?\n    {_said[0]}\n    {_said[1]}\n    Found: On loam B yields more."
+      and not any("HINT" in t for t in (_nl.render_ancestry(_l4.id), _nl.render_run(_l4.id, 1), arch.earlier(_nl, _l4.id)))
+      and _nl.render_run(_l4.id, 1) == "--- run 1 ---\nQUESTION: Does regime B yield more than A?\nFINAL NOTE:\n(none)\nREPORT:\n## B against A\n\nB yields more.",
+      (_nl.render_ancestry(_l3.id), _nl.render_run(_l3.id, 1), arch.earlier(_nl, _l3.id)))
+_sess = type("S", (), {"nb": _nl})()
+_csv = [{"kind": "file", "path": "/work/plots_by_soil.csv"}]
+check("branch: what a hint names is asked for - the reach record reads the thread's questions and the hints given on the way, a branch's own and those of a branch the "
+      "question was asked from; on a way without the hint the same file is not asked for",
+      Session._questions(_sess, _l2) == ["Does regime B yield more than A?", "Keep the soil types\n  apart, and write the table to plots_by_soil.csv", "Leave the sandy plots out"]
+      and Session._questions(_sess, _l3) == ["Does regime B yield more than A?", "And by plot size?", "Keep the soil types\n  apart, and write the table to plots_by_soil.csv", "Leave the sandy plots out"]
+      and Session._questions(_sess, _l4) == ["Does regime B yield more than A?", "And by plot size?"]
+      and [reach.mark(_csv, Session._questions(_sess, r))[0]["asked"] for r in (_l1, _l2, _l3, _l0, _l4)] == [True, True, True, False, False],
+      [Session._questions(_sess, r) for r in (_l2, _l3, _l4)])
 _hint_run = Notebook("th").new_run("q"); _hint_run.hints = [{"turn": 2, "text": "one"}, {"turn": 5, "text": "two"}]
-_htexts = {"contract (hint)": contract(False, 0, hint=True), "reviewer (hint)": reviewer_text(False, hint=True), "the hint's section": CONTRACT_HINT, "the block": hint_block(_hint_run), "run again": AGAIN_LINE}
+_htexts = {"contract (hint)": contract(False, 0, hint=True), "reviewer (hint)": reviewer_text(False, hint=True), "the hint's section": CONTRACT_HINT, "the block": hint_block(_hint_run), "the lines": "\n".join(hint_lines(_hint_run.hints)), "run again": AGAIN_LINE}
 check("branch: the standing rules hold for its texts too - none of the tested tasks' vocabulary, and no section named for thinking or reasoning, in the contract with "
-      "a hint, the reviewer's prompt with one, the block's own words and the mark of a cell run again; a run without a hint has no block",
+      "a hint, the reviewer's prompt with one, the block's own words, the lines a later reader is given and the mark of a cell run again; a run without a hint has no block",
       not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)}
       and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in _htexts.values()) and hint_block(Notebook("tn0").new_run("q")) == "",
       {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)})

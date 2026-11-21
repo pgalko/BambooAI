@@ -65,7 +65,7 @@
         searching: 'SEARCHING MEMORY', readSoFar: (r, m) => (m == null ? '' : (r || 0) + ' of ' + m + ' read'), skip: 'Skip', skipped: 'skipped', notRead: 'not read',
         view: 'View', leave: 'Leave it out', builtOn: 'built on',
         memory: 'Found in your saved analyses', memoryNote: 'For you to read. The Analyst gets only what you build on.',
-        notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation',
+        notOpenedSaved: 'This analysis could not be opened', code: 'Code', agreed: 'Brief', talk: 'Conversation', fromTurn: n => 'From turn ' + n,
         opened: 'READ', chars: n => (Number(n) || 0).toLocaleString('en-US') + ' characters',
         question: 'QUESTION', updated: 'updated', stepN: k => 'step ' + k, brief: 'BRIEF', inUse: k => 'step ' + k + ' in use',
         figures: 'FIGURES', draft: 'draft', madeUp: 'made-up numbers', madeUpNote: 'The numbers are made up. The analysis puts in the real ones.',
@@ -584,9 +584,9 @@
                 WORDS.stepN(steps.place(entry.framing, steps.on(entry.framing)).i) + '</span>' +
                 '<span class="peek">' + esc(entry.queryText) + '</span></summary><div class="sp-detail">' + build.talk(entry) + '</div></details>';
         },
-        // a saved analysis in a dialog: what was asked, the day, whose data and which, the report; folded under it the
-        // conversation its brief came from - the person's messages under "You", as the pane has them - and the brief,
-        // where it was framed, and the code of its cells
+        // a saved analysis in a dialog: what was asked, the day, whose data and which, the hints it was made under - a
+        // branch, as the left pane says them -, the report; folded under it the conversation its brief came from - the
+        // person's messages under "You", as the pane has them - and the brief, where it was framed, and the code of its cells
         savedDialog(run) {
             const data = run.data || {}, sub = [String(run.when || '').slice(0, 10), data.person, data.name, data.period, (run.marks || []).join(', ')].filter(Boolean).join(' · ');
             const report = typeof marked !== 'undefined' && marked.parse ? marked.parse(String(run.report || '')) : '<pre>' + esc(run.report) + '</pre>';
@@ -594,7 +594,8 @@
             const fold = (name, body) => body ? '<details class="ar-code"><summary>' + name + '</summary>' + body + '</details>' : '';
             const said = text => text ? '<pre class="said">' + esc(text) + '</pre>' : '';
             return '<div class="ui-dlg lg ar-saved-dlg" role="dialog" aria-modal="true"><div class="ui-dlg-h"><div><div class="title">' + esc(run.question || run.title || '') + '</div>' +
-                '<div class="sub">' + esc(sub) + '</div></div><span class="sp"></span><button class="x" type="button" data-ar="shut" aria-label="Close">' + ICON.x + '</button></div>' +
+                '<div class="sub">' + esc(sub) + '</div>' + (run.hints || []).map(h => '<div class="hint"><b>' + WORDS.fromTurn(esc(h.turn)) + '</b>' + esc(h.text) + '</div>').join('') +
+                '</div><span class="sp"></span><button class="x" type="button" data-ar="shut" aria-label="Close">' + ICON.x + '</button></div>' +
                 '<div class="ui-dlg-b"><div class="markdown-content">' + report + '</div>' + fold(WORDS.talk, said(String(run.conversation || '').replace(/^Person: /gm, 'You: '))) + fold(WORDS.agreed, said(run.brief)) + fold(WORDS.code, code) + '</div></div>';
         }
     };

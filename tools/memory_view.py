@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from analyst import memory  # noqa: E402
 
-NOT_READ = (("older", "in the old record format"), ("questions", "of questions only"), ("no_report", "without a report"))
+NOT_READ = (("older", "in the old record format"), ("questions", "of questions only"), ("no_report", "without a report"), ("left", "left for another branch"))
 count = lambda n, what: f"{n} {what}{'' if n == 1 else 's'}"          # noqa: E731
 
 

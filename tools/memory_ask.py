@@ -83,7 +83,7 @@ def result_lines(res):
             out += [f"    [{row['run']}] {row['answer']} · {row['where']}: \"{row['quote']}\"" for row in group["runs"]]
     if not res["found"] and not res["across"] and not res["failed"]:
         out.append("Nothing in the saved analyses bears on it.")
-    cover, words = res["coverage"], (("older", "in the old record format"), ("questions", "of questions only"), ("no_report", "without a report"))
+    cover, words = res["coverage"], (("older", "in the old record format"), ("questions", "of questions only"), ("no_report", "without a report"), ("left", "left for another branch"))
     left = ", ".join(f"{cover['not_read'][key]} {what}" for key, what in words if cover["not_read"].get(key))
     out += ["", f"runs in memory: {cover['runs']} · read by the second model: {cover['judged']}" + (f" · not read: {left}" if left else ""),
             *([f"dropped, it did not stand in the record: {res['dropped']}"] if res["dropped"] else []),

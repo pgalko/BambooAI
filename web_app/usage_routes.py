@@ -292,7 +292,7 @@ def _ledger(calls, threads, store_dir):
             seats[c["seat"]] += c["cost"]
         first = min(c["t"] for c in rows)
         entry = {"chain": chain, "thread": threads.get(chain), "when": first.strftime("%Y-%m-%dT%H:%M:%S"), "kind": "", "question": "", "title": "", "mode": "", "cells": None, "figures": 0,
-                 "outcome": "", "wall": None, "saved": False, "calls": t["calls"], "tokens_in": t["tokens_in"], "cached": t["cached"], "recorded_in": t["recorded_in"], "tokens_out": t["tokens_out"],
+                 "outcome": "", "wall": None, "branch": {}, "saved": False, "calls": t["calls"], "tokens_in": t["tokens_in"], "cached": t["cached"], "recorded_in": t["recorded_in"], "tokens_out": t["tokens_out"],
                  "time": t["time"], "cost": t["cost"], "savings": t["savings"], "compute": t["compute"], "seats": {k: round(v, 6) for k, v in seats.most_common()}}
         f = _facts_of(store_dir, threads[chain]).get(chain) if threads.get(chain) else None
         if f is None and chain in lines:                       # the thread file is gone: the line the host wrote when the run ended
@@ -301,6 +301,7 @@ def _ledger(calls, threads, store_dir):
         if f:
             entry.update({"kind": "ideas" if f["mode"] == "Ideas" else "analysis", "question": f["question"], "title": f["title"], "mode": f["mode"], "cells": f["cells"],
                           "figures": f["figures"], "outcome": outcome(f), "wall": f["wall"],
+                          "branch": f.get("branch") or {},        # a branch (2.9): after which turn of its analysis it went on, and the hint - {} for a run that is none, or recorded before
                           "saved": bool(entry["thread"]) and os.path.exists(os.path.join(store_dir, "favourites", str(entry["thread"]), f"{chain}.json"))})   # the page opens a saved chain only
         else:
             top = seats.most_common(1)[0][0] if seats else ""

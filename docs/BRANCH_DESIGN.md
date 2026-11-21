@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.3 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page)
+# Branching an analysis — design v0.4 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -157,9 +157,11 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 `web_app/static/js/branch.js`, with the left pane (`stream-pane.js`) and the thread map's drawing
 (`workflowGraph.js`).
 
-**The Turn map.** Its button, the Git branch mark, stands on the left pane's strip beside the count of turns, once
-the run has ended with turns to go on from (`turn_map` on the closing card; a stopped run now has a closing card
-too). Beside the mark is the number of branches the analysis has. The map opens in the thread map's drawer: every
+**The Turn map.** Its button - the Git branch mark and the map's name - stands at the end of the row of the ids,
+under the strip, once the run has ended with turns to go on from (`turn_map` on the closing card; a stopped run now
+has a closing card too). Beside the name is the number of branches the analysis has. The row stays in view under
+the strip when the pane scrolls, on one line: an id that does not fit is cut short, the frame's first (0321; the
+product owner, 2026-11-21: on the strip the button was hard to find). The map opens in the thread map's drawer: every
 turn of the analysis and of its branches is a box, joined to the turn it follows. A box says what the turn did,
 and under that its number and its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The
 first turn of a branch carries the mark *hint*. The way to the turn on screen is lit. Under the pointer the
@@ -191,26 +193,51 @@ asked from a branch hangs under its analysis's box.
 **The icon.** The Git branch mark is on the Turn map's button and on the conversation map's; the thread map keeps
 its own.
 
-**Until 0321.** A saved thread opened again shows a branch as a chain of its own: what is stored does not say yet
-which chains are branches.
+## 6. Save, memory, usage (0321, built)
 
-## 6. To build
+**Save** (decision 2). A thread saved as a favourite stores every chain of it, so every branch. Opened again, the
+page is told which chains are branches from the thread's record (`/load_thread`: `branch` of each chain - the chain
+and the turn it went on from, and its hint), so the analysis has its branches, its Turn map and its place on the
+thread map as when they were made. Nothing is locked: a turn of a saved thread is gone back to as any, the data it
+ran on loaded; the kernel is a new one, which runs the kept cells again (§4). The new chain is stored at the next
+save.
 
-- **Save, memory, usage (0321).** Decisions 2, 13 and 14.
+**Memory** (decision 13; `analyst/memory.py`). Where an analysis went on more than one way, memory takes the ways
+the person saved from (the chain on screen at a save: *picked*) and the ways they went on from (a later question
+was asked from them); where there is neither - the thread was saved from another analysis - the newest. The other
+ways are saved for the page's map only: they are no memory, and are counted as `left`. A way that is alone among
+those memory can read is memory as any run is. A run in the view carries `hints`: what the person said, each with
+its turn. A hint is read with the question wherever a saved run is read - by the reader's second model, by the
+Analyst that opens a saved analysis, in the dialog that shows one - a quote can stand in it (`hint`), and plain
+search counts a word of it as a word of the question.
+
+**Usage** (decision 14). The person pays for the branch's own calls: the kept turns make none. The usage ledger's
+line of a branch (`notebook.run_facts`) counts its own turns - cells, figures, the time from its start - and says
+after which turn it went on, and the hint (`branch`: {turn, hint}). The Usage dialog shows the turn on the branch's
+row and the hint under its question.
+
+**Read afterwards.** A branch's hints are part of what the person asked, so whoever is told its question later is
+told them too, a line each under the question (`notebook.hint_lines`): the Analyst of a later question of the
+thread - in the ledger's line of the chain, and in the chain opened whole (`SHOW RUN`) -, the Architect that frames
+one (`EARLIER`), memory's reader. What a hint names - a file, an address - counts as asked for in the reach record,
+on the branch and on a question asked from it.
+
+## 7. To build
+
 - **Open.** A hint that departs from what the brief fixes: nothing says which holds. A run that failed has no
   closing card, so no Turn map, though the engine could go on from its last turn.
 
-## 7. The build
+## 8. The build
 
 | Patch | What | State |
 |---|---|---|
 | 0318 | The kernel keeps its state after every cell and goes back to any; executor image v75; cloudpickle. | built |
 | 0319 | Engine: a branch after a turn, with a hint. | built |
 | 0320 | Page: the Turn map, going back, the hint, moving between branches; the Git branch icon. | built |
-| 0321 | Save, memory, usage. | |
+| 0321 | Save, memory, usage; the Turn map's button at the end of the ids' row. | built |
 | 0322 | Release 2.9.0. | |
 
-## 8. Tests
+## 9. Tests
 
 `tests/analyst/test_kernel_snapshots.py`: the kernel on its own, through the executor's service, through the
 client, and the record. `tests/analyst/test_app_path.py` (0318): the host's use of the states; (0319) a branch
@@ -222,4 +249,8 @@ going back, the hint sent and the branch the server did not start, the analyses 
 count. The walk (`tests/e2e/test_stack.py`): a chain asked from an earlier chain; (0320) branches in a browser -
 the Turn map, going back, a hint sent from a turn whose state the kernel holds and from one it must rebuild,
 moving between branches, the thread map and the arrows, a branch the server does not start, a request that names
-no turn, and a branch of a framed analysis with the Architect switched on.
+no turn, and a branch of a framed analysis with the Architect switched on. (0321) `test_analyst.py`: a branch's hints
+as a later question's Analyst, the Architect and the reach record are given them; `test_memory.py`: the ways memory
+takes and the ways left, a run's hints, search; `test_reader.py`: the hint in what is read of a run; `test_usage.py`
+and `test_usage_page.js`: a branch's facts and its row; the walk: a thread saved from a branch, the memory view after
+it, the saved thread opened again with its branch, a branch more made from it, and a branch in the Usage dialog.

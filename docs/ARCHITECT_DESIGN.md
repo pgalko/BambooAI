@@ -337,11 +337,11 @@ saved analyses yet (0303).
 
 **One exchange, one call.** `analyst/architect.py`. An exchange is the coach's message - none on the Architect's
 first turn - and its reply. The Architect reads (`prompt()`): the data's description, as the Analyst gets it; the
-analyses the question follows (`earlier()`) - each one's question and what it found, how the result stood against
-its brief, what did not fit, and, where the Analyst stopped and asked, what it asked; the question; the brief as it
-stands, part by part; the conversation so far. It replies with one JSON object (`parse()`): the parts of the brief
-it writes, one message, and choices where it offers them. A reply that cannot be read is asked for once more; then
-the exchange fails, in words, and nothing of it is kept.
+analyses the question follows (`earlier()`) - each one's question, with the hints a branch was made under (2.9),
+and what it found, how the result stood against its brief, what did not fit, and, where the Analyst stopped and
+asked, what it asked; the question; the brief as it stands, part by part; the conversation so far. It replies with one
+JSON object (`parse()`): the parts of the brief it writes, one message, and choices where it offers them. A reply that
+cannot be read is asked for once more; then the exchange fails, in words, and nothing of it is kept.
 
 **Its instructions.** `analyst/architect.md`, one page. The brief holds what the coach said, in their words:
 shorten, do not rephrase or complete, add nothing. It writes every part the coach's words state, then asks for what
@@ -1446,10 +1446,12 @@ A saved chain that is not read is counted, by reason:
 | `older` | not on the record in the current format (decision 26) |
 | `questions` | a list of candidate questions from before 2.8 |
 | `no_report` | it ended without a report: it stopped to ask, was stopped, or failed |
+| `left` | a way of an analysis the person left for another (2.9, `docs/BRANCH_DESIGN.md` §6): saved for the page's map, no memory |
 
 **What a run gives.** Its id (`thread/run`), its `kind` (`analysis` or `synthesis`), when it was asked, its marks,
 the question, the title, the report whole, whether its replay reproduced, the data it ran on, its cells and its
-path. From 0304 also the brief it ran under, and how the report stood against it (§3.8).
+path. From 0304 also the brief it ran under, and how the report stood against it (§3.8). From 0321 its `hints`:
+what the person said where they went back to a turn of it and had it go on another way, each with its turn.
 
 - *Marks:* `picked`, `alongside`, `routine`. A chain saved before the marks shows none.
 - *Cells:* the code, the RESULT lines, and what was printed up to 3,000 characters, the cut said. The cells that

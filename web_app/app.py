@@ -1608,9 +1608,13 @@ def get_threads():
 @app.route('/load_thread/<thread_id>/<chain_id>', methods=['GET'])
 @requires_auth
 def load_thread(thread_id, chain_id):
-    """Load all content for a specific thread, targeting a specific chain."""
+    """Load all content for a specific thread, targeting a specific chain. Which chains are branches - of what chain,
+    after which turn, under what hint - is said from the thread's record, so the page shows an analysis with its
+    branches as it did when they were made (docs/BRANCH_DESIGN.md)."""
     try:
         logger.info(f"Loading thread {thread_id} with target chain {chain_id}")
+        from analyst.notebook import NotebookStore, own_hint
+        runs = NotebookStore(user_path('storage')).read(thread_id).runs
         
         thread_path = user_path('storage', 'favourites', thread_id)
             
@@ -1628,10 +1632,14 @@ def load_thread(thread_id, chain_id):
                 with open(chain_file, 'r') as f:
                     chain_data = json.load(f)
                     
+                run = runs.get(str(chain_data.get('chain_id', '')))
+                branch = run.branch if run is not None else None
                 response = {
                     'thread_id': thread_id,
                     'chain_id': chain_data.get('chain_id', ''),
                     'parentChainId': chain_data.get('parentChainId'),
+                    'branch': {'of': int(branch['of']) if str(branch['of']).isdigit() else branch['of'], 'turn': branch['turn'],
+                               'hint': own_hint(branch, run.hints)} if branch else None,
                     'index': chain_data.get('index'),
                     'bookmark_type': chain_data.get('bookmark_type'),
                     'tabContent': chain_data.get('tabContent', ''),

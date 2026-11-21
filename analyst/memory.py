@@ -1,10 +1,12 @@
 """Memory: the saved analyses as one read-only view (docs/ARCHITECT_DESIGN.md §3.1, §3.5).
 
 A run is memory when it is saved - its favourite file stands under <storage>/favourites/<thread>/ - and the thread's
-record holds it in the current format, with a report. The view is made from the record alone, never from the saved
-copy of the page: of each run the question, the report, the code and the results, with how it was saved and the
-earlier steps it was built on - and, where its question was framed first, the brief and the conversation the brief
-came from. It is kept in a file and brought up to date in the background (refresh_soon), never built for a reader:
+record holds it in the current format, with a report. Where an analysis went on more than one way (a branch,
+docs/BRANCH_DESIGN.md), memory takes the ways the person saved from or went on from; the ways they left are saved
+for the page's map and are no memory. The view is made from the record alone, never from the saved copy of the page:
+of each run the question, the hints it was made under, the report, the code and the results, with how it was saved
+and the earlier steps it was built on - and, where its question was framed first, the brief and the conversation the
+brief came from. It is kept in a file and brought up to date in the background (refresh_soon), never built for a reader:
 view() gives what is kept, less what was removed since. search() is plain keyword search over the view. No model is
 called here.
 """
@@ -24,13 +26,13 @@ from analyst.routines import RoutineStore
 
 logger = logging.getLogger(__name__)
 
-FORMAT = 4                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it; 3: the conversation the brief came from; 4: the brief's parts by their plain names)
+FORMAT = 5                       # of the kept file: one kept in another format is built again (2: a run's brief and how the report stood against it; 3: the conversation the brief came from; 4: the brief's parts by their plain names; 5: a run's hints, and of an analysis that went on more than one way the ways taken)
 PRINTED = 3000                   # characters kept of what a cell printed: what the analyst is shown of a recent cell
 SAID = 40_000                    # characters kept of the conversation a brief came from
 HEAD = 65536                     # bytes of a favourite file read for its mark: the page's copy, megabytes of it, follows
 MARKS = {"individual": "picked", "trajectory": "alongside"}      # how a chain was saved, as the view says it
 SYNTHESIS = "Write the report for the analysis so far on this thread"      # how a synthesis is asked for (bambooai.py): not the person's words
-FIELDS = (("question", 3), ("title", 3), ("report", 2), ("brief", 2), ("conversation", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
+FIELDS = (("question", 3), ("hints", 3), ("title", 3), ("report", 2), ("brief", 2), ("conversation", 2), ("results", 2), ("code", 1), ("earlier", 1))      # where a word is looked for, and what it counts for there
 MOST, PASSAGES, PASSAGE_CHARS = 10, 3, 320
 WEAK = 0.25                      # a hit that scores under this part of the best one is left out
 
@@ -98,22 +100,49 @@ def _step(run: Run) -> dict:
     return {"question": run.question.strip(), **({"analyst_asked": asked} if asked else {}), "cells": _cells(run)}
 
 
+def _left(nb, read: list) -> set:
+    """Of the saved runs that can be read - each (run, how it was saved) - the ways of an analysis the person left
+    (docs/BRANCH_DESIGN.md §2, decision 13). Where an analysis went on more than one way, memory takes the ways saved
+    from (picked) and those gone on from (a later question was asked from them) - the newest where there is neither
+    - and the others are saved for the map only."""
+    def first(run):
+        while run.branch and run.branch["of"] in nb.runs:
+            run = nb.runs[run.branch["of"]]
+        return run.id
+
+    ways, asked_from = {}, {r.parent for r in nb.runs.values() if r.parent}
+    for run, mark in read:
+        ways.setdefault(first(run), []).append((run, mark))
+    left = set()
+    for group in ways.values():
+        taken = [run for run, mark in group if mark == "picked" or run.id in asked_from] or [max((run for run, _ in group), key=lambda r: r.created)]
+        left |= {run.id for run, _ in group} - {run.id for run in taken}
+    return left
+
+
 def _thread(store: NotebookStore, storage_dir: str, thread: str, chains: list) -> dict:
     """What a saved thread gives the view: its saved runs that are read, the earlier steps they were built on that are
     not among them, and the saved chains that are not read - older (not on record in the current format), questions
-    (a list of candidate questions from before 2.8), no_report (it ended without one)."""
-    nb, runs, steps, not_read = store.read(thread), [], {}, {}
+    (a list of candidate questions from before 2.8), no_report (it ended without one), left (a way of an analysis
+    the person left for another: _left)."""
+    nb, runs, steps, not_read, read = store.read(thread), [], {}, {}, []
     for chain in chains:
         run = nb.runs.get(chain)
         why = "older" if run is None else "questions" if any(t.kind == "ideas" for t in run.turns) else "" if run.report else "no_report"
         if why:
             not_read.setdefault(why, []).append(chain)
+        else:
+            read.append((run, _mark(_favourite(storage_dir, thread, chain))))
+    left = _left(nb, read)
+    for run, mark in read:
+        if run.id in left:
+            not_read.setdefault("left", []).append(run.id)
             continue
         path, data, synthesis = nb.path(run.id), run.data or {}, run.question.startswith(SYNTHESIS)
-        mark = _mark(_favourite(storage_dir, thread, chain))
         runs.append({"id": f"{thread}/{run.id}", "thread": thread, "run": run.id, "kind": "synthesis" if synthesis else "analysis",
                      "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(run.created)), "marks": [mark] if mark else [],
-                     "question": "" if synthesis else run.question.strip(), "title": run.title, "report": run.report.strip(), "replay": run.replay_status,
+                     "question": "" if synthesis else run.question.strip(), "hints": [{"turn": h["turn"], "text": h["text"]} for h in run.hints or []],
+                     "title": run.title, "report": run.report.strip(), "replay": run.replay_status,
                      "brief": briefs.render(run.brief, record=True),                  # what was agreed before the run, "" where it was not framed
                      "conversation": _conversation(run),
                      "outcome": {k: run.brief_outcome.get(k, "") for k in ("expected", "would_change")} if run.brief else {},
@@ -210,9 +239,10 @@ def view(storage_dir: str) -> dict:
 
 def _view(storage_dir: str, kept: dict) -> dict:
     """The view, for a reader: {format, built, runs, steps, not_read}. `runs` are the saved runs, the newest first,
-    each {id, thread, run, kind, when, marks, question, title, report, replay, brief, outcome, conversation, data,
-    cells, path} - `marks` of picked, alongside and routine; `path` the ids of the earlier steps it was built on,
-    the first one first; `broken` where one of them is not on record. `steps` holds the earlier steps that are not
+    each {id, thread, run, kind, when, marks, question, hints, title, report, replay, brief, outcome, conversation,
+    data, cells, path} - `marks` of picked, alongside and routine; `hints` what the person said where they went back
+    to a turn of it and had it go on another way, each {turn, text}; `path` the ids of the earlier steps it was built
+    on, the first one first; `broken` where one of them is not on record. `steps` holds the earlier steps that are not
     saved runs themselves, by id: {question, cells}. `not_read` counts the saved chains left out, by reason. What
     was removed since the file was written is left out: a run whose favourite file is gone is no memory, and stays
     only as a step of the saved runs built on it."""
@@ -252,7 +282,7 @@ def _around(text: str, at: int) -> str:
 
 
 def _passages(run: dict, finds: dict, rare: dict) -> list:
-    """The places of a run that hold the words - a paragraph of the report, a line of the brief or of the
+    """The places of a run that hold the words - a hint, a paragraph of the report, a line of the brief or of the
     conversation it came from, a RESULT line, a line of code - the best first, PASSAGES at most, each {where, text};
     a long one is cut around its rarest word."""
     weight, places = dict(FIELDS), []                    # places: (what it counts for, where, the text, where its rarest word stands)
@@ -262,6 +292,8 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
         if at and text not in [p[2] for p in places]:
             places.append((counts * sum(rare[w] for w in at), where, text, at[max(at, key=rare.get)]))
 
+    for hint in run["hints"]:
+        place(" ".join(hint["text"].split()), "hint", weight["hints"])
     for para in re.split(r"\n\s*\n", re.sub(r"(?m)^#.*$", "", run["report"])):          # a heading is no passage
         place(" ".join(para.split()), "report", weight["report"])
     for where in ("brief", "conversation"):
@@ -278,8 +310,8 @@ def _passages(run: dict, finds: dict, rare: dict) -> list:
 def search(view: dict, query: str, most: int = MOST) -> list:
     """Plain keyword search over a view: the saved runs that hold a word of the query, the best first, each {id,
     thread, run, kind, when, question, title, marks, words, score, passages}. A word is held where a word of the run
-    starts with it, whatever the case. It counts for more in the question or the title than in the report, the
-    brief or the conversation, and least in the code or in an earlier step's question (FIELDS); a word most runs
+    starts with it, whatever the case. It counts for more in the question, a hint or the title than in the report,
+    the brief or the conversation, and least in the code or in an earlier step's question (FIELDS); a word most runs
     hold counts for little. A hit far weaker than the best is left out (WEAK). `passages` are the places that hold
     the words (_passages). No match returns nothing."""
     words = list(dict.fromkeys(w for w in re.findall(r"[^\W_]+", (query or "").lower()) if len(w) > 1))
@@ -287,7 +319,8 @@ def search(view: dict, query: str, most: int = MOST) -> list:
     finds = {w: re.compile(r"(?<![^\W_])" + re.escape(w)) for w in words}
     by_id = {r["id"]: r for r in runs}
     asked = lambda step: (by_id.get(step) or view["steps"].get(step) or {}).get("question", "")      # noqa: E731
-    texts = [{"question": r["question"], "title": r["title"], "report": r["report"], "brief": r["brief"], "conversation": r["conversation"], "results": "\n".join(x for c in r["cells"] for x in c["results"]),
+    texts = [{"question": r["question"], "hints": "\n".join(h["text"] for h in r["hints"]), "title": r["title"], "report": r["report"], "brief": r["brief"], "conversation": r["conversation"],
+              "results": "\n".join(x for c in r["cells"] for x in c["results"]),
               "code": "\n".join(c["code"] for c in r["cells"]), "earlier": "\n".join(asked(p) for p in r["path"])} for r in runs]
     # for each run, what each word counts for where it stands best; 0 where the run does not hold it
     held = [{w: max((weight for field, weight in FIELDS if finds[w].search(low[field])), default=0) for w in words}

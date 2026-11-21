@@ -36,7 +36,7 @@ from analyst import brief as briefs
 from analyst import draft
 from analyst import lookup
 from analyst import steps
-from analyst.notebook import Notebook, Run, Turn
+from analyst.notebook import Notebook, Run, Turn, hint_lines
 
 with open(os.path.join(os.path.dirname(__file__), "architect.md"), encoding="utf-8") as _fh:
     SYSTEM = _fh.read().strip()
@@ -186,16 +186,16 @@ def _drew(turn: Turn) -> str:
 
 
 def earlier(nb: Notebook, run_id: str, cells: bool = False) -> str:
-    """The analyses the run's question follows, oldest first: each one's question and what it found - or what the
-    analyst stopped and asked - and, where it ran under a brief, how the result stood against it. `cells`: for the
-    Architect, who may open a part of one (opened()): what each has to open, and of the last a line to each cell,
-    with what it drew. '' when the question follows none."""
+    """The analyses the run's question follows, oldest first: each one's question - with the hints a branch was made
+    under - and what it found - or what the analyst stopped and asked - and, where it ran under a brief, how the
+    result stood against it. `cells`: for the Architect, who may open a part of one (opened()): what each has to
+    open, and of the last a line to each cell, with what it drew. '' when the question follows none."""
     path = nb.path(str(run_id))[:-1]
     if not path:
         return ""
     out = ["EARLIER (the analyses this question follows, oldest first):"]
     for k, run in enumerate(path, 1):
-        out.append(f"[{k}] Q: {_line(run.question, 600)}")
+        out += [f"[{k}] Q: {_line(run.question, 600)}", *("    " + line for line in hint_lines(run.hints))]
         asked = next((t.text for t in reversed(run.turns) if t.kind == "ask"), "") if run.status == "asked" else ""
         out.append(f"    The analyst stopped and asked: {_line(asked, 900)}" if asked else f"    Found: {nb.conclusion(run)}")
         seen = run.brief_outcome                       # empty unless the run was under a brief

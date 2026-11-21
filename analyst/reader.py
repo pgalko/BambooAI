@@ -17,6 +17,7 @@ import time
 from typing import Callable, Optional
 
 from analyst.architect import Unreadable, reply_object
+from analyst.notebook import hint_lines
 from analyst.tools import exception_line
 
 with open(os.path.join(os.path.dirname(__file__), "reader.md"), encoding="utf-8") as _fh:
@@ -72,10 +73,11 @@ def path_cells(view: dict, run: dict) -> list:
 
 
 def places(view: dict, run: dict) -> list:
-    """The places of a run a quote can stand in, each (its name, its text): `question`, `report`, `brief` - what was
-    agreed before it ran, where it was framed - `conversation` - what was said while it was - then `cell n` for each
-    of path_cells(): a cell's code, its result lines and what it printed."""
-    return ([("question", run["question"]), ("report", run["report"]), ("brief", run["brief"]), ("conversation", run["conversation"])]
+    """The places of a run a quote can stand in, each (its name, its text): `question`, `hint` - what the person said
+    where they had it go on another way from one of its turns - `report`, `brief` - what was agreed before it ran,
+    where it was framed - `conversation` - what was said while it was - then `cell n` for each of path_cells(): a
+    cell's code, its result lines and what it printed."""
+    return ([("question", run["question"]), *(("hint", h["text"]) for h in run["hints"]), ("report", run["report"]), ("brief", run["brief"]), ("conversation", run["conversation"])]
             + [(f"cell {c['n']}", "\n".join([c["code"], *c["results"], c["printed"]])) for c in path_cells(view, run)])
 
 
@@ -147,9 +149,11 @@ def before(view: dict, run: dict) -> list:
 
 
 def _laid_out(run: dict, cells: list, parts: list) -> str:
-    """A run as text: its id, what was asked, the title, and the parts named - the brief it ran under, the report, the
-    conversation the brief came from, and of each cell given the code, the result lines, what was printed."""
-    out = [f"=== {run['id']} ===", f"QUESTION: {run['question']}" if run["question"] else "", f"TITLE: {run['title']}" if run["title"] else ""]
+    """A run as text: its id, what was asked, the hints it was made under, the title, and the parts named - the brief
+    it ran under, the report, the conversation the brief came from, and of each cell given the code, the result
+    lines, what was printed."""
+    out = [f"=== {run['id']} ===", f"QUESTION: {run['question']}" if run["question"] else "", *hint_lines(run["hints"]),
+           f"TITLE: {run['title']}" if run["title"] else ""]
     if "brief" in parts and run["brief"]:
         out.append(f"BRIEF:\n{run['brief']}")
     if "report" in parts:
@@ -171,9 +175,9 @@ def piece(view: dict, run: dict, parts: list) -> str:
 
 def shown(view: dict, run: dict) -> str:
     """A saved analysis whole, for a reader that opens it by name (the analyst's SHOW SAVED k): what was asked, the
-    title, the brief it ran under, the report, and the code and result lines of path_cells() - a passage can stand
-    in any of them, and a name its own cells use may be made in an earlier one. Without its id, and not cut: the
-    one who shows it knows what a prompt takes."""
+    hints it was made under, the title, the brief it ran under, the report, and the code and result lines of
+    path_cells() - a passage can stand in any of them, and a name its own cells use may be made in an earlier one.
+    Without its id, and not cut: the one who shows it knows what a prompt takes."""
     return _laid_out(run, path_cells(view, run), ["brief", "report", "code", "results"]).split("\n", 1)[1]
 
 
