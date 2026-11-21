@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.12 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.13 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -62,6 +62,11 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     between them; the way into the Code trace is its name in a green rectangle, as on the closing card, where an
     eye stood; and the page under the maps drawer is dimmed as under the Cache or the Routines dialog - one look
     and one behaviour for what lies over the page.
+21. A branch's pane and the maps' foot (2026-11-22, 0330; the product owner picked B of four drafts): the turns a
+    branch keeps stand in one folded row - shut when the pane is drawn, opened by the person - with the hint under
+    it as a card in the composer's green, where the branch's own turns begin; a chain's box on the Workflow map has
+    no way into the Code trace, which cluttered the boxes; and what the maps' foot says of a box is whole - the
+    pane scrolls where it does not fit.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -180,18 +185,20 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 **The Analysis map** is a level of the maps drawer (*The maps in one place*, below). Every turn of the analysis and
 of its branches is a box, joined to the turn it follows. A box says what the turn did, and under that its number and
 its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn of a branch carries
-the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says what the turn did,
-the hint its branch was given, how many ways the analysis went on from it and what its cell printed. The map can be
-shown once the run has ended with turns to go on from (`turn_map` on the closing card, which marks the row of the
-ids, `data-branch`; a stopped run has a closing card too), and not while an analysis runs. Until 0327 a button at
-the end of the row of the ids opened it (0321).
+the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says the whole of what
+the turn said (0330; its line, cut, until then), the hint its branch was given, how many ways the analysis went on
+from it and what its cell printed. The map can be shown once the run has ended with turns to go on from (`turn_map`
+on the closing card, which marks the row of the ids, `data-branch`; a stopped run has a closing card too), and not
+while an analysis runs. Until 0327 a button at the end of the row of the ids opened it (0321).
 
-**Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by
-a rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the
-hint: its words ask for one, and the row under it says *From turn 4 · 11 turns left* in the place of the mode,
-the Architect's switch and the files. The cross on that row, Escape in the composer, or another chain coming on
-screen leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain
-back whole. The turn a run was stopped in ended nothing: it has no box.
+**Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by a
+rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the hint:
+its words ask for one, and the row under it says *From turn 4 · 11 turns left* in the place of the mode, the
+Architect's switch and the files. The cross on that row, Escape in the composer, or another chain coming on screen
+leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain back whole.
+The turn a run was stopped in ended nothing: it has no box. A turn a branch kept is in the fold of its kept turns
+(0330): the fold opens, the kept turns after it and all that stands under the fold are out of sight, and the fold
+shuts again once the pane is whole - unless the person had opened it.
 
 **The button on a turn's card** (0323; the product owner, 2026-11-21: to branch without looking for the turn on the
 map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git branch
@@ -203,11 +210,16 @@ on screen.
 
 **The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
 chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
-keeps `branch` ({of, turn, hint}), its question is the analysis's, and it attaches where the analysis did. Its
-left pane shows the turns kept first - faint, shut, marked *kept*, a cell that printed something else when it was
-run again saying so - then a row with the hint (*From turn 4*), then its own turns. A framed analysis's branch has
-the brief's fold and its Brief tab. Where the server starts no branch, nothing of the request stays: the chain is
-back at its turn, the hint is in the composer again, and the server's sentence is shown.
+keeps `branch` ({of, turn, hint}), its question is the analysis's, and it attaches where the analysis did. Its left
+pane shows the turns kept first, with what stands under them - their rows, a search's sources -, in one fold (0330,
+decision 21; `stream-pane.js` `foldKept`): shut, its row says which turns, *kept*, where they come from - *from the
+original*, or *from branch 2* as the arrows count it - and how many cells they ran and how many failed, as the
+closing card says it. Opened, the cards are faint, shut, marked *kept*, a cell that printed something else when it
+was run again saying so. The cards go into the fold as they arrive, and a pane kept by 0320 to 0329 comes to this
+shape when it is shown (`paneRenew`, then `onChain`, which knows where the turns come from). Then the hint, as a
+card in the composer's green (*Branch from turn 4* and the hint, whole), then the branch's own turns. A framed
+analysis's branch has the brief's fold and its Brief tab. Where the server starts no branch, nothing of the request
+stays: the chain is back at its turn, the hint is in the composer again, and the server's sentence is shown.
 
 **Moving between branches.** On the map a turn on the way of the chain on screen keeps that chain; a turn of
 another branch brings that branch on screen, tabs and pane.
@@ -267,10 +279,18 @@ a switch (decision 18):
   outside as the Routines dialog does. The page's message (`.summary-popup`) stands over a dimmed page: what a
   button of the drawer did is said there.
 - **Steady under the pointer** (0329, decision 20). The pane under the map, which says what the box under the
-  pointer is, has one height (152 px; what does not fit scrolls in it). It took the height of what it said, so
-  the map's frame grew and shrank from box to box, and the map - fitted to its frame whenever the frame changes
-  size - changed its zoom under the pointer wherever its height was what the fit went by. The fit is as it was:
-  when a map is drawn, and when the drawer itself changes size.
+  pointer is, has one height (152 px; 200 px since 0330; what does not fit scrolls in it). It took the height of
+  what it said, so the map's frame grew and shrank from box to box, and the map - fitted to its frame whenever the
+  frame changes size - changed its zoom under the pointer wherever its height was what the fit went by. The fit is
+  as it was: when a map is drawn, and when the drawer itself changes size.
+- **The foot says everything** (0330, decision 21). What the pane under the map says of a box is whole, its lines
+  kept: on the Analysis map the turn's step as it was written; on the Workflow map the chain's question and the
+  first sentence of what it concluded; on the Pathfinding map what was said and the Pathfinder's reply. They were
+  cut at 120, 200, 240 and 300 characters. The pane keeps saying it when the pointer leaves the box, so what does
+  not fit can be scrolled to. A cell's *Printed* stays its first line, as its row in the left pane has it.
+- **No way into the Code trace on a box** (0330, decision 21). The label 0329 put on a chain's box of the Workflow
+  map cluttered the boxes; the closing card's button, a report's `[cell n]` and a cell's name in the Investigation
+  tab are the ways in.
 
 **The arrows in the Investigation tab** (0329, decision 20; `branch.js` `arrows`, `flip`). An analysis that went on
 more than one way has a row at the head of its Investigation tab. For a branch it says the turn it went on from
@@ -356,6 +376,7 @@ before.
 | 0327 | The maps in one place: one button, one drawer, a switch between Workflow and the chain's Pathfinding and Analysis. | built |
 | 0328 | The names: the Architect is the Pathfinder, the Code map the Code trace (decision 19). | built |
 | 0329 | The drawer over the dimmed page, as a dialog; the map steady under the pointer; the arrows between branches in the Investigation tab; the Code trace's name where an eye stood (decision 20). | built |
+| 0330 | A branch's kept turns in one fold, its hint as a card; the maps' foot whole; no Code trace on a chain's box (decision 21). | built |
 
 ## 9. Tests
 
@@ -393,4 +414,9 @@ tab's; `test_maps.js`: a click on the dimmed page and one in the drawer, the scr
 pane's one height; `test_code_map.js` and `test_read.py`: the trace's name on a box and on a cell, a notebook kept
 with the eye; the walk: the dim against a dialog's, a click on the dimmed page that goes no further, the Dataset
 cache shut by a click on its dim, the frame and the zoom from box to box, the arrows through an analysis with two
-branches, and their look against the Brief tab's, measured.
+branches, and their look against the Brief tab's, measured. (0330) `test_branch.js`: the fold - in a pane written as
+the run's events arrive and in one kept by 0320 to 0329, a kept search's sources, what its row says on screen, going
+back to a kept turn and leaving it, a fold the person opened - and the hint's card; the Analysis map's foot with a long step on two lines;
+`test_architect.js`: the Workflow map's foot and the Pathfinder's reply, whole; `test_maps.js`: the pane's height
+and its lines; `test_code_map.js`: no way into the trace on a box; the walk: the fold of each branch - shut, what it
+says, its turns -, the cards' buttons in a fold the person opened, a branch from a turn in it, and the boxes.

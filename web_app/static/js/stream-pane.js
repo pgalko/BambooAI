@@ -11,7 +11,8 @@
 // Server events handled here (all carry chain_id):
 //   id               -> paneIds
 //   pane_run_start   -> paneRunStart     {mode, of, branch:{of, turn, hint}}    branch: the run goes on from a turn of another (2.9)
-//   pane_turn_start  -> paneTurnStart    {turn, of, seat, model, kept}           kept: a turn a branch keeps from the chain it went on from
+//   pane_turn_start  -> paneTurnStart    {turn, of, seat, model, kept}           kept: a turn a branch keeps from the chain it went on from;
+//                                        such turns, and the rows under them, stand in one fold over the hint (0330)
 //   text (token)     -> paneToken        content tokens of the live turn
 //   thought (token)  -> paneThought      reasoning-channel tokens of the live turn
 //   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code, kept}
@@ -116,9 +117,15 @@
                 '<span>' + fmtCost(h.spent) + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
         },
-        // what the person said when they went back to a turn: the row stands where the branch's own turns begin
+        // what the person said when they went back to a turn: a card where the branch's own turns begin, under the fold of
+        // the turns it keeps (0330; a row with a green edge before)
         hint(b) {
-            return '<div class="sp-hint">' + ICON_BRANCH + '<b>From turn ' + esc(b.turn) + '</b><span>' + esc(b.hint) + '</span></div>';
+            return '<div class="sp-hint"><div class="hd">' + ICON_BRANCH + 'Branch from turn ' + esc(b.turn) + '</div><div class="said">' + esc(b.hint) + '</div></div>';
+        },
+        // the turns a branch keeps, in one fold, shut (0330): what its row says is written as the turns arrive (keptSays)
+        kept() {
+            return '<details class="sp-turn sp-kept"><summary><span class="chev"></span><span class="n"></span><span class="kind">kept</span><span class="peek"></span>' +
+                '<span class="meta"></span></summary><div class="sp-kept-body"></div></details>';
         },
         runIds(d) {
             const v = (k, val) => '<span><span class="k">' + k + '</span><span class="v">' + esc(val || 'N/A') + '</span></span>';
@@ -274,7 +281,8 @@
     let lastStrip = null;          // the last heartbeat, so the strip can be re-rendered
     let liveCard = null;           // the open turn card, while streaming
     let liveRaw = '';              // its content tokens so far
-    let hint = null;               // a branch's hint, until its row is written: {turn, hint}
+    let hint = null;               // a branch's hint, until its card is written: {turn, hint}
+    let keptFrom = '';             // where a branch's kept turns come from, in words: 'the original', 'branch 2' (branch.js)
     let noteSeen = false;          // the reply reached its structured part
     const TOOL_CALL = /<(?:invoke|function_calls)\b/;     // a tool call in a model's own markup (analyst/session.py, 2026-10-18)
 
@@ -298,9 +306,49 @@
     function append(html) {
         const s = stream(); if (!s || !html) return;
         s.insertAdjacentHTML('beforeend', html);
+        foldKept(s, keptFrom);           // a turn a branch keeps, or a row under one, goes into the fold
+    }
+    // A branch's kept turns (0330): the cards it keeps from the run it went on from, with what stands under them - their
+    // rows, a search's sources -, stand in one fold over the hint, shut as a finished turn's card is. They go into it as
+    // they arrive, and a pane kept from before comes to it when shown again (paneRenew). `from`: where they come from,
+    // in words. Returns the fold
+    function foldKept(s, from) {
+        let fold = s.querySelector(':scope > .sp-kept'), el = fold ? fold.nextElementSibling : s.querySelector(':scope > .sp-turn.kept'), moved = 0;
+        const loose = x => !!x && (x.classList.contains('sp-row') || x.classList.contains('sp-pills') || (x.classList.contains('sp-turn') && x.classList.contains('kept')));
+        while (loose(el)) {
+            if (!fold) { const d = document.createElement('div'); d.innerHTML = build.kept(); fold = d.firstElementChild; s.insertBefore(fold, el); }
+            const next = el.nextElementSibling;
+            fold.querySelector('.sp-kept-body').appendChild(el);
+            el = next; moved++;
+        }
+        if (fold && (moved || (from && !fold.querySelector('summary .peek').textContent))) keptSays(fold, from);
+        return fold;
+    }
+    // what the fold's row says: which turns, where they come from, and - in the closing card's words - how many cells
+    // they ran and how many failed; nothing of cells where none ran
+    function keptSays(fold, from) {
+        const body = fold.querySelector('.sp-kept-body');
+        const ns = Array.from(body.querySelectorAll(':scope > .sp-turn')).map(x => x.getAttribute('data-turn')).filter(n => /^\d+$/.test(n || '')).map(Number);
+        const ran = body.querySelectorAll('.sp-row[data-cell]').length, failed = body.querySelectorAll('.sp-row.fail').length;
+        fold.querySelector('summary .n').textContent = !ns.length ? 'Turns' : ns.length === 1 ? 'Turn ' + ns[0] : 'Turns ' + Math.min(...ns) + '–' + Math.max(...ns);
+        if (from) fold.querySelector('summary .peek').textContent = 'from ' + from;
+        fold.querySelector('summary .meta').textContent = ran || failed ? count(ran, 'cell') + (failed ? ' (' + failed + ' failed)' : '') : '';
+    }
+    // the row a hint was written as before 0330 - "From turn 3" and the words - as today's card
+    function renewHints(s) {
+        s.querySelectorAll(':scope > .sp-hint').forEach(row => {
+            const b = row.querySelector('b');
+            if (!b) return;
+            const d = document.createElement('div');
+            d.innerHTML = build.hint({ turn: (/\d+/.exec(b.textContent) || [''])[0], hint: (row.querySelector('span') || {}).textContent || '' });
+            s.insertBefore(d.firstElementChild, row);
+            row.remove();
+        });
     }
 
     window.paneAppend = append;          // a row of the page's own in the stream (architect.js: the framing, folded above its run)
+    // a branch's pane on screen (branch.js): its kept turns in their fold, which says where they come from
+    window.paneFoldKept = function (pane, from) { const s = pane && pane.querySelector('.sp-stream'); return s ? foldKept(s, from) : null; };
     window.paneIds = function (d) {
         const p = ensure(); if (!p) return;
         const slot = p.querySelector('.sp-ids-slot');
@@ -320,8 +368,9 @@
         renderStrip({ mode: ev.mode, turn: 0, of: ev.of, spent: 0, dollars: ev.dollars, estimate: '' });
         liveCard = null; liveRaw = ''; noteSeen = false;
         hint = ev.branch && ev.branch.hint ? { turn: ev.branch.turn, hint: ev.branch.hint } : null;
+        keptFrom = ev.branch && window.BranchUI && typeof window.BranchUI.whose === 'function' ? window.BranchUI.whose(ev.branch.of) : '';
     };
-    // the hint's row, once: under the turns the branch keeps, over its own
+    // the hint's card, once: under the fold of the turns the branch keeps, over its own
     function hinted() { if (hint) { append(build.hint(hint)); hint = null; } }
     window.paneHeartbeat = function (h) { renderStrip(h); };
     // a routine's run in the pane (S4): its id line, its strip, its closing card
@@ -346,8 +395,8 @@
         const s0 = stream();
         t.call = 1 + (s0 && t.seat ? s0.querySelectorAll('.sp-prompt[data-agent="' + String(t.seat).replace(/"/g, '') + '"]').length : 0);
         append(build.turnStart(t));
-        const s = stream();
-        liveCard = s ? s.lastElementChild : null; liveRaw = ''; noteSeen = false;
+        const s = stream(), live = s ? s.querySelectorAll('.sp-turn.live') : [];      // a kept turn's card is in the fold by now
+        liveCard = live.length ? live[live.length - 1] : null; liveRaw = ''; noteSeen = false;
     };
     window.paneToken = function (text) {
         if (!liveCard) return false;
@@ -452,9 +501,12 @@
     // A closing card kept from before 0313 comes to the shape of today's when its chain is shown again: its title and
     // numbers on one line; no links - the tabs are the way to the answer, and one of the links led nowhere; the code
     // trace's button in the row of what can be done next, with the button next-questions.js had put under the links.
-    // The card of a routine's run had links and nothing else to do next: its row goes
+    // The card of a routine's run had links and nothing else to do next: its row goes. A branch kept from before 0330:
+    // its kept turns go into their fold, and its hint's row becomes the card
     window.paneRenew = function (pane) {
         if (!pane) return;
+        const s = pane.querySelector('.sp-stream');
+        if (s) { renewHints(s); foldKept(s, ''); }
         pane.querySelectorAll('.sp-done').forEach(card => {
             const title = card.querySelector('.title'), grid = card.querySelector('.grid'), links = card.querySelector('.links'), under = card.querySelector('.nq-open');
             if (title && grid && title.parentNode === card) {

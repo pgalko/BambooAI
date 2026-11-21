@@ -1,4 +1,4 @@
-# The code map — design v1.9 (2026-11-22)
+# The code map — design v1.10 (2026-11-22)
 
 **The name (0328).** Since 2.9 the code map is called the **Code trace** on the page and in the README. The product
 owner, 2026-11-21: it is not a map in the sense the Workflow, Pathfinding and Analysis maps are. It follows a number
@@ -12,12 +12,16 @@ under the pointer and on the open chain's, as the eye did (`workflowGraph.js`); 
 there (`analyst/render.py`). A notebook kept with the eye says the name when its chain comes on screen
 (`workflow-management.js`). Where this document says *eye*, that is what it means.
 
+**A chain's box (0330).** The way in on a chain's box of the Workflow map is gone (the product owner, 2026-11-22:
+it cluttered the boxes). The ways in are the closing card's button, a `[cell n]` citation and the name on a cell's
+header in the Investigation tab.
+
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
 once, mechanically, when the chain ends — from the committed cells and the kernel's own record, by rules, with no
-model call — and kept with the chain. A reader opens it from the closing card's **Code map** button or from the eye on
-a chain's box in the Workflow map. Nothing of it reaches a prompt: the analyst never sees the map, and the map never
-changes what the analyst sees.
+model call — and kept with the chain. A reader opens it from the closing card's **Code map** button or (until 0330)
+from the eye on a chain's box in the Workflow map. Nothing of it reaches a prompt: the analyst never sees the map,
+and the map never changes what the analyst sees.
 
 The story in one paragraph. A coach reads "regime B out-yields A by 0.57 t/ha within soil type" and wants to know
 where that number came from without reading twenty cells of Python. The map answers in the reader's words: the
@@ -274,8 +278,9 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   working window under it is dimmed by a heavy scrim (`--scrim-heavy`, both themes) and blurred.
 - **Ways in**: the closing card's **Code map** button, beside **Next questions** (2026-11-19: until then a button
   on the card's line of links, which is gone; for an answered chain that ran code; the chain id rides in the saved
-  markup, so a restored card still opens its map); the eye on a chain's box in the Workflow map drawer, shown on the
-  hovered box and the open chain's (it moves the app to the chain, closes the drawer, opens the map); and a
+  markup, so a restored card still opens its map); until 0330, the eye on a chain's box in the Workflow map drawer,
+  shown on the hovered box and the open chain's (it moved the app to the chain, closed the drawer, opened the map);
+  and a
   `[cell n]` citation in the report or its
   plain-language version (2026-10-24): the chip opens the map on the Recipe diagram at that cell's recorded number -
   the cell's one number, or of several the one the sentence names (a number in the sentence equal to the estimate or

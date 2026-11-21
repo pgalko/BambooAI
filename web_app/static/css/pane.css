@@ -32,12 +32,17 @@
 #streamOutput .sp-turn.live > summary .peek { color: var(--text-secondary); }
 #streamOutput .sp-turn.live > summary { background: linear-gradient(90deg, transparent, rgba(80, 250, 123, .06), transparent); background-size: 200% 100%; animation: sp-shimmer 2.2s linear infinite; }
 #streamOutput .sp-turn.lost { opacity: .6; }
-/* a branch (2.9, docs/BRANCH_DESIGN.md): the turns it keeps from the chain it went on from, faint; the hint it goes on under, where its own turns begin */
+/* a branch (2.9, docs/BRANCH_DESIGN.md): the turns it keeps from the chain it went on from, faint, in one fold - shut, a stack
+   of cards, its row saying which turns and from where (0330); then the hint it goes on under, a card where its own turns begin */
 #streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }
 #streamOutput .sp-row.differs .t { color: var(--yaml-key); }
-#streamOutput .sp-hint { display: flex; align-items: baseline; gap: 8px; padding: 6px 10px; border-left: 2px solid var(--accent-color); font-family: Arial, sans-serif; font-size: 12px; color: var(--text-primary); }
-#streamOutput .sp-hint svg { align-self: center; flex-shrink: 0; width: 13px; height: 13px; color: var(--accent-color); }
-#streamOutput .sp-hint b { font-weight: 600; white-space: nowrap; color: var(--accent-color); }
+#streamOutput .sp-kept > summary { opacity: .6; }
+#streamOutput .sp-kept:not([open]) { margin-bottom: 4px; box-shadow: 0 4px 0 -1px var(--bg-secondary), 0 4px 0 0 var(--border-color); }
+#streamOutput .sp-kept-body { display: flex; flex-direction: column; gap: 8px; padding: 8px; border-top: 1px solid var(--border-color); border-radius: 0 0 6px 6px; background: var(--bg-primary); }
+#streamOutput .sp-hint { padding: 8px 12px 9px; border: 1px solid var(--chip-model-border); border-radius: 6px; background: var(--accent-bg); font-family: Arial, sans-serif; }
+#streamOutput .sp-hint .hd { display: flex; align-items: center; gap: 6px; margin-bottom: 3px; font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--c-model); }
+#streamOutput .sp-hint .hd svg { flex-shrink: 0; width: 12px; height: 12px; }
+#streamOutput .sp-hint .said { font-size: 13px; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; overflow-wrap: anywhere; }
 @keyframes sp-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 #streamOutput .sp-think { padding: 4px 12px 10px 30px; font-family: Arial, sans-serif; font-size: 13px; line-height: 1.55; color: var(--text-primary); white-space: pre-wrap; }
 #streamOutput .sp-think .cursor { display: inline-block; width: 7px; height: 13px; background: var(--accent-color); vertical-align: -2px; margin-left: 2px; animation: sp-pulse .9s steps(2) infinite; }

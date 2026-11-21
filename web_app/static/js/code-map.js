@@ -8,8 +8,8 @@
 // the rules are in dialogs.css under #codeMapModal. The map's content comes from the server (analyst/codemap/words.py);
 // the modal's own words sit in WORDS below. Nothing here reaches a prompt.
 //
-// Ways in: the closing card's "Code trace" button (stream-pane.js), the same words on a chain's box in the Workflow map
-// (workflowGraph.js) and on a cell's header in the Investigation tab (analyst/render.py). window.CodeMapUI = { initialize, open, close, onChain, build }.
+// Ways in: the closing card's "Code trace" button and a report's [cell n] (stream-pane.js), and the same words on a cell's
+// header in the Investigation tab (analyst/render.py); a chain's box on the Workflow map had them until 0330. window.CodeMapUI = { initialize, open, close, onChain, build }.
 
 (function () {
     'use strict';

@@ -13,10 +13,11 @@
 // one branch of an analysis to the next, with no map opened: the arrows at the head of its Investigation tab.
 //
 // The pane itself is not touched by going back: what follows the turn is hidden by a rule of this module's own, so
-// nothing of the moment is kept with the chain.
+// nothing of the moment is kept with the chain. The turns a branch keeps stand in one fold (stream-pane.js, 0330): going
+// back to one of them opens it, and leaving shuts it again.
 //
 // window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, dress, from,
-//                     flip, analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
+//                     flip, whose, analyses, place, step, items, open, turnsOf, boxes, first, members, owner, standing, WORDS }
 // standing(): the turn gone back to - {chain, turn} - or null.
 
 (function () {
@@ -33,12 +34,14 @@
         info: { turn: 'Turn', did: 'Did', hint: 'Hint', ways: 'Went on', printed: 'Printed' },
         busy: 'An analysis is running: wait for it, or stop it, then go back to a turn',
         branchFrom: n => 'Branch from turn ' + n,
-        branch: 'Branch', original: 'original', of: (k, n) => k + ' of ' + n, before: 'The branch before', after: 'The branch after'
+        branch: 'Branch', original: 'original', of: (k, n) => k + ' of ' + n, before: 'The branch before', after: 'The branch after',
+        theOriginal: 'the original', aBranch: k => 'branch ' + k
     };
     const ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
         '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>';
 
     let back = null;           // the turn gone back to: {chain, turn} - the chain on screen, and the turn its left pane ends at
+    let opened = null;         // the fold of kept turns opened to show the kept turn gone back to
     let going = null;          // a branch asked for, until its run ends: {chain, of, turn, hint, question, parent, framing, announced, error}
     const shown = {};          // of each analysis, the chain last on screen - by the chain id of its first run
 
@@ -89,6 +92,12 @@
         return all.map(m => Object.assign({}, m, { at: responses.indexOf(m), branches: members(m).length - 1,
                                                     parentChainId: first(m).parentChainId == null ? null : boxOf(first(m).parentChainId) }));
     }
+    // a run of an analysis as the arrows count it: the original, or a branch by its place (0330: the fold of a branch's
+    // kept turns says where they come from); '' for a chain not in the thread
+    function whose(chain) {
+        const e = entryOf(chain), i = e ? members(e).indexOf(e) : -1;
+        return i < 0 ? '' : i ? WORDS.aBranch(i) : WORDS.theOriginal;
+    }
     // a chain comes on screen
     function show(entry) {
         currentResponseIndex = responses.indexOf(entry);
@@ -100,18 +109,28 @@
     function open(item) { const entry = responses[item.at]; if (entry) show(entry); }
 
     // ------------------------------------------------------------ the turns of a chain, read from its left pane
-    // Each numbered card is a turn: its number, what it was (the card's own word), what it did (the card's line), the
-    // cell it ran - or that its cell failed - and what the cell printed. A card cut off before its turn ended - the
-    // run was stopped there - is no turn. Read from the markup the chain keeps (turnsOf), or from the pane itself
+    // Each numbered card is a turn: its number, what it was (the card's own word), what it did (the card's line, and
+    // the whole of what it said), the cell it ran - or that its cell failed - and what the cell printed. A card cut off
+    // before its turn ended - the run was stopped there - is no turn. Read from the markup the chain keeps (turnsOf), or
+    // from the pane itself; the turns a branch keeps are read inside their fold
     function turnsOf(entry) { return turnsIn(holder(entry.streamOutput).querySelector('.sp-stream')); }
-    function turnsIn(stream) {
-        const out = []; let turn = null;
+    function rowsOf(stream) {
+        const out = [];
         Array.prototype.forEach.call(stream ? stream.children : [], el => {
             if (el.nodeType !== 1) return;
+            const body = el.classList.contains('sp-kept') ? el.querySelector('.sp-kept-body') : null;
+            if (body) Array.prototype.forEach.call(body.children, x => { if (x.nodeType === 1) out.push(x); }); else out.push(el);
+        });
+        return out;
+    }
+    function turnsIn(stream) {
+        const out = []; let turn = null;
+        rowsOf(stream).forEach(el => {
             if (el.classList.contains('sp-turn')) {
-                const n = el.getAttribute('data-turn');
+                const n = el.getAttribute('data-turn'), said = el.querySelector('.sp-think');
                 turn = /^\d+$/.test(n || '') && !el.classList.contains('lost')
-                    ? { n: Number(n), kind: text(el.querySelector('summary .kind')), peek: text(el.querySelector('summary .peek')), cell: null, failed: false, out: '' } : null;
+                    ? { n: Number(n), kind: text(el.querySelector('summary .kind')), peek: text(el.querySelector('summary .peek')), said: said ? String(said.textContent || '').trim() : '',
+                        cell: null, failed: false, out: '' } : null;
                 if (turn) out.push(turn);
             } else if (turn && el.classList.contains('sp-row')) {
                 if (el.getAttribute('data-cell')) { turn.cell = Number(el.getAttribute('data-cell')); turn.out = text(el.querySelector('.out')); }
@@ -156,8 +175,8 @@
         const stream = goesOn(pane) ? pane.querySelector('.sp-stream') : null;
         if (!stream) return;
         const on = turnsIn(stream).filter(can).map(t => t.n);
-        Array.prototype.forEach.call(stream.children, el => {
-            const head = el.nodeType === 1 && el.classList.contains('sp-turn') ? el.querySelector('summary') : null, n = head ? Number(el.getAttribute('data-turn')) : null;
+        rowsOf(stream).forEach(el => {
+            const head = el.classList.contains('sp-turn') ? el.querySelector('summary') : null, n = head ? Number(el.getAttribute('data-turn')) : null;
             if (!head || on.indexOf(n) < 0 || head.querySelector('.sp-branch')) return;
             head.insertAdjacentHTML('beforeend', '<button type="button" class="sp-branch" title="' + WORDS.branchFrom(n) + '" aria-label="' + WORDS.branchFrom(n) + '" ' +
                 'onclick="event.preventDefault(); if (window.BranchUI) BranchUI.from(this);">' + ICON + '</button>');
@@ -201,13 +220,20 @@
 
     // ------------------------------------------------------------ going back to a turn
     // The left pane ends at the turn: the cards after it, what stands under them, and the row of a hint given later
-    // are out of sight. The rule is this module's, in the page's head: the pane's markup stays as the chain keeps it
+    // are out of sight. The rule is this module's, in the page's head: the pane's markup stays as the chain keeps it.
+    // A turn the branch kept is in the fold of kept turns: the fold opens, the kept turns after it are out of sight,
+    // and so is all that stands under the fold; the fold shuts again once the pane is whole
     function ends(n) {
         let rule = byId('branchBack');
+        const pane = byId('streamOutput'), card = n == null || !pane ? null
+            : rowsOf(pane.querySelector('.sp-stream')).find(el => el.classList.contains('sp-turn') && el.getAttribute('data-turn') === String(n)) || null;
+        const fold = card && card.closest ? card.closest('.sp-kept') : null;
+        if (opened && opened !== fold) { opened.removeAttribute('open'); opened = null; }
         if (n == null) { if (rule) rule.remove(); return; }
         if (!rule) { rule = document.createElement('style'); rule.id = 'branchBack'; (document.head || document.body).appendChild(rule); }
-        const turn = '#streamOutput .sp-stream > .sp-turn[data-turn="' + n + '"]';
-        rule.textContent = turn + ' ~ .sp-turn, ' + turn + ' ~ .sp-turn ~ *, ' + turn + ' ~ .sp-hint { display: none; } ' +
+        if (fold && !fold.hasAttribute('open')) { fold.setAttribute('open', ''); opened = fold; }
+        const turn = fold ? '#streamOutput .sp-kept-body > .sp-turn[data-turn="' + n + '"]' : '#streamOutput .sp-stream > .sp-turn[data-turn="' + n + '"]';
+        rule.textContent = turn + ' ~ .sp-turn, ' + turn + ' ~ .sp-turn ~ *, ' + (fold ? '#streamOutput .sp-stream > .sp-kept ~ *' : turn + ' ~ .sp-hint') + ' { display: none; } ' +
             turn + ' > summary .sp-branch { color: var(--accent-color); border-color: var(--accent-color); }';      // the button of the turn gone back to is lit
     }
     // the composer's words, kept apart from a hold's: where the composer is held (routines.js), the words wait under the hold's
@@ -279,7 +305,7 @@
             tag: (item, i) => (all[i].entry.branch && all[i].turn.n === all[i].entry.branch.turn + 1 ? WORDS.hinted : ''),
             show: (item, i) => {
                 const b = all[i], t = b.turn, ways = all.filter(x => x.from === b.key).length;
-                byId('nodeTaskContent').textContent = t.peek || did(t);
+                byId('nodeTaskContent').innerHTML = '<span class="wf-said">' + esc(t.said || t.peek || did(t)) + '</span>';      // what the turn said, whole (0330)
                 byId('nodePlotPreview').innerHTML = '<div class="wf-info">' + row(WORDS.info.turn, t.n + (i === on ? ' · ' + WORDS.onScreen : '')) + row(WORDS.info.did, esc(didWhole(t))) +
                     (b.entry.branch ? row(WORDS.info.hint, esc(b.entry.branch.hint)) : '') + (ways > 1 ? row(WORDS.info.ways, WORDS.ways(ways)) : '') +
                     (t.out ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.printed + '</span><b>' + esc(t.out) + '</b></div>' : '') + '</div>';
@@ -298,7 +324,9 @@
     function onChain(entry) {
         if (entry) shown[String(first(entry).chain_id)] = entry.chain_id;
         if (back && !(entry && same(back.chain, entry.chain_id))) { back = null; ends(null); }
+        if (!back) opened = null;                       // the pane drawn again: a fold opened for the turn gone back to is the markup's now
         composer();
+        if (entry && entry.branch && typeof window.paneFoldKept === 'function') window.paneFoldKept(byId('streamOutput'), whose(entry.branch.of));
         dress(byId('streamOutput'));
         arrows(entry);
     }
@@ -365,5 +393,5 @@
     }
 
     window.BranchUI = { initialize, map, onChain, hint, started, announced, heard, unstarted, notStarted, leave, analyses, place, step, items, open,
-                        dress, from, flip, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
+                        dress, from, flip, whose, turnsOf, boxes, first, members, owner, standing: () => back, WORDS };
 })();

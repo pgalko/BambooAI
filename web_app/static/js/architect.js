@@ -1049,13 +1049,13 @@
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map((s, i) => ({ chain_id: s.k, parentChainId: s.from || null, queryText: words[i].label })), st.shown - 1, {
             sub: (item, i) => (all[i].from ? [] : [WORDS.asked1]).concat(words[i].parts).join(' · '),
             show: (item, i) => {
-                const s = all[i], at = steps.place(framing, s.k), next = all.filter(x => x.from === s.k).length, first = /^[\s\S]{20,240}?[.!?](?=\s|$)/.exec(words[i].reply);
-                byId('nodeTaskContent').textContent = words[i].label.length > 300 ? words[i].label.slice(0, 297) + '...' : words[i].label;
+                const s = all[i], at = steps.place(framing, s.k), next = all.filter(x => x.from === s.k).length;
+                byId('nodeTaskContent').innerHTML = '<span class="wf-said">' + esc(words[i].label) + '</span>';      // whole, and the reply whole (0330: cut at 300 and 240)
                 byId('nodePlotPreview').innerHTML = '<div class="wf-info">' +
                     row(WORDS.info.step, WORDS.of(at.i, at.n) + (s.k === st.shown ? ' · ' + WORDS.onScreen : '')) +
                     row(WORDS.info.follows, s.from ? WORDS.stepN(at.i - 1) : WORDS.theStart) + row(WORDS.info.next, next || WORDS.none) +
                     row(WORDS.info.changed, esc(words[i].parts.join(' · ') || WORDS.nothing)) +
-                    (words[i].reply ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.replied + '</span><b>' + esc(first ? first[0] : words[i].reply.slice(0, 240)) + '</b></div>' : '') + '</div>';
+                    (words[i].reply ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.replied + '</span><b class="wf-said">' + esc(words[i].reply) + '</b></div>' : '') + '</div>';
             },
             pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }
         });

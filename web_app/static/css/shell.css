@@ -261,10 +261,12 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 #workflowMapModal .workflow-map-container { flex: 1; min-height: 0; overflow: auto; padding: 14px; position: relative; background: var(--bg-primary); }
 #workflowMapModal .wf-graph { margin: 0; }
 /* what the box under the pointer is: one height whatever it says, so the map above keeps its frame - and with it its
-   zoom, which is fitted to the frame (0329: the pane grew and shrank from box to box, and the map was fitted again) */
-#workflowMapModal .workflow-details-pane { flex: 0 0 152px; box-sizing: border-box; overflow: auto; border-top: 1px solid var(--border-color); padding: 10px 14px; background: var(--bg-secondary); width: auto; text-align: left; }
+   zoom, which is fitted to the frame (0329: the pane grew and shrank from box to box, and the map was fitted again).
+   It says everything, whole (0330): what does not fit scrolls, and it stays said when the pointer leaves the box */
+#workflowMapModal .workflow-details-pane { flex: 0 0 200px; box-sizing: border-box; overflow: auto; border-top: 1px solid var(--border-color); padding: 10px 14px; background: var(--bg-secondary); width: auto; text-align: left; }
 #workflowMapModal .details-content { display: flex; flex-direction: column; gap: 8px; text-align: left; align-items: stretch; }
 #workflowMapModal .details-text { font-size: 13px; line-height: 1.5; color: var(--text-primary); margin: 0; padding: 0; }
+#workflowMapModal .wf-said { white-space: pre-line; overflow-wrap: anywhere; }      /* what was said, whole, its lines kept (0330) */
 #workflowMapModal .map-rest { font-size: var(--fs-meta); color: var(--text-tertiary); }      /* until a box is under the pointer: what a click and the pointer do */
 #workflowMapModal .workflow-details-pane:has(.details-text:empty) { display: none; }      /* a map with nothing on it: nothing to say */
 #workflowMapModal .details-plot-preview:empty { display: none; }
@@ -301,11 +303,6 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 #workflowMapModal .wf-node--fork .wf-node-chain { color: var(--c-lookup); }
 #workflowMapModal .wf-node--synthesis { border-color: var(--chip-kernel-border); }
 #workflowMapModal .wf-node--synthesis .wf-node-chain { color: var(--c-kernel); }
-/* the code trace's way in (2026-10-20; 0329: its name, in the look of the closing card's button - an eye before): on the
-   chain-id line, shown on the hovered box and the open chain's */
-#workflowMapModal .wf-node-map { position: absolute; right: 6px; bottom: 5px; padding: 0 6px; border: 1px solid var(--chip-model-border); border-radius: 4px; background: none; font-family: var(--font-ui); font-size: 10px; line-height: 14px; color: var(--accent-color); white-space: nowrap; cursor: pointer; opacity: 0; }
-#workflowMapModal .wf-node:hover .wf-node-map, #workflowMapModal .wf-node--active .wf-node-map, #workflowMapModal .wf-node-map:focus-visible { opacity: 1; }
-#workflowMapModal .wf-node-map:hover { background: var(--accent-bg-hover); }
 #workflowMapModal .wf-path-active .wf-node:not(.wf-node--ancestor):not(.wf-node--active) { opacity: .45; }
 /* how a box's question was made (docs/ARCHITECT_DESIGN.md §2.9, 2026-11-15): a tag on the box's top edge - Pathfinder, or a brief not yet run */
 #workflowMapModal .wf-node-made { position: absolute; top: -8px; right: 8px; padding: 0 6px; border: 1px solid var(--chip-model-border); border-radius: 8px; background: var(--bg-primary); font-family: var(--font-ui); font-size: 9.5px; line-height: 14px; color: var(--c-model); }

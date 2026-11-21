@@ -1,6 +1,6 @@
 // The branches of an analysis on the page (docs/BRANCH_DESIGN.md §5; 2.9, patch 0320): branch.js, on the mini DOM, with
 // panes written by the pane's own functions (stream-pane.js) as the server's events arrive, the maps drawer and its
-// switch (maps.js), and the Workflow map's drawing (workflowGraph.js) on the harness's dagre. The turns a branch keeps and the row of its hint in the left pane;
+// switch (maps.js), and the Workflow map's drawing (workflowGraph.js) on the harness's dagre. The turns a branch keeps - in their fold - and the card of its hint in the left pane;
 // the turns of a chain read back from its pane; an analysis as a chain with its branches - what the arrows and the
 // Workflow map count; the Analysis map - its boxes, what the drawer says, the way that is lit; going back to a turn -
 // the pane that ends there, the composer as a hint's; the hint sent, a branch the server started and one it did not;
@@ -27,7 +27,7 @@ global.responses = []; global.currentResponseIndex = -1; global.currentData = {}
 global.liveState = { running: false, away: false, index: null, parent: null, data: null, tasks: null, holders: null };
 const loaded = [];
 global.loadResponseContent = r => { loaded.push(r.chain_id); $('tabContainer').innerHTML = r.tabContent || ''; $('contentOutput').innerHTML = r.contentOutput || ''; $('streamOutput').innerHTML = r.streamOutput || '';
-  currentData.chain_id = r.chain_id; currentData.thread_id = r.thread_id; };
+  window.paneRenew($('streamOutput')); currentData.chain_id = r.chain_id; currentData.thread_id = r.thread_id; };      // a pane kept by an older build, in today's shape: the page's own step
 global.updateNavigationButtons = () => { window.BranchUI.onChain(responses[currentResponseIndex]); window.MapsUI.follow(); };
 global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText }); global.extractPlotDataFromResponse = () => null;
 const framed = []; window.ArchitectUI = { mark: () => '', started: e => framed.push(e),
@@ -88,15 +88,22 @@ const holder = html => { const d = doc.createElement('div'); d.innerHTML = html;
 const show = e => { currentResponseIndex = responses.indexOf(e); loadResponseContent(e); updateNavigationButtons(); };
 
 // ---- the left pane of a branch
-const pb = holder(b1.streamOutput), cards = pb.querySelectorAll('.sp-turn'), rowsB = pb.querySelector('.sp-stream').elements.map(e => e.className.split(' ').slice(0, 3).join('.'));
-check('the pane of a branch: the turns it keeps come first, each card shut and marked kept, with its step, the word "kept" where a turn of its own has its time and cost, and no way to a '
-  + 'prompt - it made no call in this chain; the row of the hint stands under them, over the branch\'s own turns, with the turn it was given after; the cells kept are marked too',
-  same(cards.map(x => [x.getAttribute('data-turn'), x.classList.contains('kept'), x.hasAttribute('open'), x.querySelector('summary .meta').textContent, !!x.querySelector('.sp-prompt')]),
-       [['1', true, false, 'kept', false], ['2', true, false, 'kept', false], ['3', true, false, 'kept', false], ['4', false, false, '2.0 s · $0.01', true], ['5', false, false, '2.0 s · $0.01', true]])
+const pb = holder(b1.streamOutput), cards = pb.querySelectorAll('.sp-turn[data-turn]'), rowsB = pb.querySelector('.sp-stream').elements.map(e => e.className.split(' ').slice(0, 3).join('.'));
+const foldB = pb.querySelector('.sp-kept'), inFold = foldB ? foldB.querySelector('.sp-kept-body').elements.map(e => e.className.split(' ').slice(0, 3).join('.')) : null;
+const saysOf = fold => (fold ? fold.querySelector('summary').elements.slice(1).map(e => e.textContent) : null);      // the fold's row: which turns, "kept", from where, its cells
+// the pane was written before the thread had a chain: where its kept turns come from is said once it is on screen (below)
+check('the pane of a branch (0330: the turns it keeps in one fold): the fold comes first, shut - its row says which turns it holds, that they are kept, and how many cells they ran and '
+  + 'how many failed, as the closing card says it; in it the turns kept, each card shut and marked kept, with its step, the word "kept" where a turn of its own has its time and cost, and '
+  + 'no way to a prompt - it made no call in this chain -, and the cells kept, marked too. Under the fold the card of the hint: the turn it was given after, and the hint whole; then the '
+  + 'branch\'s own turns',
+  same(cards.map(x => [x.getAttribute('data-turn'), x.classList.contains('kept'), x.hasAttribute('open'), x.querySelector('summary .meta').textContent, !!x.querySelector('.sp-prompt'), x.closest('.sp-kept') === foldB]),
+       [['1', true, false, 'kept', false, true], ['2', true, false, 'kept', false, true], ['3', true, false, 'kept', false, true], ['4', false, false, '2.0 s · $0.01', true, false], ['5', false, false, '2.0 s · $0.01', true, false]])
   && cards[0].querySelector('.sp-think').textContent === A[0].step && cards[0].querySelector('summary .peek').textContent === 'This turn loads both blocks.'
-  && same(rowsB, ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.fail.kept', 'sp-turn.kept', 'sp-row.kept', 'sp-hint', 'sp-turn', 'sp-row', 'sp-turn', 'sp-done'])
-  && pb.querySelector('.sp-hint').textContent === 'From turn 3keep the two blocks apart' && pb.querySelectorAll('.sp-hint').length === 1 && !!pb.querySelector('.sp-hint svg')
-  && same(pb.querySelectorAll('.sp-prompt').map(x => x.getAttribute('data-call')), ['1', '2']), [rowsB, cards.map(x => x.querySelector('summary .meta').textContent)]);
+  && same(rowsB, ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-row', 'sp-turn', 'sp-done']) && foldB.tag === 'details' && !foldB.hasAttribute('open')
+  && same(inFold, ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.fail.kept', 'sp-turn.kept', 'sp-row.kept']) && same(saysOf(foldB), ['Turns 1–3', 'kept', '', '2 cells (1 failed)'])
+  && pb.querySelector('.sp-hint').textContent === 'Branch from turn 3keep the two blocks apart' && pb.querySelector('.sp-hint .said').textContent === 'keep the two blocks apart'
+  && pb.querySelectorAll('.sp-hint').length === 1 && !!pb.querySelector('.sp-hint .hd svg')
+  && same(pb.querySelectorAll('.sp-prompt').map(x => x.getAttribute('data-call')), ['1', '2']), [rowsB, inFold, saysOf(foldB), cards.map(x => x.querySelector('summary .meta').textContent)]);
 const differs = holder(b2.streamOutput).querySelectorAll('.sp-row').filter(r => r.classList.contains('differs'));
 check('... a kept cell that printed something else when it was run again says so on its row, and why on hover; the others say nothing of it',
   differs.length === 1 && differs[0].getAttribute('data-cell') === '3' && differs[0].querySelector('.t').textContent.startsWith('run again: output changed')
@@ -110,13 +117,15 @@ check('the mark of an analysis that can be gone on from (0327; until then a butt
 $('streamOutput').innerHTML = '';
 w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1, branch: { of: 20, turn: 3, hint: 'stopped at once' } });
 w.paneTurnStart({ turn: 1, kept: true });
-const shut = !$('streamOutput').querySelector('.sp-turn').hasAttribute('open');
+const shut = !$('streamOutput').querySelector('.sp-turn.kept').hasAttribute('open') && !$('streamOutput').querySelector('.sp-kept').hasAttribute('open'), liveFold = saysOf($('streamOutput').querySelector('.sp-kept'));
 w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'x', kept: true });
-const midRun = !!$('streamOutput').querySelector('[data-branch]') || !!$('streamOutput').querySelector('.sp-hint');
+w.paneCell({ cell_no: 1, ok: true, peek: 'one', elapsed: 0.1, chars: 3, kept: 'kept' });
+const midRun = !!$('streamOutput').querySelector('[data-branch]') || !!$('streamOutput').querySelector('.sp-hint'), liveCell = saysOf($('streamOutput').querySelector('.sp-kept'));
 w.paneRunEnd({ status: 'stopped', turns: 1, of: 8, cells: 0, cost: 0, seconds: 0, chain_id: 99 });
-check('... while a run is under way there is no such mark, and a kept turn\'s card is shut from the start; a branch that ended before a turn of its own still has the row of its '
-  + 'hint, once, before its closing card',
-  !midRun && shut && $('streamOutput').querySelector('.sp-stream').elements.map(e => e.className).join() === 'sp-turn kept,sp-hint,sp-done' && !$('streamOutput').querySelector('[data-branch]'));
+check('... while a run is under way there is no such mark, and a kept turn\'s card goes into the fold as it arrives - both shut from the start, the fold saying where the turns come '
+  + 'from and counting the cells kept as they come, nothing of cells before one; a branch that ended before a turn of its own still has the card of its hint, once, before its closing card',
+  !midRun && shut && same(liveFold, ['Turn 1', 'kept', 'from the original', '']) && same(liveCell, ['Turn 1', 'kept', 'from the original', '1 cell'])
+  && $('streamOutput').querySelector('.sp-stream').elements.map(e => e.className).join() === 'sp-turn sp-kept,sp-hint,sp-done' && !$('streamOutput').querySelector('[data-branch]'), [liveFold, liveCell]);
 $('streamOutput').innerHTML = '';
 w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1, branch: { of: 20, turn: 3, hint: 'lost on the way' } });      // its stream broke before a turn, and before an end
 $('streamOutput').innerHTML = '';
@@ -222,7 +231,7 @@ check('the boxes of an analysis\'s Analysis map: the first run\'s turns in a lin
                                        ['23:5', '21:4'], ['23:6', '23:5']]) && all[6].entry === b1 && all[9].turn.n === 5, all.map(x => [x.key, x.from]));
 const state = () => ({ shown: drawer.style.display, level: drawer.getAttribute('data-level'), bar: bar(), said: level('analysis').getAttribute('title'),
   boxes: nodes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent + ((x.querySelector('.wf-node-made') || {}).textContent ? ' > ' + x.querySelector('.wf-node-made').textContent : '')),
-  on: nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), edges: edges(), thread: $('workflowMapContainer').querySelectorAll('.wf-node-map, .wf-node-branches, .wf-edge-label').length });
+  on: nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), edges: edges(), thread: $('workflowMapContainer').querySelectorAll('.wf-node-branches, .wf-edge-label').length });
 openMap();
 const opened = state(), restFoot = foot();
 nodes()[2].dispatch('mouseenter'); const over3 = { foot: foot(), lit: lit() }; nodes()[2].dispatch('mouseleave');
@@ -316,7 +325,7 @@ check('a click on a turn of the chain on screen goes back to it: the drawer shut
 openMap(); nodes()[7].dispatch('click');                        // the last turn of another branch
 const onB1 = [responses[currentResponseIndex] === b1, same(loaded.slice(n0), [21]), comp()];
 openMap(); const mapB1 = [state().on, state().lit]; nodes()[1].dispatch('click');      // a turn the branch kept from the first run: on its way
-const kept2 = [responses[currentResponseIndex] === b1, loaded.length === n0 + 1, comp()];
+const kept2 = [responses[currentResponseIndex] === b1, loaded.length === n0 + 1, comp(), $('streamOutput').querySelector('.sp-kept').hasAttribute('open')];
 openMap(); const mapKept = [state().on, state().lit];
 nodes()[9].dispatch('click');                                     // a turn of a branch of this branch, which can be gone on from
 const onC5 = [responses[currentResponseIndex] === c, comp().at, comp().chip];
@@ -324,11 +333,12 @@ openMap(); nodes()[5].dispatch('click');                        // the first run
 const onA6 = [responses[currentResponseIndex] === a, comp()];
 const own = { hint: false, words: 'Enter your query here', chip: '', rule: '', at: null };
 check('a click on a turn of another branch brings that branch on screen, tabs and pane: its last turn shows it whole, the composer its own; a turn it kept from the first run is on its '
-  + 'way, so the branch stays and its pane ends there - on the map the open box is that turn, in the first run\'s line; a turn of a branch of it that can be gone on from brings that '
+  + 'way, so the branch stays and its pane ends there, in the fold of its kept turns, opened - on the map the open box is that turn, in the first run\'s line; a turn of a branch of it '
+  + 'that can be gone on from brings that '
   + 'chain, gone back to the turn; the report of the first run brings the first run back whole',
   same(onB1, [true, true, own]) && same(mapB1, ['8', '1,2,3,7,8']) && kept2[0] && kept2[1] && same(kept2[2].at, { chain: 21, turn: 2 }) && kept2[2].chip === 'From turn 2 · 6 turns left×'
   && same(mapKept, ['2', '1,2'])
-  && kept2[2].rule.startsWith('#streamOutput .sp-stream > .sp-turn[data-turn="2"] ~ .sp-turn,') && same(onC5, [true, { chain: 23, turn: 5 }, 'From turn 5 · 3 turns left×']) && same(onA6, [true, own]),
+  && kept2[2].rule.startsWith('#streamOutput .sp-kept-body > .sp-turn[data-turn="2"] ~ .sp-turn,') && kept2[3] && same(onC5, [true, { chain: 23, turn: 5 }, 'From turn 5 · 3 turns left×']) && same(onA6, [true, own]),
   [onB1, mapB1, kept2, mapKept, onC5, onA6]);
 show(s); openMap(); const sMap = [state().said, state().on]; nodes()[1].dispatch('click'); const sBack = comp().at;
 responses.push(k); show(k); openMap(); nodes()[0].dispatch('click'); const kBack = comp().at;
@@ -404,7 +414,7 @@ check('a hint sent: with a turn gone back to, what is typed is a hint - the bran
 responses[liveState.index] = entry(24, 10, going.question, keep(A.slice(0, 2)).concat([{ n: 3, kind: 'report', step: 'Started over.' }]), { branch: { of: 20, turn: 2, hint: going.hint }, entryBranch: currentData.branch });
 Object.assign(liveState, { running: false, index: null }); const d = responses[responses.length - 1]; show(d);
 check('... once saved the branch is one more way of its analysis: its Analysis map has its turns, joined to the turn it went on from, and it is the chain the arrows show for the analysis',
-  same(B.boxes(a).slice(-1).map(x => [x.key, x.from]), [['24:3', '20:2']]) && same(ids(), [10, 24, 30, 40]) && B.map(2).said === '12 turns · 4 branches' && $('streamOutput').querySelector('.sp-hint').textContent === 'From turn 2start over from the slip');
+  same(B.boxes(a).slice(-1).map(x => [x.key, x.from]), [['24:3', '20:2']]) && same(ids(), [10, 24, 30, 40]) && B.map(2).said === '12 turns · 4 branches' && $('streamOutput').querySelector('.sp-hint').textContent === 'Branch from turn 2start over from the slip');
 // a branch the server did not start: it said why before it announced a chain
 show(b1); openMap(); nodes()[2].dispatch('click');
 const again = B.hint('keep them apart, again'), n1 = responses.length, t1 = toasts.length;
@@ -414,7 +424,7 @@ B.started(again); $('streamOutput').innerHTML = '<div class="sp-sys error">refus
 B.heard('Load the data this analysis ran on first: trial.csv.');
 const was = B.unstarted(); B.notStarted();
 const refused = { n: responses.length, live: [liveState.running, liveState.index], on: responses[currentResponseIndex] === b1, at: B.standing(), typed: $('queryInput').value, toast: toasts.slice(t1), branch: currentData.branch,
-                  pane: $('streamOutput').querySelectorAll('.sp-turn').length === 5 && !$('streamOutput').querySelector('.sp-sys'), unstarted: B.unstarted() };
+                  pane: $('streamOutput').querySelectorAll('.sp-turn[data-turn]').length === 5 && !$('streamOutput').querySelector('.sp-sys'), unstarted: B.unstarted() };
 check('a branch the server did not start - it said why, and announced no chain: the chain begun for it leaves the thread, the chain the hint was typed on is back on screen at its turn, '
   + 'the hint is in the composer to send again, and the server\'s sentence is said',
   was === true && same(refused, { n: n1, live: [false, null], on: true, at: { chain: 21, turn: 3 }, typed: 'keep them apart, again', toast: ['Load the data this analysis ran on first: trial.csv.'], branch: null, pane: true, unstarted: false }), refused);
@@ -451,11 +461,12 @@ check('the stream: the chain\'s announcement is handed to the branch, and so is 
   && core.includes("window.BranchUI.initialize();") && html.indexOf("js/branch.js") > html.indexOf("js/next-questions.js") && html.indexOf("js/branch.js") < html.indexOf("js/workflowGraph.js"));
 const branchJs = js('branch.js'), paneJs = js('stream-pane.js');
 check('the Workflow map: its boxes are the analyses, the open one that of the chain on screen, the level counting chains and their branches; a box clicked brings its chain on screen '
-  + 'through the branch, and no longer shuts the drawer; the drawing takes a map\'s own mark for a box; the Pathfinder\'s cards have the Git branch mark, the left bar\'s button the map\'s',
+  + 'through the branch, and no longer shuts the drawer; a box has no way into the code trace (0330); the drawing takes a map\'s own mark for a box; the Pathfinder\'s cards have the Git '
+  + 'branch mark, the left bar\'s button the map\'s',
   wm.includes("var boxes = window.BranchUI ? window.BranchUI.items() : responses;") && wm.includes("WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
   && wm.includes("var branches = boxes.reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);") && !wm.includes('showWorkflowMap') && !/workflowMapModal[^\n]*\.style\.display/.test(wm)
   && graph.includes("if (window.BranchUI) window.BranchUI.open(resp);") && graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');")
-  && graph.includes("if (!of && resp && resp.branches) {") && graph.includes("String(resp.chain_id) !== String(currentData.chain_id)") && !graph.includes(".style.display = 'none'") && graph.includes("mapContainer.onwheel = function (e) {")
+  && graph.includes("if (!of && resp && resp.branches) {") && !graph.includes('wf-node-map') && !graph.includes('CodeMapUI') && !graph.includes(".style.display = 'none'") && graph.includes("mapContainer.onwheel = function (e) {")
   && ar.includes('<line x1="6" y1="3" x2="6" y2="15"/>') && !ar.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>')
   && html.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>'));
 check('the Analysis map is the drawer\'s (0327), from the sources: no button to it is made above an analysis - the run\'s end marks the row of the ids instead, and a pane kept with the '
@@ -467,20 +478,25 @@ check('the Analysis map is the drawer\'s (0327), from the sources: no button to 
   && branchJs.includes("window.MapsUI.shut();\n                go(here && owner(here, b.turn.n) === b.entry ? here : b.entry, b.turn.n);")
   && branchJs.includes("mapOff: { running: 'An analysis is running', none: n => 'Chain ' + n + ' has no turns to go back to' },"));
 check('the stylesheets: with a turn gone back to the composer shows no file menu, no mode and no Pathfinder switch, and the row of the turn is styled; the drawer hides the thread\'s '
-  + 'buttons while it holds the turns; the Workflow map\'s box has a place for its branches; kept turns are faint, a cell that printed something else is marked, the hint\'s row is '
-  + 'styled; the ids\' row stays in view under the strip, on one line, its last id giving way first',
+  + 'buttons while it holds the turns; the Workflow map\'s box has a place for its branches; kept turns are faint, in a fold that shows as a stack of cards while it is shut (0330); a '
+  + 'cell that printed something else is marked; the hint is a card in the colours of the composer\'s row of a turn gone back to, its words whole, on their lines; the ids\' row stays in '
+  + 'view under the strip, on one line, its last id giving way first',
   shell.includes("body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-panel #modeSliderPopup, body.br-hint .left-panel .icon-row .ar-switch { display: none !important; }")
   && shell.includes(".left-panel .icon-row .br-chip {") && shell.includes('#workflowMapModal:not([data-level="workflow"]) .map-drawer-foot { display: none; }') && shell.includes("#workflowMapModal .wf-node-branches {")
-  && paneCss.includes("#streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }") && paneCss.includes("#streamOutput .sp-row.differs .t {") && paneCss.includes("#streamOutput .sp-hint {")
+  && paneCss.includes("#streamOutput .sp-turn.kept, #streamOutput .sp-row.kept { opacity: .6; }") && paneCss.includes("#streamOutput .sp-row.differs .t {")
+  && paneCss.includes("#streamOutput .sp-kept > summary { opacity: .6; }") && /#streamOutput \.sp-kept:not\(\[open\]\) \{[^}]*box-shadow: /.test(paneCss) && paneCss.includes("#streamOutput .sp-kept-body {")
+  && /#streamOutput \.sp-hint \{[^}]*border: 1px solid var\(--chip-model-border\);/.test(paneCss) && /\.br-chip \{[^}]*border: 1px solid var\(--chip-model-border\);/.test(shell)
+  && /#streamOutput \.sp-hint \.hd \{[^}]*color: var\(--c-model\);/.test(paneCss) && /\.br-chip \{[^}]*color: var\(--c-model\);/.test(shell)
+  && /#streamOutput \.sp-hint \.said \{[^}]*white-space: pre-wrap;/.test(paneCss)
   && shell.includes(".left-panel #streamOutput .sp-ids-slot { position: sticky; top: 41px;") && shell.includes(".left-panel #streamOutput .sp-strip { top: 0; height: 41px;")
   && /#streamOutput \.sp-ids \{[^}]*white-space: nowrap;/.test(paneCss) && paneCss.includes("#streamOutput .sp-ids > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }")
   && paneCss.includes("#streamOutput .sp-ids > span:last-of-type { flex-shrink: 10000; }"));
 
 // ---- the branch button on a turn's card (0323): the way to a turn without the map
-const cardBtns = e => holder(e.streamOutput).querySelectorAll('.sp-turn').map(x => [x.getAttribute('data-turn'), (x.querySelector('summary .sp-branch') || { getAttribute: () => null }).getAttribute('title')]);
-const pressCard = n => B.from($('streamOutput').querySelectorAll('.sp-turn').find(x => x.getAttribute('data-turn') === String(n)).querySelector('summary .sp-branch'));
+const cardBtns = e => holder(e.streamOutput).querySelectorAll('.sp-turn[data-turn]').map(x => [x.getAttribute('data-turn'), (x.querySelector('summary .sp-branch') || { getAttribute: () => null }).getAttribute('title')]);
+const pressCard = n => B.from($('streamOutput').querySelectorAll('.sp-turn[data-turn]').find(x => x.getAttribute('data-turn') === String(n)).querySelector('summary .sp-branch'));
 check('the branch button on a turn\'s card: when a run ends with turns to go on from, every turn it can go on from has one in its card\'s head, after the prompt\'s button, saying its turn - '
-  + 'the turns a branch kept too; the report\'s card has none, nor a question\'s to the person, a review\'s, or the card of a turn the run was stopped in; a run with no turn to go on from has none',
+  + 'the turns a branch kept too, in their fold; the report\'s card has none, nor a question\'s to the person, a review\'s, or the card of a turn the run was stopped in; a run with no turn to go on from has none',
   same(cardBtns(a), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', 'Branch from turn 3'], ['4', 'Branch from turn 4'], ['review', null], ['5', 'Branch from turn 5'], ['6', null]])
   && same(cardBtns(b1), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', 'Branch from turn 3'], ['4', 'Branch from turn 4'], ['5', null]])
   && same(cardBtns(s), [['1', 'Branch from turn 1'], ['2', 'Branch from turn 2'], ['3', null]]) && same(cardBtns(k), [['1', 'Branch from turn 1'], ['2', null]]) && same(cardBtns(q0), [['1', null]])
@@ -538,6 +554,106 @@ check('... a pane kept with the button to the Analysis map (0318 to 0326) is one
 check('the stylesheet: the branch button stands before the prompt\'s in a card\'s head, whatever their order in the markup, in a box of its size, on its line; a kept turn, which has no prompt, leaves that place empty',
   /#streamOutput \.sp-branch \{ order: 1;[^}]*width: 22px; height: 18px; margin: 0 -10px 0 6px;/.test(paneCss) && paneCss.includes("#streamOutput .sp-turn > summary .sp-prompt { order: 2; box-sizing: border-box; min-width: 22px; height: 18px; margin-bottom: 0; justify-content: center; }")
   && paneCss.includes("#streamOutput .sp-turn.kept > summary .sp-branch { margin-right: 28px; }") && paneCss.includes("#streamOutput .sp-branch:hover { color: var(--accent-color); border-color: var(--accent-color); }"));
+
+// ---- the fold of a branch's kept turns, on screen (0330)
+const foldOn = () => $('streamOutput').querySelector('.sp-kept'), foldNow = () => [saysOf(foldOn()), foldOn() ? foldOn().hasAttribute('open') : null];
+show(b1); const onB1Fold = foldNow(), oneFold = $('streamOutput').querySelectorAll('.sp-kept').length;
+const b1Pane = $('streamOutput').innerHTML; B.onChain(b1); const toldTwice = $('streamOutput').innerHTML === b1Pane;
+show(c); const onCFold = foldNow(); show(b2); const onB2Fold = foldNow(); show(a); const onAFold = foldOn();
+check('the fold of a branch\'s kept turns, on screen (0330): shut, it says where the turns come from - the original, or a branch by the number the arrows give it - as soon as the chain '
+  + 'is on screen, once however often the page tells it; a chain that keeps no turns has no fold',
+  same(onB1Fold, [['Turns 1–3', 'kept', 'from the original', '2 cells (1 failed)'], false]) && oneFold === 1 && toldTwice
+  && same(onCFold, [['Turns 1–4', 'kept', 'from branch 1', '3 cells (1 failed)'], false]) && same(onB2Fold, [['Turns 1–3', 'kept', 'from the original', '2 cells (1 failed)'], false])
+  && onAFold === null, [onB1Fold, oneFold, toldTwice, onCFold, onB2Fold]);
+// a branch's pane kept by 0320 to 0329: its kept turns loose, over a row of its hint
+const oldPane = holder(b1.streamOutput), oldFold = oldPane.querySelector('.sp-kept');
+oldFold.querySelector('.sp-kept-body').elements.forEach(x => oldFold.parentNode.insertBefore(x, oldFold)); oldFold.remove();
+oldPane.querySelector('.sp-hint').innerHTML = '<svg viewBox="0 0 24 24"><line x1="6" y1="3" x2="6" y2="15"/></svg><b>From turn 3</b><span>keep the two blocks apart</span>';
+const oldB1 = Object.assign({}, b1, { chain_id: 28, streamOutput: oldPane.innerHTML });
+responses.push(oldB1); show(oldB1);
+const oldNow = { rows: $('streamOutput').querySelector('.sp-stream').elements.map(e => e.className.split(' ').slice(0, 3).join('.')), fold: foldNow(),
+                 inFold: foldOn().querySelector('.sp-kept-body').elements.map(e => e.className.split(' ').slice(0, 3).join('.')),
+                 hint: [$('streamOutput').querySelector('.sp-hint .hd').textContent, $('streamOutput').querySelector('.sp-hint .said').textContent, !!$('streamOutput').querySelector('.sp-hint .hd svg')],
+                 turns: B.turnsOf({ streamOutput: $('streamOutput').innerHTML }).map(t => t.n).join(), kept: B.turnsOf(oldB1).map(t => t.n).join(), buttons: foldOn().querySelectorAll('.sp-branch').length };
+const oldShown = $('streamOutput').innerHTML; w.paneRenew($('streamOutput')); B.onChain(oldB1);
+const oldAgain = $('streamOutput').innerHTML === oldShown;
+responses.pop();
+check('... a branch\'s pane kept by 0320 to 0329 - its kept turns loose, over a row of its hint - comes on screen in today\'s shape: its kept turns in the fold, which says where they '
+  + 'come from, and its hint a card; its turns read the same in the markup kept and on screen, and the kept ones have their buttons in the fold; once, however often it is renewed',
+  same(oldNow, { rows: ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-row', 'sp-turn', 'sp-done'], fold: [['Turns 1–3', 'kept', 'from the original', '2 cells (1 failed)'], false],
+                 inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.fail.kept', 'sp-turn.kept', 'sp-row.kept'], hint: ['Branch from turn 3', 'keep the two blocks apart', true],
+                 turns: '1,2,3,4,5', kept: '1,2,3,4,5', buttons: 3 }) && oldAgain, [oldNow, oldAgain]);
+// a kept turn that searched: its sources stand under its row (the walk's first analysis searches in its second turn)
+const ofSearch = s => { const f = s.querySelector('.sp-kept'), cls = e => e.className.split(' ').slice(0, 2).join('.');
+  return { rows: s.elements.map(cls), inFold: f ? f.querySelector('.sp-kept-body').elements.map(cls) : null, says: saysOf(f) }; };
+$('streamOutput').innerHTML = '';
+w.paneIds({ thread_id: 7, chain_id: 29, df_id: 'd1' }); w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1, branch: { of: 20, turn: 3, hint: 'after the search' } });
+w.paneTurnStart({ turn: 1, kept: true }); w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'The data first. This turn loads it.', kept: true });
+w.paneCell({ cell_no: 1, ok: true, peek: 'rows 92', kept: 'kept' });
+w.paneTurnStart({ turn: 2, kept: true }); w.paneTurnEnd({ turn: 2, kind: 'search', thinking: 'Loaded. This turn searches.', kept: true });
+w.paneLookup({ kind: 'search', query: 'fertiliser trials', peek: 'two sources', sources: [{ url: 'https://example.org/a', title: 'Trial A', host: 'example.org' }, { url: 'https://example.org/b', title: 'Trial B', host: 'example.org' }] });
+w.paneTurnStart({ turn: 3, kept: true }); w.paneTurnEnd({ turn: 3, kind: 'cell', thinking: 'Searched. This turn pools the blocks.', kept: true });
+w.paneCell({ cell_no: 2, ok: true, peek: 'pooled 20', kept: 'kept' });
+w.paneTurnStart({ turn: 4, of: 8, seat: 'Analyst', model: 'm', chain_id: 29 }); w.paneTurnEnd({ turn: 4, kind: 'report', thinking: 'Done.', elapsed: 1, cost: 0 });
+w.paneRunEnd({ status: 'answered', turns: 4, of: 8, cells: 2, cost: 0, seconds: 1, chain_id: 29 });
+const searchedLive = ofSearch($('streamOutput').querySelector('.sp-stream'));
+const keptOld = $('streamOutput').querySelector('.sp-stream'), oldFold2 = keptOld.querySelector('.sp-kept');      // as 0320 to 0329 kept it: loose, the hint a row
+oldFold2.querySelector('.sp-kept-body').elements.forEach(x => keptOld.insertBefore(x, oldFold2)); oldFold2.remove();
+keptOld.querySelector('.sp-hint').innerHTML = '<b>From turn 3</b><span>after the search</span>';
+w.paneRenew($('streamOutput'));
+const searchedOld = ofSearch(keptOld);
+check('... a kept turn that searched has its sources under its row: they go into the fold with it, and the kept turns after them too - as the turns arrive, and in a pane kept by 0320 to 0329',
+  same(searchedLive, { rows: ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-done'], inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.tool', 'sp-pills', 'sp-turn.kept', 'sp-row.kept'],
+                       says: ['Turns 1–3', 'kept', 'from the original', '2 cells'] })
+  && same(searchedOld.rows, searchedLive.rows) && same(searchedOld.inFold, searchedLive.inFold) && same(searchedOld.says, ['Turns 1–3', 'kept', '', '2 cells']), [searchedLive, searchedOld]);
+// a hint is text, whatever it holds; a turn of the branch's own stays out of the fold, with no hint's card between too
+const keptThen = (hint, chain) => {
+  $('streamOutput').innerHTML = '';
+  w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1, branch: { of: 20, turn: 1, hint } });
+  w.paneTurnStart({ turn: 1, kept: true }); w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'Loads. This turn loads.', kept: true });
+  w.paneTurnStart({ turn: 2, of: 8, seat: 'Analyst', model: 'm', chain_id: chain }); w.paneTurnEnd({ turn: 2, kind: 'report', thinking: 'Done.', elapsed: 1, cost: 0 });
+  w.paneRunEnd({ status: 'answered', turns: 2, of: 8, cells: 0, cost: 0, seconds: 1, chain_id: chain });
+  return $('streamOutput').querySelector('.sp-stream');
+};
+const marked = keptThen('keep <b>A</b> & <i>B</i> apart', 97).querySelector('.sp-hint .said'), asText = [marked.textContent, marked.elements.length];
+const noCard = keptThen('', 96).elements.map(e => e.className);
+check('... the hint is text, whatever it holds; and the fold holds the kept turns alone: a turn of the branch\'s own stays out of it, also where no hint\'s card stands between',
+  same(asText, ['keep <b>A</b> & <i>B</i> apart', 0]) && same(noCard, ['sp-turn sp-kept', 'sp-turn', 'sp-done']), [asText, noCard]);
+// going back to a turn the branch kept
+show(b1);
+const keptRule = n => { const t = '#streamOutput .sp-kept-body > .sp-turn[data-turn="' + n + '"]';
+  return t + ' ~ .sp-turn, ' + t + ' ~ .sp-turn ~ *, #streamOutput .sp-stream > .sp-kept ~ * { display: none; } ' + t + ' > summary .sp-branch { color: var(--accent-color); border-color: var(--accent-color); }'; };
+pressCard(2); const atKept2 = [comp().at, comp().rule === keptRule(2), foldNow()[1]];
+pressCard(4); const atOwn4 = [comp().at, comp().rule.startsWith('#streamOutput .sp-stream > .sp-turn[data-turn="4"] ~ .sp-turn, '), foldNow()[1]];
+pressCard(1); const atKept1 = [comp().at, comp().rule === keptRule(1), foldNow()[1]];
+B.leave(); const leftKept = [comp().at, comp().rule, foldNow()[1]];
+foldOn().setAttribute('open', '');                                // the person opens the fold
+pressCard(3); const theirs3 = foldNow()[1]; B.leave(); const theirsLeft = foldNow()[1];
+foldOn().removeAttribute('open'); pressCard(2); show(f); show(b1); const comesBack = [comp().at, foldNow()[1]];
+check('going back to a turn a branch kept (0330): the fold opens, and the page\'s rule ends the pane at the turn - the kept turns after it are out of sight, and all that stands under the '
+  + 'fold; going to a turn of the branch\'s own shuts it again, and so does going back to the end. A fold the person opened stays open; the chain drawn again has it shut',
+  same(atKept2, [{ chain: 21, turn: 2 }, true, true]) && same(atOwn4, [{ chain: 21, turn: 4 }, true, false]) && same(atKept1, [{ chain: 21, turn: 1 }, true, true])
+  && same(leftKept, [null, '', false]) && theirs3 === true && theirsLeft === true && same(comesBack, [null, false]), [atKept2, atOwn4, atKept1, leftKept, theirs3, theirsLeft, comesBack]);
+// the Analysis map's foot: the whole of what a turn said, as the page has it - streamed into the turn's card, on more than one line
+const longStep = 'The blocks were pooled in the turn before, and the pooled figure stands. This turn compares the blocks on the pooled figure, block by block, and keeps the '
+  + 'difference for the report, with how far apart they are in the units of the data.\nIt also says which <block> is the larger, so the report can say it plainly.';
+$('streamOutput').innerHTML = '';
+w.paneIds({ thread_id: 7, chain_id: 27, df_id: 'd1' }); w.paneRunStart({ mode: 'Deep', of: 8, dollars: 1.5 });
+w.paneTurnStart({ turn: 1, of: 8, seat: 'Analyst', model: 'm', chain_id: 27 }); w.paneToken('###STEP###\n' + longStep);
+w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: longStep, note: '', code: 'x = 1', elapsed: 2, cost: 0.01 }); w.paneCell({ cell_no: 1, ok: true, peek: 'diff 0.5', elapsed: 0.1, chars: 8 });
+w.paneTurnStart({ turn: 2, of: 8, seat: 'Analyst', model: 'm', chain_id: 27 }); w.paneToken('###STEP###\nDone.');
+w.paneTurnEnd({ turn: 2, kind: 'report', thinking: 'Done.', elapsed: 1, cost: 0 });
+w.paneRunEnd({ status: 'answered', turns: 2, of: 8, cells: 1, cost: 0.1, seconds: 3, chain_id: 27, turn_map: true });
+const longChain = { chain_id: 27, thread_id: 7, parentChainId: null, queryText: 'A long step', streamOutput: $('streamOutput').innerHTML, tabContent: '', contentOutput: '', taskContents: {}, branch: null };
+responses.push(longChain); show(longChain); openMap();
+nodes()[0].dispatch('mouseenter');
+const longFoot = { said: ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent, box: nodes()[0].querySelector('.wf-node-label').textContent };
+nodes()[0].dispatch('mouseleave');
+longFoot.stays = $('nodeTaskContent').textContent;
+M.shut(); responses.pop();
+check('the Analysis map\'s foot says the whole of what a turn said - every line of it, as text (0330: its first sentence, cut at 120 characters); the box keeps its short line; the foot '
+  + 'keeps saying it when the pointer leaves the box, so what does not fit can be scrolled to',
+  same(longFoot, { said: longStep, box: 'This turn compares the bloc...', stays: longStep }), longFoot);
 
 // ---- the arrows at the head of the Investigation tab (0329)
 // a thread of its own: a first question; an analysis that went on three ways - two from its third turn, one from the first of those; and a follow-up, an analysis of one run

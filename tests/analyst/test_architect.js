@@ -1647,7 +1647,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
                      boxes: boxes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent), kinds: boxes().map(x => x.className.replace(/wf-node--(ancestor|active)/g, '').trim()).filter((c, i, all) => all.indexOf(c) === i).join(),
                      on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), wrap: $('workflowMapContainer').querySelector('.wf-graph').className,
                      edges: $('workflowMapContainer').querySelectorAll('.wf-edge').map(e => e.getAttribute('data-from') + '>' + e.getAttribute('data-to')).join(),
-                     thread: $('workflowMapContainer').querySelectorAll('.wf-node-made, .wf-node-map, .wf-edge-label').length };
+                     thread: $('workflowMapContainer').querySelectorAll('.wf-node-made, .wf-edge-label').length };
     boxes()[2].dispatch('mouseenter');
     const over3 = { foot: foot(), lit: lit() };
     boxes()[2].dispatch('mouseleave');
@@ -1659,7 +1659,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
       + 'question as it was asked on the first, and what was done where they said nothing - and under that what the step changed, in the tab\'s words. The step on screen is the open box, and '
       + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the Workflow map\'s marks. Under the pointer a box lights its own way and the foot says, as the Workflow map '
       + 'does of a chain: what was said, where the step stands as the arrows would count it - "on screen" for the one that is -, what it follows, how many follow it, what it changed, and the '
-      + 'first sentence of what the Pathfinder replied; when the pointer leaves, the way to the step on screen is lit again. Nothing is sent',
+      + 'whole of what the Pathfinder replied (0330: its first sentence); when the pointer leaves, the way to the step on screen is lit again. Nothing is sent',
       same(first, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding7 | Analysis-', 'Chain 3 has no turns to go back to', 'the thread\'s chains'])
       && same(opened, { shown: 'flex', level: 'pathfinding', bar: 'Workflow3 / Chain 3 / Pathfinding7* | Analysis-', said: '7 steps · 1 branch',
         foot: 'Click a step to go to it. Hover over one to read what was said.',
@@ -1670,7 +1670,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
       && same(feet, ['Is B above A? | Step=1 of 3 | Follows=the start | Follow-ups=1 | Changed=nothing | Pathfinder=What will you do differently depending on the answer?',
                      'Keep one arm | Step=2 of 3 | Follows=step 1 | Follow-ups=3 | Changed=what it is for | Pathfinder=What do you expect to see?',
                      'You changed a line | Step=4 of 5 | Follows=step 3 | Follow-ups=1 | Changed=what you think',
-                     'Is that all you need? | Step=5 of 5 | Follows=step 4 | Follow-ups=none | Changed=nothing | Pathfinder=Yes. Start the analysis when you are ready.',
+                     'Is that all you need? | Step=5 of 5 | Follows=step 4 | Follow-ups=none | Changed=nothing | Pathfinder=Yes. Start the analysis when you are ready. It will compare the two arms over the first half.',
                      'Compare the medians instead | Step=3 of 3 · on screen | Follows=step 2 | Follow-ups=none | Changed=measured by | Pathfinder=The measure is the median.'])
       && calls.length === n, [first, opened, over3, left3, feet]);
 
@@ -1771,12 +1771,23 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     boxes()[2].dispatch('mouseenter');
     const threadOver = [foot(), wrap(), lit()].join(' / ');
     boxes()[2].dispatch('mouseleave');
-    check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain, how its question was made, and carries the code trace\'s name unless '
-      + 'it is a brief not yet run; a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
+    check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain and how its question was made - and no longer has a way '
+      + 'into the code trace (0330); a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
       + 'the chain, what it follows, its follow-ups',
-      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11Code trace', 'wf-node wf-node--fork: User requested variationsChain: 12Code trace',
-                             'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', traces: 'true,true,false' })
+      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
+                             'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', traces: 'false,false,false' })
       && threadOver === 'A brief | Chain=3 of 3 13 | Follows=chain 1 | Follow-ups=none / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
+
+    // the foot says everything (0330): a long question, on two lines, with what reads as markup in it, and a long first sentence of what the chain concluded
+    const LONG_Q = 'Across the three regimes, ' + 'how do the plots on loam compare with the plots on clay and on sand, '.repeat(4) + 'and is the gap <larger> than the spread?\nSay it per regime.';
+    const LONG_A = 'Regime B is above regime A on every soil type, '.repeat(6) + 'by about two units.';
+    window.WorkflowGraph.render($('workflowMapContainer'), [{ chain_id: 14, parentChainId: null, queryText: LONG_Q, streamOutput: '', technicalAnswer: '<p>' + LONG_A + ' The rest is noise.</p>' }], 0);
+    boxes()[0].dispatch('mouseenter');
+    const wholeFoot = [($('nodeTaskContent').querySelector('.wf-said') || {}).textContent, ($('nodePlotPreview').querySelector('.wf-info-conclusion b') || {}).textContent];
+    boxes()[0].dispatch('mouseleave');
+    check('the Workflow map\'s foot says everything (0330): the question whole, its lines kept, as text - and the first sentence of what the chain concluded, whole; they were cut at 200 '
+      + 'and 240 characters. The pane scrolls',
+      same(wholeFoot, [LONG_Q, LONG_A]) && LONG_Q.length > 200 && LONG_A.length > 240, wholeFoot);
 
     // the branch button on the Pathfinder's cards (0325): the way to a step with no map opened
     {
@@ -1920,9 +1931,9 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     && cr.includes("const _root = (typeof liveTargets === 'function') ? liveTargets().content : document.getElementById('contentOutput');")
     && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);
   const graph = js('workflowGraph.js');
-  check('the Workflow map: a box says how its question was made; a brief not yet run has no code trace to open',
+  check('the Workflow map: a box says how its question was made, a brief not yet run that it is; no box has a way into the code trace (0330)',
     graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');") && graph.includes("madeSpan.className = 'wf-node-made';") && graph.includes("if (made === 'not run') div.classList.add('wf-node--notrun');")
-    && graph.includes("if (!of && resp && resp.chain_id && made !== 'not run') {"));
+    && !graph.includes('wf-node-map'));
   const shell = css('shell.css'), tabsCss = css('tabs.css'), paneCss = css('pane.css');
   check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and - on it since 0312, in the answer no more - the card of what the '
     + 'report says against the brief in tabs.css, with a place for a part that goes as the report wrote it',

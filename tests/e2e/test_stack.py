@@ -133,7 +133,7 @@ def conversation_map(page):
                  boxes: boxes.map(x => [x.querySelector('.wf-node-label').textContent, x.querySelector('.wf-node-chain').textContent]),
                  on: nth(x => x.classList.contains('wf-node--active')), lit: nth(x => parseFloat(getComputedStyle(x).opacity) === 1),
                  says: document.getElementById('nodeTaskContent').textContent, rows: [...d.querySelectorAll('#nodePlotPreview .wf-info-row')].map(r => [...r.children].map(c => c.textContent)),
-                 thread: d.querySelectorAll('.wf-node-made, .wf-node-map, .wf-edge-label').length, buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none',
+                 thread: d.querySelectorAll('.wf-node-made, .wf-edge-label').length, buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none',
                  head: (() => { const box = e => e.getBoundingClientRect(), h = box(d.querySelector('.map-drawer-head'));
                      const tools = [...d.querySelectorAll('.map-drawer-tools button')], parts = [...bar.querySelectorAll('.map-level, .map-chain')].concat(tools);
                      return { names: tools.map(b => b.getAttribute('aria-label')),
@@ -197,13 +197,19 @@ def composer(page):
 
 def left_pane(page):
     """The left pane as the person sees it, with a turn gone back to or without (docs/BRANCH_DESIGN.md §5): the numbered turn cards in sight - each with whether
-    the chain kept it from another -, how many cards the pane holds, the rows of hints in sight, whether the closing card is; the composer - the row of the turn
-    gone back to, its words, and whether the files' menu, the mode and the Pathfinder's switch are in sight; the turn the page stands at; the arrows' count;
-    how long the tabs' markup is, and the answer's text."""
+    the chain kept it from another -, how many cards the pane holds and how many of them the page's rule puts out of sight (a card in the shut fold of a
+    branch's kept turns is folded, not out of sight: a closed <details> keeps its content laid out, offsetParent and all), the fold - open or shut, what
+    its row says, its turns (0330) -, the hints in sight, whether the closing card is; the composer - the row of the turn gone back to, its words, and
+    whether the files' menu, the mode and the Pathfinder's switch are in sight; the turn the page stands at; the arrows' count; how long the tabs' markup
+    is, and the answer's text."""
     return page.evaluate("""() => { const vis = e => !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null;
-        const s = document.querySelector('#streamOutput .sp-stream'), cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn]')];
-        return { turns: cards.filter(e => /^\\d+$/.test(e.getAttribute('data-turn')) && vis(e)).map(e => [Number(e.getAttribute('data-turn')), e.classList.contains('kept')]),
-                 cards: cards.length, hidden: cards.filter(e => !vis(e)).length, hints: [...s.querySelectorAll(':scope > .sp-hint')].filter(vis).map(e => e.textContent), done: vis(s.querySelector('.sp-done')),
+        const s = document.querySelector('#streamOutput .sp-stream'), fold = s.querySelector(':scope > .sp-kept'), folded = e => !!fold && !fold.open && fold.contains(e);
+        const cards = [...s.querySelectorAll(':scope > .sp-turn[data-turn], :scope > .sp-kept > .sp-kept-body > .sp-turn[data-turn]')];
+        return { turns: cards.filter(e => /^\\d+$/.test(e.getAttribute('data-turn')) && vis(e) && !folded(e)).map(e => [Number(e.getAttribute('data-turn')), e.classList.contains('kept')]),
+                 cards: cards.length, hidden: cards.filter(e => !vis(e) && !folded(e)).length,
+                 kept: fold ? { open: fold.open, says: [...fold.querySelector('summary').children].slice(1).map(c => c.textContent),
+                                turns: [...fold.querySelectorAll('.sp-kept-body > .sp-turn[data-turn]')].map(e => Number(e.getAttribute('data-turn'))) } : null,
+                 hints: [...s.querySelectorAll(':scope > .sp-hint')].filter(vis).map(e => e.textContent), done: vis(s.querySelector('.sp-done')),
                  chip: (document.getElementById('branchChip') || {}).textContent || '', words: document.getElementById('queryInput').placeholder,
                  controls: ['.attach-menu-container', '#modeSliderPopup', '#architectSwitch'].map(q => vis(document.querySelector('.left-panel ' + q))),
                  standing: BranchUI.standing(), position: document.getElementById('chainPosition').textContent,
@@ -238,7 +244,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     data does not have: the analyst stops and asks. The answer, typed with the switch still on, opens a brief that starts from
     the last one; the Pathfinder takes the answer into it, the analysis runs, and its report says how the result stands
     against the brief."""
-    page.evaluate("handleNewConversation()")
+    page.evaluate("() => { handleNewConversation(); }")      # not awaited: the page goes under it (0330: a walk lost its context awaiting it)
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
     page.app_ready()
@@ -419,10 +425,10 @@ def walk_architect(page, st, mod, wa, edition, user):
     open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     box = page.evaluate("""() => { const n = document.querySelector('#workflowMapModal .wf-node'); return { made: (n.querySelector('.wf-node-made') || {}).textContent, notrun: n.classList.contains('wf-node--notrun'),
-        eye: !!n.querySelector('.wf-node-map'), nodes: document.querySelectorAll('#workflowMapModal .wf-node').length }; }""")
+        buttons: n.querySelectorAll('button').length, nodes: document.querySelectorAll('#workflowMapModal .wf-node').length }; }""")
     page.evaluate("MapsUI.shut()")
-    check("a brief not yet run: nothing else starts from it, and the page says so; on the Workflow map it is one box, marked 'not run', with no code trace to open",
-          not held["running"] and held["n"] == 1 and "This brief has not been run" in held["toast"] and box == {"made": "not run", "notrun": True, "eye": False, "nodes": 1}, (held, box))
+    check("a brief not yet run: nothing else starts from it, and the page says so; on the Workflow map it is one box, marked 'not run', with nothing on it to press",
+          not held["running"] and held["n"] == 1 and "This brief has not been run" in held["toast"] and box == {"made": "not run", "notrun": True, "buttons": 0, "nodes": 1}, (held, box))
 
     # Start analysis: the same chain runs under the brief - and stops on its question, the measure not being in the data
     page.click('#content-brief [data-ar="start"]')
@@ -662,7 +668,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     # the Workflow map: one box to a question, each saying how it was made; a typed question with the switch off runs at once
     open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
-    boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--notrun'), !!n.querySelector('.wf-node-map')])")
+    boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => [(n.querySelector('.wf-node-made') || {}).textContent || '', n.classList.contains('wf-node--notrun'), n.querySelectorAll('button').length])")
     page.evaluate("MapsUI.shut()")
     page.click("#architectSwitch")
     page.fill("#queryInput", "How many plots are there?")
@@ -677,10 +683,11 @@ def walk_architect(page, st, mod, wa, edition, user):
     by_chain = {}
     for r in usage_rows(wa, edition, user)[rows0:]:
         by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
-    check("the Workflow map: two questions, two boxes - a Pathfinder run and its analysis share one - each marked Pathfinder, each with its code trace; the switch off again, a typed question runs at once, "
+    check("the Workflow map: two questions, two boxes - a Pathfinder run and its analysis share one - each marked Pathfinder, nothing on either to press (0330: the code trace's way in "
+          "left the boxes); the switch off again, a typed question runs at once, "
           "as before: no brief on the page or on the run. On the usage record each framed chain holds the Pathfinder's calls, the one call that read its question before the analysis (0313) and its analysis' "
           "own, under the one chain; the plain one holds no call of the Pathfinder's",
-          boxes == [["Pathfinder", False, True], ["Pathfinder", False, True]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
+          boxes == [["Pathfinder", False, 0], ["Pathfinder", False, 0]] and plain["on"] == "false" and "Brief" not in plain["tabs"] and not plain["fold"] and not plain["card"]
           and "Brief" not in plain["done"] and third.get("status") == "answered" and third.get("brief") == {} and third.get("framing") == {}
           and by_chain.get(str(cid), [])[:10] == ["Pathfinder"] * 4 + ["Memory Reader"] * 2 + ["Pathfinder"] * 3 + ["Question check"] and "Pathfinder" not in by_chain.get(str(cid), [])[9:]
           and "Question check" not in by_chain.get(str(cid), [])[10:] and len(by_chain.get(str(cid), [])) > 10
@@ -989,7 +996,7 @@ def walk_saved(page, st, mod, wa, edition, user, tid, cid2):
     day, data = framed.get("when", "")[:10], framed.get("data", {}).get("name", "")
 
     # a question the saved analysis bears on, in a workflow of its own: three answers, and nothing left to ask
-    page.evaluate("handleNewConversation()")
+    page.evaluate("() => { handleNewConversation(); }")
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
     page.app_ready()
@@ -1210,7 +1217,7 @@ def walk_tutor(page, mod, wa, edition, user):
     analysis then runs under what was agreed and nothing else: with no data there are no standing checks, and the report is not asked how it stands against a brief that expects nothing. A
     question that follows it opens a brief with what the answer was for; the Pathfinder has the saved analyses read, opens the report of the analysis before and speaks from it; told to build
     on it, it brings that analysis into the brief."""
-    page.evaluate("handleNewConversation()")
+    page.evaluate("() => { handleNewConversation(); }")
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
     page.app_ready()
@@ -1314,7 +1321,7 @@ def walk_tutor(page, mod, wa, edition, user):
     check("the conversation's map (0316; 0327): the maps drawer, its Pathfinding level pressed, holds the conversation's map - the level lit, saying how many steps and where they branch - "
           "with the thread's buttons out of it; the Analysis level is greyed, the brief not being run. A box to a step, joined to the step it follows: on it what the coach said - the question as it was asked on the first - and under it what the step changed. The "
           "step on screen is the open box and the way to it is lit; the step that was left is faint. Under the pointer that box lights its own way, and the drawer's foot says what was said "
-          "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the first sentence of the Pathfinder's reply; the pointer gone, "
+          "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the Pathfinder's reply, whole (0330); the pointer gone, "
           "the way to the step on screen is lit again. A click on the box shuts the drawer, and both panes are that step's: the wording the coach gave in the box, the conversation of the way "
           "that was left - and nothing of the way taken since. Opened again, the map has that step open, its way lit and the other way faint, and its foot says what a click and the pointer do; its cross "
           "shuts it. Its head is the drawer's one head: the switch, then zoom, full screen and the close on one line - nothing on the map. "
@@ -1326,7 +1333,7 @@ def walk_tutor(page, mod, wa, edition, user):
                               [cut(mod.ARCHITECT_UNREAD), ""]]
           and (m0["on"], m0["lit"], m0["thread"], m0["buttons"]) == ([5], [1, 2, 4, 5], 0, False)
           and m_over["lit"] == [1, 2, 3, 5] and m_over["says"] == mod.ARCHITECT_OWN + own
-          and m_over["rows"] == [["Step", "3 of 3"], ["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Pathfinder", mod.ARCHITECT_BACK.split(". ")[0] + "."]]
+          and m_over["rows"] == [["Step", "3 of 3"], ["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Pathfinder", mod.ARCHITECT_BACK]]
           and m_rest["lit"] == [1, 2, 4, 5] and m_rest["on"] == [5]
           and (b_left["v"], b_left["title"], b_left["start"]) == ("3 of 3", own, "Start analysis") and t_left["said"] == t2["said"] and t_left["notes"] == t2["notes"] and t_left["choices"] == mod.ARCHITECT_YES
           and (m_left["on"], m_left["lit"], m_left["says"], m_left["rows"]) == ([3], [1, 2, 3], "Click a step to go to it. Hover over one to read what was said.", [])
@@ -1551,7 +1558,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     give, computed what follows from a rule. Asked for another order, the Pathfinder names the figures by their numbers and nothing is drawn again. The coach takes one out with its cross and
     goes back a step. The analysis then runs under the brief: the Analyst reads the figures that stand, the step that draws reads the same lines and the cell that drew their draft -
     its first reply leaves one out, and it is asked again before anything runs - and the report holds each agreed figure under its title."""
-    page.evaluate("handleNewConversation()")
+    page.evaluate("() => { handleNewConversation(); }")
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
     page.app_ready()
@@ -1729,18 +1736,22 @@ def walk_draft(page, st, mod, wa, edition, user):
     of_b = page.evaluate("""() => { const e = responses[currentResponseIndex], s = document.querySelector('#streamOutput .sp-stream'), brief = document.querySelector('#content-brief .ar-brief');
         return { chain: e.chain_id, branch: e.branch, q: e.queryText, on: document.getElementById('architectSwitch').getAttribute('aria-pressed'),
                  first: s.firstElementChild.className, fold: (s.querySelector(':scope > .ar-fold .kind') || {}).textContent || '',
-                 turns: [...s.querySelectorAll(':scope > .sp-turn[data-turn]')].filter(c => /^\\d+$/.test(c.getAttribute('data-turn'))).map(c => [Number(c.getAttribute('data-turn')), c.classList.contains('kept')]),
+                 turns: [...s.querySelectorAll(':scope > .sp-turn[data-turn], :scope > .sp-kept > .sp-kept-body > .sp-turn[data-turn]')].filter(c => /^\\d+$/.test(c.getAttribute('data-turn')))
+                                 .map(c => [Number(c.getAttribute('data-turn')), c.classList.contains('kept')]),
+                 kept: (f => f ? [[...s.children].indexOf(f), f.open, [...f.querySelector('summary').children].slice(1).map(c => c.textContent)] : null)(s.querySelector(':scope > .sp-kept')),
                  hints: [...s.querySelectorAll(':scope > .sp-hint')].map(h => h.textContent), tabs: [...document.querySelectorAll('#tabContainer .tab')].map(t => t.textContent.trim()),
                  brief: brief ? [brief.dataset.state, brief.dataset.chain] : null, made: ArchitectUI.mark(e) }; }""")
     ran_b = thread_run(wa, user, tid, of_b["chain"])
     calls_b = [r["agent"] for r in usage_rows(wa, edition, user)[rows3:]]
     check("a branch of a framed analysis (0320): the hint starts it at once - the Pathfinder, switched on, is not asked, and no call reads the question again - and it runs under the same "
-          "brief: the brief's row stands above the run, the turn it keeps under that, then the hint and its own turns; the Brief tab is there for the new chain, to be read; the record "
+          "brief: the brief's row stands above the run, the turn it keeps under that - in its fold, shut (0330) -, then the hint and its own turns; the Brief tab is there for the new "
+          "chain, to be read; the record "
           "keeps the brief, with its figures and their drafts, and the question; the report follows the hint, and the figures agreed are drawn again",
           of_b["on"] == "true" and calls_b and "Pathfinder" not in calls_b and "Question check" not in calls_b
           and of_b["branch"] == {"of": cid, "turn": 1, "hint": mod.BRANCH_HINT} and of_b["q"] == mod.FIGURES_QUESTION
           and of_b["first"].startswith("sp-turn ar-fold") and of_b["fold"].startswith("brief · step ") and of_b["turns"][0] == [1, True] and all(not kept for _, kept in of_b["turns"][1:])
-          and len(of_b["turns"]) >= 3 and of_b["hints"] == ["From turn 1" + mod.BRANCH_HINT] and "Brief" in of_b["tabs"] and of_b["brief"] == ["run", str(of_b["chain"])] and of_b["made"] == "Pathfinder"
+          and of_b["kept"] is not None and of_b["kept"][:2] == [1, False] and of_b["kept"][2][:3] == ["Turn 1", "kept", "from the original"]
+          and len(of_b["turns"]) >= 3 and of_b["hints"] == ["Branch from turn 1" + mod.BRANCH_HINT] and "Brief" in of_b["tabs"] and of_b["brief"] == ["run", str(of_b["chain"])] and of_b["made"] == "Pathfinder"
           and ran_b.get("status") == "answered" and ran_b.get("branch") == {"of": str(cid), "turn": 1} and ran_b.get("brief") == ran.get("brief") and ran_b.get("drafts") == ran.get("drafts")
           and ran_b.get("question") == ran.get("question") and "## Each soil type on its own" in ran_b.get("report", "")
           and [[f.get("title") for f in t.get("figures", []) if isinstance(f, dict)] for t in ran_b.get("turns", []) if t.get("step") == "figures" and t.get("kind") == "cell"][-1:] == [[boxes, line]],
@@ -1772,7 +1783,7 @@ def walk_draft(page, st, mod, wa, edition, user):
           and mem_b[b_id]["question"] == mod.FIGURES_QUESTION and "## Each soil type on its own" in mem_b[b_id]["report"] and mem_b[b_id]["brief"] and left_b == left_before + 1,
           (stored, list(mem_b), mem_b.get(b_id, {}).get("hints"), left_before, left_b))
     saved_b = page.evaluate("(a) => window.authService.fetch('/architect/saved/' + a[0] + '/' + a[1]).then(r => r.json())", [str(tid), b_id])
-    page.evaluate("handleNewConversation()")
+    page.evaluate("() => { handleNewConversation(); }")
     page.wait_for_url("**/?new=true", timeout=60000)
     page.wait_for_selector("#queryInput", state="visible", timeout=60000)
     page.app_ready()
@@ -1784,7 +1795,8 @@ def walk_draft(page, st, mod, wa, edition, user):
     page.wait_for_function("(c) => responses.length === 2 && String(currentData.chain_id) === c && !!document.querySelector('#streamOutput .sp-ids[data-branch]')", arg=b_id, timeout=30000)
     page.wait_for_timeout(500)
     again = page.evaluate("""() => ({ branches: responses.map(r => r.branch ? [String(r.branch.of), r.branch.turn, r.branch.hint] : null), analyses: BranchUI.analyses().map(e => String(e.chain_id)),
-        place: BranchUI.place(), hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent) })""")
+        place: BranchUI.place(), hints: [...document.querySelectorAll('#streamOutput .sp-hint')].map(h => h.textContent),
+        kept: (f => f ? [f.open, [...f.querySelector('summary').children].slice(1).map(c => c.textContent)] : null)(document.querySelector('#streamOutput .sp-kept')) })""")
     open_maps(page, "workflow")
     page.wait_for_selector("#workflowMapModal .wf-node", timeout=10000)
     thread_boxes = page.evaluate("() => [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => (n.querySelector('.wf-node-branches') || {}).textContent || '')")
@@ -1792,15 +1804,19 @@ def walk_draft(page, st, mod, wa, edition, user):
     map_again = open_turn_map(page)
     page.click("#workflowMapModal .workflow-close")      # the page under the drawer is dimmed and takes no click (0329)
     check("the saved thread opened again (0321): its two chains are one analysis, the branch saying what it went on from, after which turn and under what hint - from the thread's "
-          "record; the Workflow map has one box, with its branch; the Analysis map shows both ways, the branch's first turn marked; and the saved analysis, opened to read, says its hint",
+          "record; the Workflow map has one box, with its branch; the Analysis map shows both ways, the branch's first turn marked; and the saved analysis, opened to read, says its hint - "
+          "its kept turn in the fold, shut, which says where it comes from",
           again["branches"] == [None, [str(cid), 1, mod.BRANCH_HINT]] and again["analyses"] == [b_id] and again["place"] == {"i": 1, "n": 1}
-          and again["hints"] == ["From turn 1" + mod.BRANCH_HINT] and thread_boxes == ["1 branch"]
+          and again["hints"] == ["Branch from turn 1" + mod.BRANCH_HINT] and again["kept"] is not None and again["kept"][0] is False
+          and again["kept"][1][:3] == ["Turn 1", "kept", "from the original"] and thread_boxes == ["1 branch"]
           and map_again["sub"] == f"{len(map_again['boxes'])} turns · 1 branch" and [x[1].split(" · ")[0] for x in map_again["boxes"]] == ["Turn 1", "Turn 2", "Turn 2", "Turn 3"]
           and saved_b.get("hints") == [{"turn": 1, "text": mod.BRANCH_HINT}], (again, thread_boxes, map_again["sub"], map_again["boxes"], saved_b.get("hints")))
     # the branch button on a turn's card (0323): the way to a turn without the map. The branch on screen has one on the turn it kept and one on its own
     # working turn, none on its report or on the cards that are no turns; a click goes back to the turn, a second click on the same button back to the end
-    cards = page.evaluate("""() => [...document.querySelectorAll('#streamOutput .sp-stream > .sp-turn')].map(c => { const b = c.querySelector('summary .sp-branch'), p = c.querySelector('summary .sp-prompt');
-        return { turn: c.getAttribute('data-turn'), kept: c.classList.contains('kept'), title: b ? b.getAttribute('title') : null, x: b ? Math.round(b.getBoundingClientRect().left) : null,
+    page.click("#streamOutput .sp-kept > summary")                      # the fold of the kept turn, opened by the person
+    cards = page.evaluate("""() => [...document.querySelectorAll('#streamOutput .sp-stream > .sp-turn, #streamOutput .sp-kept-body > .sp-turn')].map(c => { const b = c.querySelector(':scope > summary .sp-branch'), p = c.querySelector(':scope > summary .sp-prompt');
+        return { turn: c.getAttribute('data-turn'), kept: c.classList.contains('kept'), folded: !!c.parentElement.closest('.sp-kept'), title: b ? b.getAttribute('title') : null,
+                 x: b ? Math.round(c.getBoundingClientRect().right - b.getBoundingClientRect().left) : null,
                  before: b && p ? b.getBoundingClientRect().right <= p.getBoundingClientRect().left : null, end: p ? Math.round(p.getBoundingClientRect().right) : null,
                  level: b && p ? Math.abs(b.getBoundingClientRect().top - p.getBoundingClientRect().top) < 1 && Math.abs(b.getBoundingClientRect().height - p.getBoundingClientRect().height) < 1 : null,
                  middle: p ? Math.abs((p.getBoundingClientRect().top + p.getBoundingClientRect().bottom) - (c.querySelector('summary').getBoundingClientRect().top + c.querySelector('summary').getBoundingClientRect().bottom)) < 2 : null }; })""")
@@ -1818,15 +1834,17 @@ def walk_draft(page, st, mod, wa, edition, user):
     by_turn = {c["turn"]: c for c in cards}
     check("the branch button on a turn's card (0323): every turn the analysis can go on from has one - the turn the branch kept and its own working turn -, the report's card and the "
           "cards that are no turns have none; it stands before the prompt's button, on its line and of its height, in the middle of the card's head; the prompt's stays at the card's end, and the kept "
-          "turn's - a card with no prompt - stands in the same column. A click goes back to the turn without opening the card: the pane ends there, the button is lit, the composer asks for the hint; a second click brings the end back",
-          [c["turn"] for c in cards if c["title"]] == ["1", "2"] and by_turn["1"]["kept"] and by_turn["1"]["title"] == "Branch from turn 1" and by_turn["2"]["title"] == "Branch from turn 2"
+          "turn's - a card with no prompt, in the fold the person opened (0330) - stands as far from its card's end. A click goes back to the turn without opening the card: the pane ends there, the "
+          "button is lit, the composer asks for the hint; a second click brings the end back",
+          [c["turn"] for c in cards if c["title"]] == ["1", "2"] and by_turn["1"]["kept"] and by_turn["1"]["folded"] and not by_turn["2"]["folded"]
+          and by_turn["1"]["title"] == "Branch from turn 1" and by_turn["2"]["title"] == "Branch from turn 2"
           and by_turn["2"]["before"] is True and by_turn["2"]["level"] is True and by_turn["2"]["middle"] is True and by_turn["3"]["middle"] is True
           and abs(by_turn["1"]["x"] - by_turn["2"]["x"]) <= 1 and abs(by_turn["2"]["end"] - by_turn["3"]["end"]) <= 1
           and lit == {"at": 2, "lit": True, "other": False, "hidden": "none", "words": "Say how the analysis should go on from turn 2", "open": was_open} and whole != "none",
           (cards, lit, was_open, whole))
     # nothing is locked: back to the turn both ways share - by the button on its card -, and a third way from it
     more_hint = "Now leave the sandy plots out."
-    page.click("#streamOutput .sp-stream > .sp-turn[data-turn='1'] > summary .sp-branch")
+    page.click("#streamOutput .sp-kept-body > .sp-turn[data-turn='1'] > summary .sp-branch")
     page.wait_for_function("() => BranchUI.standing() !== null && BranchUI.standing().turn === 1", timeout=10000)
     page.keyboard.press("Control+m")                       # the drawer opened by the keys, over the page: the hint is typed and sent by the keys too
     page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display !== 'none'", timeout=10000)
@@ -1846,7 +1864,7 @@ def walk_draft(page, st, mod, wa, edition, user):
     check("nothing is locked after saving (0321): from a turn of the saved thread - gone back to by its card's button (0323) - the analysis goes on a third way - a branch of the first run, in a kernel that ran the kept cell "
           "again, under the brief, whose row and tab it has; the page counts one analysis with two branches. The maps drawer, open when the hint was sent, shut as the analysis "
           "started (0327). Saved again, the new branch is stored with the others; memory holds the two ways the person saved from, each with its own hint, and the first run stays left",
-          third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["hints"] == ["From turn 1" + more_hint] and (maps_were, third["maps"]) == ("flex", "none")
+          third["branch"] == [str(cid), 1, more_hint] and third["place"] == {"i": 1, "n": 1} and third["n"] == 3 and third["hints"] == ["Branch from turn 1" + more_hint] and (maps_were, third["maps"]) == ("flex", "none")
           and third["fold"] and "Brief" in third["tabs"]
           and ran_3.get("status") == "answered" and ran_3.get("branch") == {"of": str(cid), "turn": 1} and ran_3.get("hints") == [{"turn": 1, "text": more_hint}] and ran_3.get("brief") == ran.get("brief")
           and f"A fresh kernel for the branch: the 0 cells before chain {b_id} and the 1 it keeps of it are run again" in log_3
@@ -2208,19 +2226,15 @@ def main():
             page.click("#codeMapModal .cm-head button.x")
             page.wait_for_function("() => document.getElementById('codeMapModal').style.display === 'none'", timeout=5000)
             open_maps(page, "workflow")
-            page.wait_for_selector("#workflowMapModal .wf-node .wf-node-map", timeout=5000)
+            page.wait_for_selector("#workflowMapModal .wf-node", timeout=5000)
             page.hover("#workflowMapModal .wf-node")
-            box_way = page.evaluate("""() => { const look = e => { const c = getComputedStyle(e); return [c.color, c.borderTopColor, c.borderTopStyle, c.backgroundColor]; };
-                const way = document.querySelector('#workflowMapModal .wf-node .wf-node-map'), card = document.querySelector('#streamOutput .sp-done .sp-codemap');
-                return { says: way.textContent, icons: way.querySelectorAll('svg').length, shown: getComputedStyle(way).opacity, way: look(way), card: look(card) }; }""")
-            page.click("#workflowMapModal .wf-node .wf-node-map")
-            page.wait_for_selector("#codeMapModal .cm-row.step", timeout=15000)
-            check("a chain's box on the Workflow map has the code trace's name under the pointer, with no icon, in the green and the border of the closing card's button (0329; an eye before); "
-                  "a click opens the chain's code trace and closes the drawer",
-                  page.evaluate("() => document.getElementById('workflowMapModal').style.display === 'none' && document.getElementById('codeMapModal').style.display === 'flex'")
-                  and (box_way["says"], box_way["icons"], box_way["shown"]) == ("Code trace", 0, "1") and box_way["way"] == box_way["card"], box_way)
-            page.click("#codeMapModal .cm-head button.x")
-            page.wait_for_timeout(200)
+            box_way = page.evaluate("""() => ({ ways: document.querySelectorAll('#workflowMapModal .wf-node button, #workflowMapModal .wf-node-map').length,
+                says: [...document.querySelectorAll('#workflowMapModal .wf-node')].map(n => n.textContent) })""")
+            page.click("#workflowMapModal .workflow-close")
+            page.wait_for_function("() => getComputedStyle(document.getElementById('workflowMapModal')).display === 'none'", timeout=5000)
+            check("a chain's box on the Workflow map has no way into the code trace (0330: it cluttered the boxes) - not under the pointer, not on the open box; the closing card's "
+                  "button, a report's [cell n] and a cell's name in the Investigation tab are the ways in",
+                  box_way["ways"] == 0 and box_way["says"] and not any("Code trace" in s for s in box_way["says"]), box_way)
             # the lines behind a number (2026-10-24): Open in the notebook from a recipe lights the statements the number rests on
             # in the Investigation tab, the RESULT's own line strong, placed inside the cell's code block
             page.click(".sp-done .sp-codemap")
@@ -3050,11 +3064,13 @@ def main():
             run_g = thread_run(wa, USER, tid_b, str(entry_g["chain"])) or {}
             cells_g, logs_g = cells_of(run_g), logs_b()
             went_g = re.findall(r"at step (\d+) from the state after step (\d+), (\d+) step\(s\) run again", logs_g["executor"])
-            check("a hint sent from a turn whose state the kernel holds (0320): the branch runs as a chain of its own - its pane has the kept turn first, marked, then the row of the "
-                  "hint, then its own turns and its closing card; the composer is its own again. It is its analysis's: the arrows count no new chain, and its entry keeps the chain, "
+            check("a hint sent from a turn whose state the kernel holds (0320): the branch runs as a chain of its own - its pane has the kept turn first, in a fold of its own, shut, "
+                  "saying which turn it holds and where from (0330), then the card of the hint, then its own turns and its closing card; the composer is its own again. It is its "
+                  "analysis's: the arrows count no new chain, and its entry keeps the chain, "
                   "the turn and the hint. The kernel went back - the app says so, the executor says it got there from that state's own snapshot with no step run again - and "
                   "the branch's cell finds what the path made and nothing a later chain made",
-                  pane_g["turns"][:2] == [[1, True], [2, False]] and pane_g["hints"] == ["From turn 1" + mod.BRANCH_HINT] and pane_g["done"] is True and pane_g["hidden"] == 0 and pane_g["chip"] == ""
+                  pane_g["turns"][:1] == [[2, False]] and pane_g["kept"] == {"open": False, "says": ["Turn 1", "kept", "from the original", "1 cell"], "turns": [1]}
+                  and pane_g["hints"] == ["Branch from turn 1" + mod.BRANCH_HINT] and pane_g["done"] is True and pane_g["hidden"] == 0 and pane_g["chip"] == ""
                   and pane_g["controls"] == [True, True, True] and pane_g["standing"] is None and pane_g["position"] == "chain 9 of 9" and entry_g["n"] == n_b + 1
                   and entry_g["branch"] == {"of": int(last_b["id"]), "turn": 1, "hint": mod.BRANCH_HINT} and entry_g["q"] == mod.BACK_QUESTION and str(entry_g["parent"]) == str(last_b.get("parent"))
                   and run_g.get("branch") == {"of": last_b["id"], "turn": 1} and run_g.get("status") == "answered" and [c.get("kept") for c in cells_g] == ["kept", ""]
@@ -3066,7 +3082,7 @@ def main():
             n1 = len(map1["boxes"])
             check("the Analysis map of an analysis with a branch (0320): the two ways from turn 1 - the first run's turns, and the branch's own joined to the turn it went on from, the first "
                   "of them marked with its hint; the line under the name counts the branch; the branch's last turn is the open box and the way to it is lit, the way that was left faint",
-                  map2["sub"] == f"{len(map2['boxes'])} turns · 1 branch" and len(map2["boxes"]) == n1 + len(pane_g["turns"]) - 1 and tags2 == [""] * n1 + ["hint"] + [""] * (len(map2["boxes"]) - n1 - 1)
+                  map2["sub"] == f"{len(map2['boxes'])} turns · 1 branch" and len(map2["boxes"]) == n1 + len(pane_g["turns"]) and tags2 == [""] * n1 + ["hint"] + [""] * (len(map2["boxes"]) - n1 - 1)
                   and map2["boxes"][n1][1].startswith("Turn 2 · In [") and map2["on"] == [len(map2["boxes"])] and map2["lit"] == [1] + list(range(n1 + 1, len(map2["boxes"]) + 1)), (map2, tags2))
             turn_box(page, f"(sub) => sub === 'Turn {n1} · report'")
             page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=last_b["id"], timeout=10000)
@@ -3091,10 +3107,12 @@ def main():
             run_b = thread_run(wa, USER, tid_b, str(entry_b2["chain"])) or {}
             cells_b, logs_2 = cells_of(run_b), logs_b()
             check("a branch of the first analysis, after the turn that pooled the soil types (0320): the pane ended at that turn while the hint was typed; the branch's pane has its "
-                  "four kept turns first, marked, then the hint, then its own; a fresh kernel ran its kept cells again and they printed what they had, so none is marked; its "
+                  "four kept turns first, in their fold, shut, then the hint, then its own; a fresh kernel ran its kept cells again and they printed what they had, so none is marked; its "
                   "cell finds what they made, the function among it; the report follows the hint and its replay reproduces; the first analysis is as it was",
                   back_b["turns"] == [[n, False] for n in range(1, mod.BRANCH_TURN + 1)] and back_b["position"] == at_first
-                  and pane_b["turns"] == [[n, True] for n in range(1, mod.BRANCH_TURN + 1)] + [[5, False], [6, False]] and pane_b["hints"] == [f"From turn {mod.BRANCH_TURN}" + mod.BRANCH_HINT]
+                  and pane_b["turns"] == [[5, False], [6, False]] and pane_b["kept"] is not None and pane_b["kept"]["open"] is False and pane_b["kept"]["turns"] == list(range(1, mod.BRANCH_TURN + 1))
+                  and pane_b["kept"]["says"][:3] == [f"Turns 1–{mod.BRANCH_TURN}", "kept", "from the original"] and re.fullmatch(r"2 cells( \(\d+ failed\))?", pane_b["kept"]["says"][3])
+                  and pane_b["hints"] == [f"Branch from turn {mod.BRANCH_TURN}" + mod.BRANCH_HINT]
                   and pane_b["position"] == at_first and entry_b2["branch"] == {"of": int(first_b["id"]), "turn": mod.BRANCH_TURN, "hint": mod.BRANCH_HINT} and entry_b2["q"] == mod.QUESTIONS[0]
                   and run_b.get("branch") == {"of": first_b["id"], "turn": mod.BRANCH_TURN} and run_b.get("hints") == [{"turn": mod.BRANCH_TURN, "text": mod.BRANCH_HINT}]
                   and run_b.get("parent") == first_b.get("parent") and run_b.get("status") == "answered" and run_b.get("replay_status") == "reproduced"
@@ -3144,7 +3162,7 @@ def main():
             check("a branch the server does not start (0320): it says why - the person reads it - and nothing is kept of the request: no chain on the page or on the record; the chain the "
                   "hint was typed on is back at its turn, the hint in the composer to send again",
                   "Turn 99 cannot be gone on from" in said_no and entry_b()["n"] == n_b + 2 and len(runs_b()) == runs_were and entry_b()["chain"] == entry_b2["chain"]
-                  and refused["standing"] == {"chain": entry_b2["chain"], "turn": 5} and refused["turns"] == pane_b["turns"][:5] and refused["chip"].startswith("From turn 5")
+                  and refused["standing"] == {"chain": entry_b2["chain"], "turn": 5} and refused["turns"] == [[5, False]] and refused["kept"]["open"] is False and refused["chip"].startswith("From turn 5")
                   and refused["position"] == at_first, (said_no[-200:], refused, entry_b()))
             page.click("#branchChip button")
             page.fill("#queryInput", "")
@@ -3294,7 +3312,7 @@ def main():
             # nothing loaded; a question that needs no data is answered from the values in its cell; Save as routine checks it like any
             # chain - no warning of data that is gone - with those values as its inputs (the stand-in promoter gives them only under the
             # brief for such a chain); the Run dialog asks for no data; the runs' table says the input the runs differ in
-            page.evaluate("handleNewConversation()")
+            page.evaluate("() => { handleNewConversation(); }")
             page.wait_for_url("**/?new=true", timeout=60000)
             page.wait_for_selector("#queryInput", state="visible", timeout=60000)
             page.app_ready()

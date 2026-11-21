@@ -369,17 +369,15 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
     '<div class="nb-cell-head"><button type="button" class="nb-cell-map" data-cell="2" title="This cell in the code trace">Code trace</button></div>';
   new Function('tab', (wmSrc.match(/tab\.querySelectorAll\('\.nb-cell-map'\)[^\n]+/) || ['throw new Error("the line is gone")'])[0])(keptNb);
   const renewed = keptNb.querySelectorAll('.nb-cell-map').map(x => x.textContent + '|' + x.getAttribute('data-cell') + '|' + x.querySelectorAll('svg').length).join();
-  check('the trace\'s name where an eye stood (0329), in the look of the closing card\'s button - its green, its border, no icon: on a chain\'s box of the Workflow map, where a click moves '
-    + 'the app to the chain, shuts the drawer and opens its trace; and on a cell\'s header in the Investigation tab, where a notebook kept with the eye says the name when it comes on screen',
-    graph.includes("trace.className = 'wf-node-map'") && graph.includes("trace.textContent = 'Code trace';") && graph.includes("trace.title = 'How this chain got from its data to its numbers';") && !/wf-node-map[\s\S]{0,600}<svg/.test(graph)
+  check('the trace\'s name where an eye stood (0329), in the look of the closing card\'s button - its green, its border, no icon - on a cell\'s header in the Investigation tab, where a '
+    + 'notebook kept with the eye says the name when it comes on screen. A chain\'s box on the Workflow map has no way into the trace any more (0330: it cluttered the boxes); the closing '
+    + 'card\'s button and a report\'s [cell n] are the others',
+    !graph.includes('wf-node-map') && !graph.includes('CodeMapUI') && !sheet('shell.css').includes('wf-node-map')
     && renewed === 'Code trace|1|0,Code trace|2|0'
     && /#streamOutput \.sp-act \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*color: var\(--accent-color\);/.test(sheet('pane.css'))
-    && /#workflowMapModal \.wf-node-map \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*background: none;[^}]*color: var\(--accent-color\);[^}]*opacity: 0; \}/.test(sheet('shell.css'))
-    && sheet('shell.css').includes('#workflowMapModal .wf-node:hover .wf-node-map, #workflowMapModal .wf-node--active .wf-node-map, #workflowMapModal .wf-node-map:focus-visible { opacity: 1; }')
     && /\.briefing-content \.nb-cell-map \{[^}]*border: 1px solid var\(--chip-model-border\);[^}]*background: none;[^}]*color: var\(--accent-color\);/.test(sheet('tabs.css'))
-    && ['#workflowMapModal .wf-node-map:hover { background: var(--accent-bg-hover); }', '#streamOutput .sp-act:hover { background: var(--accent-bg-hover); }'].every((r, i) => sheet(i ? 'pane.css' : 'shell.css').includes(r))
-    && sheet('tabs.css').includes('.briefing-content .nb-cell-map:hover { background: var(--accent-bg-hover); }') && !/(wf-node-map|nb-cell-map) svg/.test(sheet('shell.css') + sheet('tabs.css'))
-    && /window\.MapsUI\.shut\(\);\s+if \(window\.CodeMapUI && typeof window\.CodeMapUI\.open === 'function'\) window\.CodeMapUI\.open\(resp\.chain_id\);/.test(graph));
+    && sheet('pane.css').includes('#streamOutput .sp-act:hover { background: var(--accent-bg-hover); }')
+    && sheet('tabs.css').includes('.briefing-content .nb-cell-map:hover { background: var(--accent-bg-hover); }') && !/nb-cell-map svg/.test(sheet('tabs.css')));
   const ui = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'ui-controls.js'), 'utf8');
   check('the navigator hands the chain on screen to the map (onChain) at the end of updateNavigationButtons', ui.includes('window.CodeMapUI.onChain(responses[currentResponseIndex] && responses[currentResponseIndex].chain_id)'));
   const css = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'dialogs.css'), 'utf8');

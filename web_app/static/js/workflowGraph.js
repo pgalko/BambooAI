@@ -343,24 +343,6 @@ window.WorkflowGraph = (function () {
                 div.appendChild(branchSpan);
             }
 
-            // the code trace's way in (2026-10-20): its name - the closing card's button, in small (0329; an eye before) - on
-            // the hovered box and on the open chain's; the app moves to the chain, the drawer shuts, the trace opens
-            if (!of && resp && resp.chain_id && made !== 'not run') {
-                var trace = document.createElement('button');
-                trace.className = 'wf-node-map';
-                trace.type = 'button';
-                trace.title = 'How this chain got from its data to its numbers';
-                trace.setAttribute('aria-label', 'Code trace of chain ' + (idx + 1));
-                trace.textContent = 'Code trace';
-                trace.addEventListener('click', function (e) {
-                    e.stopPropagation();
-                    if (typeof navigateToChainId === 'function' && String(resp.chain_id) !== String(currentData.chain_id)) navigateToChainId(resp.chain_id);
-                    window.MapsUI.shut();
-                    if (window.CodeMapUI && typeof window.CodeMapUI.open === 'function') window.CodeMapUI.open(resp.chain_id);
-                });
-                div.appendChild(trace);
-            }
-
             // ── Hover ──
             div.addEventListener('mouseenter', function () {
                 var ancestors = getAncestorPath(idx, responses, chainIndex);
@@ -463,18 +445,10 @@ window.WorkflowGraph = (function () {
                 taskEl.innerHTML = 'Generated variation questions for exploration.';
             }
         } else {
+            // the chain's question, whole and as text (0330: it was cut at 200 characters; the pane scrolls)
             var content = nodeContents[index];
-            var html = '';
-            if (content.task && content.task !== 'null' && content.task.trim()) {
-                html = content.task;
-            } else if (content.originalQuestion && content.originalQuestion.trim()) {
-                html = content.originalQuestion.length > 200
-                    ? content.originalQuestion.substring(0, 200) + '...'
-                    : content.originalQuestion;
-            } else {
-                html = 'No content available for this node';
-            }
-            taskEl.innerHTML = html;
+            var said = (content.task && content.task !== 'null' && content.task.trim()) || (content.originalQuestion && content.originalQuestion.trim()) || 'No content available for this node';
+            taskEl.innerHTML = '<span class="wf-said">' + String(said).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</span>';
         }
 
         if (plotEl) {
@@ -484,8 +458,8 @@ window.WorkflowGraph = (function () {
             var children = responses.filter(function (r) { return r.parentChainId && r.parentChainId === response.chain_id; }).length;
             var plain = String(response.technicalAnswer || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
             plain = plain.replace(/^(Answer|Explore|Synthesis|Results)\s*:\s*/i, '');
-            var m = plain.match(/^(.{20,240}?[.!?])(\s|$)/);
-            var conclusion = m ? m[1] : (plain.length > 240 ? plain.slice(0, 237) + '...' : plain);
+            var m = plain.match(/^(.{20,}?[.!?])(\s|$)/);            // its first sentence, whole (0330: it was cut at 240 characters)
+            var conclusion = m ? m[1] : plain;
             var rows = '<div class="wf-info-row"><span>Chain</span><b>' + (index + 1) + ' of ' + responses.length + ' <span class="wf-info-id">' + esc(response.chain_id || '') + '</span></b></div>';
             rows += '<div class="wf-info-row"><span>Follows</span><b>' + (parentIdx >= 0 ? 'chain ' + (parentIdx + 1) : 'the thread\'s start') + '</b></div>';
             rows += '<div class="wf-info-row"><span>Follow-ups</span><b>' + (children ? children : 'none') + '</b></div>';

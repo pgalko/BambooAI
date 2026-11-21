@@ -196,12 +196,12 @@ check('the page: the left bar\'s button is the maps\', with its shortcut in its 
   && own.includes("byId('railMapButton').addEventListener('click', e => { e.stopPropagation(); toggle(); });")
   && own.includes("document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'm') { e.preventDefault(); toggle(); } });"));
 check('the drawer follows what is on screen: the page\'s hook for a chain on screen ends on it, after the branch and the brief have taken the chain; a routine\'s run coming on screen '
-  + 'tells it too; an analysis that starts shuts it, once the page has taken the request for one - a question that opens a brief does not; the cross, a click beside the drawer, the eye '
-  + 'of a chain\'s box and the thread\'s report shut it through the module; a chain reached from the drawer leaves it open',
+  + 'tells it too; an analysis that starts shuts it, once the page has taken the request for one - a question that opens a brief does not; the cross, a click beside the drawer and the '
+  + 'thread\'s report shut it through the module - a chain\'s box no longer has a way out of it to the code trace (0330); a chain reached from the drawer leaves it open',
   uc.includes("    if (window.ArchitectUI) window.ArchitectUI.onChain(responses[currentResponseIndex]);\n    // the maps drawer, where open, shows the chain now on screen (maps.js)\n    if (window.MapsUI) window.MapsUI.follow();\n}")
   && rt.includes("        updateRunNav();\n        if (window.MapsUI) window.MapsUI.follow();")
   && qp.includes("    if (window.MapsUI) window.MapsUI.shut();") && qp.indexOf('window.MapsUI.shut()') > qp.indexOf('queryRunning = true;') && qp.indexOf('window.MapsUI.shut()') > qp.indexOf('window.ArchitectUI.open(query);')
-  && (qp.match(/MapsUI/g) || []).length === 2 && (wm.match(/window\.MapsUI\.shut\(\);/g) || []).length === 3 && (graph.match(/window\.MapsUI\.shut\(\);/g) || []).length === 1
+  && (qp.match(/MapsUI/g) || []).length === 2 && (wm.match(/window\.MapsUI\.shut\(\);/g) || []).length === 3 && !graph.includes('MapsUI')
   && !/workflowMapModal'\)\.style\.display/.test(wm + graph) && graph.includes('return { render: render, rest: rest, toggleFullscreen: toggleFullscreen };') && !graph.includes('function head('));
 check('the stylesheet: the head is one line - the switch, which takes the room left, then the tools; a level is a button of the head\'s size, the one in use lit as the mode control\'s is, '
   + 'a greyed one faint under a pointer that says no; the chain\'s two levels are one control; the chain\'s name is the part that gives way; the thread\'s buttons show on the Workflow '
@@ -240,8 +240,10 @@ check('the drawer lies over the page as a dialog does (0329): its own element is
   && /if \(event\.target === workflowMapModal\) \{\s+window\.MapsUI\.shut\(\);/.test(wm)
   && /\.summary-popup \{[^}]*z-index: 1002;/.test(css('styles.css').replace(/\r/g, '')), [inDrawer, onMap, onDim, onCross]);
 check('the pane under the map has one height, whatever the box under the pointer says (0329): the map above it keeps its frame, and the zoom fitted to that frame holds - the pane grew '
-  + 'and shrank from box to box, and the map was fitted again each time. What does not fit scrolls in the pane; the map is still fitted when the frame itself changes',
-  /#workflowMapModal \.workflow-details-pane \{ flex: 0 0 152px; box-sizing: border-box; overflow: auto;/.test(shell) && !/\.workflow-details-pane \{[^}]*(max-height|flex: 0 0 auto)/.test(shell)
+  + 'and shrank from box to box, and the map was fitted again each time. It says everything whole, its lines kept (0330, 200px high): what does not fit scrolls in the pane; the map is '
+  + 'still fitted when the frame itself changes',
+  /#workflowMapModal \.workflow-details-pane \{ flex: 0 0 200px; box-sizing: border-box; overflow: auto;/.test(shell) && !/\.workflow-details-pane \{[^}]*(max-height|flex: 0 0 auto)/.test(shell)
+  && shell.includes('#workflowMapModal .wf-said { white-space: pre-line; overflow-wrap: anywhere; }')
   && graph.includes('fitObserver = new ResizeObserver(function () { fitToFrame(wrapper, mapContainer, W, H); });') && graph.includes('fitObserver.observe(mapContainer);'));
 
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + JSON.stringify(d === undefined ? '' : d).slice(0, 1800))); if (!ok) fails++; }
