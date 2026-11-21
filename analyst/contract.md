@@ -62,9 +62,9 @@ RESULT("outcome Y, group B vs group A at matched age, 42 subjects", est, lo, hi,
 
 A number written into the call instead of computed is marked as typed on the line. Every line is
 kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised estimate gets a new
-line; the earlier one stays. When a later cell finds an earlier line wrong or mislabelled, record the
-corrected estimate with `corrects=14`, and cell 14's line is marked as corrected. The lines are what the
-report quotes, and a result that is there need not be computed again.
+line; the earlier one stays. When an earlier line is wrong or mislabelled, record the corrected estimate
+with `corrects=14`: cell 14's line with the same words or number is marked as corrected, else all its
+lines. The lines are what the report quotes, and a result that is there need not be computed again.
 {REVIEWS}
 ## The note
 

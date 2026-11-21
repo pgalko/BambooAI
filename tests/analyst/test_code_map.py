@@ -7,7 +7,9 @@ The fixtures under tests/analyst/fixtures/codemap are the design package's, with
 owner's own data (that one is run from the package, locally): a field trial and its follow-up (run in the real kernel,
 with the kernel's registry), the pilot's planted-flaw chain, and a five-chain branching thread (Fibonacci and Lorenz,
 one chain with no code). The expected view is the prototype's; the port is compared with it whole, except the layout
-fields it does not store, the mockup's pills, and the fields the port builds from the record itself.
+fields it does not store, the mockup's pills, and the fields the port builds from the record itself. One departure is
+in the expected files themselves: a correction marks the line it replaced, not every line of its cell (0326; chain 3
+of the thread).
 """
 import json
 import os
@@ -264,6 +266,34 @@ def rule_corrects():
           and [c["text"] for c in v["checks"]] == ["1 result was replaced by a later cell"], (r1, r2, v["checks"]))
 
 
+def rule_corrects_by_line():
+    c1 = ("first = df[df['season'] == 1].groupby('regime')['yield_t_ha'].mean()\nb = first['B'] - first['A']\nc = first['C'] - first['A']\nn = df['plot_id'].nunique()\n"
+          "RESULT('yield, regime B minus A, all seasons', b, unit='t/ha')\nRESULT('yield, regime C minus A, all seasons', c, unit='t/ha')\nRESULT('plots in the trial', n)\n")
+    c2 = "m = df.groupby('regime')['yield_t_ha'].mean()\nRESULT('yield, regime B minus A, all seasons', m['B'] - m['A'], unit='t/ha', corrects=1)\n"
+    c3 = "RESULT('yield, regime C minus A, season 1 alone', c, unit='t/ha', corrects=1)\n"
+    c4 = "k = df['soil'].nunique()\nRESULT('soil types in the trial', k, corrects=[2, 3])\n"
+    lines1 = [rec("yield, regime B minus A, all seasons: +0.71 t/ha", 5), rec("yield, regime C minus A, all seasons: +0.18 t/ha", 6), rec("plots in the trial: +120", 7)]
+    cells = [cell(1, c1, lines1), cell(2, c2, [rec("(corrects cell 1) yield, regime B minus A, all seasons: +0.93 t/ha", 2, corrects=1)]),
+             cell(3, c3, [rec("(corrects cell 1) yield, regime C minus A, season 1 alone: +0.18 t/ha", 1, corrects=1)])]
+    v = codemap.build_record(record(cells))["view"]
+    marks = lambda view: [(x["cell"], x["status"], x["corrected_by"]) for x in view["results"].values()]
+    check("rule: corrects, by line - of the three lines of one cell, the one a later cell gave again with a new number and the one a later cell gave new words are "
+          "replaced, each by its cell; the third stands, and so do the two that replaced them",
+          marks(v) == [(1, "corrected", 2), (1, "corrected", 3), (1, "recorded", None), (2, "recorded", None), (3, "recorded", None)]
+          and [c["text"] for c in v["checks"] if c["kind"] == "corrected"] == ["2 results were replaced by later cells"], (marks(v), v["checks"]))
+    v = codemap.build_record(record(cells + [cell(4, c4, [rec("(corrects cells 2, 3) soil types in the trial: +3", 2, corrects=[2, 3])])]))["view"]
+    check("rule: corrects, by line - a line with neither the words nor the number of any line it corrects replaces every line of the cells it names, and no other; "
+          "a line replaced before keeps the cell that replaced it",
+          marks(v) == [(1, "corrected", 2), (1, "corrected", 3), (1, "recorded", None), (2, "corrected", 4), (3, "corrected", 4), (4, "recorded", None)], marks(v))
+    own = [cell(1, c1, lines1[:2] + [rec("(corrects cell 1) plots in the trial: +120", 7, corrects=1)]), cell(2, c2, [rec("yield, regime B minus A, all seasons: +nan t/ha", 2, corrects=3)])]
+    v = codemap.build_record(record(own))["view"]
+    check("rule: corrects, by line - a line corrects an earlier cell: not its own, where the lines recorded beside it stand, and not a later one; a line that came "
+          "out empty stays so when it is replaced",
+          marks(v) == [(1, "recorded", None)] * 3 + [(2, "not computed", None)]
+          and marks(codemap.build_record(record(own + [cell(3, c3, [rec("(corrects cell 2) yield, regime B minus A, all seasons: +0.93 t/ha", 1, corrects=2)])]))["view"])[3] == (2, "not computed", None),
+          marks(v))
+
+
 def rule_cited_printout():
     code = "t = df.groupby('regime')['yield_t_ha'].mean().round(2)\nprint(t.to_string())\n"
     v = codemap.build_record(record([cell(1, code, [], output="regime\nA    4.50\nB    5.38\nC    4.71\n")], report="Regime B is highest [cell 1].\n"))["view"]
@@ -422,7 +452,7 @@ def rule_reaches():
 for name, fn in [("a RESULT in a loop", rule_loop), ("a RESULT inside a helper", rule_helper_line), ("a type conversion", rule_conversion),
                  ("drawing through a helper", rule_draw_helper), ("a title-only read", rule_title_only), ("a bootstrap through a helper", rule_bootstrap_rng),
                  ("tuple aliasing in a helper", rule_alias), ("a string join", rule_string_join), ("a typed date", rule_typed_date), ("nan", rule_nan),
-                 ("corrects", rule_corrects), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
+                 ("corrects", rule_corrects), ("corrects, by line", rule_corrects_by_line), ("a cited printout", rule_cited_printout), ("several figures", rule_several_figures),
                  ("a cell that does not parse", rule_unparsed), ("a chain with no cells", rule_no_cells), ("a follow-up", rule_follow_up),
                  ("a document", rule_document), ("short labels", rule_shorts), ("room for the text", rule_room), ("the lines behind a number", rule_lines),
                  ("the reach report", rule_reaches)]:
@@ -753,7 +783,7 @@ check("a branch's map: every step of its way in order, a kept step marked - the 
 check("... its header: after which turn it went on, and how many of its turns it kept, in the line of facts; the panel of a kept step says kept as its row does",
       vb2.get("branch") == {"turn": 4} and vb2.get("meta") == "Deep · 6 turns, 4 kept · 3 cells · 1 failed attempt · 2 reviews · 3 RESULT lines"
       and cmb[b1.id]["view"]["branch"] == {"turn": 1} and cmb[b1.id]["view"]["meta"].startswith("Deep · 5 turns, 1 kept · 2 cells · ")
-      and [vb2["steps"][n].get("kept") for n in ("1", "2", "3")] == ["kept", "differs", None] and cmb[b2.id]["version"] == codemap.VERSION == 4,
+      and [vb2["steps"][n].get("kept") for n in ("1", "2", "3")] == ["kept", "differs", None] and cmb[b2.id]["version"] == codemap.VERSION >= 4,
       (vb2.get("branch"), vb2.get("meta"), cmb[b1.id]["view"].get("meta")))
 vb0 = cmb[b0.id]["view"]
 check("... the chain it went on from is drawn as it was: no branch, no hint, nothing kept - and so is any chain that is no branch",
@@ -782,6 +812,56 @@ b5.turns = [_bcell(1, 1, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:
 b5.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"
 check("two reviews and the report that follow the same step stand in the order they came (0322: the report stood before the review that came before it, and the "
       "later review before the earlier)", [x[:2] for x in _rows(codemap.build(nbb, b5))] == [("step", 1), ("review", 1), ("review", 2), ("report", 3)], _rows(codemap.build(nbb, b5)))
+
+# ---- 0326: a correction marks the line it replaced - one run on the real kernel, and what its ledger says its map says
+from analyst.session import result_lines  # noqa: E402
+
+_NOTE = "- Question as understood: q\n- Best estimate so far: none yet\n- Held fixed: nothing\n- Open doubts: none\n- Plan: report\n- Names: df"
+BY_LINE = ["###NOTE###\n" + _NOTE + "\n###ACTION###\n" + a for a in (
+    "CELL\n```python\nfirst = df[df['season'] == 1].groupby('regime')['yield_t_ha'].mean()\nb, c, n = first['B'] - first['A'], first['C'] - first['A'], df['plot_id'].nunique()\n"
+    "RESULT('yield, regime B minus A, all seasons', b, unit='t/ha')\nRESULT('yield, regime C minus A, all seasons', c, unit='t/ha')\nRESULT('plots in the trial', n)\n```",
+    "CELL\n```python\nm = df.groupby('regime')['yield_t_ha'].mean()\nRESULT('yield, regime B minus A, all seasons', m['B'] - m['A'], unit='t/ha', corrects=1)\n```",
+    "CELL\n```python\nRESULT('yield, regime C minus A, season 1 alone', c, unit='t/ha', corrects=1)\n```",
+    "REPORT\n## Yield by regime\n\nOver all seasons regime B is above A [cell 2]. In season 1 alone regime C is above A [cell 3].")]
+by_line_seen = []
+
+
+def by_line_llm(system, user, **h):
+    if user.startswith("Rewrite"):
+        return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"):
+        return "NONE", {"cost": 0}
+    by_line_seen.append(user)
+    return BY_LINE[min(len(by_line_seen), len(BY_LINE)) - 1], {"cost": 0.001}
+
+
+if "plotly" in _stubs.FAKE:
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp if _pp else "")
+kb = PersistentKernel(df=df, generated_dir=os.path.join(work, "generated"))
+try:
+    rb = Session(kb, Notebook("by_line"), by_line_llm, data_description="field_trial.csv: 720 rows x 6 columns", map_inputs=R.inputs_from_data).run(
+        "Do regimes B and C out-yield A?", budget=Budget(turns=8, dollars=1.0), run_id="9", data=DATA)
+finally:
+    kb.cleanup()
+    if _pp is None:
+        os.environ.pop("PYTHONPATH", None)
+    else:
+        os.environ["PYTHONPATH"] = _pp
+led = result_lines(rb)
+check("a correction, a line at a time, on the real kernel: of the three lines of one cell, the one a later cell gave again with a new number and the one a later cell "
+      "gave new words are marked in the ledger of the prompts that follow, each by its cell, and the third stands",
+      rb.status == "answered" and len(led) == 5 and led[0].startswith("- [cell 1] (corrected by cell 2) yield, regime B minus A, all seasons: ")
+      and led[1].startswith("- [cell 1] (corrected by cell 3) yield, regime C minus A, all seasons: ") and led[2] == "- [cell 1] plots in the trial: +120"
+      and len(by_line_seen) == 4 and "RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(led[:4]) + "\n" in by_line_seen[3]
+      and "\n".join([led[0], led[1].replace("(corrected by cell 3) ", ""), led[2]]) + "\n\n" in by_line_seen[2] and "corrected by" not in by_line_seen[1],
+      (rb.status, led, by_line_seen[-1][-900:]))
+vb = (rb.code_map or {}).get("view") or {}
+check("... and on the code map of the same run: the same two lines replaced, by the same cells, the third recorded, and the check counts two - a map of version 5, so "
+      "that one stored before is made again when it is opened",
+      [(x["cell"], x["status"], x["corrected_by"]) for x in vb.get("results", {}).values()]
+      == [(1, "corrected", 2), (1, "corrected", 3), (1, "recorded", None), (2, "recorded", None), (3, "recorded", None)]
+      and [c["text"] for c in vb["checks"] if c["kind"] == "corrected"] == ["2 results were replaced by later cells"] and rb.code_map["version"] == codemap.VERSION == 5,
+      ((rb.code_map or {}).get("error"), [(x["cell"], x["status"], x["corrected_by"]) for x in vb.get("results", {}).values()], vb.get("checks")))
 
 os.chdir("/"); shutil.rmtree(work, ignore_errors=True)
 

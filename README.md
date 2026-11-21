@@ -40,6 +40,7 @@ The underlying principle is simple: AI-generated analysis should be open to the 
   - [Reports and verification](#reports-and-verification)
   - [Follow-ups and plots](#follow-ups-and-plots)
   - [The Architect](#the-architect)
+  - [Branching](#branching)
   - [Saved analyses as memory](#saved-analyses-as-memory)
   - [Routines](#routines)
 - [Configuration](#configuration)
@@ -240,11 +241,11 @@ its statistical design or interpretation.
 
 ### Follow-ups and plots
 
-A follow-up continues from the preceding run's Python state; a new question starts a fresh workspace.
-Runs form navigable chains. If the dataset changes, BambooAI starts a fresh kernel and keeps earlier
-chains as context, marked as using other data. Replay and routines then use only calculations made on
-the current dataset. Data continuity is determined from file and dataset metadata, not a byte-for-byte
-file comparison.
+A follow-up continues from the Python state of the run it is asked from; a new question starts a fresh
+workspace. In the app each run is a **chain**, and the chains of one conversation form a **thread**. If
+the dataset changes, BambooAI starts a fresh kernel and keeps earlier chains as context, marked as using
+other data. Replay and routines then use only calculations made on the current dataset. Data continuity
+is determined from file and dataset metadata, not a byte-for-byte file comparison.
 
 Use the chat button on a figure to ask about it. The image is included only when the Analyst supports
 images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
@@ -263,9 +264,8 @@ through with you in the left pane, and the brief builds up on its own tab.
   checked*. The Architect may also propose up to two other explanations; you tick the ones to test.
 - **Figures.** Ask for a figure and a draft appears in the brief, so you see what you will get. A draft drawn on
   made-up numbers is marked so.
-- **Going back.** Each message or change is a step. The arrows go back through the steps, and the map beside them
-  shows them all. Go on from an earlier step and the conversation branches: the Architect no longer sees what you
-  left behind, and you can return to it from the map.
+- **Going back.** Each message or change is a step. Go back to any step and continue from there: the conversation
+  branches, and the path you left stays on the **Brief map** (see [Branching](#branching)).
 - **Start analysis.** The question is first read without the conversation, as the Analyst will read it. If it
   points to something the Analyst does not have, the Architect rewords it and you start again.
 - **The result.** The Brief tab shows *How it turned out*: what you expected, and how each other explanation
@@ -277,6 +277,32 @@ analysis found or left open. Change one if you like, then run it.
 
 The Architect's messages are a model's, so the brief is yours to correct. Its instructions are in
 [`analyst/architect.md`](analyst/architect.md).
+
+### Branching
+
+You can go back and branch at three levels: the **thread**, and within a **chain** the **Architect**'s conversation
+and the **Analyst**'s turns. The original path is always kept, and each level has a map of its branches.
+
+| Level | Go back to | Continue with | Map |
+|---|---|---|---|
+| **Thread** | an earlier chain | a follow-up question | Workflow map |
+| **Chain · Architect** | an earlier step of the conversation about the brief | a different answer, or a change to the brief | Brief map |
+| **Chain · Analyst** | an earlier turn of the analysis | a hint | Analysis map |
+
+- **Thread.** Open any chain with the chain arrows or from the Workflow map and ask a follow-up. It starts from the
+  Python state in which that chain ended.
+- **Chain · Architect.** While a question is being framed, step back with the arrows on the Brief tab, on the Brief
+  map, or with the branch button on one of the Architect's cards. The Architect no longer sees the path you left.
+- **Chain · Analyst.** Once an analysis has finished or been stopped, pick a turn on the Analysis map, or use the
+  branch button on its card, and type a hint such as *keep the soil types apart*. The Analyst receives the turns up
+  to that point and your hint, and writes a report of its own. The kernel returns to the state it held after that
+  turn, so earlier cells are re-run only if that state is no longer available, and you pay only for the new turns.
+  The branch keeps the original mode and brief and does not call the Architect; where the hint and the brief
+  conflict, the hint takes precedence.
+
+Saving a thread keeps all its branches. An analysis can be branched only if it was made with version 2.9 or later
+and its data is loaded; routine runs and questions about a plot cannot. See
+[`docs/BRANCH_DESIGN.md`](docs/BRANCH_DESIGN.md).
 
 ### Saved analyses as memory
 
@@ -747,7 +773,8 @@ Further design and maintenance notes: [`docs/DESIGN_CHECKLIST.md`](docs/DESIGN_C
 [`docs/INCREMENTAL_LOADS_DESIGN.md`](docs/INCREMENTAL_LOADS_DESIGN.md),
 [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md), [`docs/REACH_DESIGN.md`](docs/REACH_DESIGN.md),
 [`docs/DATASETS_DESIGN.md`](docs/DATASETS_DESIGN.md), [`docs/USAGE_DESIGN.md`](docs/USAGE_DESIGN.md),
-[`docs/ARCHITECT_DESIGN.md`](docs/ARCHITECT_DESIGN.md) and [`HANDOVER.md`](HANDOVER.md).
+[`docs/ARCHITECT_DESIGN.md`](docs/ARCHITECT_DESIGN.md), [`docs/BRANCH_DESIGN.md`](docs/BRANCH_DESIGN.md) and
+[`HANDOVER.md`](HANDOVER.md).
 
 ## Contributing
 

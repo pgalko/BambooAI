@@ -92,6 +92,14 @@ const printed = el(b.resultChip(TRIAL2.results.p4, false, ctx));
 check('result chips by status: replaced (struck, "replaced by cell n"), came out empty (fail colour, pressed), a cited printout (dashed, "printed")',
   replaced.querySelector('.cm-res.replaced .short').textContent.startsWith('replaced by cell ') && empty.querySelector('.cm-res.empty.on').getAttribute('aria-pressed') === 'true'
   && printed.querySelector('.cm-res.printed .est').textContent === 'printed' && printed.querySelector('.cm-res').getAttribute('title').startsWith('Printed in cell 4, and the report cites it'), [replaced.innerHTML, printed.innerHTML]);
+// 0326: a correction is a line's, not its cell's - chain 3's cell 10 recorded two lines, and cell 11 gave one of them again
+const T3 = asIds(VM.t3), T3c = { titles: T3.titles, built: 'end', number: () => 3, chainId: '3' };
+const st3 = el(b.steps(T3, T3c, null, { cells: null, inputs: null, recipe: null })), row10 = st3.querySelectorAll('.cm-row').find(r => r.querySelector('.cm-res[data-id="r6"]'));
+check('steps: of the two lines of one cell, the one a later cell gave again is struck and says by which cell, and the other stands as recorded; the panel counts the lines replaced, not the cells',
+  row10 && row10.querySelectorAll('.cm-res').map(c => c.getAttribute('data-id') + ':' + c.className).join() === 'r6:cm-res recorded,r7:cm-res replaced'
+  && row10.querySelector('.cm-res.replaced .short').textContent.startsWith('replaced by cell 11') && !row10.querySelector('.cm-res.recorded .short').textContent.includes('replaced')
+  && el(b.summary(T3, T3c)).querySelectorAll('.cm-counts div').map(d => d.querySelector('b').textContent + ' ' + d.querySelector('span').textContent).slice(3).join('|') === '10 results recorded|3 replaced|0 came out empty',
+  [row10 && row10.querySelector('.cm-out').innerHTML, el(b.summary(T3, T3c)).querySelector('.cm-counts').textContent]);
 // the follow-up's lanes: the chain lane first, a button that opens chain 1; the primary reached through it
 const st2 = el(b.steps(TRIAL2, ctx, null, { cells: null, inputs: null, recipe: null }));
 check('a follow-up: the "From chain 1" lane is a button that opens that chain, named by the navigator\'s number; the dataset lane says "through chain 1"',

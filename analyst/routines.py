@@ -1,7 +1,8 @@
 """Routines (docs/ROUTINES_DESIGN.md): an analysis kept as a method and run again, without a model, on new data.
 
 The pure part lives here - nothing in this module talks to a model, an executor or the web app:
-  - a RESULT line read back (parse_result_line) and the lines a chain recorded (expected_results);
+  - a RESULT line read back (parse_result_line), the lines a later cell corrected (corrected_by) and the lines a
+    chain recorded (expected_results);
   - the script with its cells and its INPUTS block (split_script, join_script, with_inputs);
   - the promoter's prompt, the reading of its reply, its pick and its edits (PROMOTER_SYSTEM, promoter_user,
     parse_promoter, pick_results, apply_edits, finish_inputs);
@@ -81,6 +82,29 @@ def number(s: Optional[str]) -> Optional[float]:
         return float(str(s).replace(",", "")) if s is not None else None
     except ValueError:
         return None
+
+
+def corrected_by(rows: Iterable[Tuple[int, str, object]]) -> Dict[int, int]:
+    """The recorded lines a later cell corrected: {row: that cell}, for `rows` of (cell, the line's text, what its call
+    gave as corrects=). A line that corrects cell 14 replaces, of cell 14's lines, those with its words; if none has
+    them, those with its number; if none has either, all of them - which one it meant cannot be told (2026-11-21: a
+    line that gave one line new words had marked every line recorded beside it). The first cell to correct a line is
+    the one named. What `corrects` holds that is not the number of an earlier cell corrects nothing."""
+    rows = list(rows)
+    read = [parse_result_line(text) or {} for _, text, _ in rows]
+    words = [" ".join((p.get("what") or "").lower().split()) for p in read]
+    nums = [number(p.get("estimate")) for p in read]
+    out: Dict[int, int] = {}
+    for i, (cell, _, corrects) in enumerate(rows):
+        for n in corrects if isinstance(corrects, (list, tuple)) else [corrects]:
+            if not re.fullmatch(r"\d+", str(n)) or int(n) >= cell:
+                continue
+            theirs = [j for j, r in enumerate(rows) if r[0] == int(n)]
+            same = ([j for j in theirs if words[i] and words[j] == words[i]]
+                    or [j for j in theirs if nums[i] is not None and nums[j] == nums[i]] or theirs)
+            for j in same:
+                out.setdefault(j, cell)
+    return out
 
 
 def expected_results(cells: Iterable, order: Iterable[int]) -> List[dict]:

@@ -26,6 +26,7 @@ from typing import Callable, Dict, List, Optional
 
 from . import tools, report as rep, reach, brief as briefs, draft as drafts
 from .notebook import Notebook, NotebookStore, Run, Turn, has_data, hint_block
+from .routines import corrected_by
 from .replay import verify
 
 logger = logging.getLogger(__name__)
@@ -447,18 +448,14 @@ def result_lines(run, omit=()) -> List[str]:
     locating the specification behind a number it had printed twenty turns earlier). The lines come from the kernel's
     records, not from printed text (2026-10-06: a printed line can carry numbers nobody computed; the kernel marks
     those). A line a later cell corrected - RESULT(..., corrects=14) - is marked, so a known-wrong line stops reading
-    as evidence."""
+    as evidence: the line of cell 14 with the later one's words or number, and every line of cell 14 when none has
+    either (routines.corrected_by)."""
     rows = result_records(run)
-    corrected = {}
-    for c, r in rows:
-        cs = r.get("corrects")
-        for n in (cs if isinstance(cs, (list, tuple)) else ([cs] if cs is not None else [])):
-            if int(n) != c:
-                corrected.setdefault(int(n), c)
+    corrected = corrected_by((c, r["text"], r.get("corrects")) for c, r in rows)
     disputed = disputed_cells(run)
-    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[c]}) " if c in corrected else "")
+    return [f"- [cell {c}] " + (f"(corrected by cell {corrected[i]}) " if i in corrected else "")
             + (disputed_mark(disputed[c]) if c in disputed else "") + r["text"]
-            for c, r in rows if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
+            for i, (c, r) in enumerate(rows) if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
 
 
 def evidence_text(turn) -> str:

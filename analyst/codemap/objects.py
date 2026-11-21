@@ -328,14 +328,6 @@ def build_map(doc):
         m = re.search(r":\s*([+\-−]?[\d.,]+|[+\-]?nan)(?:\s*\(95% CI ([^)]*)\))?\s*(.*)$", r["line"] or "") if r["kind"] == "result" else None
         rec["estimate"], rec["interval"], rec["unit_dir"] = (m.group(1), m.group(2), m.group(3)) if m else ("", "", "")
         results.append(rec)
-    corrected_by = {}
-    for r in results:
-        if r["kind"] == "result" and r["corrects"]:
-            for c in (r["corrects"] if isinstance(r["corrects"], (list, tuple)) else [r["corrects"]]):
-                corrected_by.setdefault(c, r["cell"])
-    for r in results:
-        if r["status"] == "corrected":
-            r["corrected_by"] = corrected_by.get(r["cell"])
 
     # ---- cells ------------------------------------------------------------------------------------------------------
     report = doc.get("report") or ""

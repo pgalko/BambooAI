@@ -8305,7 +8305,7 @@
 {
 "kind": "corrected",
 "ref": "r4",
-"text": "4 results were replaced by later cells"
+"text": "3 results were replaced by later cells"
 },
 {
 "kind": "pattern",
@@ -14500,7 +14500,7 @@
 },
 "r6": {
 "cell": 10,
-"corrected_by": 11,
+"corrected_by": null,
 "estimate": "+0.100",
 "id": "r6",
 "interval": "0.066 to 0.139",
@@ -14509,7 +14509,7 @@
 "line": "Lorenz x-z, five ICs: median single-colour coverage of the attractor support at t<=2 (45x45 grid, 1010 attractor cells): +0.100 (95% CI +0.066 to +0.139) fraction of attractor cells, each colour paints this much by t=2",
 "lines": [],
 "short": "Lorenz x-z, five ICs: median single-colour coverage of…",
-"status": "corrected",
+"status": "recorded",
 "test": null,
 "unit": "fraction of attractor cells, each colour paints this much by t=2"
 },

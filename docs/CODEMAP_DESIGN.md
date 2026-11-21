@@ -1,4 +1,4 @@
-# The code map — design v1.6 (2026-11-21)
+# The code map — design v1.7 (2026-11-21)
 
 The code map shows how one analysis chain got from its data to its numbers: which inputs each cell read, what each
 cell made, which number rests on what, and what was typed into the code rather than read from the data. It is built
@@ -39,8 +39,8 @@ Eight rules governed the build and still govern changes (the product owner's, 20
 - **Object** — a name (or a tuple of names) a statement made or changed in a cell, with its kind: table, estimate,
   value, figure, function, param (a known scalar), pattern (a word list), helper (a list or dict).
 - **Result** — one printed `RESULT(...)` line, with its estimate, interval and unit, by status: recorded, replaced
-  (a later RESULT with `corrects=`), came out empty (`nan`); a **printout** is a cell the report cites by `[cell n]`
-  that printed but recorded no RESULT line; a **figure** is one figure of the figures cell.
+  (the line a later RESULT with `corrects=` gave again), came out empty (`nan`); a **printout** is a cell the report
+  cites by `[cell n]` that printed but recorded no RESULT line; a **figure** is one figure of the figures cell.
 - **Recipe** — the boxes a result rests on, in creation order, with the inputs, the known values ("params"), the word
   lists and the choices (seeds, thresholds, typed dates, resample counts) behind it.
 - **Lane** — one column of the Steps view per input; a dot where a cell reads it, a ring where it uses it through an
@@ -129,8 +129,20 @@ f-strings and `os.path.join`.
 **RESULT lines.** One result per printed line. A record's `line` pairs it with the call whose span covers it (a call
 in a loop takes every line it printed; a call inside a helper goes to the statement that called the helper). Older
 runs without `line` pair by order and by each label's fixed words. The kernel's record wins over the code for
-`corrects`, `test` and `typed`. Status: not computed for `nan`, corrected when a later RESULT has `corrects=`.
+`corrects`, `test` and `typed`. Status: not computed for `nan`; corrected for a line a later RESULT replaced, which
+then names the cell that replaced it (`corrected_by`).
 A `[cell n]` the report cites that recorded no RESULT line becomes a printout, traced from its print statements.
+
+**A correction, a line at a time** (0326; the product owner, 2026-11-21: "it could strike only the lines that
+changed"). `RESULT(..., corrects=14)` replaces, of cell 14's lines, those with the new line's words - case and spacing
+aside, the kernel's notes in front not among them; if none has them, those with its number, the words being what was
+wrong; if none has either, all of them, as which one was meant cannot be told. Before, it was every line of cell 14,
+and a cell that recorded several lines lost them all to one line given again. The rule is `routines.corrected_by`, the
+one the ledger of the Analyst's prompts marks by (`session.result_lines`: *corrected by cell n*), so the map and the
+prompts say the same of every line; the contract's Results section tells the Analyst which line is marked. It is
+worked out on the host from the kernel's records - no new argument, the kernel as it was. A line corrects an earlier
+cell only, not its own and not a later one; what `corrects` holds that is not a cell's number corrects nothing; the
+first cell to replace a line is the one named; a line that came out empty stays so.
 
 **Helpers.** A function the chain defined is read from its own code: its steps, whether it always re-draws rows or
 only under an `if` on a parameter (then "can resample", switched on when the call passes `rng`, `random_state`,
@@ -166,9 +178,9 @@ view (`traced: false`) and is listed in `selfcheck`; nothing blocks the chain.
 
 ## 5. What is stored, and the route
 
-`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 4 since 2026-11-21: a branch's map
-says what it kept and what the person said; 3 since 2026-10-24: the recipes carry the lines behind each number); on
-failure `{version, built, error, inputs}`,
+`run.code_map = {version, built, ms, view, exports, selfcheck, inputs}` (version 5 since 2026-11-21: a correction
+marks the line it replaced; 4 since 2026-11-21: a branch's map says what it kept and what the person said; 3 since
+2026-10-24: the recipes carry the lines behind each number); on failure `{version, built, error, inputs}`,
 and when even the import fails, `{"error": ...}`. `exports` (the names and helpers the chain left in the kernel, for
 later chains) and `inputs` (as the chain ended, with the auxiliary files' columns) let a later rebuild give the same
 map without the host. `view` is one chain's entry of the fixtures' `viewmodel.json`, with chain ids in place of
@@ -265,14 +277,19 @@ All of the modal's own words sit in `WORDS` at the top of `code-map.js`; the map
 
 ## 7. Tests
 
-- `tests/analyst/test_code_map.py` (80): golden parity with the design package's fixtures (the field trial and its
+- `tests/analyst/test_code_map.py` (99): golden parity with the design package's fixtures (the field trial and its
   follow-up, the planted-flaw chain, a five-chain branching thread; the whole view and the intermediate map, in both
   pairing modes); one synthetic cell per rule; the build from a Run and a follow-up; the field-trial scenario run on
   a real kernel through the Session, whose views are the golden ones; the route's every answer, the cache, the live
   notebook; a ten-chain thread served and built now in well under a second; the host's file-name table pinned to
-  `intervals.js`.
-- `tests/analyst/test_code_map.js` (51): every builder on the prototype's views, the layout, the module on the mini
-  DOM with a scripted route, the ways in and the hook pinned in their files.
+  `intervals.js`; a branch's record and its rows; (0326) a correction a line at a time - by the words, by the
+  number, by neither, a cell of its own or a later one - and one run on a real kernel whose ledger and map mark the
+  same lines.
+- `tests/analyst/test_code_map.js` (72): every builder on the prototype's views, the layout, the module on the mini
+  DOM with a scripted route, the ways in and the hook pinned in their files; (0326) a cell with one line replaced
+  and one standing.
+- `tests/analyst/test_routines.py`: (0326) `corrected_by`, the rule itself; `tests/analyst/test_analyst.py`: the
+  ledger's marks and the contract's sentence.
 - The stack walk: the map through the real app and executor — the card's button, a recipe with the kernel's sizes,
   the diagram, the drawer's eye, a restored favourite's card, Escape; the document chain's D1 lane.
 - Before a release, the coach chain is run from the design package locally (never committed): its view must equal
@@ -314,4 +331,6 @@ a helper of the chain's own wins over a vocabulary name (`diff()`); inside a hel
 generator it makes are generators, and `rng.choice(x, n)` re-draws `x` (so a helper's re-draw follows its parameter
 through `ga, gb = g[...], g[...]`; at the top level a bootstrap loop's step adds ", re-drawing the rows of x"); a
 document the report cites by passage counts as used; the no-code header leaves out "0 web searches"; chain ids and
-`{chain:<id>}` tokens instead of numbers; a stored failure is rebuilt on request.
+`{chain:<id>}` tokens instead of numbers; a stored failure is rebuilt on request; a correction marks the line it
+replaced, where the prototype marked every line of the cell (0326: the expected view and map of the thread's chain
+3 follow - its cell 10 recorded two lines, and cell 11 gave one of them again).

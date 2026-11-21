@@ -27,6 +27,36 @@ check("parse_result_line: a colon inside the label, thousands separators, no uni
 r3 = rt.parse_result_line("RESULT: share of rows kept: +0.912")
 check("parse_result_line: an estimate alone", r3 and r3["estimate"] == "+0.912" and r3["low"] is None and r3["unit"] == "" and r3["direction"] == "", r3)
 check("parse_result_line: not a result line -> None; a blank -> None", rt.parse_result_line("hello world") is None and rt.parse_result_line("") is None)
+# a correction marks the line it replaced, not every line of its cell (0326): the ledger's rule (test_analyst.py) and the code map's (test_code_map.py)
+_B = "yield, regime B minus A, plots pooled: +0.62 (95% CI +0.37 to +0.84) t/ha, B higher"
+_C = "yield, regime C minus A, plots pooled: +0.30 (95% CI +0.05 to +0.55) t/ha, C higher"
+_cells23 = [(2, _B, None), (2, _C, None), (2, "plots compared: +36", None), (3, "share of soil types where B out-yields A: +1.00", None)]
+_by_words = (5, "(corrects cell 2) Yield, regime B  minus A, plots pooled: +0.41 (95% CI +0.20 to +0.63) t/ha, B higher - typed: the numbers were written into the call, not computed", 2)
+_by_number = (6, "(test after turn 4) (corrects cell 2) yield, regime C minus A, plot means: +0.30 (95% CI +0.05 to +0.55) t/ha, C higher", 2)
+_by_neither = "(corrects cell 2) soil types compared: +3"
+check("corrected_by: the line of the cell with the new line's words is the one replaced - case and spacing aside, the kernel's notes and its typed mark not among "
+      "them - and the lines beside it stand", rt.corrected_by(_cells23 + [_by_words]) == {0: 5}, rt.corrected_by(_cells23 + [_by_words]))
+check("corrected_by: no line of the cell has its words - the line with its number is the one replaced, its words being what was wrong",
+      rt.corrected_by(_cells23 + [_by_number]) == {1: 6}, rt.corrected_by(_cells23 + [_by_number]))
+check("corrected_by: neither its words nor its number in the cell - every line of that cell, as which one was meant cannot be told, and no line of another",
+      rt.corrected_by(_cells23 + [(7, _by_neither, 2)]) == {0: 7, 1: 7, 2: 7}, rt.corrected_by(_cells23 + [(7, _by_neither, 2)]))
+check("corrected_by: the words come before the number - a line with one line's words and another line's number replaces the first",
+      rt.corrected_by(_cells23 + [(5, "(corrects cell 2) yield, regime B minus A, plots pooled: +0.30 t/ha", 2)]) == {0: 5})
+check("corrected_by: several cells named - each by its own lines; the first cell to correct a line is the one named, and a later one marks what still stands",
+      rt.corrected_by(_cells23 + [(8, "(corrects cells 2, 3) plots compared: +34", [2, 3])]) == {2: 8, 3: 8}
+      and rt.corrected_by(_cells23 + [_by_words, (7, _by_neither, 2)]) == {0: 5, 1: 7, 2: 7}
+      and rt.corrected_by(_cells23 + [_by_words, (6, "(corrects cell 2) yield, regime B minus A, plots pooled: +0.44 t/ha", 2)]) == {0: 5},
+      (rt.corrected_by(_cells23 + [(8, "(corrects cells 2, 3) plots compared: +34", [2, 3])]), rt.corrected_by(_cells23 + [_by_words, (7, _by_neither, 2)])))
+check("corrected_by: an estimate that came out empty is no number - one nan is not another's; a line that cannot be read as a result has neither words nor "
+      "number; one whose estimate is no number is still told by its words",
+      rt.corrected_by([(2, "yield, regime B minus A: +nan t/ha", None), (2, _C, None), (4, "(corrects cell 2) yield, B minus A, plot means: +nan t/ha", 2)]) == {0: 4, 1: 4}
+      and rt.corrected_by([(2, "the plots, as counted", None), (2, _C, None), (4, "(corrects cell 2) the plots, as counted", 2)]) == {0: 4, 1: 4}
+      and rt.corrected_by([(2, "plots compared: n/a", None), (2, _C, None), (4, "(corrects cell 2) Plots compared: +36", 2)]) == {0: 4})
+_named = lambda v: rt.corrected_by([(1, "plots in the trial: +120", None)] + _cells23 + [(5, _by_neither, v), (6, "soil types compared: +3", None)])     # cells 1, 2, 2, 2, 3; then the line, and a later cell
+check("corrected_by: what is not the number of an earlier cell corrects nothing - the line's own cell, a later one, words, a truth value, nothing; a number kept "
+      "as digits does",
+      [_named(v) for v in (5, 6, "cell 2", True, None, [None, "two"])] == [{}] * 6 and _named("2") == {1: 5, 2: 5, 3: 5} and _named([9, 3]) == {4: 5},
+      [_named(v) for v in (5, 6, "cell 2", True, None, [None, "two"], "2", [9, 3])])
 lines = [ln for _s, _k, ln in rt.read_run("noise\nRESULT: a: +1 (95% CI +0 to +2) u, up\nmore\nRESULT: b: +2.50\n")["lines"]]
 check("read_run: every RESULT line of a printed output, in order", [x["what"] for x in lines] == ["a", "b"] and lines[1]["estimate"] == "+2.50")
 

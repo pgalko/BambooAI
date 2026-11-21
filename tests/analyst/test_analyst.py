@@ -1393,6 +1393,23 @@ _rc.turns = [_Turn(kind="cell", cell_no=1, code="x", results=[{"text": "slope wi
 check("ledger: a RESULT recorded with corrects=1 marks cell 1's line as corrected, in every prompt's RESULTS SO FAR",
       result_lines(_rc) == ["- [cell 1] (corrected by cell 2) slope within athletes, 54 sessions: -2.1 (95% CI -17.9 to +13.7)",
                             "- [cell 2] (corrects cell 1) slope pooled, not within athletes - with athlete fixed effects: +4.0 (95% CI -9 to +17)"], result_lines(_rc))
+# 0326: a correction marks the line it replaced, not every line of its cell (routines.corrected_by; its rule in test_routines.py, the code map in test_code_map.py)
+_B = "yield, regime B minus A, plots pooled: +0.62 (95% CI +0.37 to +0.84) t/ha, B higher"
+_C = "yield, regime C minus A, plots pooled: +0.30 (95% CI +0.05 to +0.55) t/ha, C higher"
+_N = "plots compared: +36"
+_by_words = "(corrects cell 2) yield, regime B minus A, plots pooled: +0.41 (95% CI +0.20 to +0.63) t/ha, B higher"
+_by_number = "(corrects cell 2) yield, regime C minus A, plot means: +0.30 (95% CI +0.05 to +0.55) t/ha, C higher"
+_kept = lambda text, corrects=None: {"text": text, "typed": False, "test": None, "corrects": corrects}
+_rl = _Run(id="rl", question="q", parent=None)
+_rl.turns = [_Turn(kind="cell", cell_no=2, code="a", results=[_kept(_B), _kept(_C), _kept(_N)]), _Turn(kind="cell", cell_no=5, code="b", results=[_kept(_by_words, 2)]),
+             _Turn(kind="cell", cell_no=6, code="c", results=[_kept(_by_number, 2)])]
+_marked = ["- [cell 2] (corrected by cell 5) " + _B, "- [cell 2] (corrected by cell 6) " + _C, "- [cell 2] " + _N]
+check("ledger: a correction marks the line it replaced - one by its words, one by its number - and the line recorded beside them stands; so too while the correcting "
+      "cells' own lines are left out, their output being in view",
+      result_lines(_rl) == _marked + ["- [cell 5] " + _by_words, "- [cell 6] " + _by_number] and result_lines(_rl, omit=(5, 6)) == _marked, result_lines(_rl))
+_rl.turns.append(_Turn(kind="cell", cell_no=7, code="d", results=[_kept("(corrects cell two) soil types compared: +3", "two")]))
+check("ledger: a correction that names no cell by its number marks nothing and the ledger is still made (reading it as a number had raised)",
+      result_lines(_rl) == _marked + ["- [cell 5] " + _by_words, "- [cell 6] " + _by_number, "- [cell 7] (corrects cell two) soil types compared: +3"], result_lines(_rl))
 _log = Session._turn_log(r3) + Session._turn_log(r2)
 check("the reviewer's turn log: a failed attempt with its error, and a committed cell with its first line",
       any("cell failed, rolled back -> " in x for x in _log) and any(re.search(r"\| cell \d+ -> ", x) for x in _log), _log[:6])
@@ -1403,7 +1420,8 @@ check("parse_review: several Checked lines are kept, one per cell, a run-on line
       and prc["lines"].splitlines()[2:4] == ["- Checked: cell 3 - computes X for 20 subjects; matches its line", "- Checked: cell 7 - labelled within-athlete; no athlete term: pooled. Does not match."]
       and prc["lines"].splitlines()[-1] == "- Re-check: cell 7, cell 9", prc)
 check("cited_cells: [cell 11], [cells 11, 13], [cell 11, cell 13] all read", cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]") == [11, 12, 13, 14, 15], cited_cells("x [cell 11] y [cells 12, 13] z [cell 14, cell 15]"))
-check("contract: a correction is recorded with corrects=14, and the earlier line is marked", "`corrects=14`" in c_all and "cell 14's line is marked as corrected" in c_all)
+check("contract: a correction is recorded with corrects=14, and the earlier line with its words or its number is marked - every line of the cell when none has either",
+      "record the corrected estimate with `corrects=14`: cell 14's line with the same words or number is marked as corrected, else all its lines." in " ".join(c_all.split()))
 check("contract (Adaptive): a REPORT citing a cell not checked is advice; the reviewer reads the cells the estimate rests on",
       "unless its status says a cell it cites has not been checked: then it is advice" in contract(False, 8) and "the code and output of the cells your estimate rests on" in contract(False, 8))
 check("reviewer prompt: the cells to check are handed to it, one Checked line per cell, Re-check for a second look, REPORT binds only on checked cells; no SHOW",

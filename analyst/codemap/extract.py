@@ -11,6 +11,7 @@ import os
 import re
 from collections import defaultdict
 
+from ..routines import corrected_by
 from . import vocab as V
 from .words import chain_label, CONTEXT_LABEL, PRIMARY_LABEL
 
@@ -963,14 +964,10 @@ def build(doc):
         results.append(dict(id=f"p{n}", kind="printed", cell=n, stmt=prints[-1]["id"], stmts=[s["id"] for s in prints],
                             label=f"printed in cell {n}", line=lines[0].strip() if lines else "", lines=lines[:3],
                             corrects=None, test=None, typed=False, status="printed", **trace([s["id"] for s in prints])))
-    # corrected: a later RESULT with corrects=n replaces cell n's lines
-    corrected_cells = set()                            # corrects is a cell, or a list of cells
-    for r in results:
-        cs = r["corrects"]
-        corrected_cells |= set(cs) if isinstance(cs, (list, tuple)) else ({cs} if cs else set())
-    for r in results:
-        if r["cell"] in corrected_cells:
-            r["status"] = "corrected" if r["status"] != "not computed" else r["status"]
+    # corrected: a later RESULT with corrects=n replaces the lines of cell n the ledger marks (routines.corrected_by)
+    for i, cell in corrected_by((r["cell"], r["line"], r["corrects"]) for r in results).items():
+        if results[i]["status"] != "not computed":
+            results[i].update(status="corrected", corrected_by=cell)
 
     # ---- figures, dead ends, unused inputs --------------------------------------------------------------------------
     fig_cells = [c["cell"] for c in cells if c.get("kind") == "figures"]
