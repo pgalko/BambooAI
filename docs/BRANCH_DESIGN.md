@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.7 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head)
+# Branching an analysis — design v0.8 (2026-11-21; for 2.9; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -289,7 +289,8 @@ before.
 | 0322 | The code map and the Investigation tab of a branch; a hint outranks the brief. | built |
 | 0323 | The branch button on a turn's card. | built |
 | 0324 | The maps' names - Workflow map, Analysis map, Brief map - and one head for the three. | built |
-| 0325 | Release 2.9.0. | |
+| 0325 | The branch button on the Architect's cards, as on a turn's card (docs/ARCHITECT_DESIGN.md §2.25). | built |
+| 0326 | Release 2.9.0. | |
 
 ## 9. Tests
 

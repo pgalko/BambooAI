@@ -1752,6 +1752,73 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
       same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
                              'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', eyes: 'true,true,false' })
       && threadOver === 'A brief | Chain=3 of 3 13 | Follows=chain 1 | Follow-ups=none / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
+
+    // the branch button on the Architect's cards (0325): the way to a step with no map opened
+    {
+      const carded = { status: 'framing', chain_id: 91, thread_id: 7, parentChainId: 70, queryText: 'Is B above A?', framing: JSON.parse(FS_AS_READ), tabContent: '', contentOutput: '', streamOutput: '' };
+      responses.push(carded);
+      currentResponseIndex = responses.indexOf(carded); loadResponseContent(carded); updateNavigationButtons();
+      const archCards = () => $('streamOutput').querySelectorAll('.ar-msg.arch');
+      const cards = () => archCards().map(m => { const x = m.querySelector('.sp-branch'); return x ? x.getAttribute('title') + ' > ' + x.getAttribute('data-step') + (x.classList.contains('on') ? ' on' : '') : '-'; });
+      const press = i => doc.dispatch('click', archCards()[i].querySelector('.sp-branch'));
+      const where = () => [brief().querySelector('.ar-ver b').textContent, carded.framing.step, carded.framing.tip, brief().querySelector('[data-ar="start"]').textContent].join(' / ');
+      const head1 = archCards()[0].querySelector('.who'), mark1 = head1.querySelector('.sp-branch');
+      const looks = [head1.elements.map(e => e.className).join(' | '), head1.textContent, mark1.getAttribute('type'), mark1.getAttribute('data-ar'), mark1.getAttribute('aria-label'), mark1.textContent, mark1.querySelectorAll('circle').length];
+      n = calls.length;
+      const atEnd91 = [cards(), where()];
+      press(2);                                                  // the card of the third step of the way
+      const atThree = [cards(), where(), pane().length, sameAs(carded.framing, FX.go[4])];
+      press(2);                                                  // lit: the end again
+      const backEnd = [cards(), where(), sameAs(carded.framing, FX.go[6])];
+      press(0);
+      const atOne = [cards(), where(), pane().length];
+      press(0);
+      arrow(-1);                                                 // the step before the end is a line changed by hand: no card of the Architect's is its own
+      const atHand91 = [cards(), where()];
+      arrow(1);
+      check('the branch button on the Architect\'s cards (0325): while a brief is not yet run, the Architect\'s card of every step of the way but its end has one, in the card\'s head before the button of '
+        + 'its prompt - the Git branch mark, saying its step as the arrows count it. A click is a click on the step\'s box of the map: the pane ends at that card and the tab is the brief as it '
+        + 'stood there, the framing the one the engine would make of it; the button of the step in use is lit, and a click on it brings the end of the way back. A step with no card of the '
+        + 'Architect\'s - a line changed by hand - lights none. Nothing is sent',
+        same(looks, ['sp-branch | agent-instructions-btn sp-prompt', 'Architect⌘', 'button', 'from', 'Branch from step 1', '', 2])
+        && same(atEnd91, [['Branch from step 1 > 1', 'Branch from step 2 > 2', 'Branch from step 3 > 4', '-'], '5 of 5 / 6 / 6 / Start analysis'])
+        && same(atThree, [['Branch from step 1 > 1', 'Branch from step 2 > 2', 'Branch from step 3 > 4 on'], '3 of 5 / 4 / 6 / Start analysis from step 3', 6, true])
+        && same(backEnd, [atEnd91[0], atEnd91[1], true])
+        && same(atOne, [['Branch from step 1 > 1 on'], '1 of 5 / 1 / 6 / Start analysis from step 1', 2])
+        && same(atHand91, [['Branch from step 1 > 1', 'Branch from step 2 > 2', 'Branch from step 3 > 4'], '4 of 5 / 5 / 6 / Start analysis from step 4'])
+        && same([cards(), where()], atEnd91) && calls.length === n, [looks, atEnd91, atThree, backEnd, atOne, atHand91]);
+
+      // which cards: by the builder
+      const marks = (framing, o, fold) => el(fold ? b.fold({ chain_id: 91, queryText: 'q', framing }) : b.pane({ chain_id: 91, queryText: 'q', framing }, o)).querySelectorAll('.ar-msg.arch')
+        .map(m => { const x = m.querySelector('.sp-branch'); return x ? x.getAttribute('data-step') + (x.classList.contains('on') ? ' on' : '') : '-'; }).join();
+      const TWICE = { versions: FS.versions.slice(0, 1), steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 3 }, { k: 2, from: 1, v: 1, made: [], turns: 2 }], step: 2, tip: 2,
+                      turns: [{ who: 'architect', text: 'I will look that up.' }, { who: 'check', found: [] }, { who: 'architect', text: 'It is there. What next?' }, { who: 'person', text: 'Go on' },
+                              { who: 'architect', text: 'Ready.' }] };
+      const which = [marks(wholeAt(4)), marks(wholeAt(4), { sent: 'And by week?', waiting: true }), marks(wholeAt(4), null, true), marks(OLD3), marks(TWICE), marks(A.go(TWICE, 1))];
+      check('... which cards have it: none while the Architect replies - nor the card that says it is reading -, none in the fold above a run, none in a conversation kept before steps. Where the Architect spoke twice in a step - it looked '
+        + 'something up and went on - the button is on its last message of the step; with that step in use and the way going further, there too, lit',
+        same(which, ['1,2,4 on', '-,-,-,-', '-,-,-', '-,-,-,-', '-,1,-', '-,1 on']), which);
+
+      // a line of the brief being typed when a button is pressed: the line is kept first, as the arrows have it
+      const briefWas = answers['/architect/brief'];
+      answers['/architect/brief'] = body => { const f = JSON.parse(JSON.stringify(carded.framing)); f.versions.push({ n: f.versions.length + 1, by: 'person', changed: body.changed, brief: body.brief });
+        f.steps.push({ k: f.steps.length + 1, from: body.step, v: f.versions.length, made: [f.versions.length], turns: 0, found: 0, proposed: 0 }); f.step = f.tip = f.steps.length; delete f.at;
+        return [200, { framing: f }]; };
+      const typeIn = text => { doc.dispatch('click', lineOf(brief(), 'decision').querySelector('.pen')); lineOf(brief(), 'decision').querySelector('.ar-input').value = text; };
+      const sentSince = () => calls.slice(n).map(c => [c[0], c[1].changed, c[1].step]);
+      typeIn('Keep one arm next season'); n = calls.length;
+      press(1); await tick();
+      const typedThen = [sentSince(), where(), cards()];
+      typeIn('Keep both arms'); n = calls.length;
+      press(1); await tick();                                    // the lit one: the line kept is one more step, and the end of the way
+      const typedLit = [sentSince(), where(), cards()];
+      check('... with a line of the brief being typed: the line is kept first - one more step, the coach\'s - then the card\'s step is gone to; the lit button then goes to the end of the way as it '
+        + 'stands - the step just made, which follows the step the coach stood on',
+        same(typedThen, [[['/architect/brief', ['decision'], 6]], '2 of 6 / 2 / 7 / Start analysis from step 2', ['Branch from step 1 > 1', 'Branch from step 2 > 2 on']])
+        && same(typedLit, [[['/architect/brief', ['decision'], 2]], '3 of 3 / 8 / 8 / Start analysis', ['Branch from step 1 > 1', 'Branch from step 2 > 2']]), [typedThen, typedLit]);
+      answers['/architect/brief'] = briefWas;
+      responses.splice(responses.indexOf(carded), 1);
+    }
     show90();
   }
 
@@ -1835,7 +1902,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Ar
   check('the stylesheets: the switch and the map\'s tag in shell.css, the conversation\'s cards and choices in pane.css, the Brief tab and - on it since 0312, in the answer no more - the card of what the '
     + 'report says against the brief in tabs.css, with a place for a part that goes as the report wrote it',
     shell.includes('.left-panel .icon-row .ar-switch.on {') && shell.includes('#workflowMapModal .wf-node-made {') && shell.includes('#workflowMapModal .wf-node--notrun {')
-    && paneCss.includes('#streamOutput .ar-msg {') && paneCss.includes('#streamOutput .ar-msg.arch {') && paneCss.includes('#streamOutput .ar-msg.wait {') && paneCss.includes('#streamOutput .ar-choice {')
+    && paneCss.includes('#streamOutput .ar-msg {') && paneCss.includes('#streamOutput .ar-msg.arch {')
+    && paneCss.includes('#streamOutput .ar-msg.arch .who { display: flex; align-items: center; color: var(--c-model); }')      // the head of the Architect's card (0325): its buttons in the line, at its end, one size
+    && paneCss.includes('#streamOutput .ar-msg.arch .who > button { order: 0; flex-shrink: 0; box-sizing: border-box; min-width: 22px; height: 18px; margin: 0 0 0 6px;')
+    && paneCss.includes('#streamOutput .ar-msg.arch .who > button:first-child { margin-left: auto; }') && paneCss.includes('#streamOutput .ar-msg.arch .sp-branch.on { color: var(--accent-color); border-color: var(--accent-color); }')
+    && !/#streamOutput \.ar-msg\.arch [^{]*\{[^}]*float:/.test(paneCss) && paneCss.includes('#streamOutput .ar-msg.wait {') && paneCss.includes('#streamOutput .ar-choice {')
     && tabsCss.includes('#content-brief .ar-line.changed::before {') && tabsCss.includes('#content-brief .ar-foot { position: sticky;')
     && tabsCss.includes('#content-brief .ar-line .tick {') && tabsCss.includes('#content-brief .ar-line .tick.on {')
     && tabsCss.includes('#content-brief .ar-against { display: grid; grid-template-columns: max-content 1fr max-content;') && tabsCss.includes('#content-brief .ar-against .r { display: contents; }') && ['ok', 'no', 'q'].every(v => tabsCss.includes('#content-brief .ar-against .v.' + v + ' {'))

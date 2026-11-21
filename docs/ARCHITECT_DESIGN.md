@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.29 (2026-11-20; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.30 (2026-11-21; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; for 2.9, 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 Release 2.8 does three things.
 
@@ -76,6 +76,7 @@ in the product owner's hands; the page's own screens replace them as they are bu
 | 55 | What the coach says or changes, with what the Architect does in reply, is a step of the conversation. The coach can go back to any step and go on from it: another way. The Architect then reads the way to that step and nothing of the others, so a direction that led nowhere needs no correcting - it is left. The way that was left stays, to go back to and to go on from (2026-11-19, the product owner's idea; §2.25). |
 | 56 | What is on screen is in use. The arrows count the steps of the way being walked - *Step 3 of 5* - and both panes show the step on screen: the brief as it stood there, the conversation up to it. A step off that way is out of the conversation; no row lists what was left (the product owner, of a row that did: "It should go, it is confusing. Irrelevant steps should be simply removed from the left pane"; §2.25). |
 | 57 | The steps have a map: the Workflow map's own drawer and drawing, a box to a step, opened by a button beside the arrows. The way to the step on screen is lit, the pointer on a box says what the step was, and a click goes to it. Branching ends with Start analysis: after it the map is read, the run keeps the way it started from, and so does memory (§2.25). |
+| 58 | The Architect's card of a step has a branch button, as a turn's card of an analysis has: a click goes to the step with no map opened, and what is said next goes on from there. The button of the step in use is lit, and brings the end of the way back (2026-11-21, the product owner: "it would be beneficial and close the loop"; §2.25). |
 
 ## 2. The Architect
 
@@ -1347,6 +1348,17 @@ command to branch.
   *Changed*, and the first sentence of the Architect's reply. A click goes to the step and shuts the drawer.
   While the drawer is open the map follows its brief - an arrow pressed, a step added - and it shuts when another
   chain comes on screen.
+- **The button on a card** (0325, 2.9; decision 58). In the pane, the Architect's card of a step carries the Git
+  branch mark in its head, before the button of its prompt - *Branch from step 3*, the step as the arrows count it. A
+  click is a click on the step's box of the map: the pane ends at that card, the tab is the brief as it stood there,
+  and what is said or changed next goes on from the step, another way. Every step of the way but its end has the
+  button, on the last message the Architect said in it; a step with no message of the Architect's - a line changed by
+  hand - has none, and is reached by the arrows or the map. The button of the step in use is lit while the way goes
+  further, and brings its end back. A line of the brief being typed is kept first, as with the arrows; the lit button
+  then goes to the end of the way as it stands. No button while the Architect replies, in the fold above a run, or in
+  a conversation kept before steps. The card's head is a row (`pane.css`): the two buttons are one size, on one line
+  at its end, and the words under it keep the card's whole width - the prompt's button was floated beside them, and
+  narrowed their first line.
 - **The strip** over the conversation counts what the brief has cost over every step: a way that was left was
   paid for.
 - **After Start analysis** the tab and the map are read: a click shows the brief of a step, and nothing else
@@ -1365,19 +1377,20 @@ version, its conversation whole, and no map. Its rows that say which version was
 **What it costs.** A way that is left was paid for and stays on the bill. A reading of the saved analyses made
 on a way that is left is not carried to another: asked for there, it is made again.
 
-**Tests.** `test_analyst.py`: `take()` and `go()` case by case - what opens a step, what joins one, what a way
-holds, a framing kept before - and four hundred moves at random, after each of which every turn is held once and
-the framing holds the way to the step in use. `tests/analyst/fixtures/steps.json` is a conversation that
-branched, with the framing as each step leaves it: the engine's suite checks it against `steps.py`, and the
-page's suite holds `architect.js` to the same file, so the two cannot drift apart. `test_app_path.py`: the step
-through each route - an answer, a change by hand, the question's read and Start analysis from an earlier step,
-and what the run keeps. `test_architect.js`: the helpers, both panes at a step, the arrows, a message from an
-earlier step, and the map driven on the page with the Workflow map's own drawing - its boxes, the lit way, the
-foot under the pointer, a click, the map following its brief - and the Workflow map, drawn by the same code, as
-it was. The walk: the arrows through the Architect's
-conversation with both panes following; in the tutor's, a step back and another way from it - the Architect's
-prompt read through the message's button, with not a word of the way left -, the map in the browser, the way
-that was left gone on from and come back from, and after the run the fold, the record and the steps set aside.
+**Tests.** `test_analyst.py`: `take()` and `go()` case by case - what opens a step, what joins one, what a way holds,
+a framing kept before - and four hundred moves at random, after each of which every turn is held once and the framing
+holds the way to the step in use. `tests/analyst/fixtures/steps.json` is a conversation that branched, with the
+framing as each step leaves it: the engine's suite checks it against `steps.py`, and the page's suite holds
+`architect.js` to the same file, so the two cannot drift apart. `test_app_path.py`: the step through each route - an
+answer, a change by hand, the question's read and Start analysis from an earlier step, and what the run keeps.
+`test_architect.js`: the helpers, both panes at a step, the arrows, a message from an earlier step, and the map driven
+on the page with the Workflow map's own drawing - its boxes, the lit way, the foot under the pointer, a click, the map
+following its brief - and the Workflow map, drawn by the same code, as it was; (0325) the button on a card - which
+cards, a click, the lit one, a line being typed. The walk: the arrows through the Architect's conversation with both
+panes following; in the tutor's, a step back and another way from it - the Architect's prompt read through the
+message's button, with not a word of the way left -, the map in the browser, the way that was left gone on from and
+come back from, and after the run the fold, the record and the steps set aside; (0325) the cards' buttons in a browser
+- where they stand, a click, the lit one and the way back.
 
 ## 3. Memory from saved analyses
 

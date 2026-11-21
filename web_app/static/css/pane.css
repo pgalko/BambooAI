@@ -137,8 +137,12 @@
 #streamOutput .ar-fold .ar-msg { margin: 8px 10px; background: var(--bg-primary); }
 #streamOutput .ar-fold .sp-row { margin: 8px 10px; }
 #streamOutput .ar-msg.arch { border-left: 3px solid var(--c-model); background: var(--bg-secondary); }
-#streamOutput .ar-msg.arch .who { color: var(--c-model); }
-#streamOutput .ar-msg.arch .sp-prompt { float: right; margin: 0; text-transform: none; letter-spacing: 0; }
+/* the head of the Architect's card: its name; then, at the line's end, the branch button of its step (2.9, architect.js: the Git branch mark, as on a turn's card)
+   and the button to its prompt - one size, on one line. The buttons are in the line, not floated beside it: the words under it keep the card's whole width */
+#streamOutput .ar-msg.arch .who { display: flex; align-items: center; color: var(--c-model); }
+#streamOutput .ar-msg.arch .who > button { order: 0; flex-shrink: 0; box-sizing: border-box; min-width: 22px; height: 18px; margin: 0 0 0 6px; justify-content: center; text-transform: none; letter-spacing: 0; }
+#streamOutput .ar-msg.arch .who > button:first-child { margin-left: auto; }
+#streamOutput .ar-msg.arch .sp-branch.on { color: var(--accent-color); border-color: var(--accent-color); }      /* the step in use, where the way goes further: a click brings its end back */
 #streamOutput .ar-msg.wait { color: var(--text-tertiary); font-style: italic; }
 #streamOutput .ar-msg.wait .who { font-style: normal; }
 #streamOutput .ar-found { margin: -8px 0 0 10px; padding: 8px 12px 9px; border-left: 2px solid var(--info-color, #58a6ff); border-radius: 0 0 4px 0; background: var(--bg-secondary); font-family: Arial, sans-serif; }   /* what a reading of the saved analyses found: an analysis to a line, to view (0308) */

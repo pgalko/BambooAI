@@ -17,8 +17,9 @@
 // the conversation up to it, the tab the brief as it stood there, and an answer, a change and Start analysis all go
 // on from it (the step rides with the request). Going on from a step that has steps after it starts another way:
 // the steps left are set aside, out of the pane and of what the Architect reads. The map beside the arrows shows
-// every step - in the Workflow map's own drawer and drawing (workflowGraph.js) - and a click goes to one. A brief kept
-// before steps is one way, a step to a version, and has no map.
+// every step - in the Workflow map's own drawer and drawing (workflowGraph.js) - and a click goes to one. In the pane
+// the Architect's card of a step has a branch button, as a turn's card of an analysis has (branch.js): a click goes
+// to that step with no map opened. A brief kept before steps is one way, a step to a version, and has neither.
 //
 // Where a reply has the coach's saved analyses read (§3.7), the stream says how far the reading is: a row of the
 // conversation with a count and Skip (POST /architect/skip). What was found is listed under the row, an analysis to
@@ -56,7 +57,7 @@
                 also_check: 'Other explanations to test', figures: 'What it will look like', builds: 'Builds on', aside: 'Set aside' },
         add: '+ Add', another: 'Another explanation to test', tick: 'Have the analysis test it',
         always: 'Always tested on data: chance, measurement error, how the cases were chosen.',
-        step: 'Step', of: (k, n) => k + ' of ' + n, before: 'The step before', after: 'The step after',
+        step: 'Step', of: (k, n) => k + ' of ' + n, before: 'The step before', after: 'The step after', branchFrom: k => 'Branch from step ' + k,
         start: 'Start analysis', startFrom: k => 'Start analysis from step ' + k,
         notKept: 'The change was not kept', notOpened: 'The brief could not be opened', unreachable: 'the server could not be reached',
         noReply: 'The Architect did not reply', check: 'CHECK data', lookedUp: n => n + (n === 1 ? ' thing' : ' things') + ' looked up', notLookedUp: n => n + ' not',
@@ -101,9 +102,10 @@
         pen: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
         ok: '<svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',
         x: '<svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>',
-        // the Git branch mark, as on the button to the Analysis map (stream-pane.js): a map of ways gone, where the
-        // Workflow map keeps its own - boxes joined by lines (2.9, the product owner's choice)
-        map: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
+        // the Git branch mark, as an analysis has it (stream-pane.js, branch.js): on the button to the Brief map - a map
+        // of ways gone, where the Workflow map keeps its own, boxes joined by lines (2.9, the product owner's choice) -
+        // and on the branch button of a card in the pane
+        branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/>' +
             '<circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></svg>'
     };
 
@@ -383,7 +385,7 @@
             const at = steps.place(framing, shown), off = held ? ' disabled' : '';
             const arrow = (d, glyph, title, to) => '<button type="button" data-ar="step" data-step="' + d + '" title="' + title + '" aria-label="' + title + '"' + (to ? off : ' disabled') + '>' + glyph + '</button>';
             return '<div class="ar-ver"><span class="k">' + WORDS.step + '</span>' + arrow(-1, '‹', WORDS.before, at.before) + '<b>' + WORDS.of(at.i, at.n) + '</b>' + arrow(1, '›', WORDS.after, at.after) +
-                (steps.kept(framing) ? '<button type="button" class="ar-map" data-ar="map" title="' + WORDS.map + '" aria-label="' + WORDS.map + '"' + off + '>' + ICON.map + '</button>' : '') + '</div>';
+                (steps.kept(framing) ? '<button type="button" class="ar-map" data-ar="map" title="' + WORDS.map + '" aria-label="' + WORDS.map + '"' + off + '>' + ICON.branch + '</button>' : '') + '</div>';
         },
         // the button that shows a saved analysis whole, in a dialog over the page
         view(thread, run) {
@@ -474,13 +476,16 @@
                 '<button type="button" class="ok" data-ar="keep" title="Keep">' + ICON.ok + '</button><button type="button" class="no" data-ar="cancel" title="Cancel">' + ICON.x + '</button></span>';
         },
         you(text) { return '<div class="ar-msg you"><span class="who">You</span>' + esc(text) + '</div>'; },
-        // a message of the Architect's: its words, the button to the prompt it received (the run log's call) and its
-        // choices while they can still be clicked
-        said(turn, chain, live) {
+        // a message of the Architect's: its words, the button to the prompt it received (the run log's call), its
+        // choices while they can still be clicked and - before the prompt's - the branch button of its step, where it
+        // has one (talk()). from: {k: the step, at: its place on its way, on: it is the step in use - the button is lit}
+        said(turn, chain, live, from) {
             const prompt = turn.call ? '<button class="agent-instructions-btn sp-prompt" type="button" title="the prompt the Architect received (run log)" data-agent="Architect" data-chain="' +
                 esc(chain) + '" data-call="' + esc(turn.call) + '">⌘</button>' : '';
             const choices = live && (turn.choices || []).length ? '<div class="ar-choices">' + turn.choices.map(c => '<button type="button" class="ar-choice" data-ar="choice">' + esc(c) + '</button>').join('') + '</div>' : '';
-            return '<div class="ar-msg arch"><span class="who">Architect' + prompt + '</span>' + esc(turn.text) + choices + '</div>';
+            const branch = from ? '<button type="button" class="sp-branch' + (from.on ? ' on' : '') + '" data-ar="from" data-step="' + from.k + '" title="' + WORDS.branchFrom(from.at) +
+                '" aria-label="' + WORDS.branchFrom(from.at) + '">' + ICON.branch + '</button>' : '';
+            return '<div class="ar-msg arch"><span class="who">Architect' + branch + prompt + '</span>' + esc(turn.text) + choices + '</div>';
         },
         // the question changed with the reply above it: the Architect worded it, and it is the top box from that step on (at: the step's place on its way)
         asked(at) {
@@ -560,12 +565,20 @@
             // the place on the way of the step each turn belongs to; in a conversation kept before steps, the version the turn left
             const way = steps.kept(entry.framing) ? steps.way(entry.framing.steps, entry.framing.step) : [];
             const places = way.reduce((out, s, i) => out.concat(Array(s.turns).fill(i + 1)), []), placeOf = (t, i) => places[i] || t.v;
+            // The branch button of a step (2.9, the product owner's: as a turn's card of an analysis has it), while the conversation can be gone on: on the last message the
+            // Architect said in the step. A click goes to the step - what is said next goes on from there, another way. The button of the step in use is lit, and brings the
+            // end of the way back (onClick): where the step in use is that end it has none. A conversation kept before steps has none
+            const from = i => {
+                const at = places[i], on = at === way.length;
+                if (!can || !at || turns.some((x, j) => j > i && x.who === 'architect' && places[j] === at)) return null;
+                return on && entry.framing.tip === entry.framing.step ? null : { k: way[at - 1].k, at, on };
+            };
             // a reply worded the question when the version it left is the Architect's, changed the question, and reads as the reply has it
             const worded = t => { const v = versions[(t.v || 0) - 1]; return !!(t.wording && v && v.by === 'architect' && (v.changed || []).indexOf('question') >= 0 && (v.brief || {}).question === t.wording); };
             return build.you((versionAt(entry.framing, 1).brief || {}).question || entry.queryText) +      // as it was first asked: the brief holds it as it stands now
                 turns.map((t, i) => t.who === 'check' ? build.checked(t) : t.who === 'memory' ? build.recalled(t) : t.who === 'opened' ? build.opened(t) : t.who === 'version' ? build.went(t)
                     : t.who === 'draft' ? build.drafted(t, entry.chain_id) : t.who === 'reader' ? build.checkedQ(t, entry.chain_id)
-                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && turns.slice(i + 1).every(x => x.who === 'draft')) + (worded(t) ? build.asked(placeOf(t, i)) : '')
+                    : t.who === 'architect' ? build.said(t, entry.chain_id, can && turns.slice(i + 1).every(x => x.who === 'draft'), from(i)) + (worded(t) ? build.asked(placeOf(t, i)) : '')
                     : build.you(t.text)).join('') +
                 (o.sent ? build.you(o.sent) : '') +
                 (o.waiting ? (o.saved ? build.reading(o.saved) : o.drawing ? build.pending(WORDS.drawingRow) : o.checking ? build.pending(WORDS.checkingRow)
@@ -1068,6 +1081,11 @@
         if (hit && hit.getAttribute('data-ar') === 'choice') { tell(hit.textContent); return; }      // a choice clicked is the coach's answer
         if (hit && hit.getAttribute('data-ar') === 'skip') { hit.disabled = true; post('/architect/skip', {}).catch(() => { hit.disabled = false; }); return; }
         if (hit && hit.getAttribute('data-ar') === 'open') { openSaved(hit.getAttribute('data-thread'), hit.getAttribute('data-run')); return; }      // View: in the conversation, or on the Brief tab
+        if (hit && hit.getAttribute('data-ar') === 'from') {      // a card's branch button: its step, as a box of the map goes to it; the lit one - the step in use - the end of the way as it then stands
+            const k = Number(hit.getAttribute('data-step')), end = hit.classList.contains('on');
+            settled(briefRoot(), r => stepTo(r, end ? steps.tip(stateOf(r).framing) : k));
+            return;
+        }
         if ((hit && hit.getAttribute('data-ar') === 'shut') || (ev.target && ev.target.id === 'savedAnalysisModal')) { byId('savedAnalysisModal').style.display = 'none'; return; }      // its cross, or beside it
         const root = hit ? hit.closest('.ar-brief') : null;
         if (!root) return;

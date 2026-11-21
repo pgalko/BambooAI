@@ -1333,6 +1333,32 @@ def walk_tutor(page, mod, wa, edition, user):
           and thread_run(wa, user, tid, cid).get("framing", {}).get("step") == 6,
           (t_on["said"][-2:], b_on["v"], steps_of(f_on), f_on.get("aside", {}).keys(), read_on[:300], m1, b_home["v"], b_home["title"]))
 
+    # the branch button on the Architect's cards (0325): the way to a step with no map opened
+    card_buttons = lambda: page.evaluate("""() => { const box = e => e.getBoundingClientRect(), mid = e => box(e).top + box(e).height / 2;
+        return [...document.querySelectorAll('#streamOutput .ar-msg.arch')].map(m => { const b = m.querySelector('.sp-branch'), p = m.querySelector('.sp-prompt'), who = m.querySelector('.who');
+            return b ? { says: b.title, lit: b.classList.contains('on'), green: getComputedStyle(b).borderTopColor === getComputedStyle(m).borderLeftColor,
+                         before: box(b).right <= box(p).left, level: Math.abs(mid(b) - mid(p)) < 1 && box(b).height === box(p).height && Math.abs(box(b).width - box(p).width) < 1,
+                         head: box(b).top >= box(who).top - 1 && box(b).bottom <= box(who).bottom + 1 && box(p).right <= box(who).right + 1 && box(who).right - box(p).right < 2 } : null; }); }""")      # noqa: E731
+    plain = lambda n: {"says": f"Branch from step {n}", "lit": False, "green": False, "before": True, "level": True, "head": True}      # noqa: E731
+    rows_c, cards0 = len(usage_rows(wa, edition, user)), card_buttons()
+    page.click("#streamOutput .ar-msg.arch >> nth=1 >> .sp-branch")
+    page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '2 of 4'", timeout=10000)
+    page.hover("#tab-brief")                                                 # the pointer off the card: a button under it is green too
+    b_card, t_card, cards1 = brief_on_screen(page), talk_on_screen(page), card_buttons()
+    page.click("#streamOutput .ar-msg.arch >> nth=1 >> .sp-branch")       # lit: the end of the way again
+    page.wait_for_function("() => document.querySelector('#content-brief .ar-ver b').textContent === '4 of 4'", timeout=10000)
+    page.hover("#tab-brief")
+    b_whole, t_whole = brief_on_screen(page), talk_on_screen(page)
+    check("the branch button on the Architect's cards (0325): while the brief is not yet run, the Architect's card of every step of the way but its end has one - the Git branch mark, in "
+          "the card's head before the button of its prompt, level with it and of its size, the prompt's at the head's end - saying its step. A click, and both panes are that step's: "
+          "the conversation ends at that card, whose button is lit in the Architect's green, and the tab is the brief as it stood there. A click on the lit button brings the end of "
+          "the way back. Nothing went to the server",
+          cards0 == [plain(1), plain(2), plain(3), None]
+          and cards1 == [plain(1), dict(plain(2), lit=True, green=True)] and (b_card["v"], b_card["start"]) == ("2 of 4", "Start analysis from step 2") and t_card["said"] == t_home["said"][:4]
+          and (b_whole["v"], b_whole["title"], b_whole["start"]) == ("4 of 4", wording, "Start analysis") and t_whole["said"] == t_home["said"] and card_buttons() == cards0
+          and len(usage_rows(wa, edition, user)) == rows_c and thread_run(wa, user, tid, cid).get("framing", {}).get("step") == 6,
+          (cards0, cards1, b_card["v"], b_card["start"], t_card["said"][-1:], b_whole["v"]))
+
     # what was agreed, and nothing else: two lines the coach adds by hand, at the step on screen, then the analysis - with nothing loaded
     what_for, period = "I want to see the two side by side.", "the 2025 season"
     brief_type(page, "decision", what_for)
