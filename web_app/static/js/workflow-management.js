@@ -631,7 +631,6 @@ function workflowMap() {
             updateSynthesisButtonState();
             updateTrajectoryButtonState();
             WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);
-            WorkflowGraph.rest(n ? 'Click a chain to open it. Hover over one to see its question.' : '');
         }
     };
 }

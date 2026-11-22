@@ -263,19 +263,27 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 /* what the box under the pointer is: one height whatever it says, so the map above keeps its frame - and with it its
    zoom, which is fitted to the frame (0329: the pane grew and shrank from box to box, and the map was fitted again).
    It says everything, whole (0330): what does not fit scrolls, and it stays said when the pointer leaves the box */
-#workflowMapModal .workflow-details-pane { flex: 0 0 200px; box-sizing: border-box; overflow: auto; border-top: 1px solid var(--border-color); padding: 10px 14px; background: var(--bg-secondary); width: auto; text-align: left; }
-#workflowMapModal .details-content { display: flex; flex-direction: column; gap: 8px; text-align: left; align-items: stretch; }
-#workflowMapModal .details-text { font-size: 13px; line-height: 1.5; color: var(--text-primary); margin: 0; padding: 0; }
+#workflowMapModal .workflow-details-pane { flex: 0 0 200px; box-sizing: border-box; overflow: auto; border-top: 1px solid var(--border-color); padding: 12px 18px 14px; background: var(--bg-secondary); width: auto; text-align: left; }
+/* what the box is (0332), as one card on every map: a head in the hint card's green small capitals - which chain, turn
+   or step, and whether it is the one on screen -, what was said there in paragraphs, then its facts under a line, their
+   names in small capitals; from the first, the box in use, where the line on what a click and the pointer do stood */
+#workflowMapModal .details-content { display: flex; flex-direction: column; gap: 10px; text-align: left; align-items: stretch; }
+#workflowMapModal .details-text { font-size: 13.5px; line-height: 1.6; color: var(--text-primary); margin: 0; padding: 0; }
+#workflowMapModal .wf-head { margin-bottom: 5px; font-size: 10.5px; font-weight: 600; line-height: 1.5; text-transform: uppercase; letter-spacing: .08em; color: var(--c-model); }
 #workflowMapModal .wf-said { white-space: pre-line; overflow-wrap: anywhere; }      /* what was said, whole, its lines kept (0330) */
-#workflowMapModal .map-rest { font-size: var(--fs-meta); color: var(--text-tertiary); }      /* until a box is under the pointer: what a click and the pointer do */
+#workflowMapModal .wf-said p { margin: 0 0 7px; }
+#workflowMapModal .wf-said p:last-child { margin-bottom: 0; }
+#workflowMapModal .wf-said code { padding: 0 4px; border-radius: 4px; background: var(--bg-tertiary); font-family: var(--font-mono); font-size: .9em; }
 #workflowMapModal .workflow-details-pane:has(.details-text:empty) { display: none; }      /* a map with nothing on it: nothing to say */
 #workflowMapModal .details-plot-preview:empty { display: none; }
-#workflowMapModal .wf-info { display: grid; grid-template-columns: 82px 1fr; gap: 3px 10px; font-size: var(--fs-meta); }
+#workflowMapModal .details-plot-preview:not(:empty) { padding-top: 10px; border-top: 1px solid var(--border-color); }
+#workflowMapModal .wf-info { display: grid; grid-template-columns: 88px 1fr; gap: 6px 12px; align-items: baseline; }
 #workflowMapModal .wf-info-row { display: contents; }
-#workflowMapModal .wf-info-row > span { color: var(--text-quaternary); }
-#workflowMapModal .wf-info-row > b { font-weight: 400; color: var(--text-primary); }
-#workflowMapModal .wf-info-id { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-quaternary); margin-left: 6px; }
-#workflowMapModal .wf-info-conclusion > b { color: var(--text-secondary); line-height: 1.45; }
+#workflowMapModal .wf-info-row > span { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--text-quaternary); }
+#workflowMapModal .wf-info-row > b { font-size: 12.5px; font-weight: 400; line-height: 1.5; color: var(--text-primary); overflow-wrap: anywhere; }
+#workflowMapModal .wf-info-id { margin-left: 6px; font-family: var(--font-mono); font-size: var(--fs-small); font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--text-quaternary); }
+#workflowMapModal .wf-info-conclusion > b { color: var(--text-secondary); }
+#workflowMapModal .wf-info-printed > b { font-family: var(--font-mono); font-size: 12px; color: var(--text-secondary); }
 #workflowMapModal .details-plot-preview img { max-width: 100%; border-radius: var(--r-1); border: 1px solid var(--border-color); }
 #workflowMapModal .plot-preview-message { font-size: var(--fs-small); color: var(--text-quaternary); }
 #workflowMapModal .map-drawer-foot { display: flex; align-items: center; padding: 10px 14px; margin: 0; border: none; border-top: 1px solid var(--border-color); background: none; }

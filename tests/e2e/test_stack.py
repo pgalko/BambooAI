@@ -121,8 +121,9 @@ def conversation_map(page):
     """A map as the person sees it in the maps drawer - the Workflow map, the Pathfinding map (docs/ARCHITECT_DESIGN.md §2.25), the Analysis map: whether the drawer is open; the level
     it is on, by its name, and what that level says, under the pointer, is on its map; the switch (0327) - each level with its number, * the one in use, - one that cannot be shown, the
     chain on screen named between them - and why a level cannot be shown; each box - what it says and what stands under that -, which box is the open one, which are lit and not faint;
-    what the drawer's foot says, with its rows; how many of the Workflow map's own marks it has, and whether the thread's buttons are in view. And the head: the buttons by their names,
-    whether the switch's parts and the buttons stand in that order on the head's middle line, how many of the buttons stand on the map, and whether the foot's line is the quiet one."""
+    what the drawer's foot says - its head (0332), what was said, paragraph by paragraph, and its rows; how many of the Workflow map's own marks it has, and whether the thread's buttons
+    are in view. And the head: the buttons by their names, whether the switch's parts and the buttons stand in that order on the head's middle line, how many of the buttons stand on the
+    map, and whether the foot is filled."""
     return page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), bar = document.getElementById('mapLevels'), boxes = [...d.querySelectorAll('.wf-node')];
         const nth = keep => boxes.map((x, i) => keep(x) ? i + 1 : 0).filter(Boolean), used = bar.querySelector('.map-level[aria-pressed="true"]');
         const said = x => x.textContent + (x.getAttribute('aria-pressed') === 'true' ? '*' : '') + (x.getAttribute('aria-disabled') ? '-' : '');
@@ -132,7 +133,8 @@ def conversation_map(page):
                  focus: document.activeElement && document.activeElement.classList.contains('map-level') ? document.activeElement.dataset.level : document.activeElement.id || document.activeElement.tagName,
                  boxes: boxes.map(x => [x.querySelector('.wf-node-label').textContent, x.querySelector('.wf-node-chain').textContent]),
                  on: nth(x => x.classList.contains('wf-node--active')), lit: nth(x => parseFloat(getComputedStyle(x).opacity) === 1),
-                 says: document.getElementById('nodeTaskContent').textContent, rows: [...d.querySelectorAll('#nodePlotPreview .wf-info-row')].map(r => [...r.children].map(c => c.textContent)),
+                 foot_head: (d.querySelector('#nodeTaskContent .wf-head') || {}).textContent || '', says: [...d.querySelectorAll('#nodeTaskContent .wf-said p')].map(p => p.textContent).join('\\n\\n'),
+                 rows: [...d.querySelectorAll('#nodePlotPreview .wf-info-row')].map(r => [...r.children].map(c => c.textContent)),
                  thread: d.querySelectorAll('.wf-node-made, .wf-edge-label').length, buttons: getComputedStyle(d.querySelector('.map-drawer-foot')).display !== 'none',
                  head: (() => { const box = e => e.getBoundingClientRect(), h = box(d.querySelector('.map-drawer-head'));
                      const tools = [...d.querySelectorAll('.map-drawer-tools button')], parts = [...bar.querySelectorAll('.map-level, .map-chain')].concat(tools);
@@ -140,13 +142,13 @@ def conversation_map(page):
                               line: parts.every(e => box(e).width > 0 && box(e).top >= h.top && box(e).bottom <= h.bottom && Math.abs(box(e).top + box(e).height / 2 - (h.top + 22)) <= 2),
                               order: parts.every((e, i) => i === 0 || box(e).left >= box(parts[i - 1]).right),
                               on_map: [...d.querySelectorAll('.wf-zoom-controls, .wf-fullscreen-btn')].filter(e => d.querySelector('.workflow-body').contains(e)).length,
-                              quiet: !!d.querySelector('#nodeTaskContent .map-rest') }; })() }; }""")
+                              filled: !!d.querySelector('#nodeTaskContent .wf-head') }; })() }; }""")
 
 
 def map_head():
     """The drawer's head as every map has it (0324; its switch, 0327): the switch's parts, then zoom, full screen and the close, in that order on one line - none of them on the map -
-    and the foot's line the quiet one."""
-    return {"names": ["Zoom out", "Zoom in", "Fit to the frame", "Full screen", "Close"], "line": True, "order": True, "on_map": 0, "quiet": True}
+    and the foot filled from the first (0332)."""
+    return {"names": ["Zoom out", "Zoom in", "Fit to the frame", "Full screen", "Close"], "line": True, "order": True, "on_map": 0, "filled": True}
 
 
 def open_maps(page, level=None):
@@ -1306,6 +1308,8 @@ def walk_tutor(page, mod, wa, edition, user):
     rows_m, rec_m = len(usage_rows(wa, edition, user)), thread_run(wa, user, tid, cid)
     open_map()
     m0 = conversation_map(page)
+    page.hover("#workflowMapModal .wf-node >> nth=4")      # the open box under the pointer: what the foot said from the first (0332)
+    m_on = conversation_map(page)
     page.hover("#workflowMapModal .wf-node >> nth=2")
     m_over = conversation_map(page)
     page.hover("#workflowMapModal .map-drawer-head")       # the pointer off the boxes
@@ -1320,24 +1324,26 @@ def walk_tutor(page, mod, wa, edition, user):
     quiet_m = [len(usage_rows(wa, edition, user)) == rows_m, thread_run(wa, user, tid, cid) == rec_m]
     check("the conversation's map (0316; 0327): the maps drawer, its Pathfinding level pressed, holds the conversation's map - the level lit, saying how many steps and where they branch - "
           "with the thread's buttons out of it; the Analysis level is greyed, the brief not being run. A box to a step, joined to the step it follows: on it what the coach said - the question as it was asked on the first - and under it what the step changed. The "
-          "step on screen is the open box and the way to it is lit; the step that was left is faint. Under the pointer that box lights its own way, and the drawer's foot says what was said "
-          "there, where the step stands as the arrows would count it, what it follows, how many follow it, what it changed and the Pathfinder's reply, whole (0330); the pointer gone, "
+          "step on screen is the open box and the way to it is lit; the step that was left is faint. The drawer's foot says from the first what the step on screen is, as the pointer over "
+          "its box has it (0332). Under the pointer a box lights its own way, and the foot says where the step stands as the arrows would count it, what was said there, what it follows, "
+          "how many follow it, what it changed and the Pathfinder's reply, whole (0330); the pointer gone, "
           "the way to the step on screen is lit again. A click on the box shuts the drawer, and both panes are that step's: the wording the coach gave in the box, the conversation of the way "
-          "that was left - and nothing of the way taken since. Opened again, the map has that step open, its way lit and the other way faint, and its foot says what a click and the pointer do; its cross "
+          "that was left - and nothing of the way taken since. Opened again, the map has that step open, its way lit and the other way faint, and its foot says what that step is; its cross "
           "shuts it. Its head is the drawer's one head: the switch, then zoom, full screen and the close on one line - nothing on the map. "
           "Nothing went to the server, and the record is as it was",
-          m0["open"] and (m0["title"], m0["sub"], m0["says"], m0["rows"]) == ("Pathfinding", "5 steps · 1 branch", "Click a step to go to it. Hover over one to read what was said.", [])
+          m0["open"] and (m0["title"], m0["sub"], m0["says"]) == ("Pathfinding", "5 steps · 1 branch", mod.ARCHITECT_UNREAD) and bool(re.fullmatch(r"Step (\d+) of \1 · on screen", m0["foot_head"]))
+          and [m0[k] for k in ("foot_head", "says", "rows")] == [m_on[k] for k in ("foot_head", "says", "rows")] and m0["rows"][:2] == [["Follows", "step 3"], ["Follow-ups", "none"]]
           and re.fullmatch(r"Workflow\d+ / Chain \d+ / Pathfinding5\* \| Analysis-", m0["switch"]) and list(m0["off"]) == ["analysis"]
           and re.fullmatch(r"Chain \d+ has no turns to go back to", m0["off"]["analysis"]) and m0["head"] == map_head()
           and m0["boxes"] == [[cut(mod.TUTOR_QUESTION), "your question"], [cut(mod.TUTOR_CHOICES[0]), "question"], [cut(mod.ARCHITECT_OWN + own), "question"], [cut(mod.ARCHITECT_YES[0]), ""],
                               [cut(mod.ARCHITECT_UNREAD), ""]]
           and (m0["on"], m0["lit"], m0["thread"], m0["buttons"]) == ([5], [1, 2, 4, 5], 0, False)
-          and m_over["lit"] == [1, 2, 3, 5] and m_over["says"] == mod.ARCHITECT_OWN + own
-          and m_over["rows"] == [["Step", "3 of 3"], ["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Pathfinder", mod.ARCHITECT_BACK]]
+          and m_over["lit"] == [1, 2, 3, 5] and (m_over["foot_head"], m_over["says"]) == ("Step 3 of 3", mod.ARCHITECT_OWN + own)
+          and m_over["rows"] == [["Follows", "step 2"], ["Follow-ups", "none"], ["Changed", "question"], ["Pathfinder", mod.ARCHITECT_BACK]]
           and m_rest["lit"] == [1, 2, 4, 5] and m_rest["on"] == [5]
           and (b_left["v"], b_left["title"], b_left["start"]) == ("3 of 3", own, "Start analysis") and t_left["said"] == t2["said"] and t_left["notes"] == t2["notes"] and t_left["choices"] == mod.ARCHITECT_YES
-          and (m_left["on"], m_left["lit"], m_left["says"], m_left["rows"]) == ([3], [1, 2, 3], "Click a step to go to it. Hover over one to read what was said.", [])
-          and quiet_m == [True, True], (m0, m_over, m_rest["lit"], b_left["v"], b_left["title"], t_left["said"][-2:], m_left, quiet_m))
+          and (m_left["on"], m_left["lit"], m_left["foot_head"], m_left["says"], m_left["rows"]) == ([3], [1, 2, 3], "Step 3 of 3 · on screen", m_over["says"], m_over["rows"])
+          and quiet_m == [True, True], (m0, m_on, m_over, m_rest["lit"], b_left["v"], b_left["title"], t_left["said"][-2:], m_left, quiet_m))
     tell(page, choice=0)                         # at the end of the way that was left: the coach takes the wording after all
     t_on, b_on, f_on = talk_on_screen(page), brief_on_screen(page), thread_run(wa, user, tid, cid).get("framing", {})
     read_on = read_last()
@@ -2019,14 +2025,14 @@ def walk_draft(page, st, mod, wa, edition, user):
     check("the maps in one place (0327): nothing above the analysis or beside the Brief tab's arrows opens a map - the left bar's button, named Maps, is the way in. It opens one drawer, "
           "on the map it was left on, the level in use with the focus. The switch names the chain on screen between the thread's level and that chain's two: Workflow says how many "
           "chains and branches, and has the thread's buttons under its map; Pathfinding holds the steps that made the brief, a box to each; Analysis the turns of the analysis and its "
-          "branches. A click on a chain's box leaves the drawer open. The right and left arrow keys go round the levels, the focus with them; Ctrl+M shuts the drawer and opens it "
-          "again where it was",
+          "branches; the foot says from the first what the box in use is (0332). A click on a chain's box leaves the drawer open. The right and left arrow keys go round the levels, "
+          "the focus with them; Ctrl+M shuts the drawer and opens it again where it was",
           ways_in == {"above": 0, "brief": ["step", "step"], "rail": ["Maps (⌘M)", "Maps"]}
           and (w_map["title"], w_map["sub"], w_map["buttons"], len(w_map["boxes"])) == ("Workflow", "1 chain · 2 branches", True, 1) and w_map["head"] == map_head() and w_map["off"] == {}
           and re.fullmatch(r"Workflow1\* / Chain 1 / Pathfinding\d+ \| Analysis\d+", w_map["switch"]) and w_clicked == [True, w_map["switch"]]
           and (w_again["open"], w_again["title"], w_again["focus"]) == (True, "Workflow", "workflow")
           and p_map["title"] == "Pathfinding" and re.fullmatch(r"\d+ steps?( · \d+ branch(es)?)?", p_map["sub"]) and p_map["sub"].startswith(f"{len(p_map['boxes'])} step") and p_map["buttons"] is False
-          and f"Pathfinding{len(p_map['boxes'])}* |" in p_map["switch"] and p_map["says"] == "Click a step to go to it. Hover over one to read what was said." and p_map["head"] == map_head()
+          and f"Pathfinding{len(p_map['boxes'])}* |" in p_map["switch"] and bool(re.fullmatch(r"Step (\d+) of \1 · on screen", p_map["foot_head"])) and p_map["says"] and p_map["head"] == map_head()
           and keys == [["Analysis", "analysis"], ["Workflow", "workflow"], ["Analysis", "analysis"]]
           and (a_map["title"], a_map["sub"], a_map["buttons"]) == ("Analysis", f"{len(a_map['boxes'])} turns · 2 branches", False) and a_map["switch"].endswith(f"| Analysis{len(a_map['boxes'])}*")
           and shut_m is False and (back_m["open"], back_m["title"], back_m["focus"]) == (True, "Analysis", "analysis"),
@@ -3042,11 +3048,11 @@ def main():
             check("the Analysis map (0320; in the maps drawer, 0327): nothing above a finished analysis opens a map - the row of its ids holds the ids alone, on one line under the strip, and "
                   "says the analysis can be gone on from. The maps drawer, its Analysis level pressed, holds the map of the analysis's turns - the level lit, saying how many turns, the "
                   "thread's own buttons out of it; a box to a turn, with its number and its cell under what it did; the last turn is the open box. Its head: the switch, then zoom, "
-                  "full screen and the close on one line - none of them on the map; the foot says what a click and the pointer do",
+                  "full screen and the close on one line - none of them on the map; the foot says from the first what the last turn is, and what it said (0332)",
                   head == {"scrolled": True, "buttons": 0, "goes_on": "1", "under": True, "line": True}
                   and map1["title"] == "Analysis" and map1["sub"] == f"{len(map1['boxes'])} turns" and len(map1["boxes"]) >= 2 and map1["buttons"] is False
                   and re.fullmatch(r"Workflow9 / Chain 9 / Pathfinding- \| Analysis" + str(len(map1["boxes"])) + r"\*", map1["switch"]) and map1["off"] == {"pathfinding": "Chain 9 was asked without the Pathfinder"}
-                  and map1["head"] == map_head() and map1["says"] == "Click a turn to go back to it. Hover over one to see what it did."
+                  and map1["head"] == map_head() and map1["foot_head"] == f"Turn {len(map1['boxes'])} · report · on screen" and map1["says"]
                   and re.fullmatch(r"Turn 1 · In \[\d+\]", map1["boxes"][0][1]) and map1["boxes"][-1][1] == f"Turn {len(map1['boxes'])} · report" and map1["on"] == [len(map1["boxes"])]
                   and map1["lit"] == list(range(1, len(map1["boxes"]) + 1)), (head, map1))
             used = page.evaluate("""() => { const d = document.getElementById('workflowMapModal'), q = s => d.querySelector(s), level = () => parseInt(q('.wf-zoom-level').textContent, 10);
@@ -3151,10 +3157,11 @@ def main():
             came_back = [left_pane(page)["position"], entry_b()["chain"]]
             check("the Workflow map and the arrows count analyses, not branches (0320): eleven chains in the thread, nine boxes - the two analyses that went on another way each saying "
                   "so -, the open box that of the analysis on screen, showing the branch; the arrows step to the next analysis and back to the branch that was on screen. The drawer's "
-                  "Workflow level is lit and says how many chains and branches; the thread's buttons are in view, the head is the drawer's one head, and its foot says what a click and "
-                  "the pointer do; a click where the left bar's button stands - the page is dimmed under the drawer (0329) - shuts the drawer",
+                  "Workflow level is lit and says how many chains and branches; the thread's buttons are in view, the head is the drawer's one head, and its foot says from the first "
+                  "what the chain on screen is - its place, its id and its question (0332); a click where the left bar's button stands - the page is dimmed under the drawer (0329) - shuts the drawer",
                   thread_map["boxes"] == 9 and entry_b2["n"] == n_b + 2 == 11 and thread_drawer["sub"] == "9 chains · 2 branches" and thread_map["branches"] == ["1 branch", "1 branch"]
-                  and thread_drawer["head"] == map_head() and (thread_drawer["title"], thread_drawer["says"]) == ("Workflow", "Click a chain to open it. Hover over one to see its question.")
+                  and thread_drawer["head"] == map_head() and thread_drawer["title"] == "Workflow" and thread_drawer["says"]
+                  and bool(re.fullmatch(r"Chain \d of 9 · on screen " + re.escape(str(entry_b2["chain"])), thread_drawer["foot_head"]))
                   and thread_map["on"] == [f"Chain: {entry_b2['chain']}"] and thread_drawer["buttons"] is True and thread_map["level"] == "workflow"
                   and page.evaluate("() => getComputedStyle(document.getElementById('workflowMapModal')).display") == "none"
                   and stepped != at_first and came_back == [at_first, entry_b2["chain"]], (thread_map, at_first, stepped, came_back))

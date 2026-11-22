@@ -183,7 +183,8 @@ const drawer = $('workflowMapModal'), nodes = () => $('workflowMapContainer').qu
 const level = key => $('mapLevels').querySelector('[data-level="' + key + '"]'), press = key => $('mapLevels').dispatch('click', level(key));
 const bar = () => $('mapLevels').elements.map(x => (x.classList.contains('map-of-chain') ? x.elements : [x]).map(y => y.textContent + (y.getAttribute('aria-pressed') === 'true' ? '*' : '') + (y.getAttribute('aria-disabled') ? '-' : '')).join(' | ')).join(' / ');
 const openMap = () => { if (drawer.style.display !== 'flex') M.toggle(); press('analysis'); };      // the Analysis map: the drawer opened, its level pressed
-const foot = () => [$('nodeTaskContent').textContent].concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
+const foot = () => [($('nodeTaskContent').querySelector('.wf-head') || {}).textContent || '', ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent || ''].filter(Boolean)      // head | said | the facts (0332)
+  .concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
 const lit = () => nodes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
 const edges = () => $('workflowMapContainer').querySelectorAll('.wf-edge').map(e => e.getAttribute('data-from') + '>' + e.getAttribute('data-to')).join();
 M.toggle();
@@ -198,11 +199,11 @@ M.shut();
 check('the Workflow map counts analyses: a box each, the one with branches saying how many - on the box and in the drawer\'s foot -, the open box that of the analysis on screen; a click on a '
   + 'box brings the chain it stands for on screen, and the drawer stays open (0327): its switch names that chain, and the map has its box open',
   same(tm, { boxes: ['What is in the data? > Chain: 10 > ', 'How do the two blocks compare? > Chain: 20 > 3 branches', 'And by soil type? > Chain: 30 > ', 'Stopped on the way > Chain: 40 > '], on: '2', edges: '0>1,1>2' })
-  && /Chain=2 of 4/.test(tmFoot) && /Branches=3/.test(tmFoot) && /Follow-ups=1/.test(tmFoot) && same(loaded.slice(before), [30]) && responses[currentResponseIndex] === f && barA === 'Workflow4* / Chain 2 / Pathfinding- | Analysis11' && same(barF, ['flex', 'Workflow4* / Chain 3 / Pathfinding- | Analysis2', '3']), [tm, tmFoot, loaded.slice(before), barA, barF]);
+  && tmFoot === 'Chain 2 of 4 · on screen 20 | How do the two blocks compare? | Follows=chain 1 | Follow-ups=1 | Branches=3' && same(loaded.slice(before), [30]) && responses[currentResponseIndex] === f && barA === 'Workflow4* / Chain 2 / Pathfinding- | Analysis11' && same(barF, ['flex', 'Workflow4* / Chain 3 / Pathfinding- | Analysis2', '3']), [tm, tmFoot, loaded.slice(before), barA, barF]);
 
-// ---- the drawer on the Workflow map (0327; the map's own head, 0324): the switch, what the level says of itself, the foot at rest
+// ---- the drawer on the Workflow map (0327; the map's own head, 0324): the switch, what the level says of itself, the foot from the first (0332)
 show(a); M.toggle();
-const headNow = () => ({ level: drawer.getAttribute('data-level'), shown: drawer.style.display, bar: bar(), said: level('workflow').getAttribute('title'), rest: $('nodeTaskContent').innerHTML,
+const headNow = () => ({ level: drawer.getAttribute('data-level'), shown: drawer.style.display, bar: bar(), said: level('workflow').getAttribute('title'), foot: foot(),
                          tools: $('mapDrawerTools').elements.length, boxes: nodes().length });
 const wfHead = headNow();
 const allChains = responses.splice(0); currentResponseIndex = -1;      // a thread with no chain yet
@@ -215,11 +216,11 @@ responses.splice(0); responses.push(...allChains); w.BranchUI = branchUI;
 show(a);
 M.shut();
 check('the drawer on the Workflow map (0327): its switch has Workflow lit, with how many chains; the chain on screen named; and that chain\'s two levels - here Pathfinding greyed, Analysis with '
-  + 'how many turns. Under the pointer the level says how many chains, and how many branches their analyses have between them; in the foot, what a click and the pointer do. A thread with no '
-  + 'chain yet: the switch is Workflow alone and says so, the foot says nothing, and there is no zoom or full screen to offer; one chain with one branch is "1 chain · 1 branch"',
+  + 'how many turns. Under the pointer the level says how many chains, and how many branches their analyses have between them; the foot says, from the first, what the chain on screen '
+  + 'is (0332). A thread with no chain yet: the switch is Workflow alone and says so, the foot says nothing, and there is no zoom or full screen to offer; one chain with one branch is "1 chain · 1 branch"',
   same(wfHead, { level: 'workflow', shown: 'flex', bar: 'Workflow4* / Chain 2 / Pathfinding- | Analysis11', said: '4 chains · 3 branches',
-                 rest: '<span class="map-rest">Click a chain to open it. Hover over one to see its question.</span>', tools: 2, boxes: 4 })
-  && same(emptyHead, { level: 'workflow', shown: 'flex', bar: 'Workflow* / no chains yet', said: 'no chains yet', rest: '', tools: 0, boxes: 0 }) && emptyMap === 'No workflow data to display.'
+                 foot: 'Chain 2 of 4 · on screen 20 | How do the two blocks compare? | Follows=chain 1 | Follow-ups=1 | Branches=3', tools: 2, boxes: 4 })
+  && same(emptyHead, { level: 'workflow', shown: 'flex', bar: 'Workflow* / no chains yet', said: 'no chains yet', foot: '', tools: 0, boxes: 0 }) && emptyMap === 'No workflow data to display.'
   && same(oneSaid, [1, '1 chain · 1 branch']), [wfHead, emptyHead, emptyMap, oneSaid]);
 
 // ---- the Analysis map
@@ -234,23 +235,23 @@ const state = () => ({ shown: drawer.style.display, level: drawer.getAttribute('
   on: nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), edges: edges(), thread: $('workflowMapContainer').querySelectorAll('.wf-node-branches, .wf-edge-label').length });
 openMap();
 const opened = state(), restFoot = foot();
-nodes()[2].dispatch('mouseenter'); const over3 = { foot: foot(), lit: lit() }; nodes()[2].dispatch('mouseleave');
+nodes()[2].dispatch('mouseenter'); const over3 = { foot: foot(), lit: lit(), printed: $('nodePlotPreview').querySelectorAll('.wf-info-printed b').map(x => x.textContent) }; nodes()[2].dispatch('mouseleave');
 nodes()[7].dispatch('mouseenter'); const over8 = { foot: foot(), lit: lit() }; nodes()[7].dispatch('mouseleave');
 nodes()[5].dispatch('mouseenter'); const over6 = foot(); nodes()[5].dispatch('mouseleave');
 nodes()[1].dispatch('mouseenter'); const over2 = foot(); nodes()[1].dispatch('mouseleave');
-check('the Analysis map: the drawer\'s Analysis level, pressed, shows the analysis of the chain on screen - the level lit, how many turns and branches under the pointer, in the foot what a click '
-  + 'and the pointer do, the thread\'s own marks out of it. Every turn is a box, joined to the turn it follows: on it what the turn did, and under that its number and its cell - or that the cell failed, or what '
+check('the Analysis map: the drawer\'s Analysis level, pressed, shows the analysis of the chain on screen - the level lit, how many turns and branches under the pointer, in the foot from the '
+  + 'first what the turn on screen is (0332), the thread\'s own marks out of it. Every turn is a box, joined to the turn it follows: on it what the turn did, and under that its number and its cell - or that the cell failed, or what '
   + 'else the turn was; the first turn of a branch carries the mark of its hint. The turn on screen - the last of the chain on screen - is the open box, and the way to it is lit',
   same(opened, { shown: 'flex', level: 'analysis', bar: 'Workflow4 / Chain 2 / Pathfinding- | Analysis11*', said: '11 turns · 3 branches',
     boxes: ['This turn loads both blocks. > Turn 1 · In [2]', 'This turn pools them. > Turn 2 · failed', 'This turn pools the two blo... > Turn 3 · In [3]', 'This turn lists what the ke... > Turn 4 · look-up',
             'This turn compares the blocks. > Turn 5 · In [4]', 'Everything asked is establi... > Turn 6 · report', 'This turn splits them. > Turn 4 · In [4] > hint', 'Each block has its own figure. > Turn 5 · report',
             'Nothing more is needed. > Turn 4 · report > hint', 'This turn compares them. > Turn 5 · In [5] > hint', 'B is the larger. > Turn 6 · report'],
-    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restFoot === 'Click a turn to go back to it. Hover over one to see what it did.', [opened, restFoot]);
-check('... under the pointer a box lights its own way, and the foot says what the turn did, its number - "on screen" for the one that is -, what it was, the hint its branch was given, how '
-  + 'many ways the analysis went on from it, and what its cell printed; when the pointer leaves, the way to the turn on screen is lit again',
-  same(over3, { foot: 'This turn pools the two blocks. | Turn=3 | Did=cell In [3] | Went on=3 ways | Printed=pooled 20', lit: '1,2,3' })
-  && same(over8, { foot: 'Each block has its own figure. | Turn=5 | Did=report | Hint=keep the two blocks apart', lit: '1,2,3,7,8' })
-  && over6 === 'Everything asked is established. | Turn=6 · on screen | Did=report' && over2 === 'This turn pools them. | Turn=2 | Did=a cell that failed' && lit() === '1,2,3,4,5,6', [over3, over8, over6, over2]);
+    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restFoot === 'Turn 6 · report · on screen | Everything asked is established.', [opened, restFoot]);
+check('... under the pointer a box lights its own way, and the foot says - its head - the turn\'s number, what it was and "on screen" for the one that is; what the turn did; then the hint '
+  + 'its branch was given, how many ways the analysis went on from it, and what its cell printed, set apart as printed; when the pointer leaves, the way to the turn on screen is lit again',
+  same(over3, { foot: 'Turn 3 · cell In [3] | This turn pools the two blocks. | Went on=3 ways | Printed=pooled 20', lit: '1,2,3', printed: ['pooled 20'] })
+  && same(over8, { foot: 'Turn 5 · report | Each block has its own figure. | Hint=keep the two blocks apart', lit: '1,2,3,7,8' })
+  && over6 === 'Turn 6 · report · on screen | Everything asked is established.' && over2 === 'Turn 2 · a cell that failed | This turn pools them.' && lit() === '1,2,3,4,5,6', [over3, over8, over6, over2]);
 // ---- the drawer's head (0324): zoom and full screen stand in it, before the close
 const mapHead = drawer.querySelector('.map-drawer-head'), mapTools = $('mapDrawerTools'), mapSheet = drawer.querySelector('.workflow-modal-content');
 const inHead = () => ({ tools: mapTools.elements.map(e => e.className).join(' | '), zoom: mapTools.querySelector('.wf-zoom-controls').elements.map(e => e.className).join(' | '),
@@ -259,7 +260,7 @@ const inHead = () => ({ tools: mapTools.elements.map(e => e.className).join(' | 
 const zoomBtn = i => mapTools.querySelectorAll('.wf-zoom-btn')[i], fullBtn = () => mapTools.querySelector('.wf-fullscreen-btn');
 $('workflowMapContainer').clientWidth = 2000; $('workflowMapContainer').clientHeight = 2000;      // a frame the whole map fits: it is drawn at 100%
 openMap();
-const headTurns = inHead(), restTurns = $('nodeTaskContent').innerHTML;
+const headTurns = inHead(), restTurns = foot();
 openMap();                                                       // the map drawn again: one set of buttons
 const headAgain = inHead();
 zoomBtn(1).dispatch('click'); const zoomedIn = inHead().level;
@@ -271,11 +272,11 @@ for (let i = 0; i < 8; i++) zoomBtn(1).dispatch('click');
 const zoomHigh = [inHead().level, zoomBtn(1).disabled, !!zoomBtn(2).disabled];
 zoomBtn(2).dispatch('click'); const zoomHome = [inHead().level, zoomBtn(1).disabled];
 check('the drawer\'s head (0324): zoom and full screen stand in the head, before the close - out, the level, in, fit, then full screen - each button with its name for a reader; none of them '
-  + 'stands on the map; a map drawn again has one set of them; the level in the head follows the zoom - at its smallest the way further out is shut, at its largest the way further in, and fit never - and fit brings the map back to its frame; the foot says, until a box is under the pointer, '
-  + 'what a click and the pointer do',
+  + 'stands on the map; a map drawn again has one set of them; the level in the head follows the zoom - at its smallest the way further out is shut, at its largest the way further in, and fit never - and fit brings the map back to its frame; the foot says, from the first, '
+  + 'what the turn on screen is (0332)',
   same(headTurns, { tools: 'wf-zoom-controls | wf-fullscreen-btn', zoom: 'wf-zoom-btn | wf-zoom-level | wf-zoom-btn | wf-zoom-btn wf-zoom-reset',
                     names: 'Zoom out | Zoom in | Fit to the frame | Full screen | Close', level: '100%', onMap: 0 }) && same(headAgain, headTurns)
-  && restTurns === '<span class="map-rest">Click a turn to go back to it. Hover over one to see what it did.</span>' && zoomedIn === '115%' && zoomedOut === '85%'
+  && restTurns === 'Turn 6 · report · on screen | Everything asked is established.' && zoomedIn === '115%' && zoomedOut === '85%'
   && same(zoomLow, ['30%', true, false]) && same(zoomFit, ['100%', false]) && same(zoomHigh, ['200%', true, false]) && same(zoomHome, ['100%', false]),
   [headTurns, headAgain, restTurns, zoomedIn, zoomedOut, zoomLow, zoomFit, zoomHigh, zoomHome]);
 const wheel = (deltaY, held) => { let stopped = false; $('workflowMapContainer').onwheel({ deltaY, ctrlKey: held, metaKey: false, preventDefault() { stopped = true; } }); return [inHead().level, stopped]; };
@@ -649,11 +650,29 @@ responses.push(longChain); show(longChain); openMap();
 nodes()[0].dispatch('mouseenter');
 const longFoot = { said: ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent, box: nodes()[0].querySelector('.wf-node-label').textContent };
 nodes()[0].dispatch('mouseleave');
-longFoot.stays = $('nodeTaskContent').textContent;
+longFoot.stays = ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent;
 M.shut(); responses.pop();
 check('the Analysis map\'s foot says the whole of what a turn said - every line of it, as text (0330: its first sentence, cut at 120 characters); the box keeps its short line; the foot '
   + 'keeps saying it when the pointer leaves the box, so what does not fit can be scrolled to',
   same(longFoot, { said: longStep, box: 'This turn compares the bloc...', stays: longStep }), longFoot);
+
+// ---- the foot from the first (0332): what the box in use is, before any box is under the pointer - the last box where none is in use; what was said, in paragraphs
+show(a); openMap(); const atOpen = [foot(), ($('nodeTaskContent').querySelector('.wf-head') || {}).innerHTML]; nodes()[5].dispatch('mouseenter'); const atHover = foot(); M.shut();
+b1.branch.hint = 'keep <b>A</b> & B apart'; openMap(); nodes()[7].dispatch('mouseenter');                // a hint that reads as markup
+const hintSaid = $('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('=')).filter(r => r.startsWith('Hint=')); M.shut(); b1.branch.hint = 'keep the two blocks apart';
+const said3 = 'The pooled figure stands.\n\nThis turn compares `df.mean()` by block,\nas the hint asks.';
+$('nodeTaskContent').innerHTML = ''; window.WorkflowGraph.foot('Turn 3', said3, window.WorkflowGraph.row('Hint', 'apart', 'x'));
+const paras = { ps: $('nodeTaskContent').querySelectorAll('.wf-said p').map(p => p.innerHTML), rows: $('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.className) };
+window.WorkflowGraph.foot('', '', ''); const nothing = [$('nodeTaskContent').innerHTML, $('nodePlotPreview').innerHTML];
+window.WorkflowGraph.render($('workflowMapContainer'), [{ chain_id: 1, parentChainId: null, queryText: 'First' }, { chain_id: '2<i>b</i>', parentChainId: 1, queryText: 'Second' }], -1);
+const noneInUse = foot();
+check('the foot says from the first what the box in use is (0332: until then what a click and the pointer do) - as it says under the pointer; where no box is in use, the last box. '
+  + 'What was said stands in paragraphs - a blank line parts two, a line break stays -, as text, `code` set as code; the facts under it, a row each, a kind of row named; a map with nothing on it, nothing. '
+  + 'A hint, and a chain\'s id, that read as markup are text',
+  atOpen[0] === atHover && atOpen[0] === 'Turn 6 · report · on screen | Everything asked is established.' && atOpen[1] === 'Turn 6 · report · on screen'
+  && same(paras, { ps: ['The pooled figure stands.', 'This turn compares <code>df.mean()</code> by block,\nas the hint asks.'], rows: ['wf-info-row x'] })
+  && same(nothing, ['', '']) && noneInUse === 'Chain 2 of 2 2<i>b</i> | Second | Follows=chain 1 | Follow-ups=none' && same(hintSaid, ['Hint=keep <b>A</b> & B apart']),
+  [atOpen, atHover, paras, nothing, noneInUse, hintSaid]);
 
 // ---- the arrows at the head of the Investigation tab (0329)
 // a thread of its own: a first question; an analysis that went on three ways - two from its third turn, one from the first of those; and a follow-up, an analysis of one run

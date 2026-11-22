@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.14 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.15 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -67,6 +67,10 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     it as a card in the composer's green, where the branch's own turns begin; a chain's box on the Workflow map has
     no way into the Code trace, which cluttered the boxes; and what the maps' foot says of a box is whole - the
     pane scrolls where it does not fit.
+22. The maps' foot from the first (2026-11-22, 0332; the product owner: the foot was empty when a map opened): it
+    says what the box in use is - the chain, turn or step on screen, or the last box where none is - as the
+    pointer over that box would, and in the same shape on every map: a head that names the box and whether it is
+    the one on screen, what was said in paragraphs, and the facts under a line.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -185,11 +189,12 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 **The Analysis map** is a level of the maps drawer (*The maps in one place*, below). Every turn of the analysis and
 of its branches is a box, joined to the turn it follows. A box says what the turn did, and under that its number and
 its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn of a branch carries
-the mark *hint*. The way to the turn on screen is lit. Under the pointer the drawer's foot says the whole of what
-the turn said (0330; its line, cut, until then), the hint its branch was given, how many ways the analysis went on
-from it and what its cell printed. The map can be shown once the run has ended with turns to go on from (`turn_map`
-on the closing card, which marks the row of the ids, `data-branch`; a stopped run has a closing card too), and not
-while an analysis runs. Until 0327 a button at the end of the row of the ids opened it (0321).
+the mark *hint*. The way to the turn on screen is lit. The drawer's foot says what that turn is from the first
+(0332), and under the pointer what a box's turn is: at its head its number, what it was and whether it is on screen;
+then the whole of what the turn said (0330; its line, cut, until then), the hint its branch was given, how many ways
+the analysis went on from it and what its cell printed. The map can be shown once the run has ended with turns to go
+on from (`turn_map` on the closing card, which marks the row of the ids, `data-branch`; a stopped run has a closing
+card too), and not while an analysis runs. Until 0327 a button at the end of the row of the ids opened it (0321).
 
 **Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by a
 rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the hint:
@@ -236,12 +241,12 @@ asked from a branch hangs under its analysis's box.
 
 **The maps' names and their head** (0324; the product owner, 2026-11-21: the head was misaligned and the three names
 did not say what each map is of). The drawer holds one of three maps (decision 17) and has one head for them, on one
-line (`index.html`, `shell.css`), with zoom - out, the level, in, fit - a line, full screen, and the close.
-Zoom and full screen were in the map's corners, over the drawing: `workflowGraph.js` puts them into the head each
-time a map is drawn, and a map with nothing on it has neither. The full-screen button says what a click does, also
-on a map drawn again while the drawer is over the page. What a click and the pointer do is said in the drawer's foot,
-until a box is under the pointer (*Click a turn to go back to it. Hover over one to see what it did.*). The small
-grey text of the drawer is one shade lighter than it was.
+line (`index.html`, `shell.css`), with zoom - out, the level, in, fit - a line, full screen, and the close. Zoom and
+full screen were in the map's corners, over the drawing: `workflowGraph.js` puts them into the head each time a map
+is drawn, and a map with nothing on it has neither. The full-screen button says what a click does, also on a map
+drawn again while the drawer is over the page. The drawer's foot said what a click and the pointer do until a box
+was under the pointer (*Click a turn to go back to it. Hover over one to see what it did.*); since 0332 it says from
+the first what the box in use is (decision 22). The small grey text of the drawer is one shade lighter than it was.
 
 **The maps in one place** (0327; the product owner, 2026-11-21: four things called a map opened from four places,
 and it was hard to remember which was where). `web_app/static/js/maps.js` is the drawer's one way in, and its head is
@@ -292,6 +297,15 @@ a switch (decision 18):
   first sentence of what it concluded; on the Pathfinding map what was said and the Pathfinder's reply. They were
   cut at 120, 200, 240 and 300 characters. The pane keeps saying it when the pointer leaves the box, so what does
   not fit can be scrolled to. A cell's *Printed* stays its first line, as its row in the left pane has it.
+- **The foot from the first** (0332, decision 22). The foot said nothing of a box until one was under the pointer -
+  only what a click and the pointer do -, so a map opened with nothing to read under it. Now, when a map is drawn,
+  its foot says what the box in use is - the chain on screen on the Workflow map, the turn on screen on the Analysis
+  map, the step on screen on the Pathfinding map; the last box where none is on screen - as the pointer over that
+  box would. It is one card on every map: a head in the small green capitals of a hint's card - *Turn 6 · cell In
+  [5] · on screen*, *Chain 2 of 4 · on screen*, *Step 3 of 3* -, where the place of a box moved to from the facts;
+  what was said, in paragraphs - a blank line parts two, a line break stays, `code` is set as code -; and the facts
+  under a line, their names in small capitals, a cell's *Printed* in the type of code. `WorkflowGraph.foot` and
+  `row` write it for every map; `rest` and its line are gone.
 - **No way into the Code trace on a box** (0330, decision 21). The label 0329 put on a chain's box of the Workflow
   map cluttered the boxes; the closing card's button, a report's `[cell n]` and a cell's name in the Investigation
   tab are the ways in.
@@ -382,6 +396,7 @@ before.
 | 0329 | The drawer over the dimmed page, as a dialog; the map steady under the pointer; the arrows between branches in the Investigation tab; the Code trace's name where an eye stood (decision 20). | built |
 | 0330 | A branch's kept turns in one fold, its hint as a card; the maps' foot whole; no Code trace on a chain's box (decision 21). | built |
 | 0331 | A framed analysis's branch shows the drafts of its brief on its Brief tab. | built |
+| 0332 | The maps' foot says from the first what the box in use is, in one shape on every map (decision 22). | built |
 
 ## 9. Tests
 
@@ -427,4 +442,7 @@ and its lines; `test_code_map.js`: no way into the trace on a box; the walk: the
 says, its turns -, the cards' buttons in a fold the person opened, a branch from a turn in it, and the boxes. (0331)
 `test_analyst.py`: `lineage` and `Plots.carry`; `test_app_path.py`: the plots kept under a branch's chain before it
 is announced, and those of a branch made before found by the route; the walk: a framed analysis's branch draws
-its drafts on its Brief tab.
+its drafts on its Brief tab. (0332) `test_branch.js`, `test_architect.js` and `test_maps.js`: each map's foot as
+the map opens - the box in use, the last box where none is -, its head, what was said in paragraphs with `code`,
+the facts; `test_shell.js`: the foot's rules; the walk: each map's foot as it opens, on the Pathfinding map as the
+pointer over the open box has it.

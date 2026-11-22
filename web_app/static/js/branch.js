@@ -24,14 +24,13 @@
     'use strict';
 
     const WORDS = {
-        mapRest: 'Click a turn to go back to it. Hover over one to see what it did.',
         mapSaid: (n, branches) => n + (n === 1 ? ' turn' : ' turns') + (branches ? ' · ' + branches + (branches === 1 ? ' branch' : ' branches') : ''),
         mapOff: { running: 'An analysis is running', none: n => 'Chain ' + n + ' has no turns to go back to' },
         turn: n => 'Turn ' + n, from: n => 'From turn ' + n, left: n => n + (n === 1 ? ' turn left' : ' turns left'),
         say: n => 'Say how the analysis should go on from turn ' + n,
         end: 'Back to the end', hinted: 'hint', onScreen: 'on screen', ways: n => n + ' ways',
         failed: 'failed', notRun: 'not run', aCell: n => 'cell In [' + n + ']', aFailed: 'a cell that failed', aNotRun: 'a cell that was not run',
-        info: { turn: 'Turn', did: 'Did', hint: 'Hint', ways: 'Went on', printed: 'Printed' },
+        info: { hint: 'Hint', ways: 'Went on', printed: 'Printed' },
         busy: 'An analysis is running: wait for it, or stop it, then go back to a turn',
         branchFrom: n => 'Branch from turn ' + n,
         branch: 'Branch', original: 'original', of: (k, n) => k + ' of ' + n, before: 'The branch before', after: 'The branch after',
@@ -298,17 +297,15 @@
                  off: busy() ? WORDS.mapOff.running : all.length ? '' : WORDS.mapOff.none(n), draw: () => drawMap(entry, all) };
     }
     function drawMap(entry, all) {
-        const on = boxOnScreen(all, entry);
-        const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
+        const on = boxOnScreen(all, entry), row = window.WorkflowGraph.row;
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map(b => ({ chain_id: b.key, parentChainId: b.from, queryText: b.turn.peek || did(b.turn) })), on, {
             sub: (item, i) => WORDS.turn(all[i].turn.n) + ' · ' + did(all[i].turn),
             tag: (item, i) => (all[i].entry.branch && all[i].turn.n === all[i].entry.branch.turn + 1 ? WORDS.hinted : ''),
-            show: (item, i) => {
+            show: (item, i) => {                         // the turn, what it said, whole (0330), and the hint, the ways on and what its cell printed
                 const b = all[i], t = b.turn, ways = all.filter(x => x.from === b.key).length;
-                byId('nodeTaskContent').innerHTML = '<span class="wf-said">' + esc(t.said || t.peek || did(t)) + '</span>';      // what the turn said, whole (0330)
-                byId('nodePlotPreview').innerHTML = '<div class="wf-info">' + row(WORDS.info.turn, t.n + (i === on ? ' · ' + WORDS.onScreen : '')) + row(WORDS.info.did, esc(didWhole(t))) +
+                window.WorkflowGraph.foot(esc(WORDS.turn(t.n) + ' · ' + didWhole(t)) + (i === on ? ' · ' + WORDS.onScreen : ''), t.said || t.peek || did(t),
                     (b.entry.branch ? row(WORDS.info.hint, esc(b.entry.branch.hint)) : '') + (ways > 1 ? row(WORDS.info.ways, WORDS.ways(ways)) : '') +
-                    (t.out ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.printed + '</span><b>' + esc(t.out) + '</b></div>' : '') + '</div>';
+                    (t.out ? row(WORDS.info.printed, esc(t.out), 'wf-info-printed') : ''));
             },
             pick: (item, i) => {
                 const b = all[i], here = onScreen();
@@ -316,7 +313,6 @@
                 go(here && owner(here, b.turn.n) === b.entry ? here : b.entry, b.turn.n);
             }
         });
-        window.WorkflowGraph.rest(WORDS.mapRest);
     }
     // A chain is on screen (updateNavigationButtons): it is the one its analysis shows from now on; a turn gone back to
     // on another chain is left; its turns have their buttons, where it was kept from before they had; and its

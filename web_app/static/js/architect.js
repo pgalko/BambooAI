@@ -81,7 +81,7 @@
         // the Pathfinding map - the steps that made the brief: the drawer's words, why it cannot be shown, what a box says where the coach said nothing, and its second line - the parts of the brief the step changed, in the tab's words
         mapSaid: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : ''),
         mapOff: { none: n => 'Chain ' + n + ' was asked without the Pathfinder', old: n => 'Chain ' + n + "'s brief was made before version 2.8.1" },
-        mapRest: 'Click a step to go to it. Hover over one to read what was said.', asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Pathfinder went on',
+        asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Pathfinder went on',
         info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
         part: { question: 'question', decision: 'what it is for', thinks: 'what you think', rests_on: 'why you think so', expects: 'what you expect', would_change: 'what would change your mind',
                 also_check: 'other explanations', 'fixed.comparison': 'what is compared', 'fixed.measure': 'measured by', 'fixed.period': 'period', figures: 'figure', saved: 'builds on' },
@@ -1045,21 +1045,18 @@
     }
     function drawMap(st, all) {
         const framing = st.framing, held = steps.held(framing), words = all.map(s => stepWords(framing, s, held[s.k]));
-        const row = (name, value) => '<div class="wf-info-row"><span>' + name + '</span><b>' + value + '</b></div>';
+        const row = window.WorkflowGraph.row;
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map((s, i) => ({ chain_id: s.k, parentChainId: s.from || null, queryText: words[i].label })), st.shown - 1, {
             sub: (item, i) => (all[i].from ? [] : [WORDS.asked1]).concat(words[i].parts).join(' · '),
             show: (item, i) => {
                 const s = all[i], at = steps.place(framing, s.k), next = all.filter(x => x.from === s.k).length;
-                byId('nodeTaskContent').innerHTML = '<span class="wf-said">' + esc(words[i].label) + '</span>';      // whole, and the reply whole (0330: cut at 300 and 240)
-                byId('nodePlotPreview').innerHTML = '<div class="wf-info">' +
-                    row(WORDS.info.step, WORDS.of(at.i, at.n) + (s.k === st.shown ? ' · ' + WORDS.onScreen : '')) +
+                window.WorkflowGraph.foot(WORDS.info.step + ' ' + WORDS.of(at.i, at.n) + (s.k === st.shown ? ' · ' + WORDS.onScreen : ''), words[i].label,      // whole, and the reply whole (0330: cut at 300 and 240)
                     row(WORDS.info.follows, s.from ? WORDS.stepN(at.i - 1) : WORDS.theStart) + row(WORDS.info.next, next || WORDS.none) +
                     row(WORDS.info.changed, esc(words[i].parts.join(' · ') || WORDS.nothing)) +
-                    (words[i].reply ? '<div class="wf-info-row wf-info-conclusion"><span>' + WORDS.info.replied + '</span><b class="wf-said">' + esc(words[i].reply) + '</b></div>' : '') + '</div>';
+                    (words[i].reply ? row(WORDS.info.replied, '<span class="wf-said">' + esc(words[i].reply) + '</span>', 'wf-info-conclusion') : ''));
             },
             pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }
         });
-        window.WorkflowGraph.rest(WORDS.mapRest);
     }
 
     // a saved analysis a reading found, viewed whole in a dialog over the page: the report, and under it the conversation,

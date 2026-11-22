@@ -27,7 +27,7 @@ global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText
 // the Pathfinding level's stand-in: what the chain on screen has, by its chain id
 const steps = {}, drawn = [];
 window.ArchitectUI = { mark: () => '', map: n => { const s = steps[currentData.chain_id];
-  return s ? { n: s, said: s + ' steps', off: '', draw() { drawn.push('pathfinding of chain ' + n); window.WorkflowGraph.rest('the steps'); $('workflowMapContainer').innerHTML = ''; } }
+  return s ? { n: s, said: s + ' steps', off: '', draw() { drawn.push('pathfinding of chain ' + n); window.WorkflowGraph.foot('', 'the steps', ''); $('workflowMapContainer').innerHTML = ''; } }
            : { n: 0, said: '', off: 'Chain ' + n + ' was asked without the Pathfinder', draw() {} }; } };
 let runView = false; window.RoutinesUI = { inRunView: () => runView };
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;
@@ -94,13 +94,13 @@ check('the switch (0327): Workflow, with how many chains; the chain on screen, b
 
 // ---- from level to level
 press('analysis');
-const onAnalysis = now().concat(boxes(), $('nodeTaskContent').textContent);
+const onAnalysis = now().concat(boxes(), ['.wf-head', '.wf-said'].map(s => ($('nodeTaskContent').querySelector(s) || {}).textContent));
 press('pathfinding');                                             // greyed: nothing
 const greyed = now();
 press('workflow');
 const onWorkflow = now();
-check('a level pressed is the one the drawer shows: its map, its words in the foot, the level lit - and the focus, which was on the switch, is on it. A greyed level pressed does nothing',
-  same(onAnalysis, ['flex', 'analysis', 'Workflow3 / Chain 2 / Pathfinding- | Analysis3*', 'level analysis', 3, 'Click a turn to go back to it. Hover over one to see what it did.'])
+check('a level pressed is the one the drawer shows: its map, the box in use in the foot (0332), the level lit - and the focus, which was on the switch, is on it. A greyed level pressed does nothing',
+  same(onAnalysis, ['flex', 'analysis', 'Workflow3 / Chain 2 / Pathfinding- | Analysis3*', 'level analysis', 3, 'Turn 3 · report · on screen', 'This turn takes step 3.'])
   && same(greyed.slice(0, 3), onAnalysis.slice(0, 3)) && same(onWorkflow.slice(0, 3), ['flex', 'workflow', 'Workflow3* / Chain 2 / Pathfinding- | Analysis3']), [onAnalysis, greyed, onWorkflow]);
 
 // ---- the arrow keys
@@ -202,7 +202,7 @@ check('the drawer follows what is on screen: the page\'s hook for a chain on scr
   && rt.includes("        updateRunNav();\n        if (window.MapsUI) window.MapsUI.follow();")
   && qp.includes("    if (window.MapsUI) window.MapsUI.shut();") && qp.indexOf('window.MapsUI.shut()') > qp.indexOf('queryRunning = true;') && qp.indexOf('window.MapsUI.shut()') > qp.indexOf('window.ArchitectUI.open(query);')
   && (qp.match(/MapsUI/g) || []).length === 2 && (wm.match(/window\.MapsUI\.shut\(\);/g) || []).length === 3 && !graph.includes('MapsUI')
-  && !/workflowMapModal'\)\.style\.display/.test(wm + graph) && graph.includes('return { render: render, rest: rest, toggleFullscreen: toggleFullscreen };') && !graph.includes('function head('));
+  && !/workflowMapModal'\)\.style\.display/.test(wm + graph) && graph.includes('return { render: render, foot: foot, row: row, toggleFullscreen: toggleFullscreen };') && !graph.includes('function rest(') && !graph.includes('function head('));
 check('the stylesheet: the head is one line - the switch, which takes the room left, then the tools; a level is a button of the head\'s size, the one in use lit as the mode control\'s is, '
   + 'a greyed one faint under a pointer that says no; the chain\'s two levels are one control; the chain\'s name is the part that gives way; the thread\'s buttons show on the Workflow '
   + 'map alone; the drawer is wide enough for two digits on every level',
