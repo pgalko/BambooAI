@@ -183,27 +183,31 @@ const drawer = $('workflowMapModal'), nodes = () => $('workflowMapContainer').qu
 const level = key => $('mapLevels').querySelector('[data-level="' + key + '"]'), press = key => $('mapLevels').dispatch('click', level(key));
 const bar = () => $('mapLevels').elements.map(x => (x.classList.contains('map-of-chain') ? x.elements : [x]).map(y => y.textContent + (y.getAttribute('aria-pressed') === 'true' ? '*' : '') + (y.getAttribute('aria-disabled') ? '-' : '')).join(' | ')).join(' / ');
 const openMap = () => { if (drawer.style.display !== 'flex') M.toggle(); press('analysis'); };      // the Analysis map: the drawer opened, its level pressed
-const foot = () => [($('nodeTaskContent').querySelector('.wf-head') || {}).textContent || '', ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent || ''].filter(Boolean)      // head | said | the facts (0332)
-  .concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
+// what the drawer's panel says (0333): "name [tags] > its button" | what was said | the facts, a row each
+const panel = () => { const q = s => $('nodeTaskContent').querySelector(s), tags = $('nodeTaskContent').querySelectorAll('.wf-tag').map(t => t.textContent);
+  return [((q('.wf-title') || {}).textContent || '') + (tags.length ? ' [' + tags.join(', ') + ']' : '') + (q('.wf-go') ? ' > ' + q('.wf-go').textContent : ''), (q('.wf-said') || {}).textContent || '']
+    .filter(Boolean).concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | '); };
+// the way to a box (0333; until then a click on it): the box picked, then the panel's button pressed - where the panel has one
+const goTo = i => { nodes()[i].dispatch('click'); const go = $('nodeTaskContent').querySelector('.wf-go'); if (go) go.dispatch('click'); };
 const lit = () => nodes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
 const edges = () => $('workflowMapContainer').querySelectorAll('.wf-edge').map(e => e.getAttribute('data-from') + '>' + e.getAttribute('data-to')).join();
 M.toggle();
 const barA = bar();
 const tm = { boxes: nodes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent + ' > ' + ((x.querySelector('.wf-node-branches') || {}).textContent || '')),
              on: nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), edges: edges() };
-nodes()[1].dispatch('mouseenter'); const tmFoot = foot(); nodes()[1].dispatch('mouseleave');
+nodes()[1].dispatch('mouseenter'); const tmPanel = panel(); nodes()[1].dispatch('mouseleave');
 const before = loaded.length;
-nodes()[2].dispatch('click');
+goTo(2);
 const barF = [drawer.style.display, bar(), nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join()];
 M.shut();
-check('the Workflow map counts analyses: a box each, the one with branches saying how many - on the box and in the drawer\'s foot -, the open box that of the analysis on screen; a click on a '
-  + 'box brings the chain it stands for on screen, and the drawer stays open (0327): its switch names that chain, and the map has its box open',
+check('the Workflow map counts analyses: a box each, the one with branches saying how many - on the box and in the drawer\'s panel -, the open box that of the analysis on screen; a box '
+  + 'picked and its button pressed (0333; a click on it until then) brings the chain it stands for on screen, and the drawer stays open (0327): its switch names that chain, and the map has its box open',
   same(tm, { boxes: ['What is in the data? > Chain: 10 > ', 'How do the two blocks compare? > Chain: 20 > 3 branches', 'And by soil type? > Chain: 30 > ', 'Stopped on the way > Chain: 40 > '], on: '2', edges: '0>1,1>2' })
-  && tmFoot === 'Chain 2 of 4 · on screen 20 | How do the two blocks compare? | Follows=chain 1 | Follow-ups=1 | Branches=3' && same(loaded.slice(before), [30]) && responses[currentResponseIndex] === f && barA === 'Workflow4* / Chain 2 / Pathfinding- | Analysis11' && same(barF, ['flex', 'Workflow4* / Chain 3 / Pathfinding- | Analysis2', '3']), [tm, tmFoot, loaded.slice(before), barA, barF]);
+  && tmPanel === 'Chain 2 [on screen, 3 branches] | How do the two blocks compare? | Follows=chain 1 | Followed by=chain 3 | Id=20' && same(loaded.slice(before), [30]) && responses[currentResponseIndex] === f && barA === 'Workflow4* / Chain 2 / Pathfinding- | Analysis11' && same(barF, ['flex', 'Workflow4* / Chain 3 / Pathfinding- | Analysis2', '3']), [tm, tmPanel, loaded.slice(before), barA, barF]);
 
-// ---- the drawer on the Workflow map (0327; the map's own head, 0324): the switch, what the level says of itself, the foot from the first (0332)
+// ---- the drawer on the Workflow map (0327; the map's own head, 0324): the switch, what the level says of itself, the panel from the first (0332, 0333)
 show(a); M.toggle();
-const headNow = () => ({ level: drawer.getAttribute('data-level'), shown: drawer.style.display, bar: bar(), said: level('workflow').getAttribute('title'), foot: foot(),
+const headNow = () => ({ level: drawer.getAttribute('data-level'), shown: drawer.style.display, bar: bar(), said: level('workflow').getAttribute('title'), foot: panel(),
                          tools: $('mapDrawerTools').elements.length, boxes: nodes().length });
 const wfHead = headNow();
 const allChains = responses.splice(0); currentResponseIndex = -1;      // a thread with no chain yet
@@ -216,10 +220,10 @@ responses.splice(0); responses.push(...allChains); w.BranchUI = branchUI;
 show(a);
 M.shut();
 check('the drawer on the Workflow map (0327): its switch has Workflow lit, with how many chains; the chain on screen named; and that chain\'s two levels - here Pathfinding greyed, Analysis with '
-  + 'how many turns. Under the pointer the level says how many chains, and how many branches their analyses have between them; the foot says, from the first, what the chain on screen '
-  + 'is (0332). A thread with no chain yet: the switch is Workflow alone and says so, the foot says nothing, and there is no zoom or full screen to offer; one chain with one branch is "1 chain · 1 branch"',
+  + 'how many turns. Under the pointer the level says how many chains, and how many branches their analyses have between them; the panel says, from the first, what the chain on screen '
+  + 'is (0332). A thread with no chain yet: the switch is Workflow alone and says so, the panel says nothing, and there is no zoom or full screen to offer; one chain with one branch is "1 chain · 1 branch"',
   same(wfHead, { level: 'workflow', shown: 'flex', bar: 'Workflow4* / Chain 2 / Pathfinding- | Analysis11', said: '4 chains · 3 branches',
-                 foot: 'Chain 2 of 4 · on screen 20 | How do the two blocks compare? | Follows=chain 1 | Follow-ups=1 | Branches=3', tools: 2, boxes: 4 })
+                 foot: 'Chain 2 [on screen, 3 branches] | How do the two blocks compare? | Follows=chain 1 | Followed by=chain 3 | Id=20', tools: 2, boxes: 4 })
   && same(emptyHead, { level: 'workflow', shown: 'flex', bar: 'Workflow* / no chains yet', said: 'no chains yet', foot: '', tools: 0, boxes: 0 }) && emptyMap === 'No workflow data to display.'
   && same(oneSaid, [1, '1 chain · 1 branch']), [wfHead, emptyHead, emptyMap, oneSaid]);
 
@@ -234,24 +238,25 @@ const state = () => ({ shown: drawer.style.display, level: drawer.getAttribute('
   boxes: nodes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent + ((x.querySelector('.wf-node-made') || {}).textContent ? ' > ' + x.querySelector('.wf-node-made').textContent : '')),
   on: nodes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), edges: edges(), thread: $('workflowMapContainer').querySelectorAll('.wf-node-branches, .wf-edge-label').length });
 openMap();
-const opened = state(), restFoot = foot();
-nodes()[2].dispatch('mouseenter'); const over3 = { foot: foot(), lit: lit(), printed: $('nodePlotPreview').querySelectorAll('.wf-info-printed b').map(x => x.textContent) }; nodes()[2].dispatch('mouseleave');
-nodes()[7].dispatch('mouseenter'); const over8 = { foot: foot(), lit: lit() }; nodes()[7].dispatch('mouseleave');
-nodes()[5].dispatch('mouseenter'); const over6 = foot(); nodes()[5].dispatch('mouseleave');
-nodes()[1].dispatch('mouseenter'); const over2 = foot(); nodes()[1].dispatch('mouseleave');
-check('the Analysis map: the drawer\'s Analysis level, pressed, shows the analysis of the chain on screen - the level lit, how many turns and branches under the pointer, in the foot from the '
+const opened = state(), restPanel = panel();
+nodes()[2].dispatch('mouseenter'); const over3 = { foot: panel(), lit: lit(), printed: $('nodePlotPreview').querySelectorAll('.wf-info-printed b').map(x => x.textContent) }; nodes()[2].dispatch('mouseleave');
+nodes()[7].dispatch('mouseenter'); const over8 = { foot: panel(), lit: lit() }; nodes()[7].dispatch('mouseleave');
+nodes()[5].dispatch('mouseenter'); const over6 = panel(); nodes()[5].dispatch('mouseleave');
+nodes()[1].dispatch('mouseenter'); const over2 = panel(); nodes()[1].dispatch('mouseleave');
+check('the Analysis map: the drawer\'s Analysis level, pressed, shows the analysis of the chain on screen - the level lit, how many turns and branches under the pointer, in the panel from the '
   + 'first what the turn on screen is (0332), the thread\'s own marks out of it. Every turn is a box, joined to the turn it follows: on it what the turn did, and under that its number and its cell - or that the cell failed, or what '
   + 'else the turn was; the first turn of a branch carries the mark of its hint. The turn on screen - the last of the chain on screen - is the open box, and the way to it is lit',
   same(opened, { shown: 'flex', level: 'analysis', bar: 'Workflow4 / Chain 2 / Pathfinding- | Analysis11*', said: '11 turns · 3 branches',
     boxes: ['This turn loads both blocks. > Turn 1 · In [2]', 'This turn pools them. > Turn 2 · failed', 'This turn pools the two blo... > Turn 3 · In [3]', 'This turn lists what the ke... > Turn 4 · look-up',
             'This turn compares the blocks. > Turn 5 · In [4]', 'Everything asked is establi... > Turn 6 · report', 'This turn splits them. > Turn 4 · In [4] > hint', 'Each block has its own figure. > Turn 5 · report',
             'Nothing more is needed. > Turn 4 · report > hint', 'This turn compares them. > Turn 5 · In [5] > hint', 'B is the larger. > Turn 6 · report'],
-    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restFoot === 'Turn 6 · report · on screen | Everything asked is established.', [opened, restFoot]);
-check('... under the pointer a box lights its own way, and the foot says - its head - the turn\'s number, what it was and "on screen" for the one that is; what the turn did; then the hint '
-  + 'its branch was given, how many ways the analysis went on from it, and what its cell printed, set apart as printed; when the pointer leaves, the way to the turn on screen is lit again',
-  same(over3, { foot: 'Turn 3 · cell In [3] | This turn pools the two blocks. | Went on=3 ways | Printed=pooled 20', lit: '1,2,3', printed: ['pooled 20'] })
-  && same(over8, { foot: 'Turn 5 · report | Each block has its own figure. | Hint=keep the two blocks apart', lit: '1,2,3,7,8' })
-  && over6 === 'Turn 6 · report · on screen | Everything asked is established.' && over2 === 'Turn 2 · a cell that failed | This turn pools them.' && lit() === '1,2,3,4,5,6', [over3, over8, over6, over2]);
+    on: '6', lit: '1,2,3,4,5,6', edges: '0>1,1>2,2>3,3>4,4>5,2>6,6>7,2>8,6>9,9>10', thread: 0 }) && restPanel === 'Turn 6 [on screen, report] | Everything asked is established. | Follows=turn 5 | Followed by=none', [opened, restPanel]);
+check('... under the pointer a box lights its own way, and the panel says what the turn is (0333): its number; its tags - "on screen" for the one that is, what it was, the hint\'s mark; '
+  + 'the button that goes there; what the turn did; then the turn it follows and those that follow it, the hint its branch was given, and what its cell printed, set apart as printed; when '
+  + 'the pointer leaves, the way to the turn on screen is lit again',
+  same(over3, { foot: 'Turn 3 [In [3]] > Go to turn 3 | This turn pools the two blocks. | Follows=turn 2 | Followed by=3 turns | Printed=pooled 20', lit: '1,2,3', printed: ['pooled 20'] })
+  && same(over8, { foot: 'Turn 5 [report] > Go to turn 5 | Each block has its own figure. | Follows=turn 4 | Followed by=none | Hint=keep the two blocks apart', lit: '1,2,3,7,8' })
+  && over6 === 'Turn 6 [on screen, report] | Everything asked is established. | Follows=turn 5 | Followed by=none' && over2 === 'Turn 2 [failed] > Go to turn 2 | This turn pools them. | Follows=turn 1 | Followed by=turn 3' && lit() === '1,2,3,4,5,6', [over3, over8, over6, over2]);
 // ---- the drawer's head (0324): zoom and full screen stand in it, before the close
 const mapHead = drawer.querySelector('.map-drawer-head'), mapTools = $('mapDrawerTools'), mapSheet = drawer.querySelector('.workflow-modal-content');
 const inHead = () => ({ tools: mapTools.elements.map(e => e.className).join(' | '), zoom: mapTools.querySelector('.wf-zoom-controls').elements.map(e => e.className).join(' | '),
@@ -260,7 +265,7 @@ const inHead = () => ({ tools: mapTools.elements.map(e => e.className).join(' | 
 const zoomBtn = i => mapTools.querySelectorAll('.wf-zoom-btn')[i], fullBtn = () => mapTools.querySelector('.wf-fullscreen-btn');
 $('workflowMapContainer').clientWidth = 2000; $('workflowMapContainer').clientHeight = 2000;      // a frame the whole map fits: it is drawn at 100%
 openMap();
-const headTurns = inHead(), restTurns = foot();
+const headTurns = inHead(), restTurns = panel();
 openMap();                                                       // the map drawn again: one set of buttons
 const headAgain = inHead();
 zoomBtn(1).dispatch('click'); const zoomedIn = inHead().level;
@@ -272,11 +277,11 @@ for (let i = 0; i < 8; i++) zoomBtn(1).dispatch('click');
 const zoomHigh = [inHead().level, zoomBtn(1).disabled, !!zoomBtn(2).disabled];
 zoomBtn(2).dispatch('click'); const zoomHome = [inHead().level, zoomBtn(1).disabled];
 check('the drawer\'s head (0324): zoom and full screen stand in the head, before the close - out, the level, in, fit, then full screen - each button with its name for a reader; none of them '
-  + 'stands on the map; a map drawn again has one set of them; the level in the head follows the zoom - at its smallest the way further out is shut, at its largest the way further in, and fit never - and fit brings the map back to its frame; the foot says, from the first, '
+  + 'stands on the map; a map drawn again has one set of them; the level in the head follows the zoom - at its smallest the way further out is shut, at its largest the way further in, and fit never - and fit brings the map back to its frame; the panel says, from the first, '
   + 'what the turn on screen is (0332)',
   same(headTurns, { tools: 'wf-zoom-controls | wf-fullscreen-btn', zoom: 'wf-zoom-btn | wf-zoom-level | wf-zoom-btn | wf-zoom-btn wf-zoom-reset',
                     names: 'Zoom out | Zoom in | Fit to the frame | Full screen | Close', level: '100%', onMap: 0 }) && same(headAgain, headTurns)
-  && restTurns === 'Turn 6 · report · on screen | Everything asked is established.' && zoomedIn === '115%' && zoomedOut === '85%'
+  && restTurns === 'Turn 6 [on screen, report] | Everything asked is established. | Follows=turn 5 | Followed by=none' && zoomedIn === '115%' && zoomedOut === '85%'
   && same(zoomLow, ['30%', true, false]) && same(zoomFit, ['100%', false]) && same(zoomHigh, ['200%', true, false]) && same(zoomHome, ['100%', false]),
   [headTurns, headAgain, restTurns, zoomedIn, zoomedOut, zoomLow, zoomFit, zoomHigh, zoomHome]);
 const wheel = (deltaY, held) => { let stopped = false; $('workflowMapContainer').onwheel({ deltaY, ctrlKey: held, metaKey: false, preventDefault() { stopped = true; } }); return [inHead().level, stopped]; };
@@ -310,7 +315,7 @@ check('... the level cannot be shown while an analysis runs, nor for a chain wit
 const rule = () => ($('branchBack') || {}).textContent || '', chip = () => ($('branchChip') || {}).textContent || '';
 const comp = () => ({ hint: doc.body.classList.contains('br-hint'), words: $('queryInput').placeholder, chip: chip(), rule: rule(), at: B.standing() });
 show(a); openMap(); const tabsWere = $('contentOutput').innerHTML, paneWas = $('streamOutput').innerHTML, n0 = loaded.length;
-nodes()[2].dispatch('click');
+goTo(2);
 const back3 = comp(), shut3 = drawer.style.display;
 openMap(); const map3 = [state().on, state().lit]; M.shut();
 check('a click on a turn of the chain on screen goes back to it: the drawer shuts, the left pane ends at the turn - the cards after it, what stands under them and a hint given later are '
@@ -323,14 +328,14 @@ check('a click on a turn of the chain on screen goes back to it: the drawer shut
   && shut3 === 'none' && $('contentOutput').innerHTML === tabsWere && loaded.length === n0 && $('streamOutput').innerHTML === paneWas && same(map3, ['3', '1,2,3'])
   && $('branchChip').parentNode === doc.querySelector('.icon-row') && doc.querySelector('.icon-row').firstElementChild === $('branchChip') && !!$('branchChip').querySelector('svg')
   && $('branchChip').querySelector('button').getAttribute('onclick') === 'BranchUI.leave()' && $('branchChip').querySelector('button').getAttribute('title') === 'Back to the end', [back3, map3]);
-openMap(); nodes()[7].dispatch('click');                        // the last turn of another branch
+openMap(); goTo(7);                        // the last turn of another branch
 const onB1 = [responses[currentResponseIndex] === b1, same(loaded.slice(n0), [21]), comp()];
-openMap(); const mapB1 = [state().on, state().lit]; nodes()[1].dispatch('click');      // a turn the branch kept from the first run: on its way
+openMap(); const mapB1 = [state().on, state().lit]; goTo(1);      // a turn the branch kept from the first run: on its way
 const kept2 = [responses[currentResponseIndex] === b1, loaded.length === n0 + 1, comp(), $('streamOutput').querySelector('.sp-kept').hasAttribute('open')];
 openMap(); const mapKept = [state().on, state().lit];
-nodes()[9].dispatch('click');                                     // a turn of a branch of this branch, which can be gone on from
+goTo(9);                                     // a turn of a branch of this branch, which can be gone on from
 const onC5 = [responses[currentResponseIndex] === c, comp().at, comp().chip];
-openMap(); nodes()[5].dispatch('click');                        // the first run's report
+openMap(); goTo(5);                        // the first run's report
 const onA6 = [responses[currentResponseIndex] === a, comp()];
 const own = { hint: false, words: 'Enter your query here', chip: '', rule: '', at: null };
 check('a click on a turn of another branch brings that branch on screen, tabs and pane: its last turn shows it whole, the composer its own; a turn it kept from the first run is on its '
@@ -341,9 +346,9 @@ check('a click on a turn of another branch brings that branch on screen, tabs an
   && same(mapKept, ['2', '1,2'])
   && kept2[2].rule.startsWith('#streamOutput .sp-kept-body > .sp-turn[data-turn="2"] ~ .sp-turn,') && kept2[3] && same(onC5, [true, { chain: 23, turn: 5 }, 'From turn 5 · 3 turns left×']) && same(onA6, [true, own]),
   [onB1, mapB1, kept2, mapKept, onC5, onA6]);
-show(s); openMap(); const sMap = [state().said, state().on]; nodes()[1].dispatch('click'); const sBack = comp().at;
-responses.push(k); show(k); openMap(); nodes()[0].dispatch('click'); const kBack = comp().at;
-openMap(); nodes()[1].dispatch('click'); const kAsked = comp();
+show(s); openMap(); const sMap = [state().said, state().on]; goTo(1); const sBack = comp().at;
+responses.push(k); show(k); openMap(); goTo(0); const kBack = comp().at;
+openMap(); goTo(1); const kAsked = comp();
 check('a stopped analysis can be gone on from the last turn it finished: the turn it was stopped in ended nothing, and has no box; the turn in which the analyst asked the person a '
   + 'question shows the chain whole, while the turn before it can be gone on from',
   same(sMap, ['2 turns', '2']) && same(sBack, { chain: 40, turn: 2 }) && same(kBack, { chain: 70, turn: 1 }) && same(kAsked, own), [sMap, sBack, kBack, kAsked]);
@@ -354,17 +359,17 @@ M.shut(); show(responses[responses.length - 1]); const noBox = [B.map(6).n, B.ma
 responses.splice(responses.indexOf(e0), 1); responses.splice(responses.length - 1, 1); responses.splice(responses.indexOf(k), 1);
 check('a branch that made no turn of its own adds no box: on the map its place is the turn it went on from; a chain with no turn has no map to show',
   same(noOwn, ['11 turns · 4 branches', '2', '1,2', 11]) && same(noBox, [0, 'Chain 6 has no turns to go back to']), [noOwn, noBox]);
-show(a); openMap(); nodes()[2].dispatch('click');
+show(a); openMap(); goTo(2);
 B.leave(); const left = comp();
-openMap(); nodes()[2].dispatch('click'); $('queryInput').dispatch('keydown', null, { key: 'a' }); const typed = !!B.standing();
+openMap(); goTo(2); $('queryInput').dispatch('keydown', null, { key: 'a' }); const typed = !!B.standing();
 $('queryInput').dispatch('keydown', null, { key: 'Escape' }); const escaped = comp();
-openMap(); nodes()[2].dispatch('click'); show(f); const moved = comp();
+openMap(); goTo(2); show(f); const moved = comp();
 check('back to the end: the row\'s cross, the Escape key in the composer - no other key -, or another chain coming on screen; the pane is whole and the composer its own again', same(left, own) && typed && same(escaped, own) && same(moved, own), [left, typed, escaped, moved]);
 // a hold on the composer (routines.js) keeps the composer's words under its own; the hint's words wait there too
-show(a); openMap(); nodes()[2].dispatch('click');
+show(a); openMap(); goTo(2);
 const q = $('queryInput'); q.setAttribute('data-placeholder', q.placeholder); q.placeholder = 'A fill is running';
 B.leave(); const heldLeft = [q.placeholder, q.getAttribute('data-placeholder'), q.getAttribute('data-own')];
-openMap(); nodes()[2].dispatch('click'); const heldBack = [q.placeholder, q.getAttribute('data-placeholder')];
+openMap(); goTo(2); const heldBack = [q.placeholder, q.getAttribute('data-placeholder')];
 q.placeholder = q.getAttribute('data-placeholder'); q.removeAttribute('data-placeholder');      // the hold ends
 const freed = q.placeholder; B.leave();
 check('where the composer is held, the hold\'s words stay on it: the hint\'s wait under them and show when the hold ends, and leaving the turn puts the composer\'s own back there',
@@ -389,9 +394,9 @@ check('the drawer, while it is open, follows the chain on screen (0327): another
   [followed, other, without, stays, running]);
 
 // ---- a hint sent
-show(b1); openMap(); nodes()[1].dispatch('click');
+show(b1); openMap(); goTo(1);
 const none = (show(a), B.hint('typed with no turn gone back to'));
-show(b1); openMap(); nodes()[1].dispatch('click');
+show(b1); openMap(); goTo(1);
 const going = B.hint('start over from the slip'), after = comp();
 responses.push({ status: 'running', chain_id: null, thread_id: 7, parentChainId: 21, queryText: going.question, streamOutput: '' });      // as beginLiveChain leaves it
 Object.assign(liveState, { running: true, index: responses.length - 1, parent: 21 }); currentResponseIndex = liveState.index; currentData.branch = { of: going.of, turn: going.turn, hint: going.hint };
@@ -417,7 +422,7 @@ Object.assign(liveState, { running: false, index: null }); const d = responses[r
 check('... once saved the branch is one more way of its analysis: its Analysis map has its turns, joined to the turn it went on from, and it is the chain the arrows show for the analysis',
   same(B.boxes(a).slice(-1).map(x => [x.key, x.from]), [['24:3', '20:2']]) && same(ids(), [10, 24, 30, 40]) && B.map(2).said === '12 turns · 4 branches' && $('streamOutput').querySelector('.sp-hint').textContent === 'Branch from turn 2start over from the slip');
 // a branch the server did not start: it said why before it announced a chain
-show(b1); openMap(); nodes()[2].dispatch('click');
+show(b1); openMap(); goTo(2);
 const again = B.hint('keep them apart, again'), n1 = responses.length, t1 = toasts.length;
 responses.push({ status: 'running', chain_id: null, thread_id: 7, parentChainId: 21, queryText: again.question, streamOutput: '' });
 Object.assign(liveState, { running: true, index: responses.length - 1, parent: 21 }); currentResponseIndex = liveState.index; currentData.branch = { of: again.of, turn: again.turn, hint: again.hint };
@@ -434,7 +439,7 @@ B.notStarted('nothing was asked for'); const idle = toasts.slice(-1)[0];
 // a framed analysis: its branch runs under the same brief
 const fr = entry(50, null, 'Is B above A?', [{ n: 1, kind: 'cell', step: 'The brief fixes the measure. This turn computes it.', cell: 1, out: 'B 0.6' }, { n: 2, kind: 'report', step: 'B is above A.' }], {});
 fr.contentOutput = '<div id="content-brief"><div class="ar-brief" data-chain="50" data-framing="{&quot;versions&quot;:[{&quot;n&quot;:1,&quot;brief&quot;:{&quot;question&quot;:&quot;Is B above A?&quot;}}],&quot;step&quot;:1}"></div></div>';
-responses.push(fr); show(fr); openMap(); nodes()[0].dispatch('click');
+responses.push(fr); show(fr); openMap(); goTo(0);
 const fg = B.hint('by week'); B.announced({ type: 'id', chain_id: 51, thread_id: 7, parent_chain_id: null, branch_of: 50, branch_turn: 1 });
 check('a framed analysis\'s branch runs under the same brief: when the server announces its chain the page is given the framing of the analysis it goes on from, for that chain - the fold '
   + 'above its run and its Brief tab (architect.js); an analysis without a brief has none, and a request that started nothing says nothing where there is nothing to say',
@@ -461,12 +466,12 @@ check('the stream: the chain\'s announcement is handed to the branch, and so is 
   && uc.indexOf('window.BranchUI.onChain(responses[currentResponseIndex])') > 0 && uc.indexOf('window.BranchUI.onChain(responses[currentResponseIndex])') < uc.indexOf('window.ArchitectUI.onChain(responses[currentResponseIndex])')
   && core.includes("window.BranchUI.initialize();") && html.indexOf("js/branch.js") > html.indexOf("js/next-questions.js") && html.indexOf("js/branch.js") < html.indexOf("js/workflowGraph.js"));
 const branchJs = js('branch.js'), paneJs = js('stream-pane.js');
-check('the Workflow map: its boxes are the analyses, the open one that of the chain on screen, the level counting chains and their branches; a box clicked brings its chain on screen '
-  + 'through the branch, and no longer shuts the drawer; a box has no way into the code trace (0330); the drawing takes a map\'s own mark for a box; the Pathfinder\'s cards have the Git '
+check('the Workflow map: its boxes are the analyses, the open one that of the chain on screen, the level counting chains and their branches; a box\'s button in the panel - or a double '
+  + 'click on it (0333; a click until then) - brings its chain on screen through the branch, and no longer shuts the drawer; a box has no way into the code trace (0330); the drawing takes a map\'s own mark for a box; the Pathfinder\'s cards have the Git '
   + 'branch mark, the left bar\'s button the map\'s',
   wm.includes("var boxes = window.BranchUI ? window.BranchUI.items() : responses;") && wm.includes("WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
   && wm.includes("var branches = boxes.reduce(function (sum, r) { return sum + (r.branches || 0); }, 0);") && !wm.includes('showWorkflowMap') && !/workflowMapModal[^\n]*\.style\.display/.test(wm)
-  && graph.includes("if (window.BranchUI) window.BranchUI.open(resp);") && graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');")
+  && graph.includes("if (window.BranchUI) window.BranchUI.open(responses[i]);") && graph.includes("var made = of ? (of.tag ? of.tag(resp, idx) : '') : (window.ArchitectUI ? window.ArchitectUI.mark(resp) : '');")
   && graph.includes("if (!of && resp && resp.branches) {") && !graph.includes('wf-node-map') && !graph.includes('CodeMapUI') && !graph.includes(".style.display = 'none'") && graph.includes("mapContainer.onwheel = function (e) {")
   && ar.includes('<line x1="6" y1="3" x2="6" y2="15"/>') && !ar.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>')
   && html.includes('<rect x="8.5" y="15" width="7" height="6" rx="1.5"/>'));
@@ -649,30 +654,54 @@ const longChain = { chain_id: 27, thread_id: 7, parentChainId: null, queryText: 
 responses.push(longChain); show(longChain); openMap();
 nodes()[0].dispatch('mouseenter');
 const longFoot = { said: ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent, box: nodes()[0].querySelector('.wf-node-label').textContent };
-nodes()[0].dispatch('mouseleave');
+nodes()[0].dispatch('click'); nodes()[0].dispatch('mouseleave');
 longFoot.stays = ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent;
 M.shut(); responses.pop();
-check('the Analysis map\'s foot says the whole of what a turn said - every line of it, as text (0330: its first sentence, cut at 120 characters); the box keeps its short line; the foot '
-  + 'keeps saying it when the pointer leaves the box, so what does not fit can be scrolled to',
+check('the Analysis map\'s panel says the whole of what a turn said - every line of it, as text (0330: its first sentence, cut at 120 characters); the box keeps its short line; the panel '
+  + 'keeps saying it when the box is picked and the pointer leaves it, so what does not fit can be scrolled to',
   same(longFoot, { said: longStep, box: 'This turn compares the bloc...', stays: longStep }), longFoot);
 
-// ---- the foot from the first (0332): what the box in use is, before any box is under the pointer - the last box where none is in use; what was said, in paragraphs
-show(a); openMap(); const atOpen = [foot(), ($('nodeTaskContent').querySelector('.wf-head') || {}).innerHTML]; nodes()[5].dispatch('mouseenter'); const atHover = foot(); M.shut();
+// ---- the panel (0333): from the first the box in use - the last box where none is in use (0332) -; a click picks a box, the pointer shows another until it leaves; the button, or a double click, goes there
+const tagKinds = () => $('nodeTaskContent').querySelectorAll('.wf-tag').map(t => t.textContent + '/' + t.className);
+const pickedNow = () => nodes().map((x, i) => (x.classList.contains('wf-node--picked') ? i + 1 : 0)).filter(Boolean).join();
+show(a); openMap(); const atOpen = panel(); nodes()[5].dispatch('mouseenter'); const atHover = panel(); nodes()[5].dispatch('mouseleave');
+nodes()[2].dispatch('mouseenter'); nodes()[2].dispatch('click'); nodes()[2].dispatch('mouseleave');
+const picked3 = { panel: panel(), picked: pickedNow(), lit: lit(), at: B.standing(), open: drawer.style.display, kinds: tagKinds() };
+nodes()[7].dispatch('mouseenter'); const over8b = panel(); nodes()[7].dispatch('mouseleave');
+nodes()[6].dispatch('mouseenter'); const hinted = [panel(), tagKinds()]; nodes()[6].dispatch('mouseleave');      // the first turn of a branch: the hint's mark
+const leftOver = { panel: panel(), lit: lit() };
+nodes()[1].dispatch('click'); const failedKinds = tagKinds();
+nodes()[2].dispatch('dblclick'); const dbl = { at: B.standing(), open: drawer.style.display };
+openMap(); const backTo3 = { panel: panel(), kinds: tagKinds() }; M.shut(); B.leave();
 b1.branch.hint = 'keep <b>A</b> & B apart'; openMap(); nodes()[7].dispatch('mouseenter');                // a hint that reads as markup
 const hintSaid = $('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('=')).filter(r => r.startsWith('Hint=')); M.shut(); b1.branch.hint = 'keep the two blocks apart';
 const said3 = 'The pooled figure stands.\n\nThis turn compares `df.mean()` by block,\nas the hint asks.';
-$('nodeTaskContent').innerHTML = ''; window.WorkflowGraph.foot('Turn 3', said3, window.WorkflowGraph.row('Hint', 'apart', 'x'));
-const paras = { ps: $('nodeTaskContent').querySelectorAll('.wf-said p').map(p => p.innerHTML), rows: $('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.className) };
-window.WorkflowGraph.foot('', '', ''); const nothing = [$('nodeTaskContent').innerHTML, $('nodePlotPreview').innerHTML];
+$('nodeTaskContent').innerHTML = ''; window.WorkflowGraph.foot({ title: 'Turn 3', go: 'Go to turn 3', tags: [['In [3]', 'kernel'], ['hint', 'model'], ['not run', '']], said: said3, rows: window.WorkflowGraph.row('Hint', 'apart', 'x') });
+const card = { head: $('nodeTaskContent').querySelector('.wf-head').innerHTML, ps: $('nodeTaskContent').querySelectorAll('.wf-said p').map(p => p.innerHTML), rows: $('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.className) };
+window.WorkflowGraph.foot({ title: 'Turn <3>', tags: [['<b>x</b> & y', '']] });      // a name and a tag that read as markup
+const markupAsText = [$('nodeTaskContent').querySelector('.wf-title').textContent, $('nodeTaskContent').querySelector('.wf-tag').textContent];
+window.WorkflowGraph.foot(); const nothing = [$('nodeTaskContent').innerHTML, $('nodePlotPreview').innerHTML];
 window.WorkflowGraph.render($('workflowMapContainer'), [{ chain_id: 1, parentChainId: null, queryText: 'First' }, { chain_id: '2<i>b</i>', parentChainId: 1, queryText: 'Second' }], -1);
-const noneInUse = foot();
-check('the foot says from the first what the box in use is (0332: until then what a click and the pointer do) - as it says under the pointer; where no box is in use, the last box. '
-  + 'What was said stands in paragraphs - a blank line parts two, a line break stays -, as text, `code` set as code; the facts under it, a row each, a kind of row named; a map with nothing on it, nothing. '
-  + 'A hint, and a chain\'s id, that read as markup are text',
-  atOpen[0] === atHover && atOpen[0] === 'Turn 6 · report · on screen | Everything asked is established.' && atOpen[1] === 'Turn 6 · report · on screen'
-  && same(paras, { ps: ['The pooled figure stands.', 'This turn compares <code>df.mean()</code> by block,\nas the hint asks.'], rows: ['wf-info-row x'] })
-  && same(nothing, ['', '']) && noneInUse === 'Chain 2 of 2 2<i>b</i> | Second | Follows=chain 1 | Follow-ups=none' && same(hintSaid, ['Hint=keep <b>A</b> & B apart']),
-  [atOpen, atHover, paras, nothing, noneInUse, hintSaid]);
+const noneInUse = [panel(), pickedNow()];
+nodes()[0].dispatch('mouseenter'); const firstChain = panel(); nodes()[0].dispatch('mouseleave');
+check('the panel (0333, on the right of the map; at its foot, 0329-0332) says from the first what the box in use is, as it says under the pointer; where no box is in use, the last box. '
+  + 'A click picks a box: the panel holds it and its way is lit, the box ringed, and nothing goes anywhere; under the pointer the panel says what another box is, and the picked one again '
+  + 'when the pointer leaves. Its button - or a double click on the box - goes there: back to that turn, the drawer shut; the turn gone back to, and a report on screen, are there already '
+  + 'and have none. A tag is in the colour of what it says: on screen and the hint\'s mark in the analyst\'s, what a turn was in the colour of cells, a failure in red, the rest in grey. '
+  + 'The name, the button, the tags: one head. What was said stands in paragraphs - a blank line parts two, a line break stays -, as text, `code` set as code; the facts under it, a row '
+  + 'each, a kind of row named; a map with nothing on it, nothing. A hint, and a chain\'s id, that read as markup are text',
+  atOpen === atHover && atOpen === 'Turn 6 [on screen, report] | Everything asked is established. | Follows=turn 5 | Followed by=none'
+  && same(picked3, { panel: 'Turn 3 [In [3]] > Go to turn 3 | This turn pools the two blocks. | Follows=turn 2 | Followed by=3 turns | Printed=pooled 20', picked: '3', lit: '1,2,3', at: null, open: 'flex', kinds: ['In [3]/wf-tag wf-tag--kernel'] })
+  && over8b === 'Turn 5 [report] > Go to turn 5 | Each block has its own figure. | Follows=turn 4 | Followed by=none | Hint=keep the two blocks apart' && same(leftOver, { panel: 'Turn 3 [In [3]] > Go to turn 3 | This turn pools the two blocks. | Follows=turn 2 | Followed by=3 turns | Printed=pooled 20', lit: '1,2,3' })
+  && same(failedKinds, ['failed/wf-tag wf-tag--fail']) && same(dbl, { at: { chain: 20, turn: 3 }, open: 'none' })
+  && same(backTo3, { panel: 'Turn 3 [on screen, In [3]] | This turn pools the two blocks. | Follows=turn 2 | Followed by=3 turns | Printed=pooled 20', kinds: ['on screen/wf-tag wf-tag--model', 'In [3]/wf-tag wf-tag--kernel'] })
+  && same(card, { head: '<div class="wf-head-row"><h3 class="wf-title">Turn 3</h3><button type="button" class="ui-btn primary wf-go">Go to turn 3</button></div>'
+                        + '<div class="wf-tags"><span class="wf-tag wf-tag--kernel">In [3]</span><span class="wf-tag wf-tag--model">hint</span><span class="wf-tag">not run</span></div>',
+                  ps: ['The pooled figure stands.', 'This turn compares <code>df.mean()</code> by block,\nas the hint asks.'], rows: ['wf-info-row x'] })
+  && same(hinted, ['Turn 4 [In [4], hint] > Go to turn 4 | This turn splits them. | Follows=turn 3 | Followed by=2 turns | Hint=keep the two blocks apart | Printed=apart 10', ['In [4]/wf-tag wf-tag--kernel', 'hint/wf-tag wf-tag--model']]) && same(markupAsText, ['Turn <3>', '<b>x</b> & y'])
+  && same(nothing, ['', '']) && same(noneInUse, ['Chain 2 > Go to chain 2 | Second | Follows=chain 1 | Followed by=none | Id=2<i>b</i>', '2']) && same(hintSaid, ['Hint=keep <b>A</b> & B apart'])
+  && firstChain === 'Chain 1 > Go to chain 1 | First | Follows=the start | Followed by=chain 2 | Id=1',
+  [atOpen, atHover, picked3, over8b, hinted, leftOver, failedKinds, dbl, backTo3, card, markupAsText, nothing, noneInUse, firstChain, hintSaid]);
 
 // ---- the arrows at the head of the Investigation tab (0329)
 // a thread of its own: a first question; an analysis that went on three ways - two from its third turn, one from the first of those; and a follow-up, an analysis of one run

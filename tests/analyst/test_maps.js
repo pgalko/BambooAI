@@ -27,7 +27,7 @@ global.extractTaskFromResponse = r => ({ task: '', originalQuestion: r.queryText
 // the Pathfinding level's stand-in: what the chain on screen has, by its chain id
 const steps = {}, drawn = [];
 window.ArchitectUI = { mark: () => '', map: n => { const s = steps[currentData.chain_id];
-  return s ? { n: s, said: s + ' steps', off: '', draw() { drawn.push('pathfinding of chain ' + n); window.WorkflowGraph.foot('', 'the steps', ''); $('workflowMapContainer').innerHTML = ''; } }
+  return s ? { n: s, said: s + ' steps', off: '', draw() { drawn.push('pathfinding of chain ' + n); window.WorkflowGraph.foot({ title: 'the steps' }); $('workflowMapContainer').innerHTML = ''; } }
            : { n: 0, said: '', off: 'Chain ' + n + ' was asked without the Pathfinder', draw() {} }; } };
 let runView = false; window.RoutinesUI = { inRunView: () => runView };
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;
@@ -92,15 +92,19 @@ check('the switch (0327): Workflow, with how many chains; the chain on screen, b
   && level('pathfinding').getAttribute('aria-disabled') === 'true' && !level('pathfinding').hasAttribute('aria-pressed') && level('analysis').getAttribute('aria-pressed') === 'false' && boxes() === 3,
   [opened, marks, group, says, kinds, numbers, boxes()]);
 
+// what the drawer's panel says (0333): "name [tags] > its button" | what was said
+const panel = () => { const q = s => $('nodeTaskContent').querySelector(s), tags = $('nodeTaskContent').querySelectorAll('.wf-tag').map(t => t.textContent);
+  return ((q('.wf-title') || {}).textContent || '') + (tags.length ? ' [' + tags.join(', ') + ']' : '') + (q('.wf-go') ? ' > ' + q('.wf-go').textContent : '') + ' | ' + ((q('.wf-said') || {}).textContent || ''); };
+
 // ---- from level to level
 press('analysis');
-const onAnalysis = now().concat(boxes(), ['.wf-head', '.wf-said'].map(s => ($('nodeTaskContent').querySelector(s) || {}).textContent));
+const onAnalysis = now().concat(boxes(), panel());
 press('pathfinding');                                             // greyed: nothing
 const greyed = now();
 press('workflow');
 const onWorkflow = now();
-check('a level pressed is the one the drawer shows: its map, the box in use in the foot (0332), the level lit - and the focus, which was on the switch, is on it. A greyed level pressed does nothing',
-  same(onAnalysis, ['flex', 'analysis', 'Workflow3 / Chain 2 / Pathfinding- | Analysis3*', 'level analysis', 3, 'Turn 3 · report · on screen', 'This turn takes step 3.'])
+check('a level pressed is the one the drawer shows: its map, the box in use in the panel (0332, 0333), the level lit - and the focus, which was on the switch, is on it. A greyed level pressed does nothing',
+  same(onAnalysis, ['flex', 'analysis', 'Workflow3 / Chain 2 / Pathfinding- | Analysis3*', 'level analysis', 3, 'Turn 3 [on screen, report] | This turn takes step 3.'])
   && same(greyed.slice(0, 3), onAnalysis.slice(0, 3)) && same(onWorkflow.slice(0, 3), ['flex', 'workflow', 'Workflow3* / Chain 2 / Pathfinding- | Analysis3']), [onAnalysis, greyed, onWorkflow]);
 
 // ---- the arrow keys
@@ -156,9 +160,11 @@ check('the drawer opens where it was left - Ctrl+M and Cmd+M open and shut it as
   && same(noTurns.slice(0, 3).concat(noTurns[4]), ['flex', 'workflow', 'Workflow3* / Chain 1 / Pathfinding- | Analysis-', 'Chain 1 has no turns to go back to']),
   [onSteps, shutByKey, reopened, plain, followed, stays, sameLevel, noTurns]);
 
-// ---- a chain's box clicked; a run; a routine's run on screen; the drawer shut
+// ---- a chain's box picked and gone to (0333: a click on it went there); a run; a routine's run on screen; the drawer shut
 show(two); composer.focus(); rail.dispatch('click');
 $('workflowMapContainer').querySelectorAll('.wf-node')[2].dispatch('click');
+const picked = [responses[currentResponseIndex] === two, panel().split(' | ')[0]];
+$('nodeTaskContent').querySelector('.wf-go').dispatch('click');
 const boxClicked = now().slice(0, 3).concat(responses[currentResponseIndex] === three);
 press('analysis');
 queryRunning = true; updateNavigationButtons();
@@ -177,12 +183,12 @@ const shutKey = key('ArrowRight').defaulted;                      // and the arr
 const whileShut = [drawn.length - draws, bar() === barShut, shutKey, drawer.style.display, drawer.getAttribute('data-level')];
 rail.dispatch('click'); rail.focus(); M.shut();                   // shut with the focus on something outside it: the focus stays there
 const keeps = focus();
-check('a chain\'s box clicked on the Workflow map brings that chain on screen and leaves the drawer open, the switch naming it. A run beginning greys the Analysis level, which says so, and '
+check('a chain\'s box picked on the Workflow map shows it in the panel and goes nowhere; the panel\'s button brings that chain on screen and leaves the drawer open, the switch naming it (0333: a click on the box went there). A run beginning greys the Analysis level, which says so, and '
   + 'the drawer goes to the Workflow map; when the run ends the level can be shown again. With a routine\'s run on screen no chain is: the switch is Workflow alone. Shut, the drawer '
   + 'draws nothing as chains come on screen and takes no key, and the focus it held goes back where it was - a focus that had left the drawer stays where it went',
-  same(boxClicked, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis2', true]) && same(running, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis-', 'An analysis is running'])
+  same(picked, [true, 'Chain 3 > Go to chain 3']) && same(boxClicked, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis2', true]) && same(running, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis-', 'An analysis is running'])
   && same(ended, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis2']) && same(inRun, ['flex', 'workflow', 'Workflow3*']) && same(outOfRun, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding4 | Analysis2'])
-  && back === 'queryInput' && same(whileShut, [0, true, undefined, 'none', 'pathfinding']) && keeps === 'railMapButton', [boxClicked, running, ended, inRun, outOfRun, back, whileShut, keeps]);
+  && back === 'queryInput' && same(whileShut, [0, true, undefined, 'none', 'pathfinding']) && keeps === 'railMapButton', [picked, boxClicked, running, ended, inRun, outOfRun, back, whileShut, keeps]);
 
 // ---- the page's hooks, from the sources
 const js = n => fs.readFileSync(path.join(JS, n), 'utf8'), css = n => fs.readFileSync(path.join(JS, '..', 'css', n), 'utf8');
@@ -205,8 +211,8 @@ check('the drawer follows what is on screen: the page\'s hook for a chain on scr
   && !/workflowMapModal'\)\.style\.display/.test(wm + graph) && graph.includes('return { render: render, foot: foot, row: row, toggleFullscreen: toggleFullscreen };') && !graph.includes('function rest(') && !graph.includes('function head('));
 check('the stylesheet: the head is one line - the switch, which takes the room left, then the tools; a level is a button of the head\'s size, the one in use lit as the mode control\'s is, '
   + 'a greyed one faint under a pointer that says no; the chain\'s two levels are one control; the chain\'s name is the part that gives way; the thread\'s buttons show on the Workflow '
-  + 'map alone; the drawer is wide enough for two digits on every level',
-  shell.includes('#workflowMapModal.map-drawer .workflow-modal-content { flex: 0 0 560px; width: 560px;') && shell.includes('#workflowMapModal .map-levels { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }')
+  + 'map alone; the drawer holds the map and, on its right, the panel (0333; 560px wide until then), and no more than the window has',
+  shell.includes('#workflowMapModal.map-drawer .workflow-modal-content { flex: 0 0 900px; width: 900px; max-width: calc(100vw - 46px);') && shell.includes('#workflowMapModal .map-levels { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }')
   && /#workflowMapModal \.map-level \{[^}]*flex-shrink: 0;[^}]*height: 26px;[^}]*font-size: var\(--fs-meta\);[^}]*white-space: nowrap;/.test(shell)
   && shell.includes('#workflowMapModal .map-level[aria-pressed="true"], #workflowMapModal .map-level[aria-pressed="true"] .n { background: var(--bg-tertiary); color: var(--c-model); }')
   && shell.includes('#workflowMapModal .map-level[aria-disabled="true"] { background: none; color: var(--text-quaternary); cursor: not-allowed; }')
@@ -239,10 +245,12 @@ check('the drawer lies over the page as a dialog does (0329): its own element is
   && /\n\.modal\.ui-modal \{ position: fixed; inset: 0;[^}]*background: var\(--scrim\);[^}]*pointer-events: auto; \}/.test(dlg)
   && /if \(event\.target === workflowMapModal\) \{\s+window\.MapsUI\.shut\(\);/.test(wm)
   && /\.summary-popup \{[^}]*z-index: 1002;/.test(css('styles.css').replace(/\r/g, '')), [inDrawer, onMap, onDim, onCross]);
-check('the pane under the map has one height, whatever the box under the pointer says (0329): the map above it keeps its frame, and the zoom fitted to that frame holds - the pane grew '
-  + 'and shrank from box to box, and the map was fitted again each time. It says everything whole, its lines kept (0330, 200px high): what does not fit scrolls in the pane; the map is '
-  + 'still fitted when the frame itself changes',
-  /#workflowMapModal \.workflow-details-pane \{ flex: 0 0 200px; box-sizing: border-box; overflow: auto;/.test(shell) && !/\.workflow-details-pane \{[^}]*(max-height|flex: 0 0 auto)/.test(shell)
+check('the panel (0333) stands on the right of the map, as tall as the drawer and as wide whatever the box says, so the map keeps its frame and the zoom fitted to it (0329: the pane under '
+  + 'the map grew and shrank from box to box) - and the map has the drawer\'s whole height, which the pane at its foot took: 200px, in full screen too. It is wider in full screen. It says '
+  + 'everything whole, its lines kept (0330): what does not fit scrolls in the panel, its head in view; the map is still fitted when the frame itself changes',
+  /#workflowMapModal \.workflow-details-pane \{ flex: 0 0 340px; box-sizing: border-box; overflow: auto; border-left: 1px solid var\(--border-color\);/.test(shell)
+  && !/\.workflow-details-pane \{[^}]*(max-height|flex: 0 0 auto|border-top)/.test(shell) && shell.includes('#workflowMapModal .wf-fullscreen .workflow-details-pane { flex-basis: 380px; }')
+  && /#workflowMapModal \.workflow-body \{[^}]*display: flex; flex-direction: row;/.test(shell) && /#workflowMapModal \.wf-head \{ position: sticky; top: 0;/.test(shell)
   && shell.includes('#workflowMapModal .wf-said { white-space: pre-line; overflow-wrap: anywhere; }')
   && graph.includes('fitObserver = new ResizeObserver(function () { fitToFrame(wrapper, mapContainer, W, H); });') && graph.includes('fitObserver.observe(mapContainer);'));
 

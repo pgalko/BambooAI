@@ -28,9 +28,9 @@
         mapOff: { running: 'An analysis is running', none: n => 'Chain ' + n + ' has no turns to go back to' },
         turn: n => 'Turn ' + n, from: n => 'From turn ' + n, left: n => n + (n === 1 ? ' turn left' : ' turns left'),
         say: n => 'Say how the analysis should go on from turn ' + n,
-        end: 'Back to the end', hinted: 'hint', onScreen: 'on screen', ways: n => n + ' ways',
-        failed: 'failed', notRun: 'not run', aCell: n => 'cell In [' + n + ']', aFailed: 'a cell that failed', aNotRun: 'a cell that was not run',
-        info: { hint: 'Hint', ways: 'Went on', printed: 'Printed' },
+        end: 'Back to the end', hinted: 'hint', onScreen: 'on screen', failed: 'failed', notRun: 'not run',
+        goTo: n => 'Go to turn ' + n, turnN: n => 'turn ' + n, turns: n => n + ' turns', theStart: 'the start', none: 'none',
+        info: { follows: 'Follows', next: 'Followed by', hint: 'Hint', printed: 'Printed' },
         busy: 'An analysis is running: wait for it, or stop it, then go back to a turn',
         branchFrom: n => 'Branch from turn ' + n,
         branch: 'Branch', original: 'original', of: (k, n) => k + ' of ' + n, before: 'The branch before', after: 'The branch after',
@@ -140,9 +140,10 @@
     }
     // a turn the analysis can go on from: one that did not end its chain - not the report, not a question to the person
     const can = t => !!t && t.kind !== 'report' && t.kind !== 'question';
-    // what a turn did, in a word or two: for its box, and - said whole - for the drawer's foot
+    // what a turn did, in a word or two: for its box, and its tag in the drawer's panel - in the colour of cells, of a
+    // failure, or none for a cell not run
     const did = t => (t.kind !== 'cell' ? t.kind : t.cell != null ? 'In [' + t.cell + ']' : t.failed ? WORDS.failed : WORDS.notRun);
-    const didWhole = t => (t.kind !== 'cell' ? t.kind : t.cell != null ? WORDS.aCell(t.cell) : t.failed ? WORDS.aFailed : WORDS.aNotRun);
+    const didKind = t => (t.kind !== 'cell' || t.cell != null ? 'kernel' : t.failed ? 'fail' : '');
     // The boxes of the Analysis map: each chain's own turns, in order - a branch's first one joined to the turn it went
     // on from. A branch whose chain is not in the thread - removed from a saved one - has the turns it kept for its
     // own. {key, from: the key of the box it follows, entry: its chain, turn}
@@ -297,15 +298,18 @@
                  off: busy() ? WORDS.mapOff.running : all.length ? '' : WORDS.mapOff.none(n), draw: () => drawMap(entry, all) };
     }
     function drawMap(entry, all) {
-        const on = boxOnScreen(all, entry), row = window.WorkflowGraph.row;
+        const on = boxOnScreen(all, entry), row = window.WorkflowGraph.row, backHere = !!(back && same(back.chain, entry.chain_id));
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map(b => ({ chain_id: b.key, parentChainId: b.from, queryText: b.turn.peek || did(b.turn) })), on, {
             sub: (item, i) => WORDS.turn(all[i].turn.n) + ' · ' + did(all[i].turn),
             tag: (item, i) => (all[i].entry.branch && all[i].turn.n === all[i].entry.branch.turn + 1 ? WORDS.hinted : ''),
-            show: (item, i) => {                         // the turn, what it said, whole (0330), and the hint, the ways on and what its cell printed
-                const b = all[i], t = b.turn, ways = all.filter(x => x.from === b.key).length;
-                window.WorkflowGraph.foot(esc(WORDS.turn(t.n) + ' · ' + didWhole(t)) + (i === on ? ' · ' + WORDS.onScreen : ''), t.said || t.peek || did(t),
-                    (b.entry.branch ? row(WORDS.info.hint, esc(b.entry.branch.hint)) : '') + (ways > 1 ? row(WORDS.info.ways, WORDS.ways(ways)) : '') +
-                    (t.out ? row(WORDS.info.printed, esc(t.out), 'wf-info-printed') : ''));
+            show: (item, i) => {                         // the panel (0333): the turn and its tags, what it said, whole (0330), the turns before and after it, the hint and what its cell printed
+                const b = all[i], t = b.turn, before = all.find(x => x.key === b.from), after = all.filter(x => x.from === b.key);
+                // there already: the turn gone back to, or the last of the chain on screen where it cannot be gone on from
+                window.WorkflowGraph.foot({ title: WORDS.turn(t.n), go: i === on && (backHere || !can(t)) ? '' : WORDS.goTo(t.n), said: t.said || t.peek || did(t),
+                    tags: (i === on ? [[WORDS.onScreen, 'model']] : []).concat([[did(t), didKind(t)]], b.entry.branch && t.n === b.entry.branch.turn + 1 ? [[WORDS.hinted, 'model']] : []),
+                    rows: row(WORDS.info.follows, before ? WORDS.turnN(before.turn.n) : WORDS.theStart) +
+                          row(WORDS.info.next, after.length === 1 ? WORDS.turnN(after[0].turn.n) : after.length ? WORDS.turns(after.length) : WORDS.none) +
+                          (b.entry.branch ? row(WORDS.info.hint, esc(b.entry.branch.hint)) : '') + (t.out ? row(WORDS.info.printed, esc(t.out), 'wf-info-printed') : '') });
             },
             pick: (item, i) => {
                 const b = all[i], here = onScreen();

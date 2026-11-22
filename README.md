@@ -283,7 +283,8 @@ The Pathfinder's messages are a model's, so the brief is yours to correct. Its i
 You can go back and branch at three levels: the **thread**, and within a **chain** the **Pathfinder**'s conversation
 and the **Analyst**'s turns. The original path is always kept, and each level has a map of its branches. **Maps** on
 the left bar (Ctrl/Cmd+M) opens all three in one drawer: a switch at its top, or the left and right arrow keys, moves
-between the thread's map and the two maps of the chain on screen.
+between the thread's map and the two maps of the chain on screen. Click a box to read it in full in the panel beside
+the map; its **Go to** button, or a double click, takes you there.
 
 | Level | Go back to | Continue with | Map |
 |---|---|---|---|

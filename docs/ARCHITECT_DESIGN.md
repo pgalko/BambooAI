@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.35 (2026-11-22; 0332, the map's foot from the first; 0331, a branch's drafts; 0328, the Architect is the Pathfinder; 0327, the map of the steps in the maps drawer; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.36 (2026-11-22; 0333, the map's panel on the right; 0332, the map's foot from the first; 0331, a branch's drafts; 0328, the Architect is the Pathfinder; 0327, the map of the steps in the maps drawer; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 **The name (0328).** Since 2.9 the Architect is called the **Pathfinder**: on the page, in its instructions, in a
 conversation as the other models read it, in the run log and Usage, and as its seat in `LLM_CONFIG` (decision 59).
@@ -1353,28 +1353,29 @@ command to branch.
   another map's boxes and is told what is that map's own): a box to a step, joined to the step it follows. On
   a box: what the coach said - the question as it was asked on the first; *You changed a line*, *Question check*
   where they said nothing - and under it what the step changed, in the tab's words. The way to the step on
-  screen is lit, the rest faint. Under the pointer a box lights its own way and the drawer's foot says, as the
-  Workflow map does of a chain: at its head the step - *Step 3 of 3*, as the arrows would count it, *on screen* for
-  the one that is -, then what was said, *Follows*, *Follow-ups*, *Changed* and the Pathfinder's reply, whole
-  (0330). From the first it says so of the step on screen (0332). A click goes to the step and shuts the drawer.
-  While the drawer is open the map follows its brief - an arrow pressed, a step added - and, when another chain
-  comes on screen, shows that chain's steps or goes to the Workflow map.
+  screen is lit, the rest faint. Under the pointer a box lights its own way and the drawer's panel - on the right of
+  the map since 0333 - says, as the Workflow map does of a chain: the step as the arrows would count it (*Step 3*);
+  its tags - *on screen* for the one that is, *your question* on the first, the parts it changed -; a button that
+  goes there; then what was said, *Follows*, *Followed by* and the Pathfinder's reply, whole (0330). From the first
+  it says so of the step on screen (0332). A click picks a box; its button, or a double click, goes to the step and
+  shuts the drawer. While the drawer is open the map follows its brief - an arrow pressed, a step added - and, when
+  another chain comes on screen, shows that chain's steps or goes to the Workflow map.
 - **The button on a card** (0325, 2.9; decision 58). In the pane, the Architect's card of a step carries the Git
-  branch mark in its head, before the button of its prompt - *Branch from step 3*, the step as the arrows count it. A
-  click is a click on the step's box of the map: the pane ends at that card, the tab is the brief as it stood there,
-  and what is said or changed next goes on from the step, another way. Every step of the way but its end has the
-  button, on the last message the Architect said in it; a step with no message of the Architect's - a line changed by
-  hand - has none, and is reached by the arrows or the map. The button of the step in use is lit while the way goes
-  further, and brings its end back. A line of the brief being typed is kept first, as with the arrows; the lit button
-  then goes to the end of the way as it stands. No button while the Architect replies, in the fold above a run, or in
-  a conversation kept before steps. The card's head is a row (`pane.css`): the two buttons are one size, on one line
-  at its end, and the words under it keep the card's whole width - the prompt's button was floated beside them, and
-  narrowed their first line.
+  branch mark in its head, before the button of its prompt - *Branch from step 3*, the step as the arrows count it.
+  A click goes to the step as the map's button for it does: the pane ends at that card, the tab is the brief as it
+  stood there, and what is said or changed next goes on from the step, another way. Every step of the way but its
+  end has the button, on the last message the Architect said in it; a step with no message of the Architect's - a
+  line changed by hand - has none, and is reached by the arrows or the map. The button of the step in use is lit
+  while the way goes further, and brings its end back. A line of the brief being typed is kept first, as with the
+  arrows; the lit button then goes to the end of the way as it stands. No button while the Architect replies, in the
+  fold above a run, or in a conversation kept before steps. The card's head is a row (`pane.css`): the two buttons
+  are one size, on one line at its end, and the words under it keep the card's whole width - the prompt's button was
+  floated beside them, and narrowed their first line.
 - **The strip** over the conversation counts what the brief has cost over every step: a way that was left was
   paid for.
-- **After Start analysis** the tab and the map are read: a click shows the brief of a step, and nothing else
-  changes. The fold above the run names the step it started from - *brief · step 8* - and holds the way to it.
-  What the report said against the brief (§2.21) stands under every step whose brief is the one the run was
+- **After Start analysis** the tab and the map are read: a step gone to shows the brief as it stood there, and
+  nothing else changes. The fold above the run names the step it started from - *brief · step 8* - and holds the way
+  to it. What the report said against the brief (§2.21) stands under every step whose brief is the one the run was
   under: the step it started from, and one before it that changed nothing.
 
 **What a run keeps.** The analysis starts from the step on screen, under the brief that stands there. The run's

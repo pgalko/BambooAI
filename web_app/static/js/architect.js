@@ -82,7 +82,8 @@
         mapSaid: (n, forks) => n + (n === 1 ? ' step' : ' steps') + (forks ? ' · ' + forks + (forks === 1 ? ' branch' : ' branches') : ''),
         mapOff: { none: n => 'Chain ' + n + ' was asked without the Pathfinder', old: n => 'Chain ' + n + "'s brief was made before version 2.8.1" },
         asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Pathfinder went on',
-        info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',
+        info: { step: 'Step', follows: 'Follows', next: 'Followed by', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none',
+        goTo: k => 'Go to step ' + k, steps: n => n + ' steps',
         part: { question: 'question', decision: 'what it is for', thinks: 'what you think', rests_on: 'why you think so', expects: 'what you expect', would_change: 'what would change your mind',
                 also_check: 'other explanations', 'fixed.comparison': 'what is compared', 'fixed.measure': 'measured by', 'fixed.period': 'period', figures: 'figure', saved: 'builds on' },
         against: { head: 'How it turned out', expected: 'You expected', would: 'Would change your mind', checks: 'Also checked', missing: 'The report does not say.' }
@@ -1048,12 +1049,13 @@
         const row = window.WorkflowGraph.row;
         window.WorkflowGraph.render(byId('workflowMapContainer'), all.map((s, i) => ({ chain_id: s.k, parentChainId: s.from || null, queryText: words[i].label })), st.shown - 1, {
             sub: (item, i) => (all[i].from ? [] : [WORDS.asked1]).concat(words[i].parts).join(' · '),
-            show: (item, i) => {
+            show: (item, i) => {                         // the panel (0333): the step - where the arrows count it - and its tags, the parts it changed; what was said and the reply, whole (0330)
                 const s = all[i], at = steps.place(framing, s.k), next = all.filter(x => x.from === s.k).length;
-                window.WorkflowGraph.foot(WORDS.info.step + ' ' + WORDS.of(at.i, at.n) + (s.k === st.shown ? ' · ' + WORDS.onScreen : ''), words[i].label,      // whole, and the reply whole (0330: cut at 300 and 240)
-                    row(WORDS.info.follows, s.from ? WORDS.stepN(at.i - 1) : WORDS.theStart) + row(WORDS.info.next, next || WORDS.none) +
-                    row(WORDS.info.changed, esc(words[i].parts.join(' · ') || WORDS.nothing)) +
-                    (words[i].reply ? row(WORDS.info.replied, '<span class="wf-said">' + esc(words[i].reply) + '</span>', 'wf-info-conclusion') : ''));
+                window.WorkflowGraph.foot({ title: WORDS.info.step + ' ' + at.i, go: s.k === st.shown ? '' : WORDS.goTo(at.i), said: words[i].label,      // the step on screen is there already
+                    tags: (s.k === st.shown ? [[WORDS.onScreen, 'model']] : []).concat(s.from ? [] : [[WORDS.asked1, '']], words[i].parts.map(p => [p, 'kernel'])),
+                    rows: row(WORDS.info.follows, s.from ? WORDS.stepN(at.i - 1) : WORDS.theStart) +
+                          row(WORDS.info.next, next === 1 ? WORDS.stepN(at.i + 1) : next ? WORDS.steps(next) : WORDS.none) +
+                          (words[i].reply ? row(WORDS.info.replied, '<span class="wf-said">' + esc(words[i].reply) + '</span>', 'wf-info-conclusion') : '') });
             },
             pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }
         });

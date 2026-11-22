@@ -1635,8 +1635,12 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     // the map: a level of the maps drawer, in the Workflow map's drawing, with the steps for boxes
     const drawer = $('workflowMapModal'), boxes = () => $('workflowMapContainer').querySelectorAll('.wf-node');
     const lit = () => boxes().map((x, i) => (x.classList.contains('wf-node--ancestor') ? i + 1 : 0)).filter(Boolean).join();
-    const foot = () => [($('nodeTaskContent').querySelector('.wf-head') || {}).textContent || '', ($('nodeTaskContent').querySelector('.wf-said') || {}).textContent || ''].filter(Boolean)      // head | said | the facts (0332)
-      .concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | ');
+    // what the drawer's panel says (0333): "name [tags] > its button" | what was said | the facts, a row each
+    const panel = () => { const q = s => $('nodeTaskContent').querySelector(s), tags = $('nodeTaskContent').querySelectorAll('.wf-tag').map(t => t.textContent);
+      return [((q('.wf-title') || {}).textContent || '') + (tags.length ? ' [' + tags.join(', ') + ']' : '') + (q('.wf-go') ? ' > ' + q('.wf-go').textContent : ''), (q('.wf-said') || {}).textContent || '']
+        .filter(Boolean).concat($('nodePlotPreview').querySelectorAll('.wf-info-row').map(r => r.elements.map(e => e.textContent).join('='))).join(' | '); };
+    // the way to a box (0333; until then a click on it): the box picked, then the panel's button pressed
+    const goTo = i => { boxes()[i].dispatch('click'); const go = $('nodeTaskContent').querySelector('.wf-go'); if (go) go.dispatch('click'); };
     const level = key => $('mapLevels').querySelector('[data-level="' + key + '"]'), press = key => $('mapLevels').dispatch('click', level(key));
     const bar = () => $('mapLevels').elements.map(x => (x.classList.contains('map-of-chain') ? x.elements : [x]).map(y => y.textContent + (y.getAttribute('aria-pressed') === 'true' ? '*' : '') + (y.getAttribute('aria-disabled') ? '-' : '')).join(' | ')).join(' / ');
     const openIt = () => { if (drawer.style.display !== 'flex') window.MapsUI.toggle(); press('pathfinding'); };
@@ -1644,46 +1648,47 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     window.MapsUI.toggle();                                       // the left bar's button: the first time, the drawer opens on the thread's map
     const first = [drawer.style.display, drawer.getAttribute('data-level'), bar(), level('analysis').getAttribute('title'), $('workflowMapContainer').textContent];
     press('pathfinding');
-    const opened = { shown: drawer.style.display, level: drawer.getAttribute('data-level'), bar: bar(), said: level('pathfinding').getAttribute('title'), foot: foot(),
-                     boxes: boxes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent), kinds: boxes().map(x => x.className.replace(/wf-node--(ancestor|active)/g, '').trim()).filter((c, i, all) => all.indexOf(c) === i).join(),
+    const opened = { shown: drawer.style.display, level: drawer.getAttribute('data-level'), bar: bar(), said: level('pathfinding').getAttribute('title'), foot: panel(),
+                     boxes: boxes().map(x => x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent), kinds: boxes().map(x => x.className.replace(/wf-node--(ancestor|active|picked)/g, '').trim()).filter((c, i, all) => all.indexOf(c) === i).join(),
                      on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), wrap: $('workflowMapContainer').querySelector('.wf-graph').className,
                      edges: $('workflowMapContainer').querySelectorAll('.wf-edge').map(e => e.getAttribute('data-from') + '>' + e.getAttribute('data-to')).join(),
                      thread: $('workflowMapContainer').querySelectorAll('.wf-node-made, .wf-edge-label').length };
     boxes()[2].dispatch('mouseenter');
-    const over3 = { foot: foot(), lit: lit() };
+    const over3 = { foot: panel(), lit: lit() };
     boxes()[2].dispatch('mouseleave');
     const left3 = lit();
-    const feet = [0, 1, 4, 5, 6].map(i => { boxes()[i].dispatch('mouseenter'); const f = foot(); boxes()[i].dispatch('mouseleave'); return f; });
+    const feet = [0, 1, 4, 5, 6].map(i => { boxes()[i].dispatch('mouseenter'); const f = panel(); boxes()[i].dispatch('mouseleave'); return f; });
     check('the map of a conversation (0316; in the maps drawer, 0327): the drawer opens on the thread\'s map, its switch naming the chain on screen and its two levels - Pathfinding with how '
-      + 'many steps, Analysis greyed, saying why. Pathfinding pressed, the drawer holds the conversation\'s map - the level lit, how many steps and where they branch under the pointer, in the foot '
+      + 'many steps, Analysis greyed, saying why. Pathfinding pressed, the drawer holds the conversation\'s map - the level lit, how many steps and where they branch under the pointer, in the panel '
       + 'from the first what the step on screen is (0332). Every step is a box, drawn by the Workflow map\'s drawing and joined to the step it follows: on it what the coach said - the '
       + 'question as it was asked on the first, and what was done where they said nothing - and under that what the step changed, in the tab\'s words. The step on screen is the open box, and '
-      + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the Workflow map\'s marks. Under the pointer a box lights its own way and the foot says, as the Workflow map '
-      + 'does of a chain: where the step stands as the arrows would count it - "on screen" for the one that is -, what was said, what it follows, how many follow it, what it changed, and the '
-      + 'whole of what the Pathfinder replied (0330: its first sentence); when the pointer leaves, the way to the step on screen is lit again. Nothing is sent',
+      + 'the way to it is lit while the pointer is nowhere. No box is a fork or carries the Workflow map\'s marks. Under the pointer a box lights its own way and the panel says (0333), as the '
+      + 'Workflow map does of a chain: the step as the arrows would count it; its tags - "on screen" for the one that is, the question as it was asked on the first, the parts it changed -; the '
+      + 'button that goes there, but for the step on screen; what was said, the step it follows and those that follow it, and the whole of what the Pathfinder replied (0330: its first '
+      + 'sentence); when the pointer leaves, the way to the step on screen is lit again. Nothing is sent',
       same(first, ['flex', 'workflow', 'Workflow3* / Chain 3 / Pathfinding7 | Analysis-', 'Chain 3 has no turns to go back to', 'the thread\'s chains'])
       && same(opened, { shown: 'flex', level: 'pathfinding', bar: 'Workflow3 / Chain 3 / Pathfinding7* | Analysis-', said: '7 steps · 1 branch',
-        foot: 'Step 3 of 3 · on screen | Compare the medians instead | Follows=step 2 | Follow-ups=none | Changed=measured by | Pathfinder=The measure is the median.',
+        foot: 'Step 3 [on screen, measured by] | Compare the medians instead | Follows=step 2 | Followed by=none | Pathfinder=The measure is the median.',
         boxes: ['Is B above A? > your question', 'Keep one arm > what it is for', 'Show it by week > figure', 'Only the first half > period', 'You changed a line > what you think', 'Is that all you need? > ',
                 'Compare the medians instead > measured by'],
         kinds: 'wf-node wf-node--normal', on: '7', lit: '1,2,7', wrap: 'wf-graph wf-path-active', edges: '0>1,1>2,1>3,3>4,4>5,1>6', thread: 0 })
-      && same(over3, { foot: 'Step 3 of 3 | Show it by week | Follows=step 2 | Follow-ups=none | Changed=figure | Pathfinder=A line for each arm, by week.', lit: '1,2,3' }) && left3 === '1,2,7'
-      && same(feet, ['Step 1 of 3 | Is B above A? | Follows=the start | Follow-ups=1 | Changed=nothing | Pathfinder=What will you do differently depending on the answer?',
-                     'Step 2 of 3 | Keep one arm | Follows=step 1 | Follow-ups=3 | Changed=what it is for | Pathfinder=What do you expect to see?',
-                     'Step 4 of 5 | You changed a line | Follows=step 3 | Follow-ups=1 | Changed=what you think',
-                     'Step 5 of 5 | Is that all you need? | Follows=step 4 | Follow-ups=none | Changed=nothing | Pathfinder=Yes. Start the analysis when you are ready. It will compare the two arms over the first half.',
-                     'Step 3 of 3 · on screen | Compare the medians instead | Follows=step 2 | Follow-ups=none | Changed=measured by | Pathfinder=The measure is the median.'])
+      && same(over3, { foot: 'Step 3 [figure] > Go to step 3 | Show it by week | Follows=step 2 | Followed by=none | Pathfinder=A line for each arm, by week.', lit: '1,2,3' }) && left3 === '1,2,7'
+      && same(feet, ['Step 1 [your question] > Go to step 1 | Is B above A? | Follows=the start | Followed by=step 2 | Pathfinder=What will you do differently depending on the answer?',
+                     'Step 2 [what it is for] > Go to step 2 | Keep one arm | Follows=step 1 | Followed by=3 steps | Pathfinder=What do you expect to see?',
+                     'Step 4 [what you think] > Go to step 4 | You changed a line | Follows=step 3 | Followed by=step 5',
+                     'Step 5 > Go to step 5 | Is that all you need? | Follows=step 4 | Followed by=none | Pathfinder=Yes. Start the analysis when you are ready. It will compare the two arms over the first half.',
+                     'Step 3 [on screen, measured by] | Compare the medians instead | Follows=step 2 | Followed by=none | Pathfinder=The measure is the median.'])
       && calls.length === n, [first, opened, over3, left3, feet]);
 
-    // a box clicked: the step is the one on screen, the drawer shuts
-    boxes()[2].dispatch('click');
+    // a box gone to (0333: picked, and its button pressed; a click on it until then): the step is the one on screen, the drawer shuts
+    goTo(2);
     const picked = [drawer.style.display, nowS(), /Show it by week/.test($('streamOutput').textContent), /medians/.test($('streamOutput').textContent), sameAs(stepped.framing, Object.assign({}, TH.framing, { step: 3, tip: 3, at: 3 }, { turns: FX.go[3].turns, aside: stepped.framing.aside }))].join(' / ');
     const asideNow = Object.keys(stepped.framing.aside).join();
     openIt();
-    const again = { on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), foot: foot() };
+    const again = { on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), foot: panel() };
     arrow(-1);                                                    // an arrow, with the map open: the map follows
     const followed = { shown: drawer.style.display, on: boxes().map((x, i) => (x.classList.contains('wf-node--active') ? i + 1 : 0)).filter(Boolean).join(), lit: lit(), ver: brief().querySelector('.ar-ver b').textContent };
-    boxes()[5].dispatch('click');
+    goTo(5);
     const toSix = [drawer.style.display, nowS()].join(' / ');
     openIt();
     currentResponseIndex = 0; loadResponseContent(responses[0]); updateNavigationButtons();      // another chain on screen, the map still open: the drawer follows
@@ -1691,12 +1696,12 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     show90();
     const backOn = [drawer.style.display, drawer.getAttribute('data-level'), bar()].join(' / ');      // the brief's chain again: the drawer is where it went
     window.MapsUI.shut();
-    check('a box clicked (0316): the drawer shuts and the step is the one on screen and in use - at the end of the way that was left, the tab shows its figure and the pane that exchange, and '
-      + 'nothing of the ways taken since; the steps off that way are set aside. Opened again, the map has that step open and its way lit, and its foot says what that step is (0332) - nothing of the box last under the pointer. While the drawer is open the map follows its brief: an '
-      + 'arrow pressed, and the box of the step now on screen is the open one. A click on the end of another way goes there. With another chain on screen - one with no brief - the drawer '
+    check('a box gone to (0316; picked and its button pressed, 0333): the drawer shuts and the step is the one on screen and in use - at the end of the way that was left, the tab shows its figure and the pane that exchange, and '
+      + 'nothing of the ways taken since; the steps off that way are set aside. Opened again, the map has that step open and its way lit, and its panel says what that step is (0332) - nothing of the box last under the pointer. While the drawer is open the map follows its brief: an '
+      + 'arrow pressed, and the box of the step now on screen is the open one. The end of another way is gone to so too. With another chain on screen - one with no brief - the drawer '
       + 'stays open and goes to the thread\'s map, the switch naming that chain and why it has no steps to show; back on the brief\'s chain it stays there. Nothing is sent',
       picked === 'none / 3 of 3 / 3 / 6 / Start analysis / What it is for|What it will look like / true / false / true' && asideNow === '4,6,7'
-      && same(again, { on: '3', lit: '1,2,3', foot: 'Step 3 of 3 · on screen | Show it by week | Follows=step 2 | Follow-ups=none | Changed=figure | Pathfinder=A line for each arm, by week.' }) && same(followed, { shown: 'flex', on: '2', lit: '1,2', ver: '2 of 3' })
+      && same(again, { on: '3', lit: '1,2,3', foot: 'Step 3 [on screen, figure] | Show it by week | Follows=step 2 | Followed by=none | Pathfinder=A line for each arm, by week.' }) && same(followed, { shown: 'flex', on: '2', lit: '1,2', ver: '2 of 3' })
       && toSix === 'none / 5 of 5 / 6 / 8 / Start analysis / What it is for|What you think|Period' && elsewhere === 'flex / workflow / Workflow3* / Chain 1 / Pathfinding- | Analysis- / Chain 1 was asked without the Pathfinder / 6'
       && backOn === 'flex / workflow / Workflow3* / Chain 3 / Pathfinding7 | Analysis-' && calls.length === n,
       [picked, asideNow, again, followed, toSix, elsewhere, backOn]);
@@ -1707,10 +1712,10 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     responses.push(ran); currentResponseIndex = responses.indexOf(ran); loadResponseContent(ran); updateNavigationButtons();
     openIt();
     const ranMap = [drawer.style.display, drawer.getAttribute('data-level'), boxes().length, lit()].join(' / ');
-    boxes()[3].dispatch('click');
+    goTo(3);
     const ranAt = [drawer.style.display, brief().querySelector('.ar-ver b').textContent, brief().getAttribute('data-shown'), brief().getAttribute('data-state'), h3s(brief()), !!brief().querySelector('.pen, [data-ar="start"]'),
                    $('streamOutput').textContent, same(JSON.parse(brief().getAttribute('data-framing')), TH.framing)].join(' / ');
-    check('the map on the tab of a run (0316): the same drawer, with the step the run started from open. A box clicked shows the brief as it stood at that step, to be read - the tab alone '
+    check('the map on the tab of a run (0316): the same drawer, with the step the run started from open. A box gone to shows the brief as it stood at that step, to be read - the tab alone '
       + 'changes: its framing, the run\'s pane and the record stay as they are, and nothing is sent',
       ranMap === 'flex / pathfinding / 7 / 1,2,7' && ranAt === 'none / 3 of 5 / 4 / run / What it is for|Period / false / the run\'s pane / true' && calls.length === n, [ranMap, ranAt]);
     openIt();
@@ -1730,9 +1735,9 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     const mapOf = framing => { const e = { chain_id: 92, thread_id: 7, queryText: 'Q?', tabContent: '<div id="tab-brief" class="tab active">Brief</div>',
                                              contentOutput: '<div id="content-brief" class="tab-content active">' + b.brief(framing, { chain: 92, thread: 7, state: 'run' }) + '</div>', streamOutput: '' };
       responses.push(e); currentResponseIndex = responses.indexOf(e); loadResponseContent(e); updateNavigationButtons(); openIt();
-      const replies = [];      // the Pathfinder's reply as the foot holds it: its lines kept (0332)
-      const feet = boxes().map(x => { x.dispatch('mouseenter'); const f = foot(); replies.push(...$('nodePlotPreview').querySelectorAll('.wf-info-conclusion b .wf-said').map(r => r.textContent)); x.dispatch('mouseleave'); return f; });
-      const out = { sub: level('pathfinding').getAttribute('title'), boxes: boxes().map(x => x.className.replace(/ wf-node--(ancestor|active)/g, '') + ': ' + x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent),
+      const replies = [];      // the Pathfinder's reply as the panel holds it: its lines kept (0332)
+      const feet = boxes().map(x => { x.dispatch('mouseenter'); const f = panel(); replies.push(...$('nodePlotPreview').querySelectorAll('.wf-info-conclusion b .wf-said').map(r => r.textContent)); x.dispatch('mouseleave'); return f; });
+      const out = { sub: level('pathfinding').getAttribute('title'), boxes: boxes().map(x => x.className.replace(/ wf-node--(ancestor|active|picked)/g, '') + ': ' + x.querySelector('.wf-node-label').textContent + ' > ' + x.querySelector('.wf-node-chain').textContent),
                     feet, replies, forks: $('workflowMapContainer').querySelectorAll('.wf-edge-label').length };
       window.MapsUI.shut(); responses.pop(); return out; };
     const ONE = { versions: F1.versions, steps: [{ k: 1, from: 0, v: 1, made: [1], turns: 0 }], step: 1, tip: 1 };
@@ -1745,17 +1750,17 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
                     step: 4, tip: 4 };
     const one = mapOf(ONE), wordy = mapOf(WORDY);
     check('the map\'s words (0316): a conversation of one step is said so - "1 step", and no word of branches where it has none. A box where the coach said nothing says what was done: the '
-      + 'question was read; the Pathfinder went on. Under a box each part the step changed is named once, whatever the lines; the foot gives the Pathfinder\'s last reply of the step - as text, '
+      + 'question was read; the Pathfinder went on. Under a box each part the step changed is named once, whatever the lines; the panel gives the Pathfinder\'s last reply of the step - as text, '
       + 'its lines kept (0332). What a box '
       + 'says makes it no fork of the Workflow map\'s: the coach\'s own words may be the Workflow map\'s',
       same(one, { sub: '1 step', boxes: ['wf-node wf-node--normal: Is B above A? > your question'],
-                  feet: ['Step 1 of 1 · on screen | Is B above A? | Follows=the start | Follow-ups=none | Changed=nothing'], replies: [], forks: 0 })
+                  feet: ['Step 1 [on screen, your question] | Is B above A? | Follows=the start | Followed by=none'], replies: [], forks: 0 })
       && wordy.sub === '4 steps' && wordy.forks === 0
       && same(wordy.boxes, ['wf-node wf-node--normal: Is B above A? > your question', 'wf-node wf-node--normal: User requested variations o... > why you think so · other explanations',
                             'wf-node wf-node--normal: Question check > ', 'wf-node wf-node--normal: The Pathfinder went on > '])
-      && same(wordy.feet.slice(1), ['Step 2 of 4 | User requested variations of the plot, on two grounds. | Follows=step 1 | Follow-ups=1 | Changed=why you think so · other explanations | Pathfinder=Both hold. Anything else?',
-                                    'Step 3 of 4 | Question check | Follows=step 2 | Follow-ups=1 | Changed=nothing',
-                                    'Step 4 of 4 · on screen | The Pathfinder went on | Follows=step 3 | Follow-ups=none | Changed=nothing | Pathfinder=' + DRAWN])
+      && same(wordy.feet.slice(1), ['Step 2 [why you think so, other explanations] > Go to step 2 | User requested variations of the plot, on two grounds. | Follows=step 1 | Followed by=step 3 | Pathfinder=Both hold. Anything else?',
+                                    'Step 3 > Go to step 3 | Question check | Follows=step 2 | Followed by=step 4',
+                                    'Step 4 [on screen] | The Pathfinder went on | Follows=step 3 | Followed by=none | Pathfinder=' + DRAWN])
       && same(wordy.replies, ['Both hold. Anything else?', DRAWN]), [one, wordy]);
     // why the level cannot be shown
     const offOf = (e, place) => { responses.push(e); currentResponseIndex = responses.indexOf(e); loadResponseContent(e); updateNavigationButtons(); const out = A.map(place); responses.pop(); return [out.n, out.off]; };
@@ -1774,23 +1779,23 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     const thread = { boxes: boxes().map(x => x.className + ': ' + x.textContent), rest: wrap(), forks: $('workflowMapContainer').querySelectorAll('.wf-edge-label').map(x => x.textContent).join(),
                      traces: boxes().map(x => !!x.querySelector('.wf-node-map')).join() };
     boxes()[2].dispatch('mouseenter');
-    const threadOver = [foot(), wrap(), lit()].join(' / ');
+    const threadOver = [panel(), wrap(), lit()].join(' / ');
     boxes()[2].dispatch('mouseleave');
     check('the Workflow map, drawn by the drawing the conversation\'s map now shares (0316), is as it was: a box says its chain and how its question was made - and no longer has a way '
-      + 'into the code trace (0330); a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the foot is the thread\'s own - '
-      + 'the chain, what it follows, its follow-ups',
-      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
+      + 'into the code trace (0330); a fork is a fork, with its badge; nothing is lit while the pointer is nowhere; under the pointer a box lights its way and the panel is the thread\'s own - '
+      + 'the chain and its tags, the button that goes there, what it follows and what follows it, its id (0333)',
+      same(thread, { boxes: ['wf-node wf-node--normal wf-node--active wf-node--picked: A first questionChain: 11', 'wf-node wf-node--fork: User requested variationsChain: 12',
                              'wf-node wf-node--normal wf-node--notrun: A briefChain: 13not run'], rest: 'wf-graph', forks: 'Fork', traces: 'false,false,false' })
-      && threadOver === 'Chain 3 of 3 13 | A brief | Follows=chain 1 | Follow-ups=none / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
+      && threadOver === 'Chain 3 [not run] > Go to chain 3 | A brief | Follows=chain 1 | Followed by=none | Id=13 / wf-graph wf-path-active / 1,3' && wrap() === 'wf-graph', [thread, threadOver, wrap()]);
 
-    // the foot says everything (0330): a long question, on two lines, with what reads as markup in it, and a long first sentence of what the chain concluded
+    // the panel says everything (0330): a long question, on two lines, with what reads as markup in it, and a long first sentence of what the chain concluded
     const LONG_Q = 'Across the three regimes, ' + 'how do the plots on loam compare with the plots on clay and on sand, '.repeat(4) + 'and is the gap <larger> than the spread?\nSay it per regime.';
     const LONG_A = 'Regime B is above regime A on every soil type, '.repeat(6) + 'by about two units.';
     window.WorkflowGraph.render($('workflowMapContainer'), [{ chain_id: 14, parentChainId: null, queryText: LONG_Q, streamOutput: '', technicalAnswer: '<p>' + LONG_A + ' The rest is noise.</p>' }], 0);
     boxes()[0].dispatch('mouseenter');
     const wholeFoot = [($('nodeTaskContent').querySelector('.wf-said') || {}).textContent, ($('nodePlotPreview').querySelector('.wf-info-conclusion b') || {}).textContent];
     boxes()[0].dispatch('mouseleave');
-    check('the Workflow map\'s foot says everything (0330): the question whole, its lines kept, as text - and the first sentence of what the chain concluded, whole; they were cut at 200 '
+    check('the Workflow map\'s panel says everything (0330): the question whole, its lines kept, as text - and the first sentence of what the chain concluded, whole; they were cut at 200 '
       + 'and 240 characters. The pane scrolls',
       same(wholeFoot, [LONG_Q, LONG_A]) && LONG_Q.length > 200 && LONG_A.length > 240, wholeFoot);
 
@@ -1998,7 +2003,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     && engine('cold.py').includes('turn = {"who": "reader", "missing": missing, "v": at,'));
   check('the map of a conversation (0316; a level of the maps drawer, 0327), from the sources: the page has the drawer and the places in it the map writes to, its head the switch; the '
     + 'button that stood beside the arrows is gone - a tab kept with one hides it - and the thread\'s buttons are out of the drawer while it holds the steps; the drawing is told what is the '
-    + 'map\'s own in its last argument, and the Workflow map tells it nothing; a step clicked shuts the drawer, and a brief drawn again has the drawer follow; the words are plain ones; the '
+    + 'map\'s own in its last argument, and the Workflow map tells it nothing; a step gone to shuts the drawer, and a brief drawn again has the drawer follow; the words are plain ones; the '
     + 'module gives the level, go() and the steps, and nothing of 0308\'s use()',
     ['id="workflowMapModal"', 'id="mapLevels"', 'id="workflowMapContainer"', 'id="nodeTaskContent"', 'id="nodePlotPreview"', 'map-drawer-foot'].every(t => html.includes(t)) && !html.includes('mapDrawerSub')
     && wm.includes("WorkflowGraph.render(document.getElementById('workflowMapContainer'), boxes, window.BranchUI ? window.BranchUI.place().i - 1 : currentResponseIndex);")
@@ -2006,11 +2011,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     && /#workflowMapModal:not\(\[data-level="workflow"\]\) \.wf-node-chain \{[^}]*white-space: nowrap;[^}]*font-family: var\(--font-ui\);/.test(shell)
     && !own.includes('data-ar="map"') && !own.includes('mapFollows') && !own.includes('openMap') && own.includes("pick: (item, i) => { window.MapsUI.shut(); stepTo(briefRoot(), all[i].k); }")
     && (own.match(/window\.MapsUI\.follow\(\);/g) || []).length === 2 && /window\.ArchitectUI = \{[^}]*\bmark, map, apply\b/.test(own)
-    && graph.includes('function render(container, responses, activeIndex, of) {') && graph.includes('if (of) { of.pick(resp, idx); return; }')
-    && graph.includes('var tell = function (i) { if (of) of.show(responses[i], i); else updateDetailPane(i, responses[i], nodeContents, nodePlots, responses, activeIndex); };')
-    && graph.includes('tell(responses[activeIndex] ? activeIndex : responses.length - 1);') && graph.includes("chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;")
+    && graph.includes('function render(container, responses, activeIndex, of) {') && graph.includes('if (of) { of.pick(responses[i], i); return; }')
+    && graph.includes('if (of) of.show(responses[i], i); else updateDetailPane(i, responses[i], nodeContents, nodePlots, responses, activeIndex);')
+    && graph.includes('var picked = responses[activeIndex] ? activeIndex : responses.length - 1;') && graph.includes('        pick(picked);') && graph.includes("chainSpan.textContent = of ? of.sub(resp, idx) : 'Chain: ' + nd.chainId;")
     && ["mapOff: { none: n => 'Chain ' + n + ' was asked without the Pathfinder', old: n => 'Chain ' + n + \"'s brief was made before version 2.8.1\" },", "asked1: 'your question', byHand: 'You changed a line', checked: 'Question check', wentOn: 'The Pathfinder went on',",
-        "info: { step: 'Step', follows: 'Follows', next: 'Follow-ups', changed: 'Changed', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none', nothing: 'nothing',",
+        "info: { step: 'Step', follows: 'Follows', next: 'Followed by', replied: 'Pathfinder' }, onScreen: 'on screen', theStart: 'the start', none: 'none',", "goTo: k => 'Go to step ' + k, steps: n => n + ' steps',",
         "question: 'QUESTION', updated: 'updated', stepN: k => 'step ' + k, brief: 'BRIEF', inUse: k => 'step ' + k + ' in use',"].every(t => own.includes(t))
     && /window\.ArchitectUI = \{[^}]*\bgo, steps, build\b/.test(own) && !/\buse\(|WORDS\.version|startWith|set aside'|setAside/.test(own) && !own.includes('mapRest') && !own.includes('WorkflowGraph.rest'));
   check('the stylesheet and the words, 0311: the panels of the figures are styled in tabs.css - one under another, the tag - in the kernel\'s sand where the numbers are made up -, the cross in view, '

@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.15 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.16 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; 0333, the maps' panel on the right; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -31,6 +31,7 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
    a branch, also when it is switched on.
 5. Only analyses made after the build can be branched.
 6. The map works as the Workflow map and the Pathfinding map do: hover to read, click to go, type to branch.
+   (Since decision 23: click to pick, the panel's button - or a double click - to go.)
 7. The map is the **Analysis map** (the *Turn map* until decision 17). The Git branch icon is the branch
    buttons' on the cards (it was also on the buttons to this map and to the Pathfinding map, until decision 18).
 8. Going back moves the left pane only. The right pane keeps the result, so the person looks at the figure while
@@ -71,6 +72,12 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     says what the box in use is - the chain, turn or step on screen, or the last box where none is - as the
     pointer over that box would, and in the same shape on every map: a head that names the box and whether it is
     the one on screen, what was said in paragraphs, and the facts under a line.
+23. The maps' panel on the right (2026-11-22, 0333; the product owner: match the font and its size, and find a
+    better way to show a box, the same on the three maps - of three drafts on a design canvas, a panel on the right,
+    a card beside the box and the panel at the foot in one type size, he picked the first): what a box is stands
+    beside the map, as tall as the drawer - the maps run top to bottom, and the panel at their foot took the height
+    they are drawn in -; one panel for the three maps, in one type size; a click picks a box, the panel's button or
+    a double click goes there.
 
 Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
@@ -189,29 +196,31 @@ the kept turns' cards first, each marked `kept`; the closing card's time is that
 **The Analysis map** is a level of the maps drawer (*The maps in one place*, below). Every turn of the analysis and
 of its branches is a box, joined to the turn it follows. A box says what the turn did, and under that its number and
 its cell (*Turn 5 · In [4]*), or that the cell failed, or what else the turn was. The first turn of a branch carries
-the mark *hint*. The way to the turn on screen is lit. The drawer's foot says what that turn is from the first
-(0332), and under the pointer what a box's turn is: at its head its number, what it was and whether it is on screen;
-then the whole of what the turn said (0330; its line, cut, until then), the hint its branch was given, how many ways
-the analysis went on from it and what its cell printed. The map can be shown once the run has ended with turns to go
-on from (`turn_map` on the closing card, which marks the row of the ids, `data-branch`; a stopped run has a closing
-card too), and not while an analysis runs. Until 0327 a button at the end of the row of the ids opened it (0321).
+the mark *hint*. The way to the turn on screen is lit. The drawer's panel - on the right of the map since 0333 -
+says what that turn is from the first (0332), and under the pointer what a box's turn is: its number; its tags - on
+screen, what it was, the hint's mark -; a button that goes there; the whole of what the turn said (0330; its line,
+cut, until then), the turn it follows and those that follow it, the hint its branch was given and what its cell
+printed. The map can be shown once the run has ended with turns to go on from (`turn_map` on the closing card, which
+marks the row of the ids, `data-branch`; a stopped run has a closing card too), and not while an analysis runs.
+Until 0327 a button at the end of the row of the ids opened it (0321).
 
-**Going back.** A click on a turn shuts the map. The left pane ends at the turn: the cards after it are hidden by a
-rule of the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the hint:
-its words ask for one, and the row under it says *From turn 4 · 11 turns left* in the place of the mode, the
-Architect's switch and the files. The cross on that row, Escape in the composer, or another chain coming on screen
-leaves the turn. A turn that ended its chain - the report, a question to the person - brings the chain back whole.
-The turn a run was stopped in ended nothing: it has no box. A turn a branch kept is in the fold of its kept turns
-(0330): the fold opens, the kept turns after it and all that stands under the fold are out of sight, and the fold
-shuts again once the pane is whole - unless the person had opened it.
+**Going back.** A turn gone to - its box picked and the panel's button pressed, or the box double-clicked (0333; a
+click on it until then) - shuts the map. The left pane ends at the turn: the cards after it are hidden by a rule of
+the page's, and the chain's own markup is not touched. The right pane stays. The composer takes the hint: its words
+ask for one, and the row under it says *From turn 4 · 11 turns left* in the place of the mode, the Architect's
+switch and the files. The cross on that row, Escape in the composer, or another chain coming on screen leaves the
+turn. A turn that ended its chain - the report, a question to the person - brings the chain back whole. The turn a
+run was stopped in ended nothing: it has no box. A turn a branch kept is in the fold of its kept turns (0330): the
+fold opens, the kept turns after it and all that stands under the fold are out of sight, and the fold shuts again
+once the pane is whole - unless the person had opened it.
 
 **The button on a turn's card** (0323; the product owner, 2026-11-21: to branch without looking for the turn on the
 map). Every turn the analysis can go on from has a button in the head of its card in the left pane, the Git branch
-mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is no turn. A
-click is a click on the turn's box of the map - the pane ends at the turn, the composer takes the hint - and its
-button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a pane whose
-run ended with turns to go on from: when its run ends, and when a chain kept from before the button existed comes
-on screen.
+mark, before the button of its prompt: the turns a branch kept too, not the report's card or a card that is no turn.
+A click goes to the turn as the map's button for it does - the pane ends at the turn, the composer takes the hint -
+and its button is lit; a click on the lit button brings the end back. `BranchUI.dress` puts the buttons into a pane
+whose run ended with turns to go on from: when its run ends, and when a chain kept from before the button existed
+comes on screen.
 
 **The hint sent.** With a turn gone back to, what is typed is the hint: `/query` gets `branch: {turn}` with the
 chain on screen, and the Architect is not asked. The new chain is its analysis's from the first moment: its entry
@@ -246,7 +255,8 @@ full screen were in the map's corners, over the drawing: `workflowGraph.js` puts
 is drawn, and a map with nothing on it has neither. The full-screen button says what a click does, also on a map
 drawn again while the drawer is over the page. The drawer's foot said what a click and the pointer do until a box
 was under the pointer (*Click a turn to go back to it. Hover over one to see what it did.*); since 0332 it says from
-the first what the box in use is (decision 22). The small grey text of the drawer is one shade lighter than it was.
+the first what the box in use is (decision 22), and since 0333 it is a panel on the map's right (decision 23). The
+small grey text of the drawer is one shade lighter than it was.
 
 **The maps in one place** (0327; the product owner, 2026-11-21: four things called a map opened from four places,
 and it was hard to remember which was where). `web_app/static/js/maps.js` is the drawer's one way in, and its head is
@@ -266,9 +276,10 @@ a switch (decision 18):
 - **Following.** The drawer shows what is on screen: when another chain comes on screen, or the one there changes,
   the map is drawn again. On a level the chain now on screen does not have, the drawer goes to the Workflow map and
   stays there. An analysis that starts shuts the drawer: it lies over the pane the run is shown in.
-- **Clicks.** A chain's box on the Workflow map brings the chain on screen and leaves the drawer open, so its other
-  maps are one click away. A step or a turn clicked shuts the drawer, which lies over the pane the person then
-  works in.
+- **Clicks.** A click on a box picks it: the panel holds it (0333). Its button in the panel - or a double click on
+  the box - goes there: a chain's box on the Workflow map brings the chain on screen and leaves the drawer open, so
+  its other maps are one click away; a step or a turn gone to shuts the drawer, which lies over the pane the person
+  then works in.
 - **In the code.** A level is what its module gives the drawer when asked - how many boxes, that in words, why it
   cannot be shown, and its drawing: `workflowMap()` (`workflow-management.js`), `ArchitectUI.map` and
   `BranchUI.map`. The drawer says which level it holds in `data-level`. `MapsUI.follow()` is called at the end of
@@ -306,6 +317,23 @@ a switch (decision 18):
   what was said, in paragraphs - a blank line parts two, a line break stays, `code` is set as code -; and the facts
   under a line, their names in small capitals, a cell's *Printed* in the type of code. `WorkflowGraph.foot` and
   `row` write it for every map; `rest` and its line are gone.
+- **The panel on the right** (0333, decision 23). The panel at the map's foot took 200px of the drawer's height, and
+  the maps run top to bottom: the map was drawn smaller for it, also in full screen, where the panel's lines ran the
+  width of the screen. The panel now stands on the right of the map, as tall as the drawer: 340px wide, 380 in full
+  screen; the drawer is 900px wide, no wider than the window. The Analysis map of the field trial is drawn at 97%
+  where it was at 72%. One type size, the page's (13px), for the name, what was said, the facts and the button; the
+  tags a size smaller; no small capitals - the facts' names are grey words. Its head - the name (*Turn 6*, *Chain
+  2*, *Step 3*), the button that goes there (*Go to turn 6*) and the tags - stays in view as the rest scrolls. The
+  tags are in the colour of what they say: *on screen* and the hint's mark in the analyst's green, what a turn was
+  (*In [5]*, *report*) and the parts a step changed in the colour of cells, a failure in red, the rest - the
+  branches, *not run*, *your question* - in grey. The facts: *Follows* and *Followed by* on every map (*the start*,
+  *turn 7*, *3 turns*, *none*); then a chain's *Concluded* and *Id*, a turn's *Hint* and *Printed*, in the colour of
+  cells, a step's *Pathfinder*, whole; a step's *Changed* became its tags. A click on a box picks it, ringed: the
+  panel holds it and its way is lit; under the pointer the panel says what another box is, and the picked one again
+  when the pointer leaves (0330 kept the box last under the pointer, so the pane could be scrolled to). The button -
+  or a double click on the box - goes there, as a click did; the chain or the step on screen and the turn gone back
+  to are there already and have no button, nor has the last turn of the chain on screen where it cannot be gone on
+  from. A map starts from the box in use.
 - **No way into the Code trace on a box** (0330, decision 21). The label 0329 put on a chain's box of the Workflow
   map cluttered the boxes; the closing card's button, a report's `[cell n]` and a cell's name in the Investigation
   tab are the ways in.
@@ -397,6 +425,7 @@ before.
 | 0330 | A branch's kept turns in one fold, its hint as a card; the maps' foot whole; no Code trace on a chain's box (decision 21). | built |
 | 0331 | A framed analysis's branch shows the drafts of its brief on its Brief tab. | built |
 | 0332 | The maps' foot says from the first what the box in use is, in one shape on every map (decision 22). | built |
+| 0333 | The maps' panel on the right of the map, one for the three maps in one type size; a click picks a box, its button or a double click goes there (decision 23). | built |
 
 ## 9. Tests
 
@@ -446,3 +475,8 @@ its drafts on its Brief tab. (0332) `test_branch.js`, `test_architect.js` and `t
 the map opens - the box in use, the last box where none is -, its head, what was said in paragraphs with `code`,
 the facts; `test_shell.js`: the foot's rules; the walk: each map's foot as it opens, on the Pathfinding map as the
 pointer over the open box has it.
+(0333) `test_branch.js`: the panel (its name, its tags and their colours, its button, what was said and the facts),
+a click that picks a box and goes nowhere, the pointer over another box and gone, a double click, the button where
+going there changes something; `test_architect.js`: the Pathfinding map's panel and the Workflow map's;
+`test_maps.js` and `test_shell.js`: a chain's box picked and gone to, the drawer's width, the panel's rules in one
+type size; the walk: each map's panel, a box picked and gone to through its button.

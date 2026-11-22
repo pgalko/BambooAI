@@ -214,7 +214,7 @@ window.WorkflowGraph = (function () {
 
         if (!responses || responses.length === 0) {
             container.innerHTML = '<div class="wf-empty">No workflow data to display.</div>';
-            foot('', '', '');                                        // nothing to say: the foot goes
+            foot();                                                  // nothing to say: the panel goes
             return;
         }
 
@@ -297,10 +297,37 @@ window.WorkflowGraph = (function () {
         var chainIndex = buildChainIndex(responses);
         var nodeContents = of ? [] : responses.map(function (r) { return extractTaskFromResponse(r); });
         var nodePlots    = of ? [] : responses.map(function (r) { return extractPlotDataFromResponse(r); });
-        // another map's way to the box in use, lit while no box is under the pointer
-        var atRest = function () { if (of && responses[activeIndex]) highlightPath(wrapper, getAncestorPath(activeIndex, responses, chainIndex)); };
-        // what a box is, in the drawer's foot: another map's own words, or the chain's
-        var tell = function (i) { if (of) of.show(responses[i], i); else updateDetailPane(i, responses[i], nodeContents, nodePlots, responses, activeIndex); };
+        // the box the panel holds (0333): from the first the one in use - the chain, turn or step on screen -, else the
+        // last; a click picks another. While the pointer is on a box the panel holds that one, the picked one again after
+        var picked = responses[activeIndex] ? activeIndex : responses.length - 1;
+        // another map's way to the picked box, lit while no box is under the pointer
+        var atRest = function () { if (of && responses[picked]) highlightPath(wrapper, getAncestorPath(picked, responses, chainIndex)); };
+        // what a box is, in the drawer's panel: another map's own words, or the chain's; its button goes there - the map
+        // gives it one where going there changes something
+        var tell = function (i) {
+            if (of) of.show(responses[i], i); else updateDetailPane(i, responses[i], nodeContents, nodePlots, responses, activeIndex);
+            var button = document.querySelector('#nodeTaskContent .wf-go');
+            if (button) button.addEventListener('click', function () { goTo(i); });
+        };
+        // a box's own place (until 0333, a click on the box): the chain comes on screen and the drawer stays open, so its
+        // other maps are a click away (2.9); on another map, that map's own way there
+        var goTo = function (i) {
+            if (of) { of.pick(responses[i], i); return; }
+            if (window.BranchUI) window.BranchUI.open(responses[i]);       // the box stands for a chain of its analysis: that chain opens
+            else {
+                currentResponseIndex = i;
+                lastActiveChainId = responses[i].chain_id || null;
+                loadResponseContent(responses[i]);
+                if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
+            }
+        };
+        var pick = function (i) {
+            picked = i;
+            wrapper.querySelectorAll('.wf-node--picked').forEach(function (n) { n.classList.remove('wf-node--picked'); });
+            var box = wrapper.querySelector('.wf-node[data-index="' + i + '"]');
+            if (box) box.classList.add('wf-node--picked');
+            tell(i);
+        };
 
         // ── HTML nodes ──
         graph.nodes().forEach(function (nodeId) {
@@ -346,40 +373,26 @@ window.WorkflowGraph = (function () {
                 div.appendChild(branchSpan);
             }
 
-            // ── Hover ──
+            // ── The pointer lights a box's way and shows it in the panel; a click picks it; a double click goes there ──
             div.addEventListener('mouseenter', function () {
-                var ancestors = getAncestorPath(idx, responses, chainIndex);
                 clearHighlight(wrapper);
-                highlightPath(wrapper, ancestors);
+                highlightPath(wrapper, getAncestorPath(idx, responses, chainIndex));
                 tell(idx);
             });
-
             div.addEventListener('mouseleave', function () {
                 clearHighlight(wrapper);
                 atRest();
+                tell(picked);
             });
-
-            // ── Click → navigate ──
-            // a chain's box: the chain comes on screen and the drawer stays open, so its other maps are a click away (2.9)
-            div.addEventListener('click', function () {
-                if (of) { of.pick(resp, idx); return; }
-                if (window.BranchUI) window.BranchUI.open(resp);       // the box stands for a chain of its analysis: that chain opens
-                else {
-                    currentResponseIndex = idx;
-                    lastActiveChainId = responses[idx].chain_id || null;
-                    loadResponseContent(responses[idx]);
-                    if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
-                }
-            });
+            div.addEventListener('click', function () { pick(idx); });
+            div.addEventListener('dblclick', function () { goTo(idx); });
 
             wrapper.appendChild(div);
         });
 
         container.appendChild(wrapper);
         atRest();
-        // the foot says, from the first, what the box in use is - the chain, turn or step on screen; where none is, the
-        // last box (0332: it said what a click and the pointer do, and the person had to point at a box to read one)
-        tell(responses[activeIndex] ? activeIndex : responses.length - 1);
+        pick(picked);      // the panel says from the first what the box in use is (0332: until then, what a click and the pointer do)
 
         // ── Zoom and full screen, in the drawer's head ──
         var mapContainer = container.closest('.workflow-map-container') || container;
@@ -433,24 +446,29 @@ window.WorkflowGraph = (function () {
         });
     }
 
-    // ── Detail pane update ──────────────────────────────────
+    // ── The drawer's panel ──────────────────────────────────
 
-    // A chain's box: which chain it is - and that it is the one on screen -, its question whole, and its basics
-    // (2026-09-08): what it followed, what followed it, its branches, the first sentence of what it concluded, whole
+    // A chain's box (2026-09-08; the panel, 0333): its name and its tags - on screen, how its question was made, its
+    // branches -; its question, whole; what it follows and what follows it, the first sentence of what it concluded,
+    // whole, and its id
     function updateDetailPane(index, response, nodeContents, nodePlots, responses, onScreen) {
         if (!document.getElementById('nodeTaskContent')) return;
-        var head = 'Chain ' + (index + 1) + ' of ' + responses.length + (index === onScreen ? ' · on screen' : '') + ' <span class="wf-info-id">' + esc(response.chain_id || '') + '</span>';
         var parentIdx = response.parentChainId ? responses.findIndex(function (r) { return r.chain_id === response.parentChainId; }) : -1;
-        var children = responses.filter(function (r) { return r.parentChainId && r.parentChainId === response.chain_id; }).length;
+        var after = responses.map(function (r, i) { return r.parentChainId && r.parentChainId === response.chain_id ? i : -1; }).filter(function (i) { return i >= 0; });
         var plain = String(response.technicalAnswer || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         plain = plain.replace(/^(Answer|Explore|Synthesis|Results)\s*:\s*/i, '');
         var m = plain.match(/^(.{20,}?[.!?])(\s|$)/);            // its first sentence, whole (0330: it was cut at 240 characters)
         var conclusion = m ? m[1] : plain;
-        var rows = row('Follows', parentIdx >= 0 ? 'chain ' + (parentIdx + 1) : 'the thread\'s start') + row('Follow-ups', children ? children : 'none') +
-                   (response.branches ? row('Branches', response.branches) : '') + (conclusion ? row('Concluded', esc(conclusion), 'wf-info-conclusion') : '');
+        var made = window.ArchitectUI ? window.ArchitectUI.mark(response) : '';
+        var box = { title: 'Chain ' + (index + 1), go: index === onScreen ? '' : 'Go to chain ' + (index + 1),      // the chain on screen is there already
+            tags: (index === onScreen ? [['on screen', 'model']] : []).concat(made ? [[made, '']] : [], response.branches ? [[response.branches + (response.branches === 1 ? ' branch' : ' branches'), '']] : []),
+            rows: row('Follows', parentIdx >= 0 ? 'chain ' + (parentIdx + 1) : 'the start') +
+                  row('Followed by', after.length === 1 ? 'chain ' + (after[0] + 1) : after.length ? after.length + ' chains' : 'none') +
+                  (conclusion ? row('Concluded', esc(conclusion), 'wf-info-conclusion') : '') + row('Id', esc(response.chain_id || ''), 'wf-info-id') };
         if (getNodeType(response.queryText || 'No query') === 'fork') {          // a chain of variations (1.x): its pills in the place of a question
             var withStatus = getExploredVariations(response.chain_id, extractVariationsFromStreamOutput(response.streamOutput));
-            foot(head, withStatus.length ? '' : 'Generated variation questions for exploration.', rows);
+            box.said = withStatus.length ? '' : 'Generated variation questions for exploration.';
+            foot(box);
             if (withStatus.length) {
                 var pills = document.createElement('div');
                 document.getElementById('nodeTaskContent').appendChild(pills);
@@ -459,20 +477,25 @@ window.WorkflowGraph = (function () {
             return;
         }
         var content = nodeContents[index];
-        foot(head, (content.task && content.task !== 'null' && content.task.trim()) || (content.originalQuestion && content.originalQuestion.trim()) || 'No content available for this node', rows);
+        box.said = (content.task && content.task !== 'null' && content.task.trim()) || (content.originalQuestion && content.originalQuestion.trim()) || 'No content available for this node';
+        foot(box);
     }
 
-    // ── The drawer's foot ───────────────────────────────────
-
-    // What a box is, in the drawer's foot (0332), as one card for every map: its head, in small capitals - which chain,
-    // turn or step, and whether it is the one on screen (markup); what was said there, whole, as text in paragraphs -
-    // a blank line parts two, a line break stays one, `code` is set as code; and its facts under a line, a row each
-    // (row()). Nothing at all for a map with nothing on it
-    function foot(head, said, rows) {
-        var paragraphs = String(said || '').split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean)
+    // What a box is, in the drawer's panel - on the right of the map since 0333, at its foot until then -, the same on
+    // every map, in one type size: its name, the button that goes there and its tags, a head that stays in view; what
+    // was said there, whole, as text in paragraphs - a blank line parts two, a line break stays one, `code` is set as
+    // code -; and its facts under a line, a row each (row()). box: {title, go, tags: [[text, kind]], said, rows};
+    // a tag's kind is the colour it carries - model, kernel, fail - or none. Nothing at all for a map with nothing on it
+    function foot(box) {
+        var task = document.getElementById('nodeTaskContent'), facts = document.getElementById('nodePlotPreview');
+        if (!box || !box.title) { task.innerHTML = ''; facts.innerHTML = ''; return; }
+        var tags = (box.tags || []).map(function (t) { return '<span class="wf-tag' + (t[1] ? ' wf-tag--' + t[1] : '') + '">' + esc(t[0]) + '</span>'; }).join('');
+        var paragraphs = String(box.said || '').split(/\n\s*\n/).map(function (p) { return p.trim(); }).filter(Boolean)
             .map(function (p) { return '<p>' + esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>') + '</p>'; }).join('');
-        document.getElementById('nodeTaskContent').innerHTML = (head ? '<div class="wf-head">' + head + '</div>' : '') + (paragraphs ? '<div class="wf-said">' + paragraphs + '</div>' : '');
-        document.getElementById('nodePlotPreview').innerHTML = rows ? '<div class="wf-info">' + rows + '</div>' : '';
+        task.innerHTML = '<div class="wf-head"><div class="wf-head-row"><h3 class="wf-title">' + esc(box.title) + '</h3>' +
+            (box.go ? '<button type="button" class="ui-btn primary wf-go">' + esc(box.go) + '</button>' : '') + '</div>' +
+            (tags ? '<div class="wf-tags">' + tags + '</div>' : '') + '</div>' + (paragraphs ? '<div class="wf-said">' + paragraphs + '</div>' : '');
+        facts.innerHTML = box.rows ? '<div class="wf-info">' + box.rows + '</div>' : '';
     }
     // a fact of the box: its name, and its value (markup); `cls`, a kind of row the foot sets apart
     function row(name, value, cls) { return '<div class="wf-info-row' + (cls ? ' ' + cls : '') + '"><span>' + name + '</span><b>' + value + '</b></div>'; }
