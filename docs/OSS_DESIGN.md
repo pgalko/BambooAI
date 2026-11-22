@@ -311,7 +311,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-22: 2.9.0 (patches 0318-0333).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
+- **Status 2026-11-22: 2.9.0 (patches 0318-0334).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
   back to any turn of an analysis, gives the Analyst a hint, and the analysis goes on from there another way; the
   first way stays, and the Analysis map shows every turn of every branch. The kernel keeps its state after every cell
   and goes back to any, with nothing run again (executor image v75, `cloudpickle`); a follow-up asked from an earlier
@@ -328,10 +328,10 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   its hint's card; the maps' foot says everything; a chain's box has no way into the Code trace (0330). A framed
   analysis's branch shows the drafts of its brief (0331). The maps' foot says from the first what the box in use is
   (0332), and is a panel on the right of the map, one for the three maps; a click picks a box, its button goes there
-  (0333). Also in it: a correction of a result marks the line it replaced, not every line of its cell - in the ledger
-  of the prompts and on the code map (version 5). The README has the three levels of branching: the thread, and in a
-  chain the Architect and the Analyst. The hosted editions rebuild the executor image as v75 and restart the
-  orchestrator; no migration.
+  (0333). The template has inkling-2-mini, a reasoning model served by vLLM (0334). Also in it: a correction of a
+  result marks the line it replaced, not every line of its cell - in the ledger of the prompts and on the code map
+  (version 5). The README has the three levels of branching: the thread, and in a chain the Architect and the Analyst.
+  The hosted editions rebuild the executor image as v75 and restart the orchestrator; no migration.
 - **Status 2026-11-20: 2.8.1 (patches 0316-0317).** The conversation with the Architect in steps, with a map of
   them (docs/ARCHITECT_DESIGN.md §2.25). What the person says or changes, with the Architect's reply, is a step.
   They go back to any step - with the arrows on the Brief tab, or on a map of the steps in the Workflow map's

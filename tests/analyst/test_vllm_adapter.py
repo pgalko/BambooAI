@@ -5,6 +5,7 @@ records what it was asked.
 
     python3 tests/analyst/test_vllm_adapter.py
 """
+import json
 import os
 import sys
 import time
@@ -142,11 +143,11 @@ class Prompts:
 LAST = [None]
 
 
-def stream(messages, effort="medium", props=None, script=None, reasoning_models=("qwen3.8-27b",), max_tokens=16000):
+def stream(messages, effort="medium", props=None, script=None, reasoning_models=("qwen3.8-27b",), max_tokens=16000, model="qwen3.8-27b"):
     FakeClient.calls.clear(); FakeClient.script[:] = script or []
     vm.set_model_properties(props or {})
     pane = Pane(); LAST[0] = pane
-    out = vm.llm_stream(Prompts(), None, pane, "c1", messages, "qwen3.8-27b", 0, max_tokens, None, None, list(reasoning_models), effort, None, stop_event=None)
+    out = vm.llm_stream(Prompts(), None, pane, "c1", messages, model, 0, max_tokens, None, None, list(reasoning_models), effort, None, stop_event=None)
     return out, pane, FakeClient.calls[-1]
 
 
@@ -168,6 +169,17 @@ check("effort 'none' switches thinking off through chat_template_kwargs, and sen
       req.get("extra_body") == {"chat_template_kwargs": {"enable_thinking": False}} and "reasoning_effort" not in req, req)
 out, pane, req = stream(MSGS, "high", {}, SCRIPT, reasoning_models=())
 check("a model the template does not mark as reasoning is sent no thinking control", "reasoning_effort" not in req and "extra_body" not in req, req.keys())
+# the template's second model served by vLLM (2.9.0, the product owner's): what each seat's effort reaches the server as, from its own entry
+TPL = json.load(open(os.path.join(ROOT, "web_app", "LLM_CONFIG_template.json"), encoding="utf-8"))["model_properties"]
+INK, sent = TPL["inkling-2-mini"], {}
+for e in ("none", "minimal", "low", "medium", "high", "xhigh", "max"):
+    out, pane, req = stream(MSGS, e, INK, SCRIPT, reasoning_models=("inkling-2-mini",), model="inkling-2-mini")
+    sent[e] = "off" if req.get("extra_body") == {"chat_template_kwargs": {"enable_thinking": False}} and "reasoning_effort" not in req else req.get("reasoning_effort")
+check("inkling-2-mini, served by vLLM, as the template has it: a reasoning model of text with 65,536 tokens, free; each seat's effort reaches the server - none switches "
+      "thinking off, high, which it does not list, goes as xhigh, the others by their own names. Every model's levels in the template are named once each",
+      (INK["capability"], INK["multimodal"], INK["context_window"], INK["prompt_tokens"], INK["completion_tokens"]) == ("reasoning", "false", 65536, 0.0, 0.0) and req.get("model") == "inkling-2-mini"
+      and sent == {"none": "off", "minimal": "minimal", "low": "low", "medium": "medium", "high": "xhigh", "xhigh": "xhigh", "max": "max"}
+      and all(len(v.get("reasoning_efforts", [])) == len(set(v.get("reasoning_efforts", []))) for v in TPL.values()), (INK, sent))
 
 # ---- no usage chunk (an older server): the estimate stands
 out, pane, req = stream(MSGS, "high", {}, [chunk(content="x y z", finish="stop")])
