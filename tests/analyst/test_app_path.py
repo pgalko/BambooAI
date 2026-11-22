@@ -2760,7 +2760,20 @@ try:
                      _cell("print(no_such_name)"), _cell("three = two + 1\nprint('three', three)"), _REPORT], _talk.id)
     _first.turns[0].usage["elapsed"] = 7.0                   # the time its first turn took: a branch's closing card counts its own turns' time
     _k = BAMBOO._kernel
-    _b, _sent, _prompts = _go_on([_WHICH, _REPORT], _first.id, 2, mode="quick")      # whatever mode the page sends, it runs in the first run's
+    # the drafts of a brief its analysis ran under (0331): plots kept under the first run - a branch's Brief tab asks for them under the branch's chain
+    from analyst import draft as _dr
+    _plots_b, _keys_b = _dr.Plots(BAMBOO._user_storage()), ("a1a1a1a1a1a1", "b2b2b2b2b2b2")
+    for _n, _kb in enumerate(_keys_b):
+        _plots_b.put("2909", _first.id, _kb, '{"data": [{"type": "bar", "y": [%d]}], "layout": {}}' % (_n + 1))
+    _send_was, _at_id = BAMBOO.output_manager.send_chain_id, []
+    def _send_seen(thread_id, chain_id, *a, **kw):                    # what is kept under the new chain when it is announced
+        _at_id.append([_kb for _kb in _keys_b if _plots_b.get("2909", chain_id, _kb) is not None])
+        return _send_was(thread_id, chain_id, *a, **kw)
+    BAMBOO.output_manager.send_chain_id = _send_seen
+    try:
+        _b, _sent, _prompts = _go_on([_WHICH, _REPORT], _first.id, 2, mode="quick")      # whatever mode the page sends, it runs in the first run's
+    finally:
+        BAMBOO.output_manager.send_chain_id = _send_was
     check("0319: a branch goes on from a turn in the kernel the thread has, at the state the kept turns left: nothing is run again - the number a kept cell drew "
           "without a seed is the one it drew - and what the chain made after that turn is not there",
           _b is not None and BAMBOO._kernel is _k and _k.last_goto["replayed"] == [] and f"{_k.uid}:{_k.last_goto['step']}" == _first.cells()[1].snap
@@ -2771,6 +2784,20 @@ try:
           and _b.hints == [{"turn": 2, "text": "keep the two apart"}] and [t.kept for t in _b.turns[:2]] == ["kept", "kept"] and [c.cell_no for c in _b.cells()] == [1, 2, 3]
           and _b.status == "answered" and [c.cell_no for c in _first.cells()] == [1, 2, 3] and _first.cells()[2].code.startswith("three") and not any(t.kept for t in _first.turns),
           (_b.branch, _b.hints, _b.budget, [c.cell_no for c in _b.cells()]))
+    if os.path.exists(_plots_b._path("2909", _b.id, _keys_b[0])):
+        os.remove(_plots_b._path("2909", _b.id, _keys_b[0]))           # as a branch made before 0331 has it: nothing kept under its own chain
+    _appm = sys.modules["app"]; _up_was = getattr(_appm, "user_path", None)
+    _appm.user_path = lambda root, *p: os.path.join(BAMBOO._user_storage(), *p)      # the route's storage, the instance's
+    try:
+        _via, _none = _wac.get(f"/architect/draft/2909/{_b.id}/{_keys_b[0]}"), _wac.get(f"/architect/draft/2909/{_b.id}/c3c3c3c3c3c3")
+    finally:
+        if _up_was is None: del _appm.user_path
+        else: _appm.user_path = _up_was
+    check("0331: a branch's Brief tab shows the drafts of the brief it runs under: their plots are kept under its own chain too, there when the chain is announced - the page asks "
+          "for them under it at once; for a branch made before, which has none kept under it, the route finds them under the chains it went on from. A figure none of them has is not found",
+          _at_id == [list(_keys_b)] and _plots_b.get("2909", _b.id, _keys_b[1]) == _plots_b.get("2909", _first.id, _keys_b[1]) == '{"data": [{"type": "bar", "y": [2]}], "layout": {}}'
+          and _via.status_code == 200 and _via.get_json() == {"plot": {"data": [{"type": "bar", "y": [1]}], "layout": {}}} and _none.status_code == 404,
+          (_at_id, _via.status_code, _none.status_code))
     _line_b = BAMBOO.store.ledger().get(str(_b.id)) or {}
     check("0321: the usage ledger's line of a branch counts its own cell - not the two it kept - and says the turn it went on from and the hint given there",
           _line_b.get("cells") == 1 and _line_b.get("branch") == {"turn": 2, "hint": "keep the two apart"} and _line_b.get("question") == _first.question

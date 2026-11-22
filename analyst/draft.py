@@ -14,7 +14,8 @@ for and reads no file - a draft is computed from a rule or drawn on made-up numb
 no data. And a figure counts as computed only where its cell said so: every other draft is shown as made up.
 
 The plots are files beside the thread's record (Plots), a figure's under its key: the record and the framing hold
-none of them.
+none of them. A branch runs under the brief of the chains it went on from (lineage()), and their plots are kept under
+it too (Plots.carry; 0331).
 """
 from __future__ import annotations
 
@@ -300,3 +301,30 @@ class Plots:
                 return fh.read()
         except OSError:
             return None
+
+    def carry(self, thread, runs, run) -> int:
+        """The plots kept under `runs` kept under `run` too - of a figure two of them have, the first's; one `run` has
+        already stays as it is. A branch's, from the chains it went on from (lineage()). Returns how many it kept."""
+        if not self._path(thread, run, "k"):
+            return 0
+        kept = 0
+        for src in runs:
+            folder = os.path.dirname(self._path(thread, src, "k"))
+            for name in sorted(os.listdir(folder)) if folder and os.path.isdir(folder) else []:
+                key = name[:-len(".json")] if name.endswith(".json") else ""
+                plot = self.get(thread, src, key) if key and self.get(thread, run, key) is None else None
+                if plot is not None:
+                    self.put(thread, run, key, plot)
+                    kept += 1
+        return kept
+
+
+def lineage(notebook: Optional[Notebook], run_id) -> list:
+    """A run and the chains it went on from, nearest first: a branch's `branch["of"]`, that one's, and so on to a run that
+    is no branch, or one the record no longer has (2.9). A branch runs under their brief, whose figures were drafted
+    before the first of them ran: their drafts are its drafts (0331)."""
+    out, run = [str(run_id)], notebook.runs.get(str(run_id)) if notebook is not None else None
+    while run is not None and run.branch and str(run.branch.get("of")) not in out:
+        out.append(str(run.branch["of"]))
+        run = notebook.runs.get(out[-1])
+    return out

@@ -2883,6 +2883,22 @@ check("draft.Plots (0310): a draft's plot is a file of its own beside the thread
       and _ps.get("x", "8", "ab") == "p" and sorted(os.listdir(os.path.join(_pdir, "drafts"))) == ["7", "x"] and os.listdir(_pdir) == ["drafts"]
       and os.listdir(os.path.join(_pdir, "drafts", "7", "8")) == [_k1 + ".json"]
       and _ps.get("..", "8", _k1) is None and _ps.get("7", "", _k1) is None and _ps.get("7", "8", "../..") is None and _ps._path("..", "8", "k") == "", os.listdir(os.path.join(_pdir, "drafts")))
+# a branch's drafts (0331): those of the chains it went on from, kept under it too
+_ln = Notebook("tl")
+_la, _lb, _lc, _lo, _lx, _ly = (_ln.new_run("q") for _ in range(6))
+_lb.branch, _lc.branch, _lo.branch = {"of": _la.id, "turn": 2}, {"of": _lb.id, "turn": 3}, {"of": "gone", "turn": 1}
+_lx.branch, _ly.branch = {"of": _ly.id, "turn": 1}, {"of": _lx.id, "turn": 1}
+_ps.put("7", _la.id, "k1", "p1"); _ps.put("7", _la.id, "k2", "p2"); _ps.put("7", _lb.id, "k2", "p2b")
+open(os.path.join(_pdir, "drafts", "7", _la.id, "k3.json.part"), "w").write("half")      # a plot being written: no plot yet
+_carried = _ps.carry("7", drafts.lineage(_ln, _lc.id)[1:], _lc.id)
+check("draft.lineage and Plots.carry (0331): a run and the chains it went on from, nearest first, to a run that is no branch or one the record no longer has - a ring of branches is "
+      "walked once; under a branch, every plot of those chains it has not - of a figure two of them have, the nearest's -, and how many; nothing where all are there already, "
+      "where those chains have none, or where the run names no folder",
+      drafts.lineage(_ln, _lc.id) == [_lc.id, _lb.id, _la.id] and drafts.lineage(_ln, _la.id) == [_la.id] and drafts.lineage(_ln, _lo.id) == [_lo.id, "gone"]
+      and drafts.lineage(_ln, "none") == ["none"] and drafts.lineage(None, 5) == ["5"] and drafts.lineage(_ln, _lx.id) == [_lx.id, _ly.id]
+      and _carried == 2 and _ps.get("7", _lc.id, "k1") == "p1" and _ps.get("7", _lc.id, "k2") == "p2b" and sorted(os.listdir(os.path.join(_pdir, "drafts", "7", _lc.id))) == ["k1.json", "k2.json"]
+      and _ps.carry("7", [_la.id, _lb.id], _lc.id) == 0 and _ps.carry("7", ["nothing"], "x9") == 0 and not os.path.exists(os.path.join(_pdir, "drafts", "7", "x9"))
+      and _ps.carry("7", [_la.id], "..") == 0, (_carried, drafts.lineage(_ln, _lc.id)))
 _dsys = " ".join(drafts.SYSTEM.split())
 _dtexts = {"the draft's instructions": drafts.SYSTEM, **{f"analyst/draft.py string {k}": t for k, t in enumerate(_authored_strings("analyst/draft.py"))}}
 _dsaid = {"what it is": "You draw a draft of the figures a person asked to see, before their question is analysed.", "no result": "It is not a result.",

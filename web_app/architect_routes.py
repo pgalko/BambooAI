@@ -159,9 +159,15 @@ def architect_saved(thread_id, run_id):
 @requires_auth
 def architect_draft(thread_id, run_id, key):
     """The plot of a figure's draft, for the page to draw: {"plot": the figure as Plotly takes it}, under the key the
-    framing gives the figure (analyst/draft.py). 404 where none is kept."""
-    from analyst.draft import Plots
-    plot = Plots(_app().user_path('storage')).get(thread_id, run_id, key)
+    framing gives the figure (analyst/draft.py). A branch's drafts are those of the chains it went on from: one made
+    before 0331 has none kept under it, and they are found there. 404 where none is kept."""
+    from analyst.draft import Plots, lineage
+    from analyst.notebook import NotebookStore
+    storage = _app().user_path('storage')
+    plots = Plots(storage)
+    plot = plots.get(thread_id, run_id, key)
+    if plot is None:
+        plot = next((p for p in (plots.get(thread_id, r, key) for r in lineage(NotebookStore(storage).read(thread_id), run_id)[1:]) if p is not None), None)
     if plot is None:
         return jsonify({'error': 'No draft is kept for this figure.'}), 404
     return Response('{"plot": ' + plot + '}', mimetype='application/json')      # as it was kept: read() took it only where it parses

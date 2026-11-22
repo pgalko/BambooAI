@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.13 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.14 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -218,8 +218,12 @@ closing card says it. Opened, the cards are faint, shut, marked *kept*, a cell t
 was run again saying so. The cards go into the fold as they arrive, and a pane kept by 0320 to 0329 comes to this
 shape when it is shown (`paneRenew`, then `onChain`, which knows where the turns come from). Then the hint, as a
 card in the composer's green (*Branch from turn 4* and the hint, whole), then the branch's own turns. A framed
-analysis's branch has the brief's fold and its Brief tab. Where the server starts no branch, nothing of the request
-stays: the chain is back at its turn, the hint is in the composer again, and the server's sentence is shown.
+analysis's branch has the brief's fold and its Brief tab, with the drafts of the brief's figures: they were drawn
+before the analysis's first run, under that run (docs/ARCHITECT_DESIGN.md §2.20), and the host keeps them under the
+branch's chain too, before the chain is announced - the page asks for them under the chain on screen (`Plots.carry`,
+`lineage`; 0331: a branch's Brief tab showed none). For a branch made before, the route finds them under the chains
+it went on from. Where the server starts no branch, nothing of the request stays: the chain is back at its turn, the
+hint is in the composer again, and the server's sentence is shown.
 
 **Moving between branches.** On the map a turn on the way of the chain on screen keeps that chain; a turn of
 another branch brings that branch on screen, tabs and pane.
@@ -377,6 +381,7 @@ before.
 | 0328 | The names: the Architect is the Pathfinder, the Code map the Code trace (decision 19). | built |
 | 0329 | The drawer over the dimmed page, as a dialog; the map steady under the pointer; the arrows between branches in the Investigation tab; the Code trace's name where an eye stood (decision 20). | built |
 | 0330 | A branch's kept turns in one fold, its hint as a card; the maps' foot whole; no Code trace on a chain's box (decision 21). | built |
+| 0331 | A framed analysis's branch shows the drafts of its brief on its Brief tab. | built |
 
 ## 9. Tests
 
@@ -419,4 +424,7 @@ the run's events arrive and in one kept by 0320 to 0329, a kept search's sources
 back to a kept turn and leaving it, a fold the person opened - and the hint's card; the Analysis map's foot with a long step on two lines;
 `test_architect.js`: the Workflow map's foot and the Pathfinder's reply, whole; `test_maps.js`: the pane's height
 and its lines; `test_code_map.js`: no way into the trace on a box; the walk: the fold of each branch - shut, what it
-says, its turns -, the cards' buttons in a fold the person opened, a branch from a turn in it, and the boxes.
+says, its turns -, the cards' buttons in a fold the person opened, a branch from a turn in it, and the boxes. (0331)
+`test_analyst.py`: `lineage` and `Plots.carry`; `test_app_path.py`: the plots kept under a branch's chain before it
+is announced, and those of a branch made before found by the route; the walk: a framed analysis's branch draws
+its drafts on its Brief tab.

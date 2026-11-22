@@ -1756,6 +1756,20 @@ def walk_draft(page, st, mod, wa, edition, user):
           and ran_b.get("question") == ran.get("question") and "## Each soil type on its own" in ran_b.get("report", "")
           and [[f.get("title") for f in t.get("figures", []) if isinstance(f, dict)] for t in ran_b.get("turns", []) if t.get("step") == "figures" and t.get("kind") == "cell"][-1:] == [[boxes, line]],
           (of_b, calls_b, ran_b.get("status"), ran_b.get("branch"), ran_b.get("report", "")[-300:]))
+    # the branch's Brief tab (0331): the drafts of the brief it runs under, drawn as on the first run's - their plots kept under its chain too
+    page.evaluate("activateTab('brief')")
+    try:
+        drawn(2)
+    except Exception:                                    # noqa: BLE001 - what stands instead is in the check
+        pass
+    f_b = figures_on_screen(page)
+    page.evaluate("activateTab('answer')")
+    drafts_of = lambda figs: [(f["title"], f["tag"], f["drawn"], (f["plot"] or {}).get("key"), (f["plot"] or {}).get("live"), f["window"]) for f in figs]      # noqa: E731
+    check("a branch of a framed analysis shows the drafts of its brief (0331): its Brief tab draws each figure's draft as the first run's does - they came blank, the page asking for "
+          "them under the branch's chain -, and their plots are kept under that chain too",
+          drafts_of(f_b["figs"]) == drafts_of(f6["figs"]) and len(f_b["figs"]) == 2 and all((f["plot"] or {}).get("live") for f in f_b["figs"])
+          and all(os.path.isfile(os.path.join(wa, "storage", user, "drafts", str(tid), str(of_b["chain"]), f["plot"]["key"] + ".json")) for f in f_b["figs"]),
+          (drafts_of(f_b["figs"]), drafts_of(f6["figs"])))
 
     # ---- the branch saved (0321, docs/BRANCH_DESIGN.md §2, decisions 2 and 13) ----
     # The thread is saved from the branch: both ways are stored, and memory takes the branch - with its hint - and leaves the first run. Opened again in a

@@ -1,4 +1,4 @@
-# The Architect and memory from saved analyses — design v0.33 (2026-11-21; 0328, the Architect is the Pathfinder; 0327, the map of the steps in the maps drawer; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
+# The Architect and memory from saved analyses — design v0.34 (2026-11-22; 0331, a branch's drafts; 0328, the Architect is the Pathfinder; 0327, the map of the steps in the maps drawer; released as 2.8.0, 0305, then 0306, 0307, 0308, 0309, 0310, 0311, 0312, 0313, 0314 and 0315; released as 2.8.1, 0317, with 0316, the steps of a brief's conversation and their map; released as 2.9.0, 0326, with 0325, the branch button on the Architect's cards; built: the old memory retired, 0294; the brief in the engine, 0295, and on the page, 0296; the Architect talks, 0297, checks what the brief rests on, 0298, proposes other explanations, 0299, and proposes next questions, 0300; the memory view, 0301, its reader, 0302, memory in the Architect, 0303; the Analyst opens what the brief names, the brief in memory, the seats, 0304; the Architect as a tutor and the conversation in memory, 0306; the question the coach takes, what the Analyst gets, opening on request, 0307; one question that changes as the talk goes, the version on screen, the brief without empty parts, saved analyses to read, 0308; the figures sketched before the run, 0309)
 
 **The name (0328).** Since 2.9 the Architect is called the **Pathfinder**: on the page, in its instructions, in a
 conversation as the other models read it, in the run log and Usage, and as its seat in `LLM_CONFIG` (decision 59).
@@ -1009,7 +1009,10 @@ framing, by key, what each draft is: `{"basis": "computed" | "made up"}`, or `{"
 failed, v, secs, cost, call}`. On the run, the cells that drew, each with the keys of its figures (`Run.drafts`).
 The plots are files beside the thread's record - `storage/<user>/drafts/<thread>/<run>/<key>.json` (`Plots`) -
 and never in the record or in the framing, which rides in the page's markup. The folder goes with its thread
-(`cleanup.py`). `GET /architect/draft/<thread>/<run>/<key>` gives a plot to the page.
+(`cleanup.py`). `GET /architect/draft/<thread>/<run>/<key>` gives a plot to the page. A branch of the analysis
+(docs/BRANCH_DESIGN.md) runs under the same brief: the plots are kept under its chain too, before the chain is
+announced (`Plots.carry`, along `lineage()`), and for a branch made before 0331 the route finds them under the
+chains it went on from.
 
 **On the page** (`architect.js`). The stream of an exchange first carries the framing with the reply
 (`architect_draft`): the message stands, a row under it says *DRAWING A DRAFT* (decision 48), the composer is

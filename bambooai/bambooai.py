@@ -383,6 +383,16 @@ class BambooAI:
                    reaches=reach_mod.summary(run),                 # the reach report: what the cells touched outside the data (2026-10-28)
                    turn_map=bool(branch_points(run)) and not run.figure_asked)   # it has turns to go on from: the page offers its Analysis map (2.9)
 
+    def _carry_drafts(self, src):
+        """The plots of the drafts of the brief a branch runs under - drawn before the first run of its analysis, and
+        kept under that run (analyst/draft.py) - kept under the branch's chain too, before the chain is announced: its
+        Brief tab asks for them under it (0331: it showed none)."""
+        from analyst import draft
+        try:
+            draft.Plots(self._user_storage()).carry(self.notebook.thread_id, draft.lineage(self.notebook, src.id), self.chain_id)
+        except OSError:
+            logger.warning("The drafts of the branch's brief were not kept under it", exc_info=True)
+
     def _no_branch(self, src, turn, data_now):
         """Why no branch can go on from turn `turn` of run `src` - '' when one can (docs/BRANCH_DESIGN.md §2)."""
         if src is None:
@@ -1726,6 +1736,8 @@ class BambooAI:
         self._mode_label = {"quick": "Quick", "deep": "Deep", "adaptive": "Adaptive"}.get(mode, mode)
         own = self.notebook.owner(src, after).id if src is not None else None       # the chain that turn is a turn of its own: the map draws the branch from it
         branch = {"of": int(own) if str(own).isdigit() else own, "turn": after, "hint": hint} if src is not None else None
+        if src is not None:
+            self._carry_drafts(src)                    # the drafts of the brief it runs under, kept under it before it is announced (0331)
         if self.webui:
             # the browser draws the map from this one record: the new chain and where it attached - and, for a branch, the
             # chain and the turn it goes on from
