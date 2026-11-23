@@ -2199,10 +2199,14 @@ def main():
             web = page.evaluate(web_of)
             fao_page, journal_page = mod.SEARCH_PAGES[0], mod.SEARCH_PAGES[1]
             check("the report cites the search's two sources by their numbers, three turns after the search - its claims stayed in view (0337) -, and each citation is a chip that opens the page in "
-                  "another tab, its hover the page and its site; the report ends with its Sources, after the Figures: the two pages by number, each title a link to the page",
+                  "another tab, its hover the page and its site; the report ends with its Sources, after the Figures: the two pages by number, each title a link to the page, its site after it",
                   [c[:3] for c in web["chips"]] == [["1", fao_page["url"], "_blank"], ["2", journal_page["url"], "_blank"]] * 2 and web["chips"][0][3] == fao_page["title"] + " \u2014 fao.org"
                   and web["heads"][-2:] == ["Figures", "Sources"] and "[1]" not in web["raw"] and "[2]" not in web["raw"]
-                  and web["listed"] == [["1 " + fao_page["title"], fao_page["url"] + " _blank"], ["2 " + journal_page["title"], journal_page["url"] + " _blank"]], web)
+                  and web["listed"] == [["1 " + fao_page["title"] + " (fao.org)", fao_page["url"] + " _blank"],
+                                        ["2 " + journal_page["title"] + " (onlinelibrary.wiley.com)", journal_page["url"] + " _blank"]], web)
+            check("the analyst ended its report with a list of the sources of its own, as the first live report with web sources did: the Answer has one Sources list, the engine's - "
+                  "the analyst's lines, each a title and its address as text, are not in it (0338)",
+                  web["heads"].count("Sources") == 1 and web["raw"].count("Sources") == 1 and fao_page["url"] not in web["raw"] and journal_page["url"] not in web["raw"], web["raw"][-500:])
             check("the report quotes a figure no cell printed, which the search tied to a source: the number check takes it as the source's - nothing in this report is called unverified",
                   "41.7% too narrow" in web["raw"] and "CHECK:" not in web["raw"], web["raw"][-400:])
             # the plain-language version keeps the figure citation, as a chip (2026-10-11)
@@ -2210,9 +2214,10 @@ def main():
             page.click("#content-answer .simplified-summary-btn")
             page.wait_for_timeout(300)
             web_plain = page.evaluate(web_of)
-            check("Simplified: the plain-language version keeps the source it cites, as a chip that opens the page, and ends with its own Sources - the one page",
-                  [c[:3] for c in web_plain["chips"]] == [["1", fao_page["url"], "_blank"]] * 2 and web_plain["heads"][-1] == "Sources"
-                  and web_plain["listed"] == [["1 " + fao_page["title"], fao_page["url"] + " _blank"]], web_plain)
+            check("Simplified: the plain-language version keeps the source it cites, as a chip that opens the page, and ends with its own Sources - the one page, once: the list the "
+                  "Rewriter ended its text with is not there (0338)",
+                  [c[:3] for c in web_plain["chips"]] == [["1", fao_page["url"], "_blank"]] * 2 and web_plain["heads"][-1] == "Sources" and web_plain["raw"].count("Sources") == 1
+                  and web_plain["listed"] == [["1 " + fao_page["title"] + " (fao.org)", fao_page["url"] + " _blank"]], web_plain)
             simp = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, chips: [...document.querySelectorAll('#content-answer .content-body .cite.fig')].map(e => e.textContent) })")
             check("Simplified: the plain-language version cites the figure at the end of the sentence that says what it shows, and the citation is a fig 3 chip",
                   "What was found" in simp["text"] and simp["chips"] == ["fig 3"] and "[fig 3]" not in simp["text"], simp)

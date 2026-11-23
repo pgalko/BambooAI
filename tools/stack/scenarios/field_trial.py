@@ -963,6 +963,10 @@ Cell 1 showed the soil mix differs by regime. Cell 2 computed plot means, the wi
 1. Add rainfall as a covariate and re-estimate the within-soil difference.
 2. Check the difference season by season.
 3. Compare regime C on the same footing."""
+        # ... and where it cites them it ends with a list of them of its own, as the first live report with web sources did
+        # (0338): the report the reader gets has one list, the engine's
+        if fao:
+            body += "\n\n## Sources\n\n" + "\n".join(f"[{n}] {p['title']} - {p['url']}" for n, p in enumerate(SEARCH_PAGES, 1))
         return _report("Every number I need is printed in cell 2; the figure comes after the report. Report: answer first, "
                        "then the estimate, the conditions, how it was established, the three limitations, next steps.",
                        _note(q, est=f"B-A {v['ADJ_DIFF']:.3f} t/ha per plot, 95% CI [{v['CI_LO']:.3f}, {v['CI_HI']:.3f}], within soil",
@@ -1092,7 +1096,8 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
                     "tonnes per hectare, and part of that is the soil.\n\n## How it was checked\nEach plot was averaged over "
                     "its seasons first, so a plot counts once; the range comes from re-drawing plots many times. The spread "
                     "of plot yields by regime within each soil is in the first figure [fig 3].\n\n"
-                    "## What to do next\nAllow for rainfall, look season by season, and compare regime C the same way.")
+                    "## What to do next\nAllow for rainfall, look season by season, and compare regime C the same way."
+                    + ("\n\n**Sources**\n- [1] FAO" if "report the contrast [1]" in user else ""))      # a list of its own, though it is shown none (0338)
         if "ADJ_DIFF_C" in v and v.get("ADJ_DIFF_C") is not None:
             return (f"## What was found\nOn like-for-like soil, regime C and regime A are about level: the difference is "
                     f"{v['ADJ_DIFF_C']:.2f} tonnes per hectare, and the plausible range from {v['CI_LO_C']:.2f} to "

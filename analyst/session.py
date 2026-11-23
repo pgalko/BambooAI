@@ -123,8 +123,9 @@ FIGURE_ASKED_LINE = ("THE FIGURE THE PERSON ASKS ABOUT is attached to this messa
                      "its cells (SHOW n re-opens the cell that drew it; what it plotted is in the kernel when this chain's cells are). "
                      "Read the picture for what it shows; compute from the data for any number you state.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
-# under a search's digest: how its sources are cited (0337). Said where the sources are, not in the contract
-SOURCES_CITED = "\n(In the report a source is cited by its number, as [3]; the pages cited are listed under the report for its reader.)"
+# under a search's digest: how its sources are cited, and that the report lists none itself (0337, 0338). Said where the
+# sources are, not in the contract
+SOURCES_CITED = f"\n({sources.CITING})"
 TOOL_CALL_TAKEN = ("(Your last reply wrote its action as a tool call, and the action was taken from it. There are no tools: "
                    "reply in the turn format, as plain text.)")     # names no markup (2026-10-18)
 # the report turn's effort (2026-10-18): the analysis is done and every number is in view - the report is writing. At the
@@ -216,7 +217,8 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "the sentence that says what the figure shows. Where the report quotes a passage and cites it as [C.n] or [Dn.m], "
                 "keep the citation and the quoted words exactly as the report has them, with the *rendered* mark where it stands - "
                 "the quote is the evidence, not jargon; a [cell n] citation is dropped. Where the report cites a web source by its number alone, "
-                "as [3], keep that citation after the words it stands for. Keep every number that matters and change none; drop the rest. Use short markdown "
+                "as [3], keep that citation after the words it stands for, and write no list of sources: one is added under your text. "
+                "Keep every number that matters and change none; drop the rest. Use short markdown "
                 "headings and short paragraphs; about two-thirds the length of the original. Say what you mean in "
                 "direct statements: when a literal phrase is available, use it, and never let a metaphor or a flourish "
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
@@ -1255,9 +1257,14 @@ class Session:
 
     # ----- the ending: rewrite, guards, replay ------------------------------
     def _finish(self, run: Run, report_text: str, budget: Budget, spent: float) -> None:
-        report_text = rep.repair_markdown_tables(report_text)
+        # one list of sources under a report, the engine's (0338: the analyst ended its report with a list of its own, the
+        # engine's came under it, and the Rewriter copied the first): a list the analyst made of the path's pages is taken
+        # out here, before the figures step, the guards and the Rewriter read the report, and the pages it named are listed
+        searched = [t.stdout for t in self.nb.searches(run.id)]
+        known = sources.along(searched)
+        report_text, named = sources.own_list(rep.repair_markdown_tables(report_text), known)
         run.title = report_title(report_text)         # the report's first line, the analyst's own title (2026-10-17); '' when it opens otherwise
-        run.report = report_text                      # as written, on the record from here (a stop during the steps below keeps it)
+        run.report = report_text + sources.listing(report_text, known, named)      # on the record from here (a stop during the steps below keeps it)
         # the figures, drawn once, after the report, from the variables the cells left in the kernel (2026-10-11): the
         # report gains a Figures section that cites them, and from here on the section is part of the report - the
         # guards, the rewrite, the replay and a routine read it as such
@@ -1282,7 +1289,6 @@ class Session:
         stated = ([self._brief(run)] if run.brief else []) + [t.stdout for t in run.turns if t.kind == "show" and (t.stdout or "").startswith("--- saved analysis ")]
         # a number in a claim a search of the path tied to a source is the source's (0337: a report made of sourced dates
         # ended by calling each of them unverified); one the search gave no source for is not
-        searched = [t.stdout for t in self.nb.searches(run.id)]
         claimed = [text for text in (sources.claims(d) for d in searched) if text]
         check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts + stated + claimed,
                                     searched=bool(claimed))
@@ -1300,8 +1306,7 @@ class Session:
             answered = run.brief_outcome["stated"] and (run.brief_outcome["expected"] or not run.brief.get("expects"))
             check_b = BRIEF_UNANSWERED if briefs.held(run.brief, has_data(run.data)) and not answered else ""
         # the report ends with the pages it cites, each a link (0337): the reader follows a citation [3] from there
-        known = sources.along(searched)
-        run.report = report_text + sources.listing(report_text, known) + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
+        run.report = report_text + sources.listing(report_text, known, named) + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
@@ -1310,9 +1315,9 @@ class Session:
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
         # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
         # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
-        rewrite = with_title(strip_cell_tokens(strip_scaffold(text)), run.title)
+        rewrite, named_plain = sources.own_list(with_title(strip_cell_tokens(strip_scaffold(text)), run.title), known)      # its own list out, as the report's
         check2 = rep.guard_rewrite(rewrite, report_text)
-        run.rewrite = rewrite + sources.listing(rewrite, known) + (f"\n\n> {check2}" if check2 else "")
+        run.rewrite = rewrite + sources.listing(rewrite, known, named_plain) + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
         # the review after the report: only in a run that has reviews during it (Adaptive). Quick and Deep make no reviewer
         # call at all (2026-10-05, Palo: in Deep it cost 35-40% of the run and 20-40 s, before the replay, for no value a
