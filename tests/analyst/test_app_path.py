@@ -786,7 +786,10 @@ FakeModels.multimodal = "false"
 from bambooai import web_search
 _pages = [{"title": "Field trials by soil type", "link": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8='"}, {"title": "", "link": "https://journals.example.org/x"}, {"title": "bad", "link": "not a url"}]
 _digest = web_search.digest("Soil type alone moves yield by 0.5-1.0 t/ha.", [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "links": _pages[:1]}], _pages)
-BAMBOO._search_seat = lambda prompts, lacm, om, chain_id, messages: (_digest, _pages)
+_known_seen = []
+def _seat(prompts, lacm, om, chain_id, messages, known=()):
+    _known_seen.append(list(known)); return _digest, _pages
+BAMBOO._search_seat = _seat
 BAMBOO._search = BAMBOO._web_search
 txt = BAMBOO._web_search("yield by soil type")
 check("search: the text is the seat's digest, with no second list of sources after it (0335); a stray quote is stripped from the url; a non-url is dropped; a missing title falls back to the host",
@@ -798,6 +801,14 @@ ev = [json.loads(q.get()) for _ in range(q.qsize())]
 lk = next(e for e in ev if e.get("type") == "pane_lookup")
 check("the pane's search row carries the query, the first finding as its short line - not the digest's heading (0335) - and the two pills with exact urls",
       lk["query"] == "yield by soil type" and lk["peek"] == "Soil type alone moves yield by 0.5-1.0 t/ha." and [x["url"] for x in lk["sources"]] == [BAMBOO._last_search_sources[0]["url"], "https://journals.example.org/x"], lk)
+# a page's number along the path (0337): the seat is told the pages the path's searches have numbered, from their digests
+from analyst.notebook import Turn as _Turn
+_searching = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+_searching.turns.append(_Turn(kind="search", text="yield by soil type", stdout=_digest))
+BAMBOO._web_search("plot as the unit")
+_searching.turns.pop()
+check("search: the seat is told the pages the searches before it on the path numbered - none before the first, then those the first one's digest lists, by number (0337)",
+      _known_seen == [[], [{"n": 1, "title": "Field trials by soil type", "link": _pages[0]["link"]}, {"n": 2, "title": "Link", "link": "https://journals.example.org/x"}]], _known_seen)
 # when an instance searches (0335): asked for, and its Web Search seat's provider has its key - a Gemini key had decided it
 from unittest import mock
 _engines = {"perplexity": {"per_search": 0.005}}

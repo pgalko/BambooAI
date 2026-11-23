@@ -462,8 +462,10 @@ tied to the page it comes from. The seat's provider decides how the search runs:
   `GEMINI_API_KEY`, and the model's `grounding_search_request` is the price per search.
 
 A figure counts as sourced only when the answer ties it to a page the search returned, and an answer given
-without a search is not passed to the Analyst. To try the seat outside the app, run this in the working
-folder; it prints the searches, sources, tokens and cost:
+without a search is not passed to the Analyst. A page keeps one number for the whole thread; the report cites
+it by that number, each citation opens the page, and the report ends with the list of the pages it cites.
+To try the seat outside the app, run this in the working folder; it prints the searches, sources, tokens and
+cost:
 
 ```bash
 python -m bambooai.web_search "average wheat yield per hectare, world, latest year"

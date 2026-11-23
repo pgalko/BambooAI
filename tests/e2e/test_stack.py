@@ -2189,10 +2189,30 @@ def main():
             check("the Answer tab ends with the Figures section - two captions, each citing the figures cell as a fig 3 chip",
                   "Figures" in answer and "plot-level yield by regime within each soil type" in answer and "mean plot yield by regime" in answer and fig_chips == ["fig 3", "fig 3"]
                   and answer.find("Figures") > answer.find("Next steps"), (fig_chips, answer[-300:]))
+            # the report's web sources (0337): cited by number turns after the search - its claims stayed in view -, each citation a
+            # chip that opens the page, and the pages listed under the report
+            web_of = """() => { const a = document.querySelector('#content-answer .content-body');
+                return { chips: [...a.querySelectorAll('a.cite.web')].map(c => [c.textContent, c.getAttribute('href'), c.getAttribute('target'), c.getAttribute('title')]),
+                         heads: [...a.querySelectorAll('h2')].map(h => h.textContent),
+                         listed: [...a.querySelectorAll('li')].filter(li => li.querySelector('a.cite.web')).map(li => [li.textContent.trim(), ...[...li.querySelectorAll('a:not(.cite)')].map(x => x.getAttribute('href') + ' ' + x.getAttribute('target'))]),
+                         raw: a.textContent }; }"""
+            web = page.evaluate(web_of)
+            fao_page, journal_page = mod.SEARCH_PAGES[0], mod.SEARCH_PAGES[1]
+            check("the report cites the search's two sources by their numbers, three turns after the search - its claims stayed in view (0337) -, and each citation is a chip that opens the page in "
+                  "another tab, its hover the page and its site; the report ends with its Sources, after the Figures: the two pages by number, each title a link to the page",
+                  [c[:3] for c in web["chips"]] == [["1", fao_page["url"], "_blank"], ["2", journal_page["url"], "_blank"]] * 2 and web["chips"][0][3] == fao_page["title"] + " \u2014 fao.org"
+                  and web["heads"][-2:] == ["Figures", "Sources"] and "[1]" not in web["raw"] and "[2]" not in web["raw"]
+                  and web["listed"] == [["1 " + fao_page["title"], fao_page["url"] + " _blank"], ["2 " + journal_page["title"], journal_page["url"] + " _blank"]], web)
+            check("the report quotes a figure no cell printed, which the search tied to a source: the number check takes it as the source's - nothing in this report is called unverified",
+                  "41.7% too narrow" in web["raw"] and "CHECK:" not in web["raw"], web["raw"][-400:])
             # the plain-language version keeps the figure citation, as a chip (2026-10-11)
             page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
             page.click("#content-answer .simplified-summary-btn")
             page.wait_for_timeout(300)
+            web_plain = page.evaluate(web_of)
+            check("Simplified: the plain-language version keeps the source it cites, as a chip that opens the page, and ends with its own Sources - the one page",
+                  [c[:3] for c in web_plain["chips"]] == [["1", fao_page["url"], "_blank"]] * 2 and web_plain["heads"][-1] == "Sources"
+                  and web_plain["listed"] == [["1 " + fao_page["title"], fao_page["url"] + " _blank"]], web_plain)
             simp = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, chips: [...document.querySelectorAll('#content-answer .content-body .cite.fig')].map(e => e.textContent) })")
             check("Simplified: the plain-language version cites the figure at the end of the sentence that says what it shows, and the citation is a fig 3 chip",
                   "What was found" in simp["text"] and simp["chips"] == ["fig 3"] and "[fig 3]" not in simp["text"], simp)

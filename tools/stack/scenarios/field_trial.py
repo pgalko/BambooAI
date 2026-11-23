@@ -378,7 +378,7 @@ RESULT('left after the steps', left, None, None, 'units')"""
 SEARCH_CLAIMS = ("Field trials that compare fertiliser regimes across heterogeneous soils report the within-soil contrast, "
                  "since soil type alone can move yield by 0.5-1.0 t/ha",
                  "The plot is the experimental unit: seasons within a plot are repeated measures, and intervals computed "
-                 "over rows understate uncertainty")
+                 "over rows came out 41.7% too narrow in one review")
 SEARCH_PAGES = [{"url": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
                 {"url": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
 SEARCH_RETURNED = [{"url": "https://www.example.org/trial-design", "title": "Notes on trial design"}] + SEARCH_PAGES      # as the search returns them: a page more than the answer links
@@ -935,13 +935,17 @@ class Scenario:
         self.vals = v
         table = "| soil | regime | mean yield (t/ha) | plots |\n|---|---|---|---|\n" + \
                 "\n".join(f"| {s} | {r} | {m} | {n} |" for s, r, m, n in rows)
+        # the search's two sources, cited by their numbers where the prompt still shows them - turns after the search (0337) -,
+        # with the figure the second one gave: no cell printed it, and the report's number check takes it as the source's
+        fao, journal = ((" [1]", "; in one review intervals over rows came out 41.7% too narrow [2]")
+                        if f"[1] {SEARCH_PAGES[0]['title']}" in user and f"[2] {SEARCH_PAGES[1]['title']}" in user else ("", ""))
         body = f"""Within the same soil type, regime B out-yielded regime A by about {v['ADJ_DIFF']:.2f} t/ha per plot, and the interval does not include zero. The raw gap of {v['RAW_DIFF']:.2f} t/ha overstates it: B was sown on more loam, the most productive soil, and that accounts for part of the raw difference.
 
 ## The estimate
 Plot-mean yield, regime B minus regime A within soil type, weighted by plots compared: **{v['ADJ_DIFF']:.3f} t/ha** (95% bootstrap interval {v['CI_LO']:.3f} to {v['CI_HI']:.3f}), over {v['N_PLOTS_A']} A plots and {v['N_PLOTS_B']} B plots, each averaged over its seasons [cell 2]. It is a within-soil association; the trial did not randomise regime to plot, so it is not a causal effect of the regime alone.
 
 ## Conditions
-Soil type held fixed by stratification; the plot is the unit (seasons within a plot are repeated measures); rainfall is not held fixed.
+Soil type held fixed by stratification, as trials across mixed soils report the contrast{fao}; the plot is the unit (seasons within a plot are repeated measures){journal}; rainfall is not held fixed.
 
 The means behind the estimate [cell 2]:
 
@@ -1081,7 +1085,7 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
             return (f"## What was found\nOn like-for-like soil, plots under regime B produced about {v['ADJ_DIFF']:.2f} tonnes per hectare "
                     f"more than plots under regime A. A plausible range for that gain runs from {v['CI_LO']:.2f} to "
                     f"{v['CI_HI']:.2f} tonnes per hectare, and the whole range is above zero.\n\n## What it depends on\n"
-                    "The comparison holds soil type fixed, because regime B happened to be planted on more of the richest "
+                    "The comparison holds soil type fixed" + (", as trials on mixed soils are reported [1]," if "report the contrast [1]" in user else ",") + " because regime B happened to be planted on more of the richest "
                     "soil. Rainfall was not held fixed, and the regimes were not assigned at random, so this is a strong "
                     "association rather than a proof of cause.\n\n## What it does not mean\nIt does not say what would happen "
                     f"on a single new plot; the plain gap between all B plots and all A plots was larger, {v['RAW_DIFF']:.2f} "

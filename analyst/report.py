@@ -119,13 +119,14 @@ def numbers_missing(text: str, sources: Iterable[str]) -> List[str]:
     return sorted(t for t in _numbers(text) if not _present(t, blob))
 
 
-def guard_technical(report: str, cell_outputs: Iterable[str]) -> str:
-    """Disclosure line for the technical report, or '' when clean."""
+def guard_technical(report: str, cell_outputs: Iterable[str], searched: bool = False) -> str:
+    """Disclosure line for the technical report, or '' when clean. `searched`: the evidence holds the claims a search
+    tied to a source, and the line says so."""
     missing = numbers_missing(report, cell_outputs)
     if not missing:
         return ""
     shown = ", ".join(missing[:8]) + (" ..." if len(missing) > 8 else "")
-    return (f"CHECK: {len(missing)} number(s) in this report were not printed by any cell "
+    return (f"CHECK: {len(missing)} number(s) in this report were not printed by any cell{' or given with a source by a search' if searched else ''} "
             f"({shown}). Treat them as unverified.")
 
 

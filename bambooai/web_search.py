@@ -12,11 +12,15 @@ once more and then not passed on; and where the sources are the links the model 
 ties each sentence to its pages itself - a figure counts as sourced only in a sentence that links a page the search
 returned, and the sources are the pages the answer links: a search returns more pages than an answer uses.
 
+The digest's two lists - the claims and the sources - are read back by the analyst's side (analyst/sources.py, which
+names their headings): a page keeps one number along a path, so the seat is told the pages numbered before (`known`).
+
     python -m bambooai.web_search "a question"      runs the seat once and says what it found and what it cost
 """
 import os
 import re
 
+from analyst.sources import CLAIMS_HEAD, SOURCES_HEAD, listed, numbers, same as _same
 from logger_config import get_logger
 logger = get_logger(__name__)
 
@@ -35,13 +39,11 @@ SEARCH_INSTRUCTION = (
     "approximating. No preamble, no general background unless the query asks for it, at most 350 words.")
 # where the sources are the links the model writes: every figure in a sentence that links its page
 WITH_LINKS = (
-    "Search the web before you answer, and give nothing from memory. Put each figure in a sentence of its own "
+    "Search the web at once, before you write anything, and give nothing from memory. Put each figure in a sentence of its own "
     "and end that sentence with a markdown link to the page the figure comes from - [the site's name](the "
     "page's address) - with the address as the search returned it.")
 AGAIN = "No web search was run for the reply before this one. Run one now, and answer from what it returns."
 
-CLAIMS_HEAD = "SOURCED CLAIMS (each sentence with the sources behind it):"
-SOURCES_HEAD = "SOURCES:"
 UNSOURCED_HEAD = "WITHOUT A SOURCE (the search model named no page for these figures: do not cite them):"
 SUMMARY_HEAD = "SUMMARY (the search model's own words):"
 NO_SEARCH_LINE = "no search was run"
@@ -94,18 +96,13 @@ _LINK = re.compile(r"\[([^\]\n]*)\]\(\s*(https?://(?:[^\s()]|\([^\s()]*\))+)\s*\
 _ADDRESS = re.compile(r"https?://[^\s<>\[\]()]+")
 _MARK = re.compile("\ue000(\\d+)\ue001")                                                  # a link's place while a line is cut into sentences
 _CITING = {"source", "sources", "see", "via", "per", "from", "ref", "reference", "references", "and", "link", "links"}
+# a sentence's end set against a heading or bold words, with no space: where what the model wrote before its search - "I'll
+# search for this." - runs into its answer (the second live search: it stood in the first finding)
+_GLUED = re.compile(r"(?<=[.!?])(?=\*\*\w|#{1,6} )")
 # where a sentence may end: after its full stop, or the quotation mark or bracket that closes it there, before a capital, a link, a bracket, a quotation
 _END = re.compile("(?:(?<=[.!?])|(?<=[.!?][\"'\u201d)\\]]))\\s+(?=[A-Z\ue000(\\[\"'\u201c])")
 # what a piece opens with when it opens with links: the links, the brackets around them, words such as 'Source:'
 _LEAD = re.compile("(?:[\\s()\\[\\],;:.\u2013\u2014-]|\ue000\\d+\ue001|(?:%s)\\b)*" % "|".join(sorted(_CITING)), re.I)
-
-
-def _same(address):
-    """A page's address as two spellings of it compare: without scheme, 'www.', fragment or closing slash, the host
-    in lower case."""
-    a = re.sub(r"^https?://(www\.)?", "", (address or "").strip().rstrip(".,;:"), flags=re.I).split("#", 1)[0].rstrip("/")
-    host, slash, rest = a.partition("/")
-    return host.lower() + slash + rest
 
 
 def _cut(line):
@@ -172,13 +169,15 @@ def _text(piece, links):
     return text.strip(" -\u2013\u2014:")
 
 
-def claims_from_links(answer, pages):
+def claims_from_links(answer, pages, known=()):
     """The claims of an answer whose sources are the links it writes (OpenRouter's route): (claims, cited, unsourced,
     summary). A sentence that links a page the search returned is a claim, with those pages. `cited` is the answer's
     sources: the pages it links, each once, in the order it first links them - a page the search returned and the
     answer does not link is not one (2026-11-23, the first live search: ten pages returned, five linked, ten listed).
     A sentence with a figure and no such link is unsourced - it had no link, or one to a page the search did not
-    return. The summary is the answer with each link as its source's number, '(no source)' where it has none."""
+    return. The summary is the answer with each link as its source's number - along the path: `known` are the pages
+    numbered before -, '(no source)' where it has none; what the model wrote before its search starts a line of its own."""
+    answer = _GLUED.sub("\n", answer or "")
     by = {_same(p.get("link")): p for p in pages or []}
     claims, cited, unsourced = [], [], []
     for text, links in _sentences(answer):
@@ -192,25 +191,27 @@ def claims_from_links(answer, pages):
             cited += [page for page in found if page not in cited]
         elif re.search(r"\d", text):
             unsourced.append(text)
-    number = {_same(p.get("link")): i + 1 for i, p in enumerate(cited)}
+    number = {_same(link): n for link, n in numbers(cited, known).items()}
 
     def numbered(address):
         n = number.get(_same(address))
         return f"[{n}]" if n else "(no source)"
-    summary = _LINK.sub(lambda m: numbered(m.group(2)), answer or "")
+    summary = _LINK.sub(lambda m: numbered(m.group(2)), answer)
     summary = _ADDRESS.sub(lambda m: numbered(m.group(0)), summary)
     summary = re.sub(r"\(\s*((?:\[\d+\][\s,;]*)+|\(no source\))\s*\)", lambda m: m.group(1).strip(" ,;"), summary)      # ([1]) -> [1]
     return claims, cited, unsourced, summary
 
 
 # ------------------------------------------------------------------------------------------------ the digest
-def digest(answer, claims, sources, unsourced=()):
+def digest(answer, claims, sources, unsourced=(), known=()):
     """What the analyst reads, and SHOW SEARCH k re-opens: the sourced claims first - each sentence with the numbers of
     the sources behind it -, then the numbered sources, then any figure the search model gave no source for, then its
-    own words. One search should yield a citable figure."""
+    own words. One search should yield a citable figure. A source's number is its number along the path (0337: each
+    digest had numbered from 1, and [3] in a report was a page of each search): a page among `known`, those numbered
+    before, keeps its number, a new one takes the next."""
     answer = (answer or "").strip()
-    sources = list(sources or [])
-    number = {s.get("link"): i + 1 for i, s in enumerate(sources)}
+    sources = list(sources or [])[:15]
+    number = numbers(sources, known)
     lines, seen = [], set()
     for claim in claims or []:
         text = (claim.get("text") or "").strip()
@@ -223,35 +224,26 @@ def digest(answer, claims, sources, unsourced=()):
     if lines:
         parts.append(CLAIMS_HEAD + "\n" + "\n".join(lines[:40]))
     if sources:
-        parts.append(SOURCES_HEAD + "\n" + "\n".join(f"[{i + 1}] {s.get('title') or 'Link'} - {s.get('link')}" for i, s in enumerate(sources[:15])))
+        parts.append(SOURCES_HEAD + "\n" + "\n".join(f"[{number[s.get('link')]}] {s.get('title') or 'Link'} - {s.get('link')}"
+                                                      for s in sorted(sources, key=lambda s: number[s.get("link")])))
     if unsourced:
         parts.append(UNSOURCED_HEAD + "\n" + "\n".join(f"- {text}" for text in list(unsourced)[:40]))
     parts.append(SUMMARY_HEAD + "\n" + (answer if answer else "(nothing found)"))
     return "\n\n".join(parts)
 
 
-def listed(text, head):
-    """The lines a digest has under one of its headings, without their list marks."""
-    lines = (text or "").split("\n")
-    if head not in lines:
-        return []
-    out = []
-    for line in lines[lines.index(head) + 1:]:
-        if not line.strip():
-            break
-        out.append(re.sub(r"^- ", "", line.strip()))
-    return out
-
-
 def peek(text):
     """The search row's short line in the pane: the first finding - the first sourced claim without its source
     marks, else the first line of the search model's own words - where it was the digest's heading (2026-11-23);
-    'no search was run' for a search that ran none; of anything else its first line."""
+    'no search was run' for a search that ran none; of anything else its first line. A finding is shown as words: the
+    row is plain text, and the marks of bold or of a heading stood in it as asterisks."""
+    def words(line):
+        return re.sub(r"\*+|`|^#+ ", "", line).strip()
     claims, summary = listed(text, CLAIMS_HEAD), listed(text, SUMMARY_HEAD)
     if claims:
-        return re.sub(r"(?:\s*\[\d+\])+$", "", claims[0])
+        return words(re.sub(r"(?:\s*\[\d+\])+$", "", claims[0]))
     if summary:
-        return re.sub(r"^[-*] ", "", summary[0])
+        return words(re.sub(r"^[-*] ", "", summary[0]))
     first = next((ln.strip() for ln in (text or "").splitlines() if ln.strip()), "")
     return NO_SEARCH_LINE if first.startswith("(" + NO_SEARCH_LINE) else first
 
@@ -285,11 +277,13 @@ class WebSearch:
         self.models = models            # the host's model manager; one is made for the call where the host gave none
         self.api_keys = api_keys or {}
 
-    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
+    def __call__(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages, known=()):
+        """`known`: the pages the searches before this one on the path numbered (analyst.sources.along): the digest
+        cites one of them by its number, and numbers a new page after them."""
         query = "Search Internet for: " + re.sub("'|\"", "", messages[-1]["content"]).strip()
         output_manager.display_tool_info("web_search", query, chain_id)
         try:
-            return self._search(prompt_manager, log_and_call_manager, output_manager, chain_id, query)
+            return self._search(prompt_manager, log_and_call_manager, output_manager, chain_id, query, known)
         except Exception as exc:                                # noqa: BLE001
             # with its traceback: this except once turned a production import failure into a string only the analyst
             # saw. The string is still returned - the analyst reads it and searches again or goes on without
@@ -298,7 +292,7 @@ class WebSearch:
             output_manager.display_error(result, chain_id=chain_id)
             return result, None
 
-    def _search(self, prompt_manager, log_and_call_manager, output_manager, chain_id, query):
+    def _search(self, prompt_manager, log_and_call_manager, output_manager, chain_id, query, known=()):
         from bambooai.models import ModelManager, prompt_cache      # here, not above: the adapters import this module
         models = self.models or ModelManager(log_and_call_manager.user_id, api_keys=self.api_keys)
         seat, details = seat_of(models.config)
@@ -334,9 +328,9 @@ class WebSearch:
                 seen.add(link["link"])
                 pages.append({"title": link.get("title") or "Link", "link": link["link"]})
         if provider == "gemini":            # Google ties each sentence to its pages itself, and hands over those pages alone
-            return digest(answer, [s for t in found for s in t.get("segments") or []], pages), pages
-        claims, cited, unsourced, summary = claims_from_links(answer, pages)
-        return digest(summary, claims, cited, unsourced), cited
+            return digest(answer, [s for t in found for s in t.get("segments") or []], pages, known=known), pages
+        claims, cited, unsourced, summary = claims_from_links(answer, pages, known)
+        return digest(summary, claims, cited, unsourced, known), cited
 
 
 # ------------------------------------------------------------------------------------------------ the check

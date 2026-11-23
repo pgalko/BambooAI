@@ -152,6 +152,7 @@ function injectPrintStyles() {
                 print-color-adjust: exact;
             }
             #pdf-print-container .cite.doc, #pdf-print-container .cite.ctx { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; }
+            #pdf-print-container .cite.web { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; text-decoration: none; }   /* a web source (0337): a link, kept as one in the PDF */
             #pdf-print-container .cite.fig { color: #6b4e16; border-color: #d5c39a; background: #fbf6ea !important; }
             #pdf-print-container .pdf-meta {
                 font-size: 9pt;

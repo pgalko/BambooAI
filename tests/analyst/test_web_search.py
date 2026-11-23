@@ -1,5 +1,5 @@
-"""The Web Search seat (0335, 0336): the seat and when search is on; the claims an answer's links make and the pages
-it cites, the digest and the pane's short line; the two guards; OpenRouter's request and what is read back from its
+"""The Web Search seat (0335-0337): the seat and when search is on; the claims an answer's links make and the pages
+it cites, their numbers along a path, the digest and the pane's short line; the two guards; OpenRouter's request and what is read back from its
 reply; what a search costs on the records - an engine's fee for every search, Google's with its free searches -;
 Gemini's tokens as Google charges them; the template, the sample and the built configuration; the check command. No
 network: the providers' clients are scripted."""
@@ -212,6 +212,30 @@ check("the pane's short line is the first finding - the first sourced claim with
       and W.peek("(web search is not enabled)") == "(web search is not enabled)" and W.peek("Web search failed: boom\nmore") == "Web search failed: boom" and W.peek("") == "",
       (W.peek(BEFORE), W.peek(d_links), W.peek(W.NO_SEARCH)))
 
+# a page's number along the path (0337): the digest is told the pages numbered before
+from analyst import sources as on_path                            # noqa: E402
+KNOWN = [{"n": 1, "title": "Notes on trial design", "link": OTHER["link"]}, {"n": 2, "title": "Repeated measures in plot trials", "link": JOURNAL["link"] + "/"}]
+c_k, cited_k, u_k, s_k = W.claims_from_links(ANSWER, [OTHER, JOURNAL, FAO], KNOWN)
+d_known = W.digest(s_k, c_k, cited_k, u_k, KNOWN)
+check("a page's number is its number along the path: one the searches before numbered keeps it - under either spelling of its address -, a new page takes the next; "
+      "the claims' marks, the summary's and the list are those numbers, the list in their order (0337: each digest numbered from 1, and [3] in a report was a page of each search)",
+      W.listed(d_known, W.CLAIMS_HEAD)[:2] == ["Regime B plots yielded 3.2 t/ha on loam in 2024. [3]", "Soil type alone moves yield by 0.5-1.0 t/ha. [2]"]
+      and W.listed(d_known, W.SOURCES_HEAD) == [f"[2] {JOURNAL['title']} - {JOURNAL['link']}", f"[3] {FAO['title']} - {FAO['link']}"]
+      and s_k.split("\n")[:2] == ["- Regime B plots yielded 3.2 t/ha on loam in 2024 [3].", "- Soil type alone moves yield by 0.5-1.0 t/ha [2]. Seasons within a plot are repeated measures. [2]"]
+      and [(p["n"], p["link"]) for p in on_path.along([d_links, W.digest(s_k, c_k, cited_k, u_k, on_path.along([d_links]))])] == [(1, FAO["link"]), (2, JOURNAL["link"])]
+      and W.digest(summary, claims, cited, unsourced, known=()) == d_links, d_known)
+check("the digest's two lists are the analyst's side's to read back: their headings and the reader of a list are its own (analyst/sources.py), and it reads this digest's pages as numbered",
+      W.CLAIMS_HEAD is on_path.CLAIMS_HEAD and W.SOURCES_HEAD is on_path.SOURCES_HEAD and W.listed is on_path.listed
+      and on_path.pages(d_known) == [{"n": 2, "title": JOURNAL["title"], "link": JOURNAL["link"]}, {"n": 3, "title": FAO["title"], "link": FAO["link"]}], on_path.pages(d_known))
+glued = f"I'll search for this.**Yield on loam:** 3.2 t/ha in 2024 - {F_LINK}\n\n**Clay:** 2.9 t/ha. {J_LINK}"
+c_g, _, u_g, s_g = W.claims_from_links(glued, [FAO, JOURNAL])
+check("what the model wrote before its search - set against its answer without a space - starts a line of its own: it is in no finding, and the row's short line is the finding, "
+      "as words - the marks of bold stood in it as asterisks (0337, the second live search)",
+      [c["text"] for c in c_g] == ["**Yield on loam:** 3.2 t/ha in 2024", "**Clay:** 2.9 t/ha."] and u_g == [] and s_g.split("\n")[:2] == ["I'll search for this.", "**Yield on loam:** 3.2 t/ha in 2024 - [1]"]
+      and W.peek(W.digest(s_g, c_g, [FAO, JOURNAL], u_g)) == "Yield on loam: 3.2 t/ha in 2024"
+      and W.peek(W.digest("## Yield\n- **Nothing** was found for `sand`.", [], [])) == "Yield" and "at once, before you write anything" in W.WITH_LINKS,
+      ([c["text"] for c in c_g], s_g, W.peek(W.digest(s_g, c_g, [FAO, JOURNAL], u_g))))
+
 
 # --------------------------------------------------------------------------------- the seat over a scripted model
 class Out:
@@ -239,9 +263,9 @@ class Models:
         return answer, found
 
 
-def ask(models, question="yield of 'regime B' on \"loam\""):
+def ask(models, question="yield of 'regime B' on \"loam\"", **more):
     out = Out()
-    text, sources = W.WebSearch(models=models)("prompts", "log", out, "c1", [{"role": "user", "content": question}])
+    text, sources = W.WebSearch(models=models)("prompts", "log", out, "c1", [{"role": "user", "content": question}], **more)
     return text, sources, out
 
 
@@ -261,6 +285,9 @@ check("... what comes back is the digest of the links' claims and the pages the 
       text == d_links and sources == [FAO, JOURNAL] and out.errors == [] and out.tools == [("web_search", "Search Internet for: yield of regime B on loam", "c1")], (text, sources))
 check("... the answer a provider streams goes out as thought tokens, which the page drops between two cards - as text it would be appended to the pane",
       out.printed == [(ANSWER, True)] and isinstance(call["om"], W._Quiet), out.printed)
+text_k, sources_k, _ = ask(Models(CFG, (ANSWER, FOUND, 2)), known=KNOWN)
+check("... told the pages the path's searches numbered before, the seat's digest cites by those numbers and numbers a new page after them; its pills are the pages this answer links",
+      text_k == d_known and sources_k == [FAO, JOURNAL], text_k)
 m = Models(cfg_with(search_engine="parallel"), (ANSWER, FOUND, 1))
 ask(m)
 check("the seat on Parallel: the tool names it, in its fast mode - the parameters are the configuration's, sent as written",
@@ -298,6 +325,10 @@ check("... the digest is Google's tied claims, the sources once each, the model'
 m = Models(OLD, ("From memory.", [], 0), ("From memory again.", [], 0))
 text, sources, out = ask(m)
 check("... the first guard holds on Gemini's route too: twice without a search, and nothing is passed on", text == W.NO_SEARCH and sources == [] and len(m.calls) == 2, text)
+text_g, sources_g, _ = ask(Models(OLD, ("Compare regimes within soil type.", G_FOUND, 2)), known=[{"n": 4, "title": "x", "link": JOURNAL["link"]}])
+check("... and Google's pages are numbered along the path too: the one found before keeps its number, the other takes the next",
+      W.listed(text_g, W.CLAIMS_HEAD) == ["Soil type alone moves yield by 0.5-1.0 t/ha. [5]", "The plot is the experimental unit. [4][5]"]
+      and W.listed(text_g, W.SOURCES_HEAD) == [f"[4] {JOURNAL['title']} - {JOURNAL['link']}", f"[5] {FAO['title']} - {FAO['link']}"] and sources_g == [FAO, JOURNAL], text_g)
 
 m = Models(CFG, RuntimeError("the provider said 402"))
 text, sources, out = ask(m)

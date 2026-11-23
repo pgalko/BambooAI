@@ -25,6 +25,7 @@ from analyst import Session, Budget, Notebook, NotebookStore
 from analyst import context as context_mod
 from analyst import profile as profile_mod
 from analyst import reach as reach_mod
+from analyst import sources as sources_mod
 from analyst import tools
 from analyst.notebook import branch_points, has_data, kept_turns, same_load
 from analyst.replay import rehydrate, went_back, again as cells_again
@@ -432,8 +433,11 @@ class BambooAI:
     # ------------------------------------------------------------ the tools
     def _web_search(self, query):
         self._last_search_query = query
+        # the pages the path's searches have numbered so far: a page keeps its number, whichever search finds it (0337)
+        before = self.notebook.searches(str(self.chain_id)) if self.notebook is not None else []
         result, links = self._search_seat(self.prompts, self.log_and_call_manager, self.output_manager,
-                                          self.chain_id, [{"role": "user", "content": query}])
+                                          self.chain_id, [{"role": "user", "content": query}],
+                                          known=sources_mod.along(t.stdout for t in before))
         text = str(result or "")
         sources = []
         for l in list(links or [])[:10]:

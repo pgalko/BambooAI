@@ -224,6 +224,7 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 #content-answer .cite:hover, #content-brief .ar-against .cite:hover { color: var(--text-primary); border-color: var(--text-tertiary); }
 #content-answer .cite.cell, #content-brief .ar-against .cite.cell { color: var(--c-model); border-color: var(--chip-model-border); }   /* the way into the code trace (2026-10-24): the result colour the map and the card's link use */
 #content-answer .cite.fig, #content-brief .ar-against .cite.fig { color: var(--c-kernel); border-color: var(--chip-kernel-border); }
+#content-answer a.cite.web, #content-brief .ar-against a.cite.web { color: var(--c-lookup); border-color: var(--chip-lookup-border); text-decoration: none; }   /* a web source (0337): the chip opens the page, in the look-ups' colour */
 #content-answer .cite.doc, #content-answer .cite.ctx, #content-brief .ar-against .cite.doc, #content-brief .ar-against .cite.ctx { color: var(--info-color, #58a6ff); border-color: var(--info-color, #58a6ff); }   /* a quoted passage: a document's [D1.17] (D45), the context's [C.417] (S2) - told apart by the prefix */
 
 /* ---- the maps drawer (2026-09-08; 2.9: one drawer for the three maps): #workflowMapModal keeps its ids; maps.js shows

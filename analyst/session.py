@@ -24,7 +24,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import tools, report as rep, reach, brief as briefs, draft as drafts
+from . import tools, report as rep, reach, brief as briefs, draft as drafts, sources
 from .notebook import Notebook, NotebookStore, Run, Turn, has_data, hint_block
 from .routines import corrected_by
 from .replay import verify
@@ -123,6 +123,8 @@ FIGURE_ASKED_LINE = ("THE FIGURE THE PERSON ASKS ABOUT is attached to this messa
                      "its cells (SHOW n re-opens the cell that drew it; what it plotted is in the kernel when this chain's cells are). "
                      "Read the picture for what it shows; compute from the data for any number you state.")
 LAST_TURNS_LINE = "The budget is nearly gone: write REPORT with what you have, and say what was not established."
+# under a search's digest: how its sources are cited (0337). Said where the sources are, not in the contract
+SOURCES_CITED = "\n(In the report a source is cited by its number, as [3]; the pages cited are listed under the report for its reader.)"
 TOOL_CALL_TAKEN = ("(Your last reply wrote its action as a tool call, and the action was taken from it. There are no tools: "
                    "reply in the turn format, as plain text.)")     # names no markup (2026-10-18)
 # the report turn's effort (2026-10-18): the analysis is done and every number is in view - the report is writing. At the
@@ -213,7 +215,8 @@ REWRITE_TASK = ("Rewrite the technical report below for an intelligent reader wh
                 "('somewhere between 2 and 5'). Where the report cites a figure as [fig n], keep that citation at the end of "
                 "the sentence that says what the figure shows. Where the report quotes a passage and cites it as [C.n] or [Dn.m], "
                 "keep the citation and the quoted words exactly as the report has them, with the *rendered* mark where it stands - "
-                "the quote is the evidence, not jargon; a [cell n] citation is dropped. Keep every number that matters and change none; drop the rest. Use short markdown "
+                "the quote is the evidence, not jargon; a [cell n] citation is dropped. Where the report cites a web source by its number alone, "
+                "as [3], keep that citation after the words it stands for. Keep every number that matters and change none; drop the rest. Use short markdown "
                 "headings and short paragraphs; about two-thirds the length of the original. Say what you mean in "
                 "direct statements: when a literal phrase is available, use it, and never let a metaphor or a flourish "
                 "stand in for a statement ('this still matters', not 'this earns its keep'; 'a parameter worth varying', "
@@ -718,7 +721,9 @@ def _actions_in(body: str):
     """The actions one ###ACTION### block carries, in order, and why it carries none. A python fence is a cell, with or
     without the word CELL before it; an action word at the start of a line, outside a fence, is that action (any case on
     the block's first line, upper case after it, so prose is not read as an action); after REPORT the rest of the block
-    is the report. A fence without its closing line is not a cell: unfinished code does not run."""
+    is the report. A fence without its closing line is not a cell: unfinished code does not run. A fence that holds an
+    action and no Python - SEARCH and its query, between fences - is that action (2026-11-23: it ran as a cell, failed
+    on its first word, and the turn was lost)."""
     body = re.sub(r"\A\s*```[ \t]*\n\s*CELL\s*\n```[ \t]*\n", "CELL\n", body or "")    # a fenced CELL word is the word
     lines = body.strip("\n").splitlines()
     acts, i, first, cell_word, unclosed = [], 0, True, False, False
@@ -734,7 +739,10 @@ def _actions_in(body: str):
                 break
             lang, code = ln.strip()[3:].strip().lower(), "\n".join(lines[i + 1:j]).rstrip()
             if lang in ("", "python", "py", "python3") and code.strip():
-                acts.append(Action("cell", _cell_code(code)))
+                word = re.fullmatch(r"[A-Z]+", code.strip())           # NAMES alone is Python too, a name: it means the action
+                opens = _ACTION_WORD_RE.match(code.strip().split("\n", 1)[0])
+                fenced = _actions_in(code)[0] if opens and (word or not _compiles(code)) else []
+                acts.extend(fenced or [Action("cell", _cell_code(code))])
             i, first = j + 1, False
             continue
         m = _ACTION_WORD_RE.match(ln) or (_ACTION_WORD_ANY_CASE_RE.match(ln) if first else None)
@@ -900,6 +908,15 @@ class Session:
         passages = [ln for x in run.turns if x.kind == "read" for ln in (x.stdout or "").splitlines() if ln.startswith("- [")]
         if passages:
             parts.append("PASSAGES THIS RUN'S READS RETURNED (verbatim, each with its id - cite one as [D1.17] or [C.417]):\n" + "\n".join(passages))
+        # so do the claims this run's searches tied to a source, with the sources' numbers (0337: a digest was in view for
+        # one turn - a run searched for the same thing twice, and wrote its report without its first search). The newest
+        # search rides whole below, as the newest cell does
+        searched = [(k, x) for k, x in enumerate(self.nb.searches(run.id), 1) if any(x is own for own in run.turns)]
+        if searched and extra.startswith("SEARCH (") and searched[-1][1] is run.turns[-1]:
+            searched = searched[:-1]
+        found = sources.in_view((k, (x.text or "").strip(), x.stdout) for k, x in searched)
+        if found:
+            parts.append(found)
         if extra:
             parts.append(extra)
         hint = hint_block(run)
@@ -1140,7 +1157,8 @@ class Session:
                     k = len(self.nb.searches(run.id)) + 1          # this search's number once recorded
                     shown = view_digest(turn.stdout, f"SHOW SEARCH {k} for all")
                     left = budget.searches - done - 1 if budget.searches else None
-                    extra = f"SEARCH ({action.arg}):\n" + shown + (f"\n(searches left in this run: {left})" if left is not None else "")
+                    extra = (f"SEARCH ({action.arg}):\n" + shown + (SOURCES_CITED if sources.pages(turn.stdout) else "")
+                             + (f"\n(searches left in this run: {left})" if left is not None else ""))
             elif action.verb == "read":
                 turn.text = action.arg                          # scope and query, so SHOW READ k can name it
                 done = sum(1 for t in run.turns if t.kind == "read" and t.stdout and not t.stdout.startswith("(read budget"))
@@ -1262,7 +1280,12 @@ class Session:
                 unit_texts.append(text_u)
         # a number the brief states is the person's own, and one in a saved analysis the run opened is history it may state
         stated = ([self._brief(run)] if run.brief else []) + [t.stdout for t in run.turns if t.kind == "show" and (t.stdout or "").startswith("--- saved analysis ")]
-        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts + stated)
+        # a number in a claim a search of the path tied to a source is the source's (0337: a report made of sourced dates
+        # ended by calling each of them unverified); one the search gave no source for is not
+        searched = [t.stdout for t in self.nb.searches(run.id)]
+        claimed = [text for text in (sources.claims(d) for d in searched) if text]
+        check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts + stated + claimed,
+                                    searched=bool(claimed))
         check_u = rep.guard_units(missing)
         disputed = disputed_cells(run)
         quoted = [c for c in cited_cells(report_text) if c in disputed]
@@ -1276,7 +1299,9 @@ class Session:
             # said what they expect and the report gives no verdict on it
             answered = run.brief_outcome["stated"] and (run.brief_outcome["expected"] or not run.brief.get("expects"))
             check_b = BRIEF_UNANSWERED if briefs.held(run.brief, has_data(run.data)) and not answered else ""
-        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
+        # the report ends with the pages it cites, each a link (0337): the reader follows a citation [3] from there
+        known = sources.along(searched)
+        run.report = report_text + sources.listing(report_text, known) + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
@@ -1287,7 +1312,7 @@ class Session:
         # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
         rewrite = with_title(strip_cell_tokens(strip_scaffold(text)), run.title)
         check2 = rep.guard_rewrite(rewrite, report_text)
-        run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
+        run.rewrite = rewrite + sources.listing(rewrite, known) + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
         # the review after the report: only in a run that has reviews during it (Adaptive). Quick and Deep make no reviewer
         # call at all (2026-10-05, Palo: in Deep it cost 35-40% of the run and 20-40 s, before the replay, for no value a

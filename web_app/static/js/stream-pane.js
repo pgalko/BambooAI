@@ -273,6 +273,10 @@
             // [cell n] opens the code trace on that number's recipe (2026-10-24, the third way in; the cell's code is a click
             // further, from the trace's panel); the chip hands over itself, so the trace can read the sentence it sits in
             if (kind === 'cell') return '<span class="cite cell" title="How this number was made" onclick="if(typeof paneOpenRecipe===\'function\')paneOpenRecipe(this,' + esc(ref) + ')">cell ' + esc(ref) + '</span>';
+            // [3] where the report's Sources list has a page under that number (0337): the chip opens the page in another
+            // tab, and its hover names the page. ref: {n, url, title, host} as paneCiteHtml read them from the list - text
+            // of the rendered answer, escaped there
+            if (kind === 'web') return '<a class="cite web" href="' + ref.url + '" target="_blank" rel="noopener noreferrer" title="' + (ref.title ? ref.title + ' — ' : '') + ref.host + '">' + ref.n + '</a>';
             return '<span class="cite ' + kind + '" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'Plots\')">' + kind + ' ' + esc(ref) + '</span>';
         }
     };
@@ -470,14 +474,27 @@
     // stored HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering).
     // A passage named by its bare id - "C.39 - written 4 August" - is a chip too when the passage is known (a READ returned
     // it, or the report's cited passages arrived), outside code (2026-10-14: the first live run named every passage so)
+    // The report's web sources (0337): its Sources list - each item a source's number and the page's title as a link to
+    // it (analyst/sources.py) - says where a citation [3] leads; the citation becomes a chip that opens the page, in the
+    // text and in the list, outside code and outside a link. A link to another site opens in another tab: a click on a
+    // source had replaced the app
     window.paneCiteHtml = function (html) {
-        let code = 0;
-        return String(html || '').split(/(<[^>]+>)/).map(seg => {
+        html = String(html || '');
+        const web = {};
+        html.replace(/<li>\s*(?:<p>)?\s*\[(\d+)\]\s*<a href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g, (m, n, url, title) => {
+            if (!web[n]) web[n] = { n: n, url: url, title: title.replace(/<[^>]+>/g, ''), host: url.replace(/^https?:\/\/(www\.)?/, '').split(/[\/?#]/)[0] };
+            return m;
+        });
+        let code = 0, link = 0;
+        return html.split(/(<[^>]+>)/).map(seg => {
             if (seg.startsWith('<')) {
                 if (/^<(code|pre)\b/i.test(seg)) code++; else if (/^<\/(code|pre)\b/i.test(seg)) code = Math.max(0, code - 1);
+                if (/^<a\b/i.test(seg)) { link++; if (/\bhref="https?:/i.test(seg) && !/\btarget=/i.test(seg)) return seg.replace(/>$/, ' target="_blank" rel="noopener noreferrer">'); }
+                else if (/^<\/a\b/i.test(seg)) link = Math.max(0, link - 1);
                 return seg;
             }
             let out = seg;
+            if (!code && !link) out = out.replace(/(?<![\w\]\[])((?:\[\d+\])+)(?![(\[\w])/g, marks => marks.replace(/\[(\d+)\]/g, (m, n) => web[n] ? build.cite('web', web[n]) : m));
             if (!code) out = out.replace(/(?<![\[\w.])(C\.\d+|D\d+\.\d+)(?![\w\]])(?!\.\d)/g, (m, id) => unitPassages[id] ? build.cite(id.startsWith('C.') ? 'ctx' : 'doc', id) : m);
             return out.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]|\[(C\.\d+)\]/g, (m, kind, num, unit, passage) =>
                 passage ? build.cite('ctx', passage) : (unit ? build.cite('doc', unit) : build.cite(kind, num)));
