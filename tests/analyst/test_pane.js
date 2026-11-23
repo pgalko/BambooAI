@@ -29,7 +29,8 @@ w.paneLookupStart({kind:'search', query:'altitude & "pace"'});
 const pendingSearch = pane.querySelector('.sp-row.tool.pending');
 check('a SEARCH under way: a pending row with the pulse, the query and "searching the web…"', pendingSearch && pendingSearch.querySelector('.live') && pendingSearch.querySelector('.in').textContent.includes('SEARCH altitude') && pendingSearch.querySelector('.out').textContent === 'searching the web…');
 w.paneLookup({kind:'search', query:'altitude & "pace"', peek:'r <1>', sources:[{title:'A & B', url:'https://x.y/a?b=1&c=2', host:'x.y'}]});
-check('the search row replaces its pending row', !pane.querySelector('.sp-row.tool.pending') && pane.querySelectorAll('.sp-row.tool').length === 1);
+check('a search with no card of a search before it (the turn before was a cell): its row replaces its pending row - the query, the short line, the count, and no pill (0339)',
+  !pane.querySelector('.sp-row.tool.pending') && pane.querySelectorAll('.sp-row.tool').length === 1 && pane.querySelector('.sp-row.tool .t').textContent === '1 source' && !pane.querySelector('.sp-pill'));
 w.paneLookupStart({kind:'read', query:'D1 the wet season', model:'deepseek/deepseek-v4.1-flash'});
 check('a READ under way: the pending row names the Reader and its model', pane.querySelector('.sp-row.tool.pending .out').textContent === 'reading · Reader on deepseek-v4.1-flash…');
 w.paneLookup({kind:'read', query:'D1 the wet season', peek:'An early wet season [D1.3].', sources:[], passages:[{id:'D1.3', where:'notes.md §Weather', quote:'rainfall was 40% above'}, {id:'D1.5', where:'notes.md §Weather', quote:'sown a week later'}]});
@@ -91,7 +92,7 @@ w.paneHeartbeat({turn:2, of:15, spent:0.013, dollars:1.5, estimate:'ratio 1.06 [
 w.paneRunEnd({status:'answered', turns:2, of:15, cells:1, failed:1, cost:0.013, seconds:16, replay_status:'reproduced', replay_line:'Replay reproduced (1 cells, 3 numbers)', plots:1, files:[{path:'generated/x.csv'}]});
 const cards = pane.querySelectorAll('.sp-turn');
 check('second turn: reasoning block kept (had content), no think block (empty), peek = code line', cards.length === 2 && cards[1].querySelector('.sp-reasoning') && !cards[1].querySelector('.sp-think') && cards[1].querySelector('summary .peek').textContent === '1/0');
-check('rows: In [1]; a failed row with the exception line; a search row with a source pill; a dataset pill', pane.querySelector('.sp-row .in').textContent.replace(/\s/g,'') === 'In[1]' && pane.querySelector('.sp-row.fail .out').textContent.startsWith('ZeroDivisionError') && pane.querySelector('.sp-pill.src').getAttribute('href') === 'https://x.y/a?b=1&c=2' && pane.querySelector('.sp-pill.ds'));
+check('rows: In [1]; a failed row with the exception line; a search row; a dataset pill', pane.querySelector('.sp-row .in').textContent.replace(/\s/g,'') === 'In[1]' && pane.querySelector('.sp-row.fail .out').textContent.startsWith('ZeroDivisionError') && pane.querySelector('.sp-row.tool .in').textContent.startsWith('SEARCH altitude') && pane.querySelector('.sp-pill.ds'));
 check('strip: settled on the final turn and spend, estimate shown, idle dot', pane.querySelector('.sp-strip').textContent.includes('turn 2 of 15') && pane.querySelector('.sp-strip .est').textContent.includes('ratio 1.06') && pane.querySelector('.sp-strip .live').classList.contains('idle'));
 check('closing card: the run\'s numbers beside its title, the replay line, no link to a tab (0313) - and no dataset pill of its own (the pills ride once, under the REPLAY row; 2026-10-06)',
   pane.querySelector('.sp-done .head .nums').textContent.includes('2 of 15 turns') && pane.querySelector('.sp-done .head .title').textContent === 'Run complete' && pane.querySelector('.sp-done .rep').textContent.includes('Replay reproduced')
@@ -350,6 +351,54 @@ w.paneRunStart({mode:'Deep', of:15, dollars:1}); w.paneTurnStart({turn:1, of:15,
 check('a row of the page\'s own (the framing, folded): it makes the pane\'s strip, ids line and stream when the pane is empty and goes first in the stream; the run\'s strip and cards follow it',
   pane2.elements.map(e => e.className).join() === 'sp-strip,sp-ids-slot,sp-stream' && pane2.querySelector('.sp-stream').elements.map(e => e.className).join('|') === 'sp-turn ar-fold|sp-turn live'
   && pane2.querySelector('.sp-strip .mode').textContent === 'Deep', pane2.innerHTML.slice(0, 400));
+
+// a search on its card (0339, the product owner's choice among mockups): it had been a row under its card with a pill for each page - pills
+// of every length, a site's name broken over two lines, the row's short line pushed out by a long query
+pane2.innerHTML = ''; w.paneIds({thread_id:'t', chain_id:9, df_id:'d'}); w.paneRunStart({mode:'Deep', of:15, dollars:1});
+w.paneTurnStart({turn:1, of:15, seat:'Analyst', model:'m', chain_id:9});
+w.paneTurnEnd({turn:1, kind:'search', thinking:'The soils differ. Check how trials on mixed soils are analysed.', note:'- Plan: search, then compare within soil', code:'', elapsed:8.7, cost:0.01});
+const sCard = pane2.querySelector('.sp-turn');
+const sQuery = 'yield by soil <type> & "plot"';
+w.paneLookupStart({kind:'search', query:sQuery});
+const sWait = sCard.querySelector(':scope > summary .sp-face');
+check('a search under way stands on its card, under the card\'s line: the query, and "searching the web…" with the pulse; no row',
+  sWait && sWait.querySelector('.sq').textContent === sQuery && sWait.querySelector('.sp-wait .live') && sWait.querySelector('.sp-wait').textContent === 'searching the web…'
+  && sCard.classList.contains('search') && sCard.getAttribute('data-kind') === 'search' && !pane2.querySelector('.sp-row'), sCard.outerHTML);
+const sPages = [{n:1, title:'Designing <crop> trials', url:'https://trials.example.org/a?b=1&c=2', host:'trials.example.org'}, {n:2, title:'Repeated measures', url:'https://agronomy.example.com/r', host:'agronomy.example.com'},
+                {n:4, title:'Clay & "yields"', url:'https://soils.example.net/c', host:'soils.example.net'}];
+w.paneLookup({kind:'search', query:sQuery, peek:'Trials report the contrast within soil.', sources:sPages,
+              claims:[{text:'Trials report the contrast within soil <type>.', refs:[1, 4]}, {text:'The plot is the unit.', refs:[2, 9]}], passages:[]});
+const sFace = sCard.querySelectorAll(':scope > summary .sp-face'), sList = sFace[0].querySelector('.sp-srcs'), sFirst = sList.querySelector('.sp-src');
+check('done: one face, the pulse gone - the query, and the pages the answer cites by their numbers in the thread, in two columns as many rows deep as half the pages, '
+  + 'rounded up: each page its number as the Answer tab\'s chip, its title and its site, the chip and the title opening the page in another tab; no row, no pill',
+  sFace.length === 1 && !sFace[0].querySelector('.sp-wait') && sFace[0].querySelector('.sq').textContent === sQuery && sList.getAttribute('style') === 'grid-template-rows: repeat(2, auto)'
+  && sList.querySelectorAll('.sp-src').map(li => li.textContent).join('|') === '1Designing <crop> trialstrials.example.org|2Repeated measuresagronomy.example.com|4Clay & "yields"soils.example.net'
+  && sFirst.querySelector('.cite.web').getAttribute('href') === 'https://trials.example.org/a?b=1&c=2' && sFirst.querySelector('.cite.web').getAttribute('target') === '_blank'
+  && sFirst.querySelector('.cite.web').getAttribute('title') === 'Designing <crop> trials — trials.example.org' && sFirst.querySelector('.ttl').getAttribute('href') === 'https://trials.example.org/a?b=1&c=2'
+  && sFirst.querySelector('.ttl').getAttribute('target') === '_blank' && sFirst.querySelector('.host').textContent === 'trials.example.org' && !pane2.querySelector('.sp-row') && !pane2.querySelector('.sp-pill'), sCard.outerHTML);
+const sDetail = sCard.querySelector(':scope > .sp-detail');
+check('opened, the card holds its note, then the query as a cell\'s card holds its code, the claims each with its sources\' chips - a number of no page listed is none -, and the pages one under another',
+  sDetail.elements.map(e => e.className).join() === 'sp-note,sp-query,sp-found,sp-pages' && sDetail.querySelector('.sp-query').textContent === sQuery
+  && sDetail.querySelectorAll('.sp-found li').map(li => li.textContent).join('|') === 'Trials report the contrast within soil <type>.14|The plot is the unit.2'
+  && sDetail.querySelectorAll('.sp-found .cite.web').map(c => c.getAttribute('href')).join() === 'https://trials.example.org/a?b=1&c=2,https://soils.example.net/c,https://agronomy.example.com/r'
+  && sDetail.querySelectorAll('.sp-pages .sp-src').length === 3 && sDetail.querySelectorAll('.sp-pages .cite.web')[2].getAttribute('title') === 'Clay & "yields" — soils.example.net', sDetail.innerHTML);
+w.paneTurnStart({turn:2, of:15, seat:'Analyst', model:'m', chain_id:9});
+w.paneTurnEnd({turn:2, kind:'search', thinking:'One more.', note:'', code:'', elapsed:1, cost:0});
+w.paneLookup({kind:'search', query:'nothing to find', peek:'(search budget for this run used: 4 of 4.)', sources:[], claims:[], passages:[]});
+const sNone = pane2.querySelectorAll('.sp-turn')[1];
+check('a search that found no page: its card says so under the query, in the words the record has; the card before keeps its own',
+  sNone.querySelector('.sp-face .sp-wait').textContent === '(search budget for this run used: 4 of 4.)' && !sNone.querySelector('.sp-srcs') && !sNone.querySelector('.sp-pages')
+  && sCard.querySelectorAll('.sp-src').length === 6, sNone.outerHTML);
+pane2.innerHTML = '';
+w.paneRunStart({mode:'Deep', of:8, dollars:1, branch:{of:20, turn:2, hint:'compare on clay'}});
+w.paneTurnStart({turn:1, kept:true}); w.paneTurnEnd({turn:1, kind:'search', thinking:'x', kept:true});
+w.paneLookup({kind:'search', query:'clay yields', peek:'', sources:[sPages[2]], claims:[], passages:[]});
+const kFold = pane2.querySelector('.sp-kept');
+check('a branch\'s kept search: its pages on its kept card, in the fold', kFold && kFold.querySelector('.sp-turn.kept.search .sp-face .sp-src .ttl').textContent === 'Clay & "yields"' && !pane2.querySelector('.sp-row'), pane2.innerHTML.slice(0, 600));
+check('the stylesheet: a search\'s card line wraps to take its face, shut; opened, the face goes, the card showing it all; two columns of pages, one in a narrow pane; a site\'s name on one line',
+  paneCss.includes('#streamOutput .sp-turn.search > summary { flex-wrap: wrap;') && paneCss.includes('#streamOutput .sp-turn[open] > summary .sp-face { display: none; }')
+  && paneCss.includes('#streamOutput .sp-srcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column;')
+  && /@container \(max-width: \d+px\) \{ #streamOutput \.sp-srcs \{ grid-template-columns: minmax\(0, 1fr\);/.test(paneCss) && /#streamOutput \.sp-src \.host \{[^}]*white-space: nowrap;/.test(paneCss));
 
 // every check above is printed and counted here (2026-11-15: the loop sat above the last checks, which then counted as passed whatever they found;
 // three of them read the first pane after the second had taken its place)

@@ -94,7 +94,6 @@ class BambooAI:
         self._mode_label = 'Deep'
         self.df_name = ''
         self._last_search_query = ''
-        self._last_search_sources = []
         self.df = df
         self.df_id = df_id
         self.auxiliary_datasets = auxiliary_datasets or []
@@ -435,23 +434,10 @@ class BambooAI:
         self._last_search_query = query
         # the pages the path's searches have numbered so far: a page keeps its number, whichever search finds it (0337)
         before = self.notebook.searches(str(self.chain_id)) if self.notebook is not None else []
-        result, links = self._search_seat(self.prompts, self.log_and_call_manager, self.output_manager,
-                                          self.chain_id, [{"role": "user", "content": query}],
-                                          known=sources_mod.along(t.stdout for t in before))
-        text = str(result or "")
-        sources = []
-        for l in list(links or [])[:10]:
-            if isinstance(l, dict):
-                url, title = str(l.get("link") or l.get("url") or "").strip(), str(l.get("title") or "").strip()
-            else:
-                url, title = str(l).strip(), ""
-            url = url.strip("'\"<>()[]{},;")
-            if not url.startswith("http"):
-                continue
-            host = re.sub(r'^https?://(www\.)?', '', url).split('/')[0]
-            sources.append({"url": url, "title": title or host, "host": host})
-        self._last_search_sources = sources
-        return text
+        result, _ = self._search_seat(self.prompts, self.log_and_call_manager, self.output_manager,
+                                      self.chain_id, [{"role": "user", "content": query}],
+                                      known=sources_mod.along(t.stdout for t in before))
+        return str(result or "")      # the digest: the pane's card reads the search's pages and claims from it (0339)
 
     # ------------------------------------------------------------- the READ
     def _reader_seat(self):
@@ -1281,7 +1267,9 @@ class BambooAI:
         elif kind in ("show", "names", "search", "read"):
             text = ev.get('text') or ''
             query = ev.get('query') or (self._last_search_query if kind == "search" else (getattr(self, '_last_read_query', '') if kind == "read" else ''))
-            sources = list(getattr(self, '_last_search_sources', []) or [])[:8] if kind == "search" else []
+            # a search's card (0339): its pages by the numbers the report cites them by, and the claims tied to them - from
+            # its digest, the record the analyst read
+            found = sources_mod.card(text) if kind == "search" else {"sources": [], "claims": []}
             passages = reading.parse_digest(text) if kind == "read" else []
             kept = list(getattr(self, '_last_read_passages', None) or [])     # the same passages with the originals of rendered quotes (S2)
             if kind == "read" and [p.get('id') for p in kept] == [p.get('id') for p in passages]:
@@ -1290,7 +1278,7 @@ class BambooAI:
             # first line without its rule marks ("--- cell 3 (re-opened) ---")
             peek = (reading.digest_peek(text) if kind == "read" else web_search.peek(text) if kind == "search"
                     else next((re.sub(r"^-{3} | -{3}$", "", ln.strip()) for ln in text.splitlines() if ln.strip()), ''))[:160]
-            self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
+            self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=found["sources"], claims=found["claims"], passages=passages)
             self._tab('plan', self._notebook_view(run))
         elif kind == "report":
             # the passages the report cites, resolved, for the chips' hover - before the answer renders (S2)

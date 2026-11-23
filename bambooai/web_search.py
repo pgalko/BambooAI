@@ -20,7 +20,7 @@ names their headings): a page keeps one number along a path, so the seat is told
 import os
 import re
 
-from analyst.sources import CLAIMS_HEAD, SOURCES_HEAD, listed, numbers, same as _same
+from analyst.sources import CLAIMS_HEAD, SOURCES_HEAD, UNTITLED, listed, numbers, same as _same
 from logger_config import get_logger
 logger = get_logger(__name__)
 
@@ -224,7 +224,7 @@ def digest(answer, claims, sources, unsourced=(), known=()):
     if lines:
         parts.append(CLAIMS_HEAD + "\n" + "\n".join(lines[:40]))
     if sources:
-        parts.append(SOURCES_HEAD + "\n" + "\n".join(f"[{number[s.get('link')]}] {s.get('title') or 'Link'} - {s.get('link')}"
+        parts.append(SOURCES_HEAD + "\n" + "\n".join(f"[{number[s.get('link')]}] {s.get('title') or UNTITLED} - {s.get('link')}"
                                                       for s in sorted(sources, key=lambda s: number[s.get("link")])))
     if unsourced:
         parts.append(UNSOURCED_HEAD + "\n" + "\n".join(f"- {text}" for text in list(unsourced)[:40]))
@@ -326,7 +326,7 @@ class WebSearch:
         for link in (l for t in found for l in t.get("links") or []):
             if link.get("link") and link["link"] not in seen:
                 seen.add(link["link"])
-                pages.append({"title": link.get("title") or "Link", "link": link["link"]})
+                pages.append({"title": link.get("title") or UNTITLED, "link": link["link"]})
         if provider == "gemini":            # Google ties each sentence to its pages itself, and hands over those pages alone
             return digest(answer, [s for t in found for s in t.get("segments") or []], pages, known=known), pages
         claims, cited, unsourced, summary = claims_from_links(answer, pages, known)

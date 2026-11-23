@@ -375,6 +375,7 @@ RESULT('left after the steps', left, None, None, 'units')"""
 # the web search (0335): OpenRouter's reply to the Web Search seat's one request, as its chat completions give it - the
 # answer with a link to its page after each claim, the pages cited as annotations, the searches run in the usage. The
 # seat reads it for real (tools/stack/webapp_launcher.py): two claims with a source each, two searches at the engine's fee.
+SEARCH_QUERY = "fertiliser regime field trial yield comparison within soil type, plot as experimental unit"
 SEARCH_CLAIMS = ("Field trials that compare fertiliser regimes across heterogeneous soils report the within-soil contrast, "
                  "since soil type alone can move yield by 0.5-1.0 t/ha",
                  "The plot is the experimental unit: seasons within a plot are repeated measures, and intervals computed "
@@ -870,7 +871,7 @@ class Scenario:
                        "regime trials across mixed soils are reported, to confirm the within-soil contrast and the unit.",
                        _note(q, doubts="whether seasons within a plot are independent; whether rainfall differs by regime",
                              plan="search once; then plot-level means within soil"),
-                       "SEARCH fertiliser regime field trial yield comparison within soil type, plot as experimental unit")
+                       "SEARCH " + SEARCH_QUERY)
 
     def t_fail(self, q):
         return _cell("Plot-level means first, then the within-soil table.",

@@ -18,8 +18,10 @@
 //   pane_turn_end    -> paneTurnEnd      {turn, kind, peek, elapsed, cost, thinking, note, code, kept}
 //   pane_cell        -> paneCell         {cell_no, ok, skipped, refused, peek, elapsed, chars, figs, error_line, reach:{text,tag,title}, kept}
 //                                        kept: 'kept', or 'differs' - run again in a new kernel, it printed something else
-//   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row
-//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{title,url,host}], passages:[{id,where,quote,original}]}
+//   pane_lookup_start -> paneLookupStart {kind, query, model}          a READ or SEARCH under way: a pending row, replaced by the lookup row;
+//                                        a SEARCH's on its card (0339)
+//   pane_lookup      -> paneLookup       {kind, query, peek, sources:[{n,title,url,host}], claims:[{text,refs}], passages:[{id,where,quote,original}]}
+//                                        a SEARCH goes on its turn's card: its pages by the numbers the report cites them by (0339)
 //   pane_passages    -> panePassages     {passages:[{id,where,quote,original}]}   the report's cited passages, for the chips' hover
 //   pane_heartbeat   -> paneHeartbeat    {turn, of, spent, dollars, estimate, mode}
 //   pane_datasets    -> paneDatasets     {files:[{path,name,rows,size}]}
@@ -189,13 +191,34 @@
             // 120 characters and set nowrap, it ran past the pane)
             let h = '<div class="sp-row tool' + (l.kind === 'read' ? ' read' : '') + '"><span>' + glyph + '</span><span class="in">' + label + (l.query ? ' ' + esc(l.query) : '') + '</span>' +
                 '<span class="out" title="' + esc(l.peek || '') + '">' + esc(l.peek || '') + '</span><span class="t">' + esc(right) + '</span></div>';
-            if (l.sources && l.sources.length) {
-                h += '<div class="sp-pills">' + l.sources.map(s =>
-                    '<a class="sp-pill src" href="' + esc(s.url || '#') + '" target="_blank" rel="noopener noreferrer" title="' + esc(s.url || '') + '">' + ICON_SEARCH +
-                    '<span class="t">' + esc(s.title || s.url || 'source') + '</span>' + (s.host ? '<span class="host">' + esc(s.host) + '</span>' : '') + '</a>').join('') + '</div>';
-            }
             return h;
         },
+        // A search on its card (0339, the product owner's choice among mockups). It had been a row under its card with a
+        // pill for each page: pills of every length, a site's name broken over two lines, the row's short line pushed out
+        // by a long query. While the card is shut, under its line: what it searched for, and the pages its answer cites, by
+        // the numbers the report cites them by, in two columns (one in a narrow pane). `l`: {query, peek, sources: [{n,
+        // title, url, host}], claims: [{text, refs}]}; `pending`: the search under way
+        searchFace(l, pending) {
+            const pages = l.sources || [];
+            const query = '<div class="sq">' + ICON_SEARCH + '<span>' + esc(l.query || '') + '</span></div>';
+            const under = pending ? '<div class="sp-wait"><span class="live"></span>searching the web…</div>'
+                : (pages.length ? '<ul class="sp-srcs" style="grid-template-rows: repeat(' + Math.ceil(pages.length / 2) + ', auto)">' + pages.map(build.page).join('') + '</ul>'
+                                : '<div class="sp-wait">' + esc(l.peek || 'no sources') + '</div>');
+            return '<div class="sp-face">' + query + under + '</div>';
+        },
+        // opened, as a cell's card shows its code: the query, the claims with their sources' numbers, the pages one under another
+        searchDetail(l) {
+            const by = {}; (l.sources || []).forEach(p => { by[p.n] = p; });
+            const claims = (l.claims || []).map(c => '<li>' + esc(c.text) + (c.refs || []).filter(n => by[n]).map(n => build.chip(by[n])).join('') + '</li>').join('');
+            return '<div class="sp-query">' + ICON_SEARCH + '<span>' + esc(l.query || '') + '</span></div>' + (claims ? '<ul class="sp-found">' + claims + '</ul>' : '') +
+                ((l.sources || []).length ? '<ul class="sp-pages">' + l.sources.map(build.page).join('') + '</ul>' : '');
+        },
+        // a page: its number as the Answer tab's chip, its title, its site - the chip and the title open it in another tab
+        page(p) {
+            return '<li class="sp-src">' + build.chip(p) + '<a class="ttl" href="' + esc(p.url || '#') + '" target="_blank" rel="noopener noreferrer" title="' + esc(p.url || '') + '">' +
+                esc(p.title || p.host || p.url || '') + '</a><span class="host">' + esc(p.host || '') + '</span></li>';
+        },
+        chip(p) { return build.cite('web', { n: esc(p.n), url: esc(p.url || '#'), title: esc(p.title || ''), host: esc(p.host || '') }); },
         datasets(d) {
             const files = (d.files || []).map(f => {
                 const name = f.name || String(f.path || '').split('/').pop();
@@ -440,6 +463,7 @@
             const th = card.querySelector('.sp-think'); if (th) th.textContent = t.thinking || '';
         }
         const kind = card.querySelector('summary .kind'); if (kind) kind.textContent = kindLabel(t.kind);
+        card.setAttribute('data-kind', t.kind || '');          // a search's look-up goes on its card by it (0339)
         const peek = card.querySelector('summary .peek');
         if (peek) peek.textContent = t.peek || stepSentence(t.thinking, 120) || firstCodeLine(t.code);
         const meta = card.querySelector('summary .meta');
@@ -505,9 +529,34 @@
     window.panePassages = function (d) {
         (d.passages || []).forEach(p => { if (p && p.id && !unitPassages[p.id]) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '', original: p.original || '' }; });
     };
-    window.paneLookupStart = function (l) { append(build.lookupStart(l)); };
+    // the card of the turn that searched (0339): the last turn card in the stream when its search starts and ends - a turn's
+    // card closes before its action runs, and a branch's kept search comes right after its kept card
+    function searchCard() {
+        const s = stream(); if (!s) return null;
+        const cards = s.querySelectorAll('.sp-turn:not(.sp-kept)');
+        const card = cards.length ? cards[cards.length - 1] : null;
+        return card && card.getAttribute('data-kind') === 'search' ? card : null;
+    }
+    function putFace(card, html) {
+        const head = card.querySelector(':scope > summary'); if (!head) return;
+        const was = head.querySelector('.sp-face'); if (was) was.remove();
+        card.classList.add('search');
+        head.insertAdjacentHTML('beforeend', html);
+    }
+    window.paneLookupStart = function (l) {
+        const card = l.kind === 'search' ? searchCard() : null;
+        if (card) putFace(card, build.searchFace(l, true));
+        else append(build.lookupStart(l));
+    };
     window.paneLookup = function (l) {
         (l.passages || []).forEach(p => { if (p && p.id) unitPassages[p.id] = { quote: p.quote || '', where: p.where || '', original: p.original || '' }; });
+        const card = l.kind === 'search' ? searchCard() : null;
+        if (card) {
+            putFace(card, build.searchFace(l));
+            const detail = card.querySelector(':scope > .sp-detail');
+            if (detail) detail.insertAdjacentHTML('beforeend', build.searchDetail(l));
+            return;
+        }
         // the pending row this look-up announced itself with goes; the finished row takes its place
         const root = document.getElementById('streamOutput');
         const pend = root && root.querySelectorAll('.sp-row.tool.pending');

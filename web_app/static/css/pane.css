@@ -80,11 +80,37 @@
 #streamOutput .sp-pill { display: inline-flex; align-items: center; gap: 6px; font-family: Arial, sans-serif; font-size: 11px; padding: 2px 9px; border-radius: 12px; border: 1px solid var(--border-color); color: var(--text-secondary); background: var(--bg-secondary); cursor: pointer; max-width: 320px; text-decoration: none; }
 #streamOutput .sp-pill .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #streamOutput .sp-pill:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-#streamOutput .sp-pill.src { border-color: rgba(189, 147, 249, .4); color: var(--accent-replay); }
-#streamOutput .sp-pill.src .host { color: var(--text-quaternary); }
+#streamOutput .sp-pill.src { border-color: rgba(189, 147, 249, .4); color: var(--accent-replay); }      /* a search's pages in a pane kept from before 0339 */
+#streamOutput .sp-pill.src .host { color: var(--text-quaternary); white-space: nowrap; }
 #streamOutput .sp-pill.ds { border-color: rgba(80, 250, 123, .35); color: var(--accent-color); }
 #streamOutput .sp-pill.ds .sz { color: var(--text-quaternary); }
 #streamOutput .sp-pill svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; flex-shrink: 0; }
+/* a search on its card (0339): while the card is shut, under its line, what it searched for and the pages its answer cites, by
+   the report's numbers, in two columns - one in a narrow pane; opened, the query as a cell's code, the claims with their
+   sources' numbers, the pages one under another. A page's number is the Answer tab's chip */
+#streamOutput .sp-turn.search > summary { flex-wrap: wrap; row-gap: 6px; }
+#streamOutput .sp-face { order: 3; flex: 0 0 100%; min-width: 0; box-sizing: border-box; display: flex; flex-direction: column; gap: 7px; padding: 0 2px 3px 15px; container-type: inline-size; }
+#streamOutput .sp-turn[open] > summary .sp-face { display: none; }
+#streamOutput .sp-face .sq { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-family: 'Courier New', Courier, monospace; color: var(--text-primary); }
+#streamOutput .sp-face .sq span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#streamOutput .sp-face svg, #streamOutput .sp-query svg { position: relative; top: 1px; flex-shrink: 0; width: 11px; height: 11px; stroke: var(--c-lookup); fill: none; stroke-width: 2; }
+#streamOutput .sp-face .sp-wait { display: flex; align-items: center; gap: 8px; color: var(--text-tertiary); }
+#streamOutput .sp-face .sp-wait .live { flex-shrink: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--accent-color); animation: sp-pulse 1.2s ease-in-out infinite; }
+#streamOutput .sp-srcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column; gap: 4px 28px; margin: 0; padding: 0; list-style: none; }
+@container (max-width: 600px) { #streamOutput .sp-srcs { grid-template-columns: minmax(0, 1fr); grid-template-rows: none !important; grid-auto-flow: row; } }
+#streamOutput .sp-src { display: flex; align-items: center; gap: 8px; min-width: 0; }
+#streamOutput .sp-src .ttl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-secondary); text-decoration: none; }
+#streamOutput .sp-src .ttl:hover { color: var(--c-lookup); text-decoration: underline; }
+#streamOutput .sp-src .host { flex-shrink: 0; font-size: 11px; color: var(--text-quaternary); white-space: nowrap; }
+#streamOutput .sp-turn a.cite.web { flex-shrink: 0; display: inline-block; min-width: 7px; padding: 0 5px; border: 1px solid var(--chip-lookup-border); border-radius: 8px; font-family: 'Courier New', Courier, monospace; font-size: 10.5px; line-height: 15px; text-align: center; color: var(--c-lookup); text-decoration: none; }
+#streamOutput .sp-turn a.cite.web:hover { background: var(--chip-lookup-bg); }
+#streamOutput .sp-query { display: flex; align-items: baseline; gap: 9px; padding: 10px 14px; border-top: 1px solid var(--border-color); background: var(--code-bg); font-family: 'Courier New', Courier, monospace; font-size: 12.5px; line-height: 1.45; color: var(--code-text); overflow-wrap: anywhere; }
+#streamOutput .sp-detail > .sp-query:first-child { border-top: none; }
+#streamOutput .sp-detail > .sp-query:last-child { border-radius: 0 0 6px 6px; }
+#streamOutput .sp-found, #streamOutput .sp-pages { display: flex; flex-direction: column; margin: 0; padding: 9px 14px 10px; border-top: 1px solid var(--border-color); list-style: none; font-family: Arial, sans-serif; }
+#streamOutput .sp-found { gap: 5px; font-size: 12.5px; line-height: 1.5; color: var(--text-primary); }
+#streamOutput .sp-found .cite { margin-left: 3px; vertical-align: 1px; }
+#streamOutput .sp-pages { gap: 4px; padding-bottom: 11px; font-size: 12px; }
 #streamOutput .sp-done { border: 1px solid var(--border-color); border-left: 2px solid var(--accent-color); border-radius: 6px; background: var(--bg-secondary); padding: 10px 12px; font-family: Arial, sans-serif; font-size: 12px; color: var(--text-secondary); }
 #streamOutput .sp-done .head { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 16px; margin-bottom: 6px; }   /* the title with the run's numbers beside it (0313) */
 #streamOutput .sp-done .title { color: var(--text-primary); font-weight: 600; }

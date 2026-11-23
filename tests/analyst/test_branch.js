@@ -589,7 +589,8 @@ check('... a branch\'s pane kept by 0320 to 0329 - its kept turns loose, over a 
   same(oldNow, { rows: ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-row', 'sp-turn', 'sp-done'], fold: [['Turns 1–3', 'kept', 'from the original', '2 cells (1 failed)'], false],
                  inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.fail.kept', 'sp-turn.kept', 'sp-row.kept'], hint: ['Branch from turn 3', 'keep the two blocks apart', true],
                  turns: '1,2,3,4,5', kept: '1,2,3,4,5', buttons: 3 }) && oldAgain, [oldNow, oldAgain]);
-// a kept turn that searched: its sources stand under its row (the walk's first analysis searches in its second turn)
+// a kept turn that searched (the walk's first analysis searches in its second turn): its pages stand on its card (0339); in a pane kept
+// before 0339 its sources stand under it, a row and pills
 const ofSearch = s => { const f = s.querySelector('.sp-kept'), cls = e => e.className.split(' ').slice(0, 2).join('.');
   return { rows: s.elements.map(cls), inFold: f ? f.querySelector('.sp-kept-body').elements.map(cls) : null, says: saysOf(f) }; };
 $('streamOutput').innerHTML = '';
@@ -597,21 +598,29 @@ w.paneIds({ thread_id: 7, chain_id: 29, df_id: 'd1' }); w.paneRunStart({ mode: '
 w.paneTurnStart({ turn: 1, kept: true }); w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'The data first. This turn loads it.', kept: true });
 w.paneCell({ cell_no: 1, ok: true, peek: 'rows 92', kept: 'kept' });
 w.paneTurnStart({ turn: 2, kept: true }); w.paneTurnEnd({ turn: 2, kind: 'search', thinking: 'Loaded. This turn searches.', kept: true });
-w.paneLookup({ kind: 'search', query: 'fertiliser trials', peek: 'two sources', sources: [{ url: 'https://example.org/a', title: 'Trial A', host: 'example.org' }, { url: 'https://example.org/b', title: 'Trial B', host: 'example.org' }] });
+w.paneLookup({ kind: 'search', query: 'fertiliser trials', peek: 'two sources', sources: [{ n: 1, url: 'https://example.org/a', title: 'Trial A', host: 'example.org' }, { n: 2, url: 'https://example.org/b', title: 'Trial B', host: 'example.org' }], claims: [] });
 w.paneTurnStart({ turn: 3, kept: true }); w.paneTurnEnd({ turn: 3, kind: 'cell', thinking: 'Searched. This turn pools the blocks.', kept: true });
 w.paneCell({ cell_no: 2, ok: true, peek: 'pooled 20', kept: 'kept' });
 w.paneTurnStart({ turn: 4, of: 8, seat: 'Analyst', model: 'm', chain_id: 29 }); w.paneTurnEnd({ turn: 4, kind: 'report', thinking: 'Done.', elapsed: 1, cost: 0 });
 w.paneRunEnd({ status: 'answered', turns: 4, of: 8, cells: 2, cost: 0, seconds: 1, chain_id: 29 });
 const searchedLive = ofSearch($('streamOutput').querySelector('.sp-stream'));
+const pagesLive = Array.from($('streamOutput').querySelectorAll('.sp-kept .sp-turn.search .sp-face .ttl')).map(a => a.textContent).join();
 const keptOld = $('streamOutput').querySelector('.sp-stream'), oldFold2 = keptOld.querySelector('.sp-kept');      // as 0320 to 0329 kept it: loose, the hint a row
 oldFold2.querySelector('.sp-kept-body').elements.forEach(x => keptOld.insertBefore(x, oldFold2)); oldFold2.remove();
+const wasSearch = keptOld.querySelector('.sp-turn.search'), oldRows = doc.createElement('div');      // and its search as before 0339: a row, and a pill for each page
+wasSearch.querySelector('summary .sp-face').remove(); wasSearch.classList.remove('search');
+oldRows.innerHTML = '<div class="sp-row tool"><span>⌕</span><span class="in">SEARCH fertiliser trials</span><span class="out">two sources</span><span class="t">2 sources</span></div>'
+  + '<div class="sp-pills"><a class="sp-pill src" href="https://example.org/a"><span class="t">Trial A</span></a><a class="sp-pill src" href="https://example.org/b"><span class="t">Trial B</span></a></div>';
+const afterSearch = wasSearch.nextElementSibling; oldRows.elements.forEach(x => keptOld.insertBefore(x, afterSearch));
 keptOld.querySelector('.sp-hint').innerHTML = '<b>From turn 3</b><span>after the search</span>';
 w.paneRenew($('streamOutput'));
 const searchedOld = ofSearch(keptOld);
-check('... a kept turn that searched has its sources under its row: they go into the fold with it, and the kept turns after them too - as the turns arrive, and in a pane kept by 0320 to 0329',
-  same(searchedLive, { rows: ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-done'], inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.tool', 'sp-pills', 'sp-turn.kept', 'sp-row.kept'],
-                       says: ['Turns 1–3', 'kept', 'from the original', '2 cells'] })
-  && same(searchedOld.rows, searchedLive.rows) && same(searchedOld.inFold, searchedLive.inFold) && same(searchedOld.says, ['Turns 1–3', 'kept', '', '2 cells']), [searchedLive, searchedOld]);
+check('... a kept turn that searched has its pages on its card, in the fold (0339), and the kept turns after it go in too as they arrive; in a pane kept by 0320 to 0329, before 0339, '
+  + 'its search\'s row and pills go into the fold with it',
+  same(searchedLive, { rows: ['sp-turn.sp-kept', 'sp-hint', 'sp-turn', 'sp-done'], inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-turn.kept', 'sp-row.kept'],
+                       says: ['Turns 1–3', 'kept', 'from the original', '2 cells'] }) && pagesLive === 'Trial A,Trial B'
+  && same(searchedOld, { rows: searchedLive.rows, inFold: ['sp-turn.kept', 'sp-row.kept', 'sp-turn.kept', 'sp-row.tool', 'sp-pills', 'sp-turn.kept', 'sp-row.kept'], says: ['Turns 1–3', 'kept', '', '2 cells'] }),
+  [searchedLive, pagesLive, searchedOld]);
 // a hint is text, whatever it holds; a turn of the branch's own stays out of the fold, with no hint's card between too
 const keptThen = (hint, chain) => {
   $('streamOutput').innerHTML = '';

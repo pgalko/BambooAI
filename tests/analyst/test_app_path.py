@@ -781,8 +781,9 @@ check("the closing card says whether the analysis has turns to go on from (0320:
       _map_seen is False and _map_blind is True, (_map_seen, _map_blind))
 FakeModels.multimodal = "false"
 
-# the search tool: the seat's sources become the pills, intact (a grounding redirect breaks if a quote rides along); the text is the seat's
-# digest as it came - it lists its sources itself (0335) -, and the pane's row says the first finding, not the digest's heading
+# the search tool: the text is the seat's digest as it came - it lists its sources itself (0335) -; the pane's search says the first finding,
+# not the digest's heading, and goes on its card with the pages and claims the digest gives, by number (0339) - an address intact: a
+# grounding redirect breaks if a quote rides along
 from bambooai import web_search
 _pages = [{"title": "Field trials by soil type", "link": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8='"}, {"title": "", "link": "https://journals.example.org/x"}, {"title": "bad", "link": "not a url"}]
 _digest = web_search.digest("Soil type alone moves yield by 0.5-1.0 t/ha.", [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "links": _pages[:1]}], _pages)
@@ -792,15 +793,17 @@ def _seat(prompts, lacm, om, chain_id, messages, known=()):
 BAMBOO._search_seat = _seat
 BAMBOO._search = BAMBOO._web_search
 txt = BAMBOO._web_search("yield by soil type")
-check("search: the text is the seat's digest, with no second list of sources after it (0335); a stray quote is stripped from the url; a non-url is dropped; a missing title falls back to the host",
-      txt == _digest and "Sources:" not in txt and BAMBOO._last_search_sources[0]["url"].endswith("AUZIYQEw8=") and len(BAMBOO._last_search_sources) == 2
-      and BAMBOO._last_search_sources[1]["title"] == "journals.example.org", (txt, BAMBOO._last_search_sources))
+check("search: the text is the seat's digest, with no second list of sources after it (0335)", txt == _digest and "Sources:" not in txt and not hasattr(BAMBOO, "_last_search_sources"), txt)
 while not q.empty(): q.get()
 BAMBOO._emit({"type": "search", "run": run3.id, "text": txt})
 ev = [json.loads(q.get()) for _ in range(q.qsize())]
 lk = next(e for e in ev if e.get("type") == "pane_lookup")
-check("the pane's search row carries the query, the first finding as its short line - not the digest's heading (0335) - and the two pills with exact urls",
-      lk["query"] == "yield by soil type" and lk["peek"] == "Soil type alone moves yield by 0.5-1.0 t/ha." and [x["url"] for x in lk["sources"]] == [BAMBOO._last_search_sources[0]["url"], "https://journals.example.org/x"], lk)
+check("the pane's search carries the query and the first finding as its short line - not the digest's heading (0335) -, and for its card (0339) the pages by the numbers the digest gives "
+      "them - an address without the quote that rode along, a page with no title by its site, no line that is no address - and the claims, each with its sources' numbers",
+      lk["query"] == "yield by soil type" and lk["peek"] == "Soil type alone moves yield by 0.5-1.0 t/ha."
+      and lk["sources"] == [{"n": 1, "title": "Field trials by soil type", "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8=", "host": "vertexaisearch.cloud.google.com"},
+                            {"n": 2, "title": "journals.example.org", "url": "https://journals.example.org/x", "host": "journals.example.org"}]
+      and lk["claims"] == [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "refs": [1]}], lk)
 # a page's number along the path (0337): the seat is told the pages the path's searches have numbered, from their digests
 from analyst.notebook import Turn as _Turn
 _searching = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]

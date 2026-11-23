@@ -54,6 +54,15 @@ check("sources: a report cites a source by its number alone in brackets - [3], o
       and src.listing(_rep, _known, [_known[1], _known[0]]) == "\n\n## Sources\n\n" + _L1 + "\n" + _L2 + "\n" + _L3
       and src.listing("Nothing from the web: x[1].", _known, [_known[1]]) == "\n\n## Sources\n\n" + _L2
       and src.listing("Nothing from the web: x[1].", _known) == "" and src.listing(_rep, []) == "", src.listing(_rep, _known))
+check("sources: what a search's card in the pane shows (0339) - its pages by the numbers the digest gives them, each with its title, or its site where it has none, its address and its "
+      "site - a later search's pages by their numbers along the thread, not from 1; the claims, each with its sources' numbers; a quote that rode along at the end of an address is not "
+      "part of it; a failed search shows nothing",
+      src.card(_d1) == {"sources": [{"n": 1, "title": "Designing crop field trials", "url": _FAO, "host": "fao.org"},
+                                     {"n": 2, "title": "Repeated measures in plot trials", "url": _JRN, "host": "onlinelibrary.wiley.com"}],
+                         "claims": [{"text": "Regime B plots yielded 3.2 t/ha on loam.", "refs": [1]}, {"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "refs": [1, 2]}]}
+      and src.card(_digest(["x [1]"], [(1, src.UNTITLED, "https://journals.example.org/x'")]))["sources"] == [{"n": 1, "title": "journals.example.org", "url": "https://journals.example.org/x", "host": "journals.example.org"}]
+      and [(p["n"], p["host"]) for p in src.card(_d3)["sources"]] == [(4, "soils.example.org")] and src.card(_d3)["claims"] == [{"text": "Clay held 2.9 t/ha in 2024.", "refs": [4]}]
+      and src.card("(search failed: boom)") == {"sources": [], "claims": []}, src.card(_d1))
 check("sources: what stays in view of a run's searches - the claims of each under its number on the path and its query, then the sources they cite, once each, by number, with the site; "
       "under them how the report cites one, and that it writes no list of them (0338: 'the pages cited are listed under the report' was read as the analyst's task); "
       "nothing where no search returned a sourced claim",

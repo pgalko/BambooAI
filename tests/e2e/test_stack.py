@@ -2144,8 +2144,8 @@ def main():
             check("the Figures card: quiet, kind 'figures', its line naming the two figures the cell draws; then the cell row In [3] with 2 fig",
                   fig["figCard"] and fig["figCard"][1] == "figures" and fig["figCard"][2].startswith("figure cell: plot-level yield by regime")
                   and "In\xa0[3]" in fig["last"].replace("In [", "In\xa0[") and "2 fig" in fig["last"], (fig["figCard"], fig["last"]))
-            check("the rows in order: cell 1, the search, the failed cell, cell 2, the skipped figure cell, then the figures cell after the report",
-                  fig["order"][:5] == ["cell", "tool", "fail", "cell", "skipped"] and fig["order"].count("cell") == 3 and len(fig["cellRows"]) == 3, fig["order"])
+            check("the rows in order: cell 1, the failed cell, cell 2, the skipped figure cell, then the figures cell after the report - the search has no row: it stands on its card (0339)",
+                  fig["order"][:4] == ["cell", "fail", "cell", "skipped"] and fig["order"].count("cell") == 3 and len(fig["cellRows"]) == 3, fig["order"])
             fig_seat = page.evaluate("() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => ((t.querySelector('.n') || {}).textContent || '') === 'Figures'); const b = c && c.querySelector('.sp-prompt'); return b ? b.dataset.agent : null; }")
             check("the Figures card ran on the Figures seat the template carries (2026-10-11)", fig_seat == "Figures", fig_seat)
             # a dataset the analyst saved (DS.save in the estimate cell): one download pill under the REPLAY row, none in the closing card (2026-10-06)
@@ -2167,14 +2167,52 @@ def main():
                 check("Dataset cache: the saved file is listed under Generated, its Load/Download/Remove buttons are in view without scrolling, and the columns list is the part that scrolls",
                       "plot_means.csv" in geom["name"] and geom["buttonsInView"] and not geom["panelScrolls"] and geom["columnsOwnScroll"] is True, geom)
                 page.click("#datasetManagerModal .close")
-            pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
-            check("the search row carries the two source pills: the pages the answer links, not the third the search returned (0336)",
-                  any("fao.org" in p for p in pills) and any("wiley" in p for p in pills) and not any("example.org" in p for p in pills), pills)
-            # the Web Search seat (0335), real over OpenRouter's scripted client: what the row says, what the record holds
-            srch = page.evaluate("""() => { const r = [...document.querySelectorAll('.sp-row.tool')].find(x => x.querySelector('.in').textContent.startsWith('SEARCH'));
-                return r ? { line: r.querySelector('.out').textContent, right: r.querySelector('.t').textContent } : null; }""")
-            check("the search row's short line is the first finding, not the digest's heading, and the row counts its two sources (0335)",
-                  srch is not None and srch["line"] == (mod.SEARCH_CLAIMS[0] + ".")[:160] and srch["right"] == "2 sources", srch)
+            # a search on its card (0339, the product owner's choice among mockups; a row with a pill for each page before): under the
+            # card's line, while it is shut, the query and the pages the answer cites by the numbers the report cites them by
+            search_card = """() => { const c = [...document.querySelectorAll('#streamOutput .sp-turn')].find(t => t.getAttribute('data-kind') === 'search');
+                if (!c) return null; const f = c.querySelector(':scope > summary .sp-face'), d = c.querySelector(':scope > .sp-detail'), items = f ? [...f.querySelectorAll('.sp-src')] : [];
+                const box = e => e.getBoundingClientRect();
+                return { turn: c.getAttribute('data-turn'), open: c.open, query: f ? f.querySelector('.sq').textContent : null, face: f ? getComputedStyle(f).display : null,
+                         pages: items.map(li => [li.querySelector('.cite.web').textContent, li.querySelector('.ttl').textContent, li.querySelector('.host').textContent,
+                                                 li.querySelector('.ttl').getAttribute('href'), li.querySelector('.ttl').getAttribute('target'), li.querySelector('.cite.web').getAttribute('target')]),
+                         width: f ? Math.round(box(f).width) : 0, sideBySide: items.length === 2 && box(items[1]).left > box(items[0]).right && Math.abs(box(items[1]).top - box(items[0]).top) < 2,
+                         stacked: items.length === 2 && box(items[1]).top >= box(items[0]).bottom - 1 && Math.abs(box(items[1]).left - box(items[0]).left) < 2,
+                         hostsWhole: items.every(li => li.querySelector('.host').getClientRects().length === 1),
+                         detail: d ? [...d.children].map(e => e.className) : [], query2: d && d.querySelector('.sp-query') ? d.querySelector('.sp-query').textContent : null,
+                         found: d ? [...d.querySelectorAll('.sp-found li')].map(li => [li.firstChild.textContent, [...li.querySelectorAll('.cite.web')].map(x => x.textContent).join()]) : [],
+                         listed: d ? d.querySelectorAll('.sp-pages .sp-src').length : 0, detailShown: d ? getComputedStyle(d).display !== 'none' && d.getBoundingClientRect().height > 0 : false,
+                         rows: [...document.querySelectorAll('#streamOutput .sp-row.tool')].filter(r => r.textContent.includes('SEARCH')).length,
+                         pills: document.querySelectorAll('#streamOutput .sp-pill.src').length }; }"""
+            s_card = page.evaluate(search_card)
+            fao_page, journal_page = mod.SEARCH_PAGES[0], mod.SEARCH_PAGES[1]
+            page.set_viewport_size({"width": 2000, "height": 900})
+            page.wait_for_timeout(300)
+            s_wide = page.evaluate(search_card)
+            page.set_viewport_size({"width": 1440, "height": 900})
+            page.wait_for_timeout(300)
+            check("the search stands on its card, turn 2's (0339): under the card's line the query, and the two pages the answer cites - each its number, its title and its site on one "
+                  "line, the number and the title opening the page in another tab -, not the third page the search returned (0336); no search row, no pill. In this pane one under the "
+                  "other; in a wider one, side by side",
+                  s_card is not None and s_card["turn"] == "2" and not s_card["open"] and s_card["face"] == "flex" and s_card["query"] == mod.SEARCH_QUERY
+                  and s_card["pages"] == [["1", fao_page["title"], "fao.org", fao_page["url"], "_blank", "_blank"], ["2", journal_page["title"], "onlinelibrary.wiley.com", journal_page["url"], "_blank", "_blank"]]
+                  and s_card["hostsWhole"] and s_card["rows"] == 0 and s_card["pills"] == 0 and s_card["width"] < 600 and s_card["stacked"]
+                  and s_wide["width"] > 600 and s_wide["sideBySide"] and s_wide["hostsWhole"], (s_card, s_wide["width"], s_wide["sideBySide"]))
+            away = re.compile(r"^https?://(?!127\.0\.0\.1|localhost)")      # the page itself is not fetched: the walk reaches no other site
+            page.context.route(away, lambda route: route.abort())
+            with page.expect_popup() as went:
+                page.click("#streamOutput .sp-turn[data-kind='search'] > summary .sp-face .sp-src .ttl >> nth=0")
+            went.value.close()
+            page.context.unroute(away)
+            s_after = page.evaluate(search_card)
+            page.click("#streamOutput .sp-turn[data-kind='search'] > summary .sp-face .sq")
+            s_open = page.evaluate(search_card)
+            check("a click on a page opens it in another tab and leaves the card shut; a click on the query opens the card: its face goes, and the card shows its note, then the "
+                  "query as a cell's card shows its code, the two claims each with its source's number, the two pages one under another",
+                  not s_after["open"] and s_open["open"] and s_open["face"] == "none" and s_open["detailShown"] and s_open["detail"] == ["sp-note", "sp-query", "sp-found", "sp-pages"]
+                  and s_open["query2"] == mod.SEARCH_QUERY and s_open["found"] == [[mod.SEARCH_CLAIMS[0] + ".", "1"], [mod.SEARCH_CLAIMS[1] + ".", "2"]] and s_open["listed"] == 2,
+                  (s_after["open"], s_open))
+            page.click("#streamOutput .sp-turn[data-kind='search'] > summary .n")
+            check("... and shut again, the face is back", page.evaluate(search_card)["face"] == "flex")
             searched = [r for r in usage_rows(os.path.join(workdir, "webapp"), edition, USER) if r["agent"] == "Web Search"]
             check("the search ran on the Web Search seat (0335): one call on the record - the template's model on OpenRouter, the tokens OpenRouter reported - with the fee of its two "
                   "searches on Perplexity in its cost",
@@ -2197,7 +2235,6 @@ def main():
                          listed: [...a.querySelectorAll('li')].filter(li => li.querySelector('a.cite.web')).map(li => [li.textContent.trim(), ...[...li.querySelectorAll('a:not(.cite)')].map(x => x.getAttribute('href') + ' ' + x.getAttribute('target'))]),
                          raw: a.textContent }; }"""
             web = page.evaluate(web_of)
-            fao_page, journal_page = mod.SEARCH_PAGES[0], mod.SEARCH_PAGES[1]
             check("the report cites the search's two sources by their numbers, three turns after the search - its claims stayed in view (0337) -, and each citation is a chip that opens the page in "
                   "another tab, its hover the page and its site; the report ends with its Sources, after the Figures: the two pages by number, each title a link to the page, its site after it",
                   [c[:3] for c in web["chips"]] == [["1", fao_page["url"], "_blank"], ["2", journal_page["url"], "_blank"]] * 2 and web["chips"][0][3] == fao_page["title"] + " \u2014 fao.org"

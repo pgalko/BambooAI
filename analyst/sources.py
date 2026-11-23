@@ -2,7 +2,8 @@
 lists the claims its search tied to a source under CLAIMS_HEAD, a line each that ends with its sources' numbers, and
 those sources under SOURCES_HEAD, a line each: `[3] the page's title - its address`. From those two lists, three
 things a run needs: a page has one number along a path, whichever search finds it; the sourced claims of a run's
-searches stay in view to its report; and a report ends with the pages it cites, each a link - in one list, made here.
+searches stay in view to its report; a report ends with the pages it cites, each a link - in one list, made here; and
+a search's card in the pane shows its pages by the same numbers.
 
 (2026-11-23, the second live search: each digest numbered its sources from 1, so [3] in a report was three pages; a
 digest was in view for one turn, so a run searched for the same thing twice and wrote its report without its first
@@ -16,11 +17,13 @@ SOURCES_HEAD = "SOURCES:"
 IN_VIEW_HEAD = "CLAIMS THIS RUN'S SEARCHES RETURNED (each with its sources' numbers; SHOW SEARCH k re-opens a search whole):"
 CITING = "In the report cite a source by the number it has here, as [3], and write no list of sources: one is added under the report from its citations, each page a link."
 REPORT_HEAD = "## Sources"
+UNTITLED = "Link"            # the title the seat gives a page that has none (bambooai/web_search.py)
 _PAGE = re.compile(r"^\[(\d+)\] (.*) - (https?://\S+)$")
 _CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 _CITED = re.compile(r"(?<![\w\]\[])((?:\[\d+\])+)(?![(\[\w])")      # [3] and [3][5]: not x[3], [cell 3], [text][3], [[3]] or [3](...)
 _ADDRESS = re.compile(r"https?://(?:[^\s<>()\[\]\"*`]|\([^\s()]*\))+")      # an address in a text; it may hold a pair of brackets
 _HEADING = re.compile(r"#{1,6} ")
+_MARKS = re.compile(r"\s*((?:\[\d+\])+)$")          # the sources' numbers a claim ends with: ' [1][4]'
 # the heading a writer gives a list of sources of its own: '## Sources', '**References:**', 'Sources cited:', '### 7. Sources and links'
 _OWN_HEAD = re.compile(r"(?:#{1,6} *|\*\*)?(?:\d+[.)] *)?(?:web )?(?:sources?|references?|bibliography|citations?|works cited)(?: \w+){0,2}:?(?:\*\*)?:?", re.I)
 _OWN_LINE = re.compile(r"(?:[-*+] +)?\**(?:\[(\d+)\]|(\d+)[.)])?")      # the number a line of such a list opens with, if any: in brackets - '[3] ...', '- **[3]** ...' -, or plain - '3. ...'
@@ -98,6 +101,26 @@ def numbers(found, known=()):
 def claims(digest):
     """The claims a digest ties to a source, as one text: what the report's number check takes as a source's word."""
     return "\n".join(listed(digest, CLAIMS_HEAD))
+
+
+def findings(digest):
+    """The claims a digest ties to a source, each with its sources' numbers: [{"text": ..., "refs": [1, 4]}]."""
+    out = []
+    for line in listed(digest, CLAIMS_HEAD):
+        m = _MARKS.search(line)
+        out.append({"text": line[:m.start()] if m else line, "refs": [int(n) for n in re.findall(r"\d+", m.group(1))] if m else []})
+    return out
+
+
+def card(digest):
+    """What a search's card in the pane shows (0339): its pages by the numbers the report cites them by - each with
+    its title, or its site where it has none, its address and its site - and the claims tied to them. A quote or an
+    angle bracket at the end of an address is not part of it."""
+    shown = []
+    for p in pages(digest):
+        link = p["link"].strip("'\"<>")
+        shown.append({"n": p["n"], "title": site(link) if p["title"] in ("", UNTITLED) else p["title"], "url": link, "host": site(link)})
+    return {"sources": shown, "claims": findings(digest)}
 
 
 def in_view(searches):
