@@ -316,13 +316,14 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-23: after 2.9.0, not yet released (patch 0335).** Web search is a seat, Web Search, on OpenRouter
-  as it ships - DeepSeek V4.1 Flash with OpenRouter's web search tool, Perplexity its engine and Parallel the
-  alternative - so one OpenRouter key runs the search as it runs every other seat; a seat put on a Gemini model
+- **Status 2026-11-23: after 2.9.0, not yet released (patches 0335, 0336).** Web search is a seat, Web Search, on
+  OpenRouter as it ships - DeepSeek V4.1 Flash with OpenRouter's web search tool, Perplexity its engine and Parallel
+  the alternative - so one OpenRouter key runs the search as it runs every other seat; a seat put on a Gemini model
   searches with Google as before. Search is on where the seat's provider has its key. Each search is charged at its
   engine's price; an answer given without a search is not passed on; a figure counts as sourced only where the answer
-  ties it to a page the search returned. The Gemini adapter counts the thinking and the pages its URL tool read.
-  `python -m bambooai.web_search` runs the seat once and says what it found and what it cost (D28).
+  ties it to a page the search returned, and the answer's sources are the pages it links (0336, after the first live
+  search). The Gemini adapter counts the thinking and the pages its URL tool read. `python -m bambooai.web_search`
+  runs the seat once and says what it found and what it cost (D28).
 - **Status 2026-11-22: 2.9.0 (patches 0318-0334).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
   back to any turn of an analysis, gives the Analyst a hint, and the analysis goes on from there another way; the
   first way stays, and the Analysis map shows every turn of every branch. The kernel keeps its state after every cell

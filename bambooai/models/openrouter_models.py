@@ -802,7 +802,7 @@ def llm_search(messages, model, temperature, max_tokens, tool, reasoning_models=
     completion_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
     total_tokens = int(usage.get("total_tokens") or 0) or prompt_tokens + completion_tokens
     speed = completion_tokens / elapsed if elapsed > 0 else 0
-    prompt_cache.record_meta(search_requests=searches, search_engine=tool.get("engine"))
+    prompt_cache.record_meta(search_requests=searches, search_engine=tool.get("engine"), search_pages=len(pages))
     _journal_serving(model, reply.get("provider"), speed, completion_tokens, elapsed)
 
     query = next((m.get("content") for m in reversed(messages) if m.get("role") == "user"), "")

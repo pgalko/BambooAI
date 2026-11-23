@@ -381,6 +381,7 @@ SEARCH_CLAIMS = ("Field trials that compare fertiliser regimes across heterogene
                  "over rows understate uncertainty")
 SEARCH_PAGES = [{"url": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
                 {"url": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
+SEARCH_RETURNED = [{"url": "https://www.example.org/trial-design", "title": "Notes on trial design"}] + SEARCH_PAGES      # as the search returns them: a page more than the answer links
 SEARCH_USAGE = {"prompt_tokens": 5200, "completion_tokens": 140, "total_tokens": 5340, "server_tool_use": {"web_search_requests": 2}}
 SEARCH_REPLY = {
     "provider": "Stack",
@@ -388,7 +389,7 @@ SEARCH_REPLY = {
         f"{SEARCH_CLAIMS[0]} [fao.org]({SEARCH_PAGES[0]['url']}).\n"
         f"{SEARCH_CLAIMS[1]} [wiley.com]({SEARCH_PAGES[1]['url']}).\n"
         "Compare regimes within soil type and treat the plot as the unit for uncertainty."),
-        "annotations": [{"type": "url_citation", "url_citation": dict(p, content="an excerpt of the page")} for p in SEARCH_PAGES]}}],
+        "annotations": [{"type": "url_citation", "url_citation": dict(p, content="an excerpt of the page")} for p in SEARCH_RETURNED]}}],
     "usage": SEARCH_USAGE}
 
 # next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Pathfinder asks from a line of each kind, as the prompt names the

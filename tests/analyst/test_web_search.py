@@ -1,8 +1,8 @@
-"""The Web Search seat (0335): the seat and when search is on; the claims an answer's links make, the digest and the
-pane's short line; the two guards; OpenRouter's request and what is read back from its reply; what a search costs on
-the records - an engine's fee for every search, Google's with its free searches -; Gemini's tokens as Google charges
-them; the template, the sample and the built configuration; the check command. No network: the providers' clients
-are scripted."""
+"""The Web Search seat (0335, 0336): the seat and when search is on; the claims an answer's links make and the pages
+it cites, the digest and the pane's short line; the two guards; OpenRouter's request and what is read back from its
+reply; what a search costs on the records - an engine's fee for every search, Google's with its free searches -;
+Gemini's tokens as Google charges them; the template, the sample and the built configuration; the check command. No
+network: the providers' clients are scripted."""
 import contextlib
 import io
 import json
@@ -47,6 +47,7 @@ CFG = W.flat(TPL, "cost")
 DEEPSEEK = "deepseek/deepseek-v4.1-flash-1017"
 FAO = {"title": "Designing crop field trials", "link": "https://www.fao.org/agriculture/crops/field-trials"}
 JOURNAL = {"title": "Repeated measures in plot trials", "link": "https://onlinelibrary.wiley.com/journal/agronomy"}
+OTHER = {"title": "Notes on trial design", "link": "https://www.example.org/trial-design"}      # a page a search returns and no answer links
 
 
 # ---------------------------------------------------------------------------------- the seat, and when search is on
@@ -116,7 +117,7 @@ ANSWER = """- Regime B plots yielded 3.2 t/ha on loam in 2024 ([fao.org](https:/
 - According to [the FAO guide](https://fao.org/agriculture/crops/field-trials#design), 12 plots per regime is usual, approx. 40 in large trials.
 - On clay a made-up page says 99% (https://example.org/not-returned).
 No figure was found for sand."""
-claims, unsourced, summary = W.claims_from_links(ANSWER, [FAO, JOURNAL])
+claims, cited, unsourced, summary = W.claims_from_links(ANSWER, [OTHER, JOURNAL, FAO])       # as a search returns them: more pages than the answer links, in its own order
 check("a sentence that links a page the search returned is a claim, with that page: the link is taken out of its text - a site's name goes whole, a label that is part of the sentence stays -; "
       "a list item is a line, a line is cut into sentences after a full stop, and a link that follows its sentence's full stop belongs to that sentence",
       [(c["text"], [p["link"] for p in c["links"]]) for c in claims] == [
@@ -135,7 +136,10 @@ check("the summary is the answer with each link as its source's number, '(no sou
                               "- According to [1], 12 plots per regime is usual, approx. 40 in large trials.",
                               "- On clay a made-up page says 99% (no source).",
                               "No figure was found for sand."], summary)
-c2, u2, s2 = W.claims_from_links("Yield rose 12% under regime B. Source: [1](https://www.fao.org/agriculture/crops/field-trials)\n"
+check("the answer's sources are the pages it links, each once, in the order it first links them - the numbers in its claims and its summary are theirs; "
+      "a page the search returned and the answer does not link is not a source (0336: ten returned, five linked, ten had been listed)",
+      cited == [FAO, JOURNAL] and W.claims_from_links(ANSWER, [FAO, JOURNAL])[1] == [FAO, JOURNAL] and W.claims_from_links("Sand held 2 t/ha.", [FAO, OTHER])[1] == [], cited)
+c2, _, u2, s2 = W.claims_from_links("Yield rose 12% under regime B. Source: [1](https://www.fao.org/agriculture/crops/field-trials)\n"
                                  "See https://onlinelibrary.wiley.com/journal/agronomy for the plot as the unit (2 seasons each). "
                                  "Sand held 2.1 t/ha [FAO](https://www.fao.org/agriculture/crops/field-trials); clay 2.9 t/ha.", [FAO, JOURNAL])
 check("'Source:' and a link after the sentence belong to it; an address written bare is a link",
@@ -144,11 +148,42 @@ check("'Source:' and a link after the sentence belong to it; an address written 
                                                                      ("Sand held 2.1 t/ha FAO; clay 2.9 t/ha.", [FAO["link"]])] and u2 == [], (c2, u2))
 twice = W.claims_from_links(f"Regime A gave 3 t/ha [fao.org]({FAO['link']}) against 4 t/ha [wiley.com]({JOURNAL['link']}) and 5 t/ha a year on [fao.org]({FAO['link']}/).", [FAO, JOURNAL])[0]
 check("a sentence that links two pages has both, each once however often it names it", len(twice) == 1 and twice[0]["links"] == [FAO, JOURNAL], twice)
-c3, u3, s3 = W.claims_from_links("Regime C gave 4 t/ha [a](https://en.example.org/wiki/Yield_(crop)).\nNothing was found for 2025.", [{"title": "Yield", "link": "https://en.example.org/wiki/Yield_(crop)"}])
+c3, _, u3, s3 = W.claims_from_links("Regime C gave 4 t/ha [a](https://en.example.org/wiki/Yield_(crop)).\nNothing was found for 2025.", [{"title": "Yield", "link": "https://en.example.org/wiki/Yield_(crop)"}])
 check("an address may hold a pair of brackets; with no pages returned every figure is without a source; an answer without figures or links has neither claims nor unsourced",
       [c["text"] for c in c3] == ["Regime C gave 4 t/ha a."] and u3 == ["Nothing was found for 2025."] and s3.startswith("Regime C gave 4 t/ha [1].")
-      and W.claims_from_links(ANSWER, [])[0] == [] and len(W.claims_from_links(ANSWER, [])[1]) == 5 and W.claims_from_links("Nothing was found.", [FAO]) == ([], [], "Nothing was found.")
-      and W.claims_from_links("", [FAO]) == ([], [], ""), (c3, u3, s3))
+      and W.claims_from_links(ANSWER, [])[0] == [] and len(W.claims_from_links(ANSWER, [])[2]) == 5 and W.claims_from_links("Nothing was found.", [FAO]) == ([], [], [], "Nothing was found.")
+      and W.claims_from_links("", [FAO]) == ([], [], [], ""), (c3, u3, s3))
+
+# a source's words quoted, and where a sentence's links stand (0336, from the first live search)
+F_LINK, J_LINK = f"[fao.org]({FAO['link']})", f"[wiley.com]({JOURNAL['link']})"
+
+
+def tied(answer):
+    """An answer's claims as (sentence, its pages), and its figures without a source."""
+    found, _, without, _ = W.claims_from_links(answer, [FAO, JOURNAL])
+    return [(c["text"], c["links"]) for c in found], without
+
+
+check("a quotation stays whole with the link that follows it: not cut at an ellipsis - a source's words quoted with '...' in them had lost their first half -, "
+      "nor at a full stop inside it; the ellipsis stands as the source wrote it, and the dash before a link at the end goes with the link",
+      tied(f'The guide: "Plots under regime B ... (12 per soil type)" \u2014 {F_LINK}.') == ([('The guide: "Plots under regime B ... (12 per soil type)".', [FAO])], [])
+      and tied(f'The journal: "Regime B gave 3.2 t/ha in 2024. Regime A gave 2.9 t/ha." {J_LINK}') == ([('The journal: "Regime B gave 3.2 t/ha in 2024. Regime A gave 2.9 t/ha."', [JOURNAL])], [])
+      and tied(f"Yield rose ... Then it fell to 2 t/ha - {F_LINK}") == ([("Yield rose ... Then it fell to 2 t/ha", [FAO])], []),
+      (tied(f'The guide: "Plots under regime B ... (12 per soil type)" \u2014 {F_LINK}.'), tied(f"Yield rose ... Then it fell to 2 t/ha - {F_LINK}")))
+check("... in typographic marks too; a sentence ends with the quotation mark that closes it after its full stop, and what follows the link there is the next sentence - without a source",
+      tied(f"It says \u201cPlots differ. Soil type moves yield by 0.5 t/ha.\u201d {F_LINK} Then 5 plots more.") == ([("It says \u201cPlots differ. Soil type moves yield by 0.5 t/ha.\u201d", [FAO])], ["Then 5 plots more."])
+      and tied(f'One: 3 t/ha {F_LINK}. "Two: 4 t/ha." {J_LINK} Three: 5 t/ha.') == ([("One: 3 t/ha.", [FAO]), ('"Two: 4 t/ha."', [JOURNAL])], ["Three: 5 t/ha."]),
+      tied(f'One: 3 t/ha {F_LINK}. "Two: 4 t/ha." {J_LINK} Three: 5 t/ha.'))
+check("the links a sentence is followed by are its own, also where more follows them on the line: in brackets after its full stop, bare, after 'Source:' - "
+      "each sentence has its page, not the next one's",
+      tied(f"Loam gave 3 t/ha. ({F_LINK}) Clay gave 2 t/ha. ({J_LINK}) Sand gave 1 t/ha.") == ([("Loam gave 3 t/ha.", [FAO]), ("Clay gave 2 t/ha.", [JOURNAL])], ["Sand gave 1 t/ha."])
+      and tied(f"Loam gave 3 t/ha. {F_LINK} Clay gave 2 t/ha. Source: {J_LINK}") == ([("Loam gave 3 t/ha.", [FAO]), ("Clay gave 2 t/ha.", [JOURNAL])], []),
+      tied(f"Loam gave 3 t/ha. ({F_LINK}) Clay gave 2 t/ha. ({J_LINK}) Sand gave 1 t/ha."))
+check("... a link that opens the next sentence is that sentence's: the one before it links nothing; so is the link a line opens with, whatever follows it",
+      tied(f"Loam gave 3 t/ha. {F_LINK} says clay gave 2 t/ha.") == ([("says clay gave 2 t/ha.", [FAO])], ["Loam gave 3 t/ha."])
+      and tied(f"{F_LINK} gives 3 t/ha for loam. Clay gave 2 t/ha.") == ([("gives 3 t/ha for loam.", [FAO])], ["Clay gave 2 t/ha."])
+      and tied(f"Sand held 2 t/ha.\n{F_LINK}: Loam gave 3 t/ha.") == ([("Loam gave 3 t/ha.", [FAO])], ["Sand held 2 t/ha."]),
+      (tied(f"Loam gave 3 t/ha. {F_LINK} says clay gave 2 t/ha."), tied(f"Sand held 2 t/ha.\n{F_LINK}: Loam gave 3 t/ha.")))
 
 # ---------------------------------------------------------------------------------- the digest and the short line
 TIED = [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "links": [FAO]}, {"text": "The plot is the experimental unit.", "links": [JOURNAL, FAO]},
@@ -163,7 +198,7 @@ BEFORE = ("SOURCED CLAIMS (each sentence with the sources behind it):\n"
           "Compare regimes within soil type.")
 check("the digest of claims tied to their sources - Google's - is what it was before 0335, to the letter: the claims once each with their sources' numbers, the numbered sources, the summary",
       W.digest(" Compare regimes within soil type. ", TIED, [FAO, JOURNAL]) == BEFORE, W.digest(" Compare regimes within soil type. ", TIED, [FAO, JOURNAL]))
-d_links = W.digest(summary, claims, [FAO, JOURNAL], unsourced)
+d_links = W.digest(summary, claims, cited, unsourced)
 check("the figures without a source stand between the sources and the summary, under a heading that says not to cite them; a digest with nothing found says so",
       d_links.split("\n\n")[2] == W.UNSOURCED_HEAD + "\n- The trial ran over 3 seasons.\n- On clay a made-up page says 99%." and d_links.split("\n\n")[3].startswith(W.SUMMARY_HEAD + "\n- Regime B")
       and "do not cite them" in W.UNSOURCED_HEAD and W.digest("", [], []) == W.SUMMARY_HEAD + "\n(nothing found)", d_links)
@@ -210,7 +245,7 @@ def ask(models, question="yield of 'regime B' on \"loam\""):
     return text, sources, out
 
 
-FOUND = [{"query": "q", "result": ANSWER, "links": [FAO, JOURNAL, dict(FAO)]}]
+FOUND = [{"query": "q", "result": ANSWER, "links": [OTHER, FAO, JOURNAL, dict(FAO)]}]
 m = Models(CFG, (ANSWER, FOUND, 2))
 text, sources, out = ask(m)
 call = m.calls[0]
@@ -222,7 +257,7 @@ check("... the instruction asks for a search first, nothing from memory, and a l
       "the seat's effort is honoured - the reasoning models are named to the adapter",
       call["messages"][0] == {"role": "system", "content": W.SEARCH_INSTRUCTION + " " + W.WITH_LINKS} and call["messages"][1] == {"role": "user", "content": "Search Internet for: yield of regime B on loam"}
       and "markdown link" in W.WITH_LINKS and "nothing from memory" in W.WITH_LINKS and DEEPSEEK in call["reasoning"] and "gemini-flash-latest" in call["reasoning"], call["messages"])
-check("... what comes back is the digest of the links' claims and the pages, each once - the pane's pills",
+check("... what comes back is the digest of the links' claims and the pages the answer links, each once - the pane's pills; a page the search returned and the answer left is not among them",
       text == d_links and sources == [FAO, JOURNAL] and out.errors == [] and out.tools == [("web_search", "Search Internet for: yield of regime B on loam", "c1")], (text, sources))
 check("... the answer a provider streams goes out as thought tokens, which the page drops between two cards - as text it would be appended to the pane",
       out.printed == [(ANSWER, True)] and isinstance(call["om"], W._Quiet), out.printed)
@@ -291,7 +326,7 @@ def cite(page, **more):
 
 REPLY = {"id": "gen-1", "provider": "DeepSeek",
          "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": "  " + ANSWER + "\n", "annotations": [
-             cite(FAO), {"type": "url_citation", "url": JOURNAL["link"], "title": ""}, cite(FAO), {"type": "file_citation", "url": "https://files.example.org/x"}, "not an annotation"]}}],
+             cite(OTHER), cite(FAO), {"type": "url_citation", "url": JOURNAL["link"], "title": ""}, cite(FAO), {"type": "file_citation", "url": "https://files.example.org/x"}, "not an annotation"]}}],
          "usage": {"prompt_tokens": 14210, "completion_tokens": 512, "total_tokens": 14722, "prompt_tokens_details": {"cached_tokens": 4000}, "server_tool_use": {"web_search_requests": 2}}}
 TOOL = {"name": "web_search", "engine": "perplexity", "parameters": {"max_results": 5, "max_uses": 3, "engine": "perplexity"}}
 MESSAGES = [{"role": "system", "content": "instruction"}, {"role": "user", "content": "Search Internet for: yield"}]
@@ -321,9 +356,10 @@ check("... only a host that takes tools is asked - one that ignores them answers
 answer, found, messages, t_in, t_out, t_all, elapsed, speed = got
 check("... read back: the answer whole; the pages its annotations cite, each once, in order - the address under url_citation or on the annotation itself, 'Link' for a page without a title, "
       "what is no citation of a page left out; the question that was asked",
-      answer == ANSWER and found[0] == {"query": "Search Internet for: yield", "result": ANSWER, "links": [FAO, {"title": "Link", "link": JOURNAL["link"]}]} and messages is MESSAGES, found[0])
-check("... the searches run, from the usage, with their engine: the record the dispatcher bills from, and said to the seat and the log; the tokens as reported, the cached part of the prompt for its price",
-      found[1] == {"__meta__": {"search_billed": 2, "search_engine": "perplexity"}} and (meta.get("search_requests"), meta.get("search_engine")) == (2, "perplexity")
+      answer == ANSWER and found[0] == {"query": "Search Internet for: yield", "result": ANSWER, "links": [OTHER, FAO, {"title": "Link", "link": JOURNAL["link"]}]} and messages is MESSAGES, found[0])
+check("... the searches run, from the usage, with their engine: the record the dispatcher bills from, and said to the seat and the log - with the pages they returned; "
+      "the tokens as reported, the cached part of the prompt for its price",
+      found[1] == {"__meta__": {"search_billed": 2, "search_engine": "perplexity"}} and (meta.get("search_requests"), meta.get("search_engine"), meta.get("search_pages")) == (2, "perplexity", 3)
       and (t_in, t_out, t_all) == (14210, 512, 14722) and cached == (4000, 0) and meta.get("reasoning_effort") == "none" and meta.get("max_tokens") == 8000 and "truncated" not in meta, (found[1], meta, cached))
 check("a tool that is not the seat's is no search: function tools go the stream's way as before", OR._web_search_tool([{"type": "function", "function": {"name": "web_search"}}, {"name": "google_search"}]) is None
       and OR._web_search_tool(None) is None and OR._web_search_tool([{"name": "x"}, TOOL]) is TOOL)
@@ -349,7 +385,8 @@ empty = {"choices": [], "usage": None}
 check("a usage that does not say how many searches ran: one where pages came back, none where none did; a reply that says none ran, or holds nothing, is none - and no page",
       or_search(silent)[0][1][1]["__meta__"]["search_billed"] == 1 and or_search({"choices": [{"message": {"content": "x"}}]})[0][1][1]["__meta__"]["search_billed"] == 0
       and or_search(nothing)[0][1] == [{"query": "Search Internet for: yield", "result": "From memory", "links": []}, {"__meta__": {"search_billed": 0, "search_engine": "perplexity"}}]
-      and or_search(empty)[0][0] == "" and or_search(empty)[0][3:6] == (0, 0, 0) and OR._searches_run({"server_tool_use": {}}) is None and OR._cited_pages(None) == [])
+      and or_search(empty)[0][0] == "" and or_search(empty)[0][3:6] == (0, 0, 0) and OR._searches_run({"server_tool_use": {}}) is None and OR._cited_pages(None) == []
+      and or_search(nothing)[3].get("search_pages") == 0 and or_search(silent)[3].get("search_pages") == 1)
 
 
 # -------------------------------------------------------- end to end: the seat, the dispatcher, the adapter, the log
@@ -381,12 +418,15 @@ text, sources, log, bodies = run_seat(CFG, "u_perplexity", REPLY, store)
 entry = logged("u_perplexity")[-1]
 rates = TPL["model_properties"][DEEPSEEK]
 tokens_cost = (10210 * rates["prompt_tokens"] + 4000 * rates["cache_read_tokens"] + 512 * rates["completion_tokens"]) / 1000
-check("the seat through the dispatcher, the adapter and the log, on the template's own seat: the request carries the seat's model, its routing and the tool; the digest comes back with its two sources",
+check("the seat through the dispatcher, the adapter and the log, on the template's own seat: the request carries the seat's model, its routing and the tool; "
+      "the digest comes back with its two sources - the pages the answer links, of the three the searches returned",
       len(bodies) == 1 and bodies[0]["model"] == DEEPSEEK and bodies[0]["extra_body"]["provider"]["order"] == ["deepseek"] and bodies[0]["extra_body"]["tools"][0]["type"] == "openrouter:web_search"
       and bodies[0]["extra_body"]["reasoning"] == {"effort": "none"} and bodies[0]["messages"][1]["content"] == "Search Internet for: yield of regime B on loam"
-      and text.startswith(W.CLAIMS_HEAD + "\n- Regime B plots yielded 3.2 t/ha on loam in 2024. [1]") and [s["link"] for s in sources] == [FAO["link"], JOURNAL["link"]], (bodies, text[:200]))
-check("... the call's record: the Web Search seat's, two searches on Perplexity at $0.005 each on top of the tokens - the cached part of the prompt at its own price -, the billing note not in the messages kept",
-      (entry["agent"], entry["model"], entry["search_requests"], entry["search_engine"]) == ("Web Search", DEEPSEEK, 2, "perplexity") and abs(entry["search_fee"] - 0.01) < 1e-12
+      and text.startswith(W.CLAIMS_HEAD + "\n- Regime B plots yielded 3.2 t/ha on loam in 2024. [1]") and [s["link"] for s in sources] == [FAO["link"], JOURNAL["link"]]
+      and OTHER["link"] not in text and W.listed(text, W.SOURCES_HEAD) == [f"[1] {FAO['title']} - {FAO['link']}", f"[2] Link - {JOURNAL['link']}"], (bodies, text[:200]))
+check("... the call's record: the Web Search seat's, two searches on Perplexity at $0.005 each on top of the tokens - the cached part of the prompt at its own price -, "
+      "the three pages they returned, the billing note not in the messages kept",
+      (entry["agent"], entry["model"], entry["search_requests"], entry["search_engine"], entry["search_pages"]) == ("Web Search", DEEPSEEK, 2, "perplexity", 3) and abs(entry["search_fee"] - 0.01) < 1e-12
       and abs(entry["cost"] - (tokens_cost + 0.01)) < 1e-12 and (entry["prompt_tokens"], entry["completion_tokens"], entry["cached_tokens"]) == (14210, 512, 4000)
       and "__billing_meta__" not in json.dumps(entry["messages"]) and "grounding_fee" not in entry and abs(log.token_summary["c9"]["web_search_cost"] - 0.01) < 1e-12, entry)
 check("... the usage row carries the fee, and Google's free searches were not asked about: an engine's search is charged every time",
@@ -493,10 +533,10 @@ def run_check(reply, config=CFG, env=None, **more):
 
 before = sorted(os.listdir(WORK))
 ok, lines, kept = run_check(REPLY)
-check("the check runs the seat once and says what happened: the seat with its engine and price, the searches and the calls, the sources, the claims with a source and the figures without, "
-      "the tokens, the cost with the fees in it, then the digest, then that it went well",
+check("the check runs the seat once and says what happened: the seat with its engine and price, the searches and the calls, the answer's sources of the pages the searches returned, "
+      "the claims with a source and the figures without, the tokens, the cost with the fees in it, then the digest, then that it went well",
       ok is True and lines[0] == f"Web Search seat: {DEEPSEEK} on openrouter, engine perplexity ($0.005 a search)" and lines[1] == "Searches run: 2, in 1 call of the model"
-      and lines[2] == "Sources returned: 2" and lines[3] == "Claims with a source: 4; figures without one: 2" and lines[4] == "Tokens: 14,210 in, 512 out"
+      and lines[2] == "Sources: 2 (pages returned: 3)" and lines[3] == "Claims with a source: 4; figures without one: 2" and lines[4] == "Tokens: 14,210 in, 512 out"
       and lines[5] == f"Cost: ${tokens_cost + 0.01:.4f}, of it search fees $0.0100" and lines[6].startswith("Time: ") and lines[7:10] == ["", "What the analyst reads:", ""]
       and lines[10].startswith(W.CLAIMS_HEAD) and lines[-1].startswith("OK: ") and lines[-2] == "", lines[:10] + lines[-2:])
 check("... outside the app's accounts: the app's account setting is out of the process while the request is made and back after, the folder is the one it started in, and nothing is left in it",
@@ -505,7 +545,8 @@ verdicts = [run_check(r)[:2] for r in (nothing, {"choices": [{"message": {"conte
                                         {"choices": [{"message": {"content": "A figure: 3 t/ha.", "annotations": [cite(FAO)]}}], "usage": {"server_tool_use": {"web_search_requests": 1}}})]
 check("... and says what went wrong: the model answered twice without searching; a search ran but no page came back with the reply; pages came back but no sentence links one",
       [ok for ok, _ in verdicts] == [False, False, False] and [ln[-1].split(":")[0] for _, ln in verdicts] == ["NO SEARCH", "NO SOURCES", "NO CLAIM WITH A SOURCE"]
-      and verdicts[0][1][1] == "Searches run: 0, in 2 calls of the model", [ln[-1] for _, ln in verdicts])
+      and verdicts[0][1][1] == "Searches run: 0, in 2 calls of the model" and [ln[2] for _, ln in verdicts] == ["Sources: 0", "Sources: 0", "Sources: 0 (pages returned: 1)"],
+      [ln[-1] for _, ln in verdicts] + [ln[2] for _, ln in verdicts])
 import logging                                                    # noqa: E402
 adapter_log = logging.getLogger("bambooai.models.openrouter_models")
 state0 = (adapter_log.level, list(adapter_log.handlers))

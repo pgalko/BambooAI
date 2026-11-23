@@ -2168,7 +2168,8 @@ def main():
                       "plot_means.csv" in geom["name"] and geom["buttonsInView"] and not geom["panelScrolls"] and geom["columnsOwnScroll"] is True, geom)
                 page.click("#datasetManagerModal .close")
             pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
-            check("the search row carries the two source pills", any("fao.org" in p for p in pills) and any("wiley" in p for p in pills), pills)
+            check("the search row carries the two source pills: the pages the answer links, not the third the search returned (0336)",
+                  any("fao.org" in p for p in pills) and any("wiley" in p for p in pills) and not any("example.org" in p for p in pills), pills)
             # the Web Search seat (0335), real over OpenRouter's scripted client: what the row says, what the record holds
             srch = page.evaluate("""() => { const r = [...document.querySelectorAll('.sp-row.tool')].find(x => x.querySelector('.in').textContent.startsWith('SEARCH'));
                 return r ? { line: r.querySelector('.out').textContent, right: r.querySelector('.t').textContent } : null; }""")

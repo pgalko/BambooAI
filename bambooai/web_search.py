@@ -10,7 +10,7 @@ Either way the analyst reads the same digest: the sentences that carry a source,
 given without one, the search model's own words. Two guards (2026-11-23): a reply given without a search is asked for
 once more and then not passed on; and where the sources are the links the model writes - OpenRouter's route; Google
 ties each sentence to its pages itself - a figure counts as sourced only in a sentence that links a page the search
-returned.
+returned, and the sources are the pages the answer links: a search returns more pages than an answer uses.
 
     python -m bambooai.web_search "a question"      runs the seat once and says what it found and what it cost
 """
@@ -94,6 +94,10 @@ _LINK = re.compile(r"\[([^\]\n]*)\]\(\s*(https?://(?:[^\s()]|\([^\s()]*\))+)\s*\
 _ADDRESS = re.compile(r"https?://[^\s<>\[\]()]+")
 _MARK = re.compile("\ue000(\\d+)\ue001")                                                  # a link's place while a line is cut into sentences
 _CITING = {"source", "sources", "see", "via", "per", "from", "ref", "reference", "references", "and", "link", "links"}
+# where a sentence may end: after its full stop, or the quotation mark or bracket that closes it there, before a capital, a link, a bracket, a quotation
+_END = re.compile("(?:(?<=[.!?])|(?<=[.!?][\"'\u201d)\\]]))\\s+(?=[A-Z\ue000(\\[\"'\u201c])")
+# what a piece opens with when it opens with links: the links, the brackets around them, words such as 'Source:'
+_LEAD = re.compile("(?:[\\s()\\[\\],;:.\u2013\u2014-]|\ue000\\d+\ue001|(?:%s)\\b)*" % "|".join(sorted(_CITING)), re.I)
 
 
 def _same(address):
@@ -104,11 +108,27 @@ def _same(address):
     return host.lower() + slash + rest
 
 
+def _cut(line):
+    """A line's sentences. A sentence ends with a full stop, a question or an exclamation mark - and the quotation
+    mark or bracket that closes it there - before a capital letter, a link, a bracket or a quotation mark: not before
+    a digit, where 'approx. 5' would be cut; not after an ellipsis and not inside a quotation, which stays whole with
+    the link that follows it (2026-11-23, the first live search: a source's words quoted with '...' in them had lost
+    their first half)."""
+    pieces, start = [], 0
+    for end in _END.finditer(line):
+        piece = line[start:end.start()]
+        if piece.endswith("...") or piece.count('"') % 2 or piece.count("\u201c") > piece.count("\u201d"):
+            continue
+        pieces.append(piece)
+        start = end.end()
+    return pieces + [line[start:]]
+
+
 def _sentences(answer):
-    """The answer as (sentence, [(label, address)]) pairs. A line is cut after a full stop, a question or an
-    exclamation mark that a capital letter or a link follows - not before a digit, where 'approx. 5' would be cut; a
-    list item is a line. The links are taken out of the text and returned beside it; a piece that is only a link, or
-    a word such as 'Source:' with one, belongs to the sentence before it."""
+    """The answer as (sentence, [(label, address)]) pairs: each line cut into its sentences (_cut); a list item is a
+    line. The links are taken out of the text and returned beside it. The links a sentence is followed by - bare, in
+    brackets, after a word such as 'Source:' - are its own, also where more follows them on the line; a link that
+    opens the next sentence ('[the guide](...) says ...') is that sentence's."""
     out = []
     for line in (answer or "").splitlines():
         line = re.sub(r"^\s*(?:[-*+\u2022]|\d+[.)]|#+)\s+", "", line).strip()
@@ -122,11 +142,12 @@ def _sentences(answer):
         line = _LINK.sub(lambda m: keep(m.group(1), m.group(2)), line)
         line = _ADDRESS.sub(lambda m: keep("", m.group(0)), line)
         pieces = []
-        for piece in re.split("(?<=[.!?])\\s+(?=[A-Z\ue000(\\[\"'])", line):
-            words = re.sub(r"[^A-Za-z]+", " ", _MARK.sub(" ", piece)).lower().split()
-            if pieces and _MARK.search(piece) and all(w in _CITING for w in words):
-                pieces[-1] += " " + piece
-            else:
+        for piece in _cut(line):
+            lead = _LEAD.match(piece).group(0) if pieces else ""
+            if _MARK.search(lead) and not piece[len(lead):len(lead) + 1].islower():
+                pieces[-1] += " " + lead.strip()
+                piece = piece[len(lead):]
+            if piece:
                 pieces.append(piece)
         for piece in pieces:
             mine = [links[int(i)] for i in _MARK.findall(piece)]
@@ -146,18 +167,20 @@ def _text(piece, links):
     text = _MARK.sub(label, piece)
     text = re.sub(r"[(\[]\s*(?:[Ss]ources?:?)?[\s,;]*[)\]]", "", text)       # (), (Source: ), [ , ]
     text = re.sub(r"\s+(?:[Ss]ources?|[Rr]ef(?:erence)?s?)[:.]?\s*$", "", text)       # 'Source:' left at the end by its link
-    text = re.sub(r"\s+([.,;:!?])", r"\1", re.sub(r"\s{2,}", " ", text))
+    text = re.sub(r"\s+([,;:!?]|\.(?!\.))", r"\1", re.sub(r"\s{2,}", " ", text))      # not before an ellipsis: it is the source's
+    text = re.sub("\\s*[-\u2013\u2014]+([.!?]?)$", "\\1", text)                 # the dash a link at the end leaves: 'the figure - [site](address).'
     return text.strip(" -\u2013\u2014:")
 
 
 def claims_from_links(answer, pages):
-    """The claims of an answer whose sources are the links it writes (OpenRouter's route): (claims, unsourced,
-    summary). A sentence that links a page the search returned is a claim, with those pages; a sentence with a figure
-    and no such link is unsourced - it had no link, or one to a page the search did not return; the summary is the
-    answer with each link as its source's number, '(no source)' where it has none."""
+    """The claims of an answer whose sources are the links it writes (OpenRouter's route): (claims, cited, unsourced,
+    summary). A sentence that links a page the search returned is a claim, with those pages. `cited` is the answer's
+    sources: the pages it links, each once, in the order it first links them - a page the search returned and the
+    answer does not link is not one (2026-11-23, the first live search: ten pages returned, five linked, ten listed).
+    A sentence with a figure and no such link is unsourced - it had no link, or one to a page the search did not
+    return. The summary is the answer with each link as its source's number, '(no source)' where it has none."""
     by = {_same(p.get("link")): p for p in pages or []}
-    number = {_same(p.get("link")): i + 1 for i, p in enumerate(pages or [])}
-    claims, unsourced = [], []
+    claims, cited, unsourced = [], [], []
     for text, links in _sentences(answer):
         found = []
         for _, address in links:
@@ -166,8 +189,10 @@ def claims_from_links(answer, pages):
                 found.append(page)
         if found:
             claims.append({"text": text, "links": found})
+            cited += [page for page in found if page not in cited]
         elif re.search(r"\d", text):
             unsourced.append(text)
+    number = {_same(p.get("link")): i + 1 for i, p in enumerate(cited)}
 
     def numbered(address):
         n = number.get(_same(address))
@@ -175,7 +200,7 @@ def claims_from_links(answer, pages):
     summary = _LINK.sub(lambda m: numbered(m.group(2)), answer or "")
     summary = _ADDRESS.sub(lambda m: numbered(m.group(0)), summary)
     summary = re.sub(r"\(\s*((?:\[\d+\][\s,;]*)+|\(no source\))\s*\)", lambda m: m.group(1).strip(" ,;"), summary)      # ([1]) -> [1]
-    return claims, unsourced, summary
+    return claims, cited, unsourced, summary
 
 
 # ------------------------------------------------------------------------------------------------ the digest
@@ -303,15 +328,15 @@ class WebSearch:
             answer, found, searches = ask(query + "\n\n" + AGAIN)
         if not searches:
             return NO_SEARCH, []
-        sources, seen = [], set()
+        pages, seen = [], set()
         for link in (l for t in found for l in t.get("links") or []):
             if link.get("link") and link["link"] not in seen:
                 seen.add(link["link"])
-                sources.append({"title": link.get("title") or "Link", "link": link["link"]})
-        if provider == "gemini":            # Google ties each sentence to its pages itself
-            return digest(answer, [s for t in found for s in t.get("segments") or []], sources), sources
-        claims, unsourced, summary = claims_from_links(answer, sources)
-        return digest(summary, claims, sources, unsourced), sources
+                pages.append({"title": link.get("title") or "Link", "link": link["link"]})
+        if provider == "gemini":            # Google ties each sentence to its pages itself, and hands over those pages alone
+            return digest(answer, [s for t in found for s in t.get("segments") or []], pages), pages
+        claims, cited, unsourced, summary = claims_from_links(answer, pages)
+        return digest(summary, claims, cited, unsourced), cited
 
 
 # ------------------------------------------------------------------------------------------------ the check
@@ -326,8 +351,9 @@ def flat(config, level="cost"):
 def check(question, config, raw=False):
     """Run the seat once on `question`, outside the app's accounts - no thread, the app's account settings left out of
     this process, the logs in a folder of their own that goes with it - and return (ok, lines): the seat, the searches
-    run, the sources returned, the claims with a source and the figures without, the tokens, the cost with the search
-    fees in it, the time, then the digest the analyst would read. `raw` prints OpenRouter's reply as it came."""
+    run, the answer's sources and the pages the searches returned, the claims with a source and the figures without,
+    the tokens, the cost with the search fees in it, the time, then the digest the analyst would read. `raw` prints
+    OpenRouter's reply as it came."""
     import json
     import logging
     import tempfile
@@ -374,8 +400,9 @@ def check(question, config, raw=False):
             adapter.removeHandler(shown)
             adapter.setLevel(level)
     searches = sum(int(c.get("search_requests") or 0) for c in calls)
+    returned = sum(int(c.get("search_pages") or 0) for c in calls)      # OpenRouter's route says them; Google hands over the cited pages alone
     lines.append(f"Searches run: {searches}, in {len(calls)} call{'' if len(calls) == 1 else 's'} of the model")
-    lines.append(f"Sources returned: {len(sources or [])}")
+    lines.append(f"Sources: {len(sources or [])}" + (f" (pages returned: {returned})" if returned else ""))
     lines.append(f"Claims with a source: {len(listed(text, CLAIMS_HEAD))}; figures without one: {len(listed(text, UNSOURCED_HEAD))}")
     lines.append(f"Tokens: {sum(c.get('prompt_tokens') or 0 for c in calls):,} in, {sum(c.get('completion_tokens') or 0 for c in calls):,} out")
     lines.append(f"Cost: ${sum(c.get('cost') or 0 for c in calls):.4f}, of it search fees ${sum(c.get('search_fee') or 0 for c in calls):.4f}")
@@ -388,7 +415,7 @@ def check(question, config, raw=False):
         verdict = "FAILED: the call did not go through (the line above says why)."
     elif text == NO_SEARCH:
         verdict = "NO SEARCH: the model answered twice without searching the web."
-    elif not sources:
+    elif not sources and not returned:
         verdict = "NO SOURCES: a search ran, but no page came back with the reply."
     elif not listed(text, CLAIMS_HEAD):
         verdict = "NO CLAIM WITH A SOURCE: pages came back, but no sentence of the answer links one of them."
