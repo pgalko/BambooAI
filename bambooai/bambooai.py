@@ -17,7 +17,7 @@ import time
 
 import pandas as pd
 
-from bambooai import log_manager, output_manager, web_output_manager, utils, executor_client, code_executor, documents, reading
+from bambooai import log_manager, output_manager, web_output_manager, utils, executor_client, code_executor, documents, reading, web_search
 from bambooai.messages.prompts import PromptManager
 from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
@@ -111,7 +111,8 @@ class BambooAI:
         self.model_dict = self.models.get_model_properties()
         self.reasoning_models = [m for m, info in self.model_dict.items() if info.get('capability') == 'reasoning']
         self.prompts = PromptManager(custom_prompt_file_path=custom_prompt_file)
-        self.log_and_call_manager = log_manager.LogAndCallManager(self.model_dict, user_id=self.user_id, thread_id=self.thread_id)
+        self.log_and_call_manager = log_manager.LogAndCallManager(self.model_dict, user_id=self.user_id, thread_id=self.thread_id,
+                                                                  search_engines=self.models.config.get("search_engines"))
         logger.info("Run log: %s | consolidated: %s (cwd %s)", os.path.abspath(self.log_and_call_manager.run_log_file_path),
                     os.path.abspath(self.log_and_call_manager.consolidated_log_file_path), os.getcwd())
 
@@ -131,16 +132,15 @@ class BambooAI:
         # The kernel: one per thread, kept warm between runs; rehydrated on a branch.
         self._kernel = None
         self._kernel_tip = None          # the run id whose state the kernel holds
+        # Web search: on where the Web Search seat's provider has its key (bambooai/web_search.py)
         self._search = None
         if self.search_tool:
-            try:
-                from bambooai.google_search import SmartSearchOrchestrator
-                self._search_orchestrator = SmartSearchOrchestrator(
-                    prompt_manager=self.prompts, log_and_call_manager=self.log_and_call_manager,
-                    output_manager=self.output_manager, api_keys=self.api_keys)
+            why = web_search.unavailable(cfg, self.api_keys)
+            if why:
+                logger.info("Web search is off: %s", why)
+            else:
+                self._search_seat = web_search.WebSearch(models=self.models, api_keys=self.api_keys)
                 self._search = self._web_search
-            except Exception as exc:                          # noqa: BLE001
-                logger.warning("Web search unavailable: %s", exc)
 
     # ------------------------------------------------------------------ seats
     def _seat(self):
@@ -432,8 +432,8 @@ class BambooAI:
     # ------------------------------------------------------------ the tools
     def _web_search(self, query):
         self._last_search_query = query
-        result, links = self._search_orchestrator(self.prompts, self.log_and_call_manager, self.output_manager,
-                                                  self.chain_id, [{"role": "user", "content": query}])
+        result, links = self._search_seat(self.prompts, self.log_and_call_manager, self.output_manager,
+                                          self.chain_id, [{"role": "user", "content": query}])
         text = str(result or "")
         sources = []
         for l in list(links or [])[:10]:
@@ -447,8 +447,6 @@ class BambooAI:
             host = re.sub(r'^https?://(www\.)?', '', url).split('/')[0]
             sources.append({"url": url, "title": title or host, "host": host})
         self._last_search_sources = sources
-        if sources:
-            text += "\nSources:\n" + "\n".join(f"- {x['title']}: {x['url']}" for x in sources)
         return text
 
     # ------------------------------------------------------------- the READ
@@ -1284,8 +1282,10 @@ class BambooAI:
             kept = list(getattr(self, '_last_read_passages', None) or [])     # the same passages with the originals of rendered quotes (S2)
             if kind == "read" and [p.get('id') for p in kept] == [p.get('id') for p in passages]:
                 passages = kept
-            # the first line that says something; a view's own first line without its rule marks ("--- cell 3 (re-opened) ---")
-            peek = (reading.digest_peek(text) if kind == "read" else next((re.sub(r"^-{3} | -{3}$", "", ln.strip()) for ln in text.splitlines() if ln.strip()), ''))[:160]
+            # the first line that says something: a search's first finding, not its digest's heading (0335); a view's own
+            # first line without its rule marks ("--- cell 3 (re-opened) ---")
+            peek = (reading.digest_peek(text) if kind == "read" else web_search.peek(text) if kind == "search"
+                    else next((re.sub(r"^-{3} | -{3}$", "", ln.strip()) for ln in text.splitlines() if ln.strip()), ''))[:160]
             self._pane('pane_lookup', kind=kind, query=query, peek=peek, sources=sources, passages=passages)
             self._tab('plan', self._notebook_view(run))
         elif kind == "report":

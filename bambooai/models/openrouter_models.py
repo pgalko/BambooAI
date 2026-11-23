@@ -715,6 +715,102 @@ def _tool_calls_as_text(tool_calls):
     return "\n".join(parts)
 
 
+def _web_search_tool(tools):
+    """The Web Search seat's tool among `tools` - {"name": "web_search", "engine": ..., "parameters": {...}}
+    (bambooai/web_search.py) - or None."""
+    return next((t for t in tools or [] if isinstance(t, dict) and t.get("name") == "web_search"), None)
+
+
+def _plain(reply):
+    """A reply as plain dicts and lists, so the fields the SDK's types do not name - a citation's content, the server
+    tools' part of the usage - are read like any other."""
+    if hasattr(reply, "model_dump"):
+        return reply.model_dump()
+    return reply if isinstance(reply, dict) else {}
+
+
+def _cited_pages(annotations):
+    """The pages a reply cites, each once, in order: its `url_citation` annotations. The address and the title are
+    under `url_citation`, or on the annotation itself."""
+    pages, seen = [], set()
+    for a in annotations or []:
+        if not isinstance(a, dict) or a.get("type", "url_citation") != "url_citation":
+            continue
+        cited = a.get("url_citation") if isinstance(a.get("url_citation"), dict) else a
+        address = str(cited.get("url") or "").strip()
+        if address and address not in seen:
+            seen.add(address)
+            pages.append({"title": str(cited.get("title") or "").strip() or "Link", "link": address})
+    return pages
+
+
+def _searches_run(usage):
+    """The web searches a request ran, as its usage says (`server_tool_use`; `server_tool_use_details` in the
+    Responses API's shape), or None where it does not say."""
+    for key in ("server_tool_use", "server_tool_use_details"):
+        n = ((usage or {}).get(key) or {}).get("web_search_requests")
+        if n is not None:
+            return int(n)
+    return None
+
+
+def llm_search(messages, model, temperature, max_tokens, tool, reasoning_models=None, reasoning_effort=None, api_keys=None):
+    """One request with OpenRouter's web search tool, for the Web Search seat (bambooai/web_search.py).
+
+    `openrouter:web_search` is a server tool: OpenRouter runs the searches the model asks for and hands it the
+    results, so one request is the whole exchange and no tool round is ours. It is not streamed: the answer is read
+    whole, with the pages it cites (message.annotations) and the searches run (usage), and nothing of a search's
+    answer is shown as it comes. The seat's `parameters` go as written - the engine, its mode, the pages a search
+    returns, the searches at most.
+
+    Returns what llm_stream returns with tools: the answer; the triplet - the query, the answer, the pages - and the
+    record the dispatcher bills from, the searches and their engine; the messages; the tokens, the time, the speed."""
+    client = init(api_keys)
+    style = _reasoning_style()
+    effort = _normalise_effort(reasoning_effort, style)
+    asked = str(reasoning_effort).lower() if reasoning_effort else None
+    prompt_cache.record_meta(reasoning_effort=effort, reasoning_effort_requested=asked if asked and asked != effort else None,
+                             max_tokens=max_tokens)
+    body = {"usage": {"include": True},
+            "tools": [{"type": "openrouter:web_search", "parameters": dict(tool.get("parameters") or {})}],
+            # only a host that takes tools: one that ignores them answers from memory
+            "provider": {"require_parameters": True, **(_model_routing() or {})}}
+    reasoning = _reasoning_body(model, reasoning_models, effort, max_tokens, style)
+    if reasoning:
+        body["reasoning"] = reasoning
+    start = time.time()
+    reply = _plain(client.chat.completions.create(
+        model=model, messages=messages, temperature=_sampling(temperature), max_tokens=max_tokens, extra_body=body,
+        extra_headers=prompt_cache.grok_headers() if "grok" in (model or "").lower() else None))
+    elapsed = time.time() - start
+    logger.debug("OpenRouter web search, the reply as it came: %s", json.dumps(reply, default=str)[:20000])
+
+    choice = (reply.get("choices") or [{}])[0] or {}
+    message = choice.get("message") or {}
+    answer = (message.get("content") or "").strip()
+    if choice.get("finish_reason") == "length":
+        prompt_cache.record_meta(truncated=True)
+    pages = _cited_pages(message.get("annotations"))
+    usage = reply.get("usage") or {}
+    searches = _searches_run(usage)
+    if searches is None:
+        searches = 1 if pages else 0
+        if pages:
+            logger.warning("OpenRouter web search: the usage does not say how many searches ran; counted as one")
+    _, _, prompt_tokens = prompt_cache.from_openai_usage(usage)      # the cached part of the prompt, for its price
+    prompt_tokens = prompt_tokens or int(usage.get("input_tokens") or 0)
+    completion_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
+    total_tokens = int(usage.get("total_tokens") or 0) or prompt_tokens + completion_tokens
+    speed = completion_tokens / elapsed if elapsed > 0 else 0
+    prompt_cache.record_meta(search_requests=searches, search_engine=tool.get("engine"))
+    _journal_serving(model, reply.get("provider"), speed, completion_tokens, elapsed)
+
+    query = next((m.get("content") for m in reversed(messages) if m.get("role") == "user"), "")
+    found = [{"query": query, "result": answer, "links": pages},
+             {"__meta__": {"search_billed": searches, "search_engine": tool.get("engine")}}]
+    return answer, found, messages, prompt_tokens, completion_tokens, total_tokens, elapsed, speed
+
+
 def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, model: str,
                temperature: str, max_tokens: str, tools: str = None, response_format: str = None,
                reasoning_models: list = None, reasoning_effort: str = "medium", api_keys=None,
@@ -722,6 +818,9 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     """
     Stream responses from OpenRouter's API with complete tool calls and StoppableStreamWrapper support
     """
+    search = _web_search_tool(tools)
+    if search:                # the Web Search seat: one request, the searches run by OpenRouter
+        return llm_search(messages, model, temperature, max_tokens, search, reasoning_models, reasoning_effort, api_keys)
     collected_chunks = []
     collected_messages = []   # text from every round
     round_messages = []       # text from the current round only

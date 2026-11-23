@@ -27,10 +27,11 @@ class FlexibleJSONEncoder(JSONEncoder):
 
 
 class LogAndCallManager:
-    def __init__(self, token_cost_dict, user_id: str = None, thread_id: str = None):
+    def __init__(self, token_cost_dict, user_id: str = None, thread_id: str = None, search_engines: dict = None):
         self._lock = threading.RLock()  # Reentrant lock for thread safety
         self.token_summary = {}
         self.token_cost_dict = token_cost_dict
+        self.search_engines = search_engines or {}      # the configuration's search engines: what one search costs on each
         self.user_id = user_id
         self.thread_id = thread_id
 
@@ -62,8 +63,8 @@ class LogAndCallManager:
             except Exception as e:
                 logging.warning(f"Failed to initialize SupabaseClient: {e}")
         
-    def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost, grounding_cost=0.0, image_cost=0.0, cached_tokens=0, cache_write_tokens=0, cache_savings=0.0):
-        """Update token summary with separate tracking for grounding, image and
+    def update_token_summary(self, chain_id, prompt_tokens, completion_tokens, total_tokens, elapsed_time, cost, search_cost=0.0, image_cost=0.0, cached_tokens=0, cache_write_tokens=0, cache_savings=0.0):
+        """Update token summary with separate tracking for web search, image and
         prompt-cache costs.
 
         cache_savings is what the uncached prompt WOULD have cost minus what it
@@ -89,7 +90,7 @@ class LogAndCallManager:
             self.token_summary[chain_id]['total_tokens'] += total_tokens
             self.token_summary[chain_id]['elapsed_time'] += elapsed_time
             self.token_summary[chain_id]['total_cost'] += cost
-            self.token_summary[chain_id]['web_search_cost'] += grounding_cost
+            self.token_summary[chain_id]['web_search_cost'] += search_cost
             self.token_summary[chain_id]['image_cost'] += image_cost
             self.token_summary[chain_id]['cached_tokens'] += cached_tokens
             self.token_summary[chain_id]['cache_write_tokens'] += cache_write_tokens
@@ -222,12 +223,15 @@ class LogAndCallManager:
                     prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second,
                     cached_tokens=0, cache_write_tokens=0, call_meta=None):
         """
-        Compute total cost = token_cost + (optional) grounding per-request fee.
-        The grounding fee is inferred from a __billing_meta__ sidecar inside messages
-        and configured per model via token_cost_dict[model]['grounding_search_request'].
+        Compute total cost = token_cost + the fee of the web searches the call ran, if any.
+        The searches are read from a __billing_meta__ sidecar inside messages. Where it names their engine
+        (OpenRouter's web search: bambooai/web_search.py) each is charged at that engine's `per_search`; where
+        it names none they are Google's grounding, charged per model via
+        token_cost_dict[model]['grounding_search_request'] past the month's free searches.
         """
         # --- Extract optional billing meta from messages (non-breaking) ---
         search_billed = 0
+        search_engine = None
         images_generated = 0
         try:
             if isinstance(messages, list):
@@ -238,10 +242,12 @@ class LogAndCallManager:
                             meta_json = c.split('__billing_meta__:', 1)[1].strip()
                             meta = json.loads(meta_json)
                             search_billed = int(meta.get('search_billed', 0))
+                            search_engine = meta.get('search_engine')
                             images_generated = int(meta.get('images_generated', 0))
                             break
         except Exception:
             search_billed = 0
+            search_engine = None
             images_generated = 0
 
         # --- Strip the sidecar so it doesn't appear in file logs ---
@@ -320,20 +326,24 @@ class LogAndCallManager:
                + (cache_write_tokens * cache_write_cost) / 1000.0)
         )
 
-        # Grounding fee with quota check
-        grounding_fee = 0.0
+        # The search fee. A search engine's own (OpenRouter's web search): every search, at the engine's price.
+        # Google's grounding: at the model's price, with the quota check - the month's free searches are counted
+        # in the hosted store and not charged.
+        search_fee = 0.0
         per_request_fee = token_costs.get('grounding_search_request', 0.0)
 
-        if search_billed and per_request_fee:
+        if search_billed and search_engine:
+            search_fee = float((self.search_engines.get(search_engine) or {}).get('per_search', 0.0)) * search_billed
+        elif search_billed and per_request_fee:
             if self.supabase_client and self.supabase_client.is_available():
                 quota_result = self.supabase_client.check_grounding_search_quota(search_billed)
                 if quota_result:
                     if quota_result.get('should_charge', True):
-                        grounding_fee = float(per_request_fee) * search_billed
+                        search_fee = float(per_request_fee) * search_billed
                 else:
-                    grounding_fee = float(per_request_fee) * search_billed
+                    search_fee = float(per_request_fee) * search_billed
             else:
-                grounding_fee = float(per_request_fee) * search_billed
+                search_fee = float(per_request_fee) * search_billed
 
         # Image output fee (follows grounding pattern)
         image_fee = 0.0
@@ -341,11 +351,11 @@ class LogAndCallManager:
         if images_generated and per_image_fee:
             image_fee = float(per_image_fee) * images_generated
 
-        cost = token_cost + grounding_fee + image_fee  
+        cost = token_cost + search_fee + image_fee
         
         # Thread-safe: update in-memory summary (RLock allows re-entrant call)
         self.update_token_summary(chain_id, prompt_tokens, completion_tokens, total_tokens, 
-                                elapsed_time, cost, grounding_fee, image_fee,
+                                elapsed_time, cost, search_fee, image_fee,
                                 cached_tokens, cache_write_tokens, cache_savings)
         
         # DB write with thread_id check (the local store in single mode, phase 3)
@@ -356,7 +366,7 @@ class LogAndCallManager:
                 self._write_to_database(agent, chain_id, timestamp, model, prompt_tokens, 
                                     completion_tokens, elapsed_time, tokens_per_second, cost,
                                     cached_tokens=cached_tokens, cache_write_tokens=cache_write_tokens, cache_savings=cache_savings,
-                                    search_fee=grounding_fee, image_fee=image_fee)
+                                    search_fee=search_fee, image_fee=image_fee)
 
         # Build log entry outside the lock (no shared state)
         json_entry = {
@@ -379,8 +389,8 @@ class LogAndCallManager:
             'cached_tokens': cached_tokens,
             'cache_write_tokens': cache_write_tokens,
             'cache_savings': cache_savings,
-            'grounding_requests': search_billed,
-            'grounding_fee': grounding_fee,
+            'search_requests': search_billed,
+            'search_fee': search_fee,
             'images_generated': images_generated,
             'image_fee': image_fee,
         }

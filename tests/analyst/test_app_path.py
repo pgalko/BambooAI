@@ -781,18 +781,39 @@ check("the closing card says whether the analysis has turns to go on from (0320:
       _map_seen is False and _map_blind is True, (_map_seen, _map_blind))
 FakeModels.multimodal = "false"
 
-# the search tool: the seam's structured links become the pills, intact (the grounding redirects break if a quote rides along)
-BAMBOO._search_orchestrator = lambda prompts, lacm, om, chain_id, messages: ("Altitude reduces VO2max by ~1% per 100 m above 1,500 m.",
-    [{"title": "Wehrlin 2006", "link": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8='"}, {"title": "", "link": "https://journals.lww.com/x"}, {"title": "bad", "link": "not a url"}])
+# the search tool: the seat's sources become the pills, intact (a grounding redirect breaks if a quote rides along); the text is the seat's
+# digest as it came - it lists its sources itself (0335) -, and the pane's row says the first finding, not the digest's heading
+from bambooai import web_search
+_pages = [{"title": "Field trials by soil type", "link": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8='"}, {"title": "", "link": "https://journals.example.org/x"}, {"title": "bad", "link": "not a url"}]
+_digest = web_search.digest("Soil type alone moves yield by 0.5-1.0 t/ha.", [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "links": _pages[:1]}], _pages)
+BAMBOO._search_seat = lambda prompts, lacm, om, chain_id, messages: (_digest, _pages)
 BAMBOO._search = BAMBOO._web_search
-txt = BAMBOO._web_search("altitude vo2max")
-check("search: the text carries the sources; a stray quote is stripped from the url; a non-url is dropped; a missing title falls back to the host",
-      "Sources:" in txt and BAMBOO._last_search_sources[0]["url"].endswith("AUZIYQEw8=") and len(BAMBOO._last_search_sources) == 2 and BAMBOO._last_search_sources[1]["title"] == "journals.lww.com", BAMBOO._last_search_sources)
+txt = BAMBOO._web_search("yield by soil type")
+check("search: the text is the seat's digest, with no second list of sources after it (0335); a stray quote is stripped from the url; a non-url is dropped; a missing title falls back to the host",
+      txt == _digest and "Sources:" not in txt and BAMBOO._last_search_sources[0]["url"].endswith("AUZIYQEw8=") and len(BAMBOO._last_search_sources) == 2
+      and BAMBOO._last_search_sources[1]["title"] == "journals.example.org", (txt, BAMBOO._last_search_sources))
 while not q.empty(): q.get()
 BAMBOO._emit({"type": "search", "run": run3.id, "text": txt})
 ev = [json.loads(q.get()) for _ in range(q.qsize())]
 lk = next(e for e in ev if e.get("type") == "pane_lookup")
-check("the pane's search row carries the query and the two pills with exact urls", lk["query"] == "altitude vo2max" and [x["url"] for x in lk["sources"]] == [BAMBOO._last_search_sources[0]["url"], "https://journals.lww.com/x"])
+check("the pane's search row carries the query, the first finding as its short line - not the digest's heading (0335) - and the two pills with exact urls",
+      lk["query"] == "yield by soil type" and lk["peek"] == "Soil type alone moves yield by 0.5-1.0 t/ha." and [x["url"] for x in lk["sources"]] == [BAMBOO._last_search_sources[0]["url"], "https://journals.example.org/x"], lk)
+# when an instance searches (0335): asked for, and its Web Search seat's provider has its key - a Gemini key had decided it
+from unittest import mock
+_engines = {"perplexity": {"per_search": 0.005}}
+_seated = dict(FakeModels.config, agent_configs=FakeModels.config["agent_configs"] + [{"agent": "Web Search", "details": {"model": "fake/model", "provider": "openrouter"}}], search_engines=_engines)
+_make = lambda **k: B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, **k)
+with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k", "GEMINI_API_KEY": "g"}):
+    _no_seat = _make(search_tool=True)
+    with mock.patch.object(FakeModels, "config", _seated):
+        _on, _not_asked = _make(search_tool=True), _make()
+with mock.patch.object(FakeModels, "config", _seated), mock.patch.dict(os.environ, {"GEMINI_API_KEY": "g"}):
+    os.environ.pop("OPENROUTER_API_KEY", None)
+    _no_key = _make(search_tool=True)
+check("an instance searches where search is asked for and its Web Search seat's provider has its key (0335) - the seat is made with the instance's own model manager, and the log manager "
+      "knows what a search costs on each engine; not without the seat, not unasked, not with another provider's key alone",
+      _on._search == _on._web_search and isinstance(_on._search_seat, web_search.WebSearch) and _on._search_seat.models is _on.models and _on.log_and_call_manager.search_engines == _engines
+      and _no_seat._search is None and _not_asked._search is None and _no_key._search is None and _no_seat.log_and_call_manager.search_engines == {}, (_on._search, _no_seat._search, _no_key._search))
 
 # the Data tab: the dataframe event carries the first page as JSON (local mode), and the page route serves the rest
 dfev = next(e for e in events if e.get("type") == "dataframe")

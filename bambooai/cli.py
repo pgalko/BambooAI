@@ -40,7 +40,6 @@ DEFAULTS = {
     "BAMBOO_USER": "local",
     "BAMBOO_LEVEL": "cost",                 # an OpenRouter key alone runs it (2026-10-16, Palo); performance and max add Claude seats on an Anthropic key
     "SESSION_COOKIE_NAME": "bambooai",
-    "WEB_SEARCH_MODE": "google_ai",
     "APP_PORT": "5001",
 }
 
@@ -70,10 +69,11 @@ EXECUTOR_PORT=5055
 # EXECUTOR_API_BASE_URL=http://localhost:5055
 
 # --- model keys (only the providers you use) ---------------------------------------
+# web search runs on the Web Search seat of LLM_CONFIG_template.json: on OpenRouter as it ships, so this key covers it
 OPENROUTER_API_KEY=
 # OPENAI_API_KEY=
 # ANTHROPIC_API_KEY=
-# GEMINI_API_KEY=            (also turns web search on: Google AI grounding)
+# GEMINI_API_KEY=
 # GROQ_API_KEY=
 # XAI_API_KEY=
 # MISTRAL_API_KEY=
@@ -94,6 +94,7 @@ OPENROUTER_API_KEY=
 # SWEATSTACK_CLIENT_SECRET=
 
 # --- the server ----------------------------------------------------------------------
+# WEB_SEARCH_MODE=off        (the analyst does not search the web)
 APP_PORT=5001
 SESSION_COOKIE_NAME=bambooai
 FLASK_SECRET={flask_secret}

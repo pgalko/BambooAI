@@ -372,15 +372,24 @@ for _ in range(steps):
 print(f"LEFT={left:.3f}")
 RESULT('left after the steps', left, None, None, 'units')"""
 
-SEARCH_DIGEST = (
-    "Sourced claims:\n"
-    "1. Field trials that compare fertiliser regimes across heterogeneous soils report the within-soil "
-    "contrast, since soil type alone can move yield by 0.5-1.0 t/ha [1].\n"
-    "2. The plot is the experimental unit: seasons within a plot are repeated measures, and intervals "
-    "computed over rows understate uncertainty [2].\n"
-    "Summary: compare regimes within soil type and treat the plot as the unit for uncertainty.")
-SEARCH_LINKS = [{"link": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
-                {"link": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
+# the web search (0335): OpenRouter's reply to the Web Search seat's one request, as its chat completions give it - the
+# answer with a link to its page after each claim, the pages cited as annotations, the searches run in the usage. The
+# seat reads it for real (tools/stack/webapp_launcher.py): two claims with a source each, two searches at the engine's fee.
+SEARCH_CLAIMS = ("Field trials that compare fertiliser regimes across heterogeneous soils report the within-soil contrast, "
+                 "since soil type alone can move yield by 0.5-1.0 t/ha",
+                 "The plot is the experimental unit: seasons within a plot are repeated measures, and intervals computed "
+                 "over rows understate uncertainty")
+SEARCH_PAGES = [{"url": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
+                {"url": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
+SEARCH_USAGE = {"prompt_tokens": 5200, "completion_tokens": 140, "total_tokens": 5340, "server_tool_use": {"web_search_requests": 2}}
+SEARCH_REPLY = {
+    "provider": "Stack",
+    "choices": [{"finish_reason": "stop", "message": {"role": "assistant", "content": (
+        f"{SEARCH_CLAIMS[0]} [fao.org]({SEARCH_PAGES[0]['url']}).\n"
+        f"{SEARCH_CLAIMS[1]} [wiley.com]({SEARCH_PAGES[1]['url']}).\n"
+        "Compare regimes within soil type and treat the plot as the unit for uncertainty."),
+        "annotations": [{"type": "url_citation", "url_citation": dict(p, content="an excerpt of the page")} for p in SEARCH_PAGES]}}],
+    "usage": SEARCH_USAGE}
 
 # next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Pathfinder asks from a line of each kind, as the prompt names the
 # kinds (analyst/next_questions.py SAID) - a title, and the question around the line's own words

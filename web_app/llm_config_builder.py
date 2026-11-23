@@ -98,6 +98,7 @@ def build_user_config(user_id: str, api_keys: dict = None, subscription_data: di
         final_config = {
             'agent_configs': agent_configs,
             'model_properties': template.get('model_properties', {}),
+            'search_engines': template.get('search_engines', {}),      # the Web Search seat's engines: what a search costs on each
             'user_tier': model_tier,
             'model_preference': model_preference,
         }

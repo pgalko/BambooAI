@@ -10,8 +10,9 @@ No production file changes. What is replaced, in this process only, before app.p
     bambooai.models.vllm_models, and the local LLM_CONFIG_template.json seats every agent on it
     ("provider": "vllm"), so the app's own ModelManager, log manager, cost accounting and
     streaming all run for real over a scripted analyst;
-  * the web-search seam: bambooai.google_search.SmartSearchOrchestrator returns the scenario's
-    canned digest and sources (no key, no network).
+  * OpenRouter's client: the Web Search seat stays on OpenRouter, as the template has it, and runs for
+    real - the seat, the dispatcher, the adapter, the log with the search's fee - over a client that
+    answers its one request with the scenario's reply, in OpenRouter's shape (no key, no network).
   * Supabase: tools/stack/fake_supabase.py, an in-memory store seeded with one free-tier user,
     behind the app's own client code (env SUPABASE_* point at it). Stripe stays unconfigured. The orchestrator is the fake at --orchestrator-port; the executor behind it is real.
 
@@ -34,12 +35,14 @@ HARNESS_MODEL = "harness/analyst-sim"
 
 
 def local_template(workdir):
-    """The real template with every seat on the scripted provider (the tier budgets untouched)."""
+    """The real template with every seat on the scripted provider (the tier budgets untouched) - but for Web Search,
+    which stays as the template seats it: on OpenRouter, whose client is the one scripted here (0335)."""
     src = json.load(open(os.path.join(ROOT, "web_app", "LLM_CONFIG_template.json"), encoding="utf-8"))
     seat = {"model": HARNESS_MODEL, "provider": "vllm", "reasoning_effort": "medium", "max_tokens": 16000}
     for key in ("free_agent_configs", "cost_agent_configs", "performance_agent_configs", "max_agent_configs"):
         for a in src.get(key, []):
-            a["details"] = dict(seat)
+            if a.get("agent") != "Web Search":
+                a["details"] = dict(seat)
     src.setdefault("model_properties", {})[HARNESS_MODEL] = {
         "capability": "reasoning", "multimodal": "true", "templ_formating": "text",      # takes images: the plot the person asks about rides along (2026-10-13)
         "reasoning_style": "effort", "reasoning_efforts": ["low", "medium", "high"],
@@ -73,13 +76,13 @@ def main():
     os.environ.update({
         "AUTH_MODE": "auth0" if a.edition == "hosted" else "single", "AUTH0_DOMAIN": "local.test", "AUTH0_CLIENT_ID": "local", "AUTH0_API_AUDIENCE": "local",
         "BAMBOO_USER": "local", "BAMBOO_LEVEL": "performance",
-        "GEMINI_API_KEY": "stack-search-key",          # search is on only with a Gemini key (D28); the seam below answers, not Gemini
+        "OPENROUTER_API_KEY": "stack-search-key",      # search is on where its seat's provider has a key (D28); the client below answers, not OpenRouter
         "FLASK_SECRET": "local-stack-secret",
         "EXECUTION_MODE": "local" if a.compute == "local" else "api",
         "SYNTHESIS_INFOGRAPHIC": os.environ.get("SYNTHESIS_INFOGRAPHIC", "false"),
         "STREAM_HEARTBEAT_SECONDS": "5",
     })
-    for k in ("STRIPE_SECRET_KEY", "OPENROUTER_API_KEY", "ORCHESTRATOR_API_URL", "EXECUTOR_API_BASE_URL"):
+    for k in ("STRIPE_SECRET_KEY", "ORCHESTRATOR_API_URL", "EXECUTOR_API_BASE_URL"):
         os.environ.pop(k, None)
     if a.compute == "orchestrator":
         os.environ["ORCHESTRATOR_API_URL"] = f"http://127.0.0.1:{a.orchestrator_port}"
@@ -141,15 +144,20 @@ def main():
         ah.validate_auth0_token = validate
         ah.ensure_user_exists = lambda payload: None
 
-    # the web-search seam
-    import bambooai.google_search as gs
-    digest = getattr(scenario, "SEARCH_DIGEST", "Sourced claims:\n1. (no claims in this scenario)\nSummary: nothing found.")
-    links = getattr(scenario, "SEARCH_LINKS", [])
+    # OpenRouter's client, for the Web Search seat: its one request is answered with the scenario's reply
+    import bambooai.models.openrouter_models as openrouter
+    reply = getattr(scenario, "SEARCH_REPLY", {"choices": [{"message": {"content": "Nothing was found."}}], "usage": {"server_tool_use": {"web_search_requests": 1}}})
 
-    def fake_search(self, prompt_manager, log_and_call_manager, output_manager, chain_id, messages):
-        return digest, list(links)
-    gs.SmartSearchOrchestrator.__call__ = fake_search
-    gs.SmartSearchOrchestrator.perform_query = fake_search
+    class SearchClient:
+        chat = property(lambda self: self)
+        completions = property(lambda self: self)
+
+        def create(self, **request):
+            tools = (request.get("extra_body") or {}).get("tools") or []
+            if [t.get("type") for t in tools] != ["openrouter:web_search"] or request.get("stream"):
+                raise RuntimeError(f"the stack's OpenRouter client answers the Web Search seat's request only, not {sorted(request)} with tools {tools}")
+            return reply
+    openrouter.init = lambda api_keys=None: SearchClient()
 
     import app as webapp                                     # the real web_app/app.py
     from werkzeug.serving import make_server

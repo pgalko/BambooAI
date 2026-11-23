@@ -2169,6 +2169,16 @@ def main():
                 page.click("#datasetManagerModal .close")
             pills = page.evaluate("() => [...document.querySelectorAll('.sp-pill')].map(e => e.textContent)")
             check("the search row carries the two source pills", any("fao.org" in p for p in pills) and any("wiley" in p for p in pills), pills)
+            # the Web Search seat (0335), real over OpenRouter's scripted client: what the row says, what the record holds
+            srch = page.evaluate("""() => { const r = [...document.querySelectorAll('.sp-row.tool')].find(x => x.querySelector('.in').textContent.startsWith('SEARCH'));
+                return r ? { line: r.querySelector('.out').textContent, right: r.querySelector('.t').textContent } : null; }""")
+            check("the search row's short line is the first finding, not the digest's heading, and the row counts its two sources (0335)",
+                  srch is not None and srch["line"] == (mod.SEARCH_CLAIMS[0] + ".")[:160] and srch["right"] == "2 sources", srch)
+            searched = [r for r in usage_rows(os.path.join(workdir, "webapp"), edition, USER) if r["agent"] == "Web Search"]
+            check("the search ran on the Web Search seat (0335): one call on the record - the template's model on OpenRouter, the tokens OpenRouter reported - with the fee of its two "
+                  "searches on Perplexity in its cost",
+                  len(searched) == 1 and searched[0]["model"] == "deepseek/deepseek-v4.1-flash-1017" and (searched[0]["prompt_tokens"], searched[0]["completion_tokens"]) == (5200, 140)
+                  and abs(float(searched[0]["search_fee"]) - 0.01) < 1e-9 and abs(float(searched[0]["cost"]) - round((5200 * 0.0003 + 140 * 0.0012) / 1000 + 0.01, 4)) < 1e-9, searched)
             page.evaluate("activateTab('answer')")
             page.wait_for_timeout(300)
             answer = page.inner_text("#content-answer")

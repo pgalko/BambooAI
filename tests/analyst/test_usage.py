@@ -90,7 +90,7 @@ costs = {"m": {"prompt_tokens": 0.003, "completion_tokens": 0.015, "grounding_se
 lacm = LogAndCallManager(costs, user_id=U, thread_id="t1")
 cap = _Capture(); lacm.supabase_client = cap
 messages = [{"role": "system", "content": '__billing_meta__: {"search_billed": 1, "images_generated": 0}'}, {"role": "user", "content": "q"}]
-lacm.write_to_log("Google Search Executor", "c7", "2026-10-31 00:20:00", "m", messages, "reply", 1000, 100, 1100, 2.0, 50.0, cached_tokens=600, cache_write_tokens=100)
+lacm.write_to_log("Web Search", "c7", "2026-10-31 00:20:00", "m", messages, "reply", 1000, 100, 1100, 2.0, 50.0, cached_tokens=600, cache_write_tokens=100)
 payload = cap.calls[-1][0] if cap.calls else {}
 # uncached 300 at 0.003, cached 600 at a tenth, written 100 at 1.25x, 100 out at 0.015 - per thousand; the search fee on top
 expect_cost = (300 * 0.003 + 600 * 0.0003 + 100 * 0.00375 + 100 * 0.015) / 1000 + 0.01
@@ -102,7 +102,8 @@ lacm.write_to_log("Analyst", "c7", "2026-10-31 00:21:00", "m", [{"role": "user",
 payload2 = cap.calls[-1][0]
 check("a call with nothing cached and no fee writes zeros, not NULLs (recorded: nothing cached)", payload2.get("cached_tokens") == 0 and payload2.get("cache_write_tokens") == 0 and payload2.get("cache_savings") == 0.0 and payload2.get("search_fee") == 0.0 and payload2.get("image_fee") == 0.0, payload2)
 runlog = json.load(open(os.path.join(WORK, "logs", U, "bambooai_run_log.json")))
-check("the JSON run log still carries the same facts per call (the row is the log's subset, not a second account)", runlog[0]["cached_tokens"] == 600 and runlog[0]["grounding_fee"] == 0.01 and abs(runlog[0]["cache_savings"] - expect_savings) < 1e-6, runlog[0].keys())
+check("the JSON run log still carries the same facts per call (the row is the log's subset, not a second account): the searches and their fee under the names the row has them (0335: grounding_requests and grounding_fee until then)",
+      runlog[0]["cached_tokens"] == 600 and (runlog[0]["search_requests"], runlog[0]["search_fee"]) == (1, 0.01) and "grounding_fee" not in runlog[0] and abs(runlog[0]["cache_savings"] - expect_savings) < 1e-6, runlog[0].keys())
 
 # ---- the hosted migration's text: the five columns and the function writing them, as the dump will show ----
 sql = open(os.path.join(ROOT, "docs", "sql", "usage_cache_fields.sql"), encoding="utf-8").read()
@@ -201,7 +202,7 @@ led = {e["chain"]: e for e in j["analyses"]}
 check("route /usage analyses: one entry per chain, newest first, joined to the thread store - the question, the title, the mode, the cells, the figures, the outcome, the wall time - with its calls, tokens, cost and seat split",
       [e["chain"] for e in j["analyses"]] == ["c7", "c6", "c5", "c4", "c3", "c2", "c1"] and led["c1"]["question"] == "Does the second regime raise the yield?" and led["c1"]["title"].startswith("The second regime")
       and led["c1"]["mode"] == "Deep" and led["c1"]["cells"] == 2 and led["c1"]["figures"] == 1 and led["c1"]["outcome"] == "reproduced" and led["c1"]["kind"] == "analysis" and led["c1"]["thread"] == "t1"
-      and led["c1"]["when"] == "2026-10-18T04:00:00" and led["c1"]["calls"] == 4 and abs(led["c1"]["cost"] - 0.135) < 1e-9 and led["c1"]["seats"] == {"Analyst": 0.09, "Reviewer": 0.03, "Google Search Executor": 0.015}
+      and led["c1"]["when"] == "2026-10-18T04:00:00" and led["c1"]["calls"] == 4 and abs(led["c1"]["cost"] - 0.135) < 1e-9 and led["c1"]["seats"] == {"Analyst": 0.09, "Reviewer": 0.03, "Web Search": 0.015}
       and led["c1"]["wall"] == 240.0, led.get("c1"))
 os.makedirs(os.path.join(STORAGE, "favourites", "t1"), exist_ok=True); open(os.path.join(STORAGE, "favourites", "t1", "c1.json"), "w").write("{}")      # c1 saved as a favourite, c2 not
 j = wc.get(f"/usage?period=30d&compare=1&tz={TZ}").get_json(); led = {e["chain"]: e for e in j["analyses"]}
@@ -227,8 +228,9 @@ check("route /usage, this month and last month: Oct 1 - 31 (31 days, the 31 befo
       ans4["period"]["start"] == "2026-10-01T00:00:00" and ans4["period"]["buckets"] == 31 and ans4["period"]["before"]["start"] == "2026-08-31T00:00:00" and ans4["totals"]["chains"] == 7
       and ans5["period"]["start"] == "2026-09-01T00:00:00" and ans5["period"]["end"] == "2026-10-01T00:00:00" and ans5["totals"]["chains"] == 3 and ans5["period"]["label"] == "1 – 30 Sep", (ans4["period"], ans5["period"]))
 det = wc.get(f"/usage/analysis/c1?tz={TZ}").get_json()
-check("route /usage/analysis/<chain>: the entry as the ledger has it, the totals, the seats ranked, the models, and the calls in time (seconds from the first, the elapsed, the model, the tokens, the cost), the span",
-      det["analysis"]["question"] == "Does the second regime raise the yield?" and det["totals"]["calls"] == 4 and [s["seat"] for s in det["seats"]] == ["Analyst", "Reviewer", "Google Search Executor"]
+check("route /usage/analysis/<chain>: the entry as the ledger has it, the totals, the seats ranked, the models, and the calls in time (seconds from the first, the elapsed, the model, the tokens, the cost), the span; "
+      "a search recorded under the seat's name before 0335, Google Search Executor, is the Web Search seat's",
+      det["analysis"]["question"] == "Does the second regime raise the yield?" and det["totals"]["calls"] == 4 and [s["seat"] for s in det["seats"]] == ["Analyst", "Reviewer", "Web Search"]
       and [c["at"] for c in det["calls"]] == [0.0, 60.0, 120.0, 180.0] and det["calls"][0]["elapsed"] == 10.0 and det["calls"][3]["search_fee"] == 0.01 and det["calls"][0]["cached"] == 6000 and det["span"] == 182.0
       and [m["model"] for m in det["models"]] == ["m-big", "m-small"], det)
 check("route /usage/analysis of an unknown chain: 404", wc.get("/usage/analysis/nope").status_code == 404)

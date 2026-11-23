@@ -130,6 +130,28 @@ def _safe_int(x):
         return 0
 
 
+def _pages_read(chunk):
+    """Whether this chunk says the URL tool read a page (candidates[].url_context_metadata.url_metadata, an entry
+    retrieved). What that tool read is charged as input tokens; what a Google search retrieved is not - the search
+    fee covers it - and the usage reports the two as one count."""
+    for candidate in getattr(chunk, "candidates", None) or []:
+        for page in getattr(getattr(candidate, "url_context_metadata", None), "url_metadata", None) or []:
+            status = getattr(page, "url_retrieval_status", None)
+            if status is None or "SUCCESS" in str(status).upper():
+                return True
+    return False
+
+
+def billed_tokens(usage, pages_read=False):
+    """(input, output) of a reply's usage as Google charges it (2026-11-23: the stream had counted the prompt and the
+    answer alone, so a call's thinking and the pages its URL tool read cost nothing on our records). Input: the
+    prompt, and what the tools handed the model where the URL tool read a page. Output: the answer and the thinking."""
+    def count(name):
+        return _safe_int(getattr(usage, name, 0))
+    return (count("prompt_token_count") + (count("tool_use_prompt_token_count") if pages_read else 0),
+            count("candidates_token_count") + count("thoughts_token_count"))
+
+
 def setup_thinking_config(config_params, model_name, reasoning_models, reasoning_effort, output_manager, chain_id, image_generation_models=None):
     """Setup thinking configuration if reasoning or image generation model is used."""
     is_reasoning = reasoning_models and model_name in reasoning_models
@@ -251,13 +273,10 @@ def extract_grounding_triplets(grounding_metadata_list):
     return search_triplets, search_html
 
 
-def calculate_token_usage(usage_final, prompt_tokens_baseline, answer_content, thinking_content, client, model_name):
+def calculate_token_usage(usage_final, prompt_tokens_baseline, answer_content, thinking_content, client, model_name, pages_read=False):
     """Calculate token usage from usage_metadata or fallback to count_tokens."""
     if usage_final:
-        prompt_tokens_used = _safe_int(getattr(usage_final, "prompt_token_count", 0)) + \
-                             _safe_int(getattr(usage_final, "tool_use_prompt_token_count", 0))
-        completion_tokens_used = _safe_int(getattr(usage_final, "candidates_token_count", 0)) + \
-                                 _safe_int(getattr(usage_final, "thoughts_token_count", 0))
+        prompt_tokens_used, completion_tokens_used = billed_tokens(usage_final, pages_read)
         total_tokens_used = _safe_int(getattr(usage_final, "total_token_count", 0))
         tool_use_prompt_token_count = _safe_int(getattr(usage_final, "tool_use_prompt_token_count", 0))
         if total_tokens_used == 0:
@@ -364,6 +383,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     grounding_metadata_list = []
     total_prompt_tokens = 0
     total_completion_tokens = 0
+    pages_read = False          # the URL tool read a page: what it read is charged as input
+    answered_as = None          # the model that answered: an alias such as gemini-flash-latest names another
     start_time = time.time()
     
     # Get baseline token count for fallback
@@ -406,6 +427,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 
                 if usage_metadata:
                     usage_final = usage_metadata
+                answered_as = getattr(chunk, "model_version", None) or answered_as
+                pages_read = pages_read or (tool_mode == 'native' and _pages_read(chunk))
                 
                 if grounding_data:
                     grounding_metadata_list.append(grounding_data)
@@ -428,8 +451,9 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         
         # Update token counts
         if usage_final:
-            total_prompt_tokens += _safe_int(getattr(usage_final, "prompt_token_count", 0))
-            total_completion_tokens += _safe_int(getattr(usage_final, "candidates_token_count", 0))
+            asked, answered = billed_tokens(usage_final, pages_read)
+            total_prompt_tokens += asked
+            total_completion_tokens += answered
         
         # Add current iteration text to answer
         answer_messages.extend(current_iteration_text)
@@ -481,7 +505,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     # Use accumulated tokens or fallback
     if total_prompt_tokens == 0 and total_completion_tokens == 0:
         prompt_tokens_used, completion_tokens_used, total_tokens_used, tool_use_prompt_token_count = calculate_token_usage(
-            usage_final, prompt_tokens_baseline, answer_content, thinking_content, client, model_name
+            usage_final, prompt_tokens_baseline, answer_content, thinking_content, client, model_name, pages_read
         )
     else:
         prompt_tokens_used = total_prompt_tokens
@@ -490,6 +514,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         tool_use_prompt_token_count = _safe_int(getattr(usage_final, "tool_use_prompt_token_count", 0)) if usage_final else 0
     
     tokens_per_second = (completion_tokens_used / elapsed_time) if elapsed_time > 0 else 0.0
+    if answered_as:
+        prompt_cache.record_meta(model_version=str(answered_as))       # into the run log: which model an alias was
+        if str(answered_as) != str(model_name):
+            logger.info("Gemini: %s answered as %s", model_name, answered_as)
     
     # Build response based on tool mode
     if tool_mode == 'native':
@@ -505,6 +533,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             if hasattr(metadata, 'web_search_queries') and metadata.web_search_queries
         )
         
+        prompt_cache.record_meta(search_requests=search_query_count)       # for the Web Search seat: did it search
         # Add meta record
         meta_record = {
             "__meta__": {

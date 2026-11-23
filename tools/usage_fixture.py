@@ -53,7 +53,7 @@ QUESTIONS = ["Does the cadence–power relationship within rides differ between 
 TITLES = ["The second block carried 18% more load than the first", "Sessions start at 9:40 on average; 62% between 9 and 12", "No difference once the hot days are set apart", ""]
 MODELS = {"Analyst": ("claude-sonnet-5.5", 0.003, 0.015, 0.0003), "Reviewer": ("gpt-6.1-sol", 0.00125, 0.01, 0.000125), "Reader": ("gemini-3-flash", 0.0003, 0.0025, 0.000075),
           "Rewriter": ("gemini-3-flash", 0.0003, 0.0025, 0.000075), "Promoter": ("claude-sonnet-5.5", 0.003, 0.015, 0.0003), "Figures": ("gemini-3-flash", 0.0003, 0.0025, 0.000075),
-          "Google Search Executor": ("gemini-3-flash", 0.0003, 0.0025, 0.000075), "Knowledge Distiller": ("gemini-3-flash", 0.0003, 0.0025, 0.000075)}
+          "Web Search": ("gemini-3-flash", 0.0003, 0.0025, 0.000075), "Knowledge Distiller": ("gemini-3-flash", 0.0003, 0.0025, 0.000075)}
 from analyst.notebook import Notebook, NotebookStore, Turn    # noqa: E402
 
 nbs = NotebookStore(os.path.join(WORK, "storage", U))
@@ -105,7 +105,7 @@ def analysis(day, hour, thread, mode, fail=False, q=None):
                 if random.random() < 0.4:
                     el5 = random.uniform(2, 6); call(chain, thread, t, "Figures", random.randint(3000, 8000), 0, random.randint(300, 900), el5); t += timedelta(seconds=el5)
     if random.random() < 0.15:
-        call(chain, thread, t0 + timedelta(seconds=30), "Google Search Executor", 2000, 0, 300, 3.0, fee=0.014)
+        call(chain, thread, t0 + timedelta(seconds=30), "Web Search", 2000, 0, 300, 3.0, fee=0.014)
     nb = threads.setdefault(thread, Notebook(thread))
     run = nb.new_run(q or random.choice(QUESTIONS), run_id=chain); run.mode = mode; run.created = created; run.turns = turns
     run.status = "failed" if fail else "answered"

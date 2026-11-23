@@ -253,8 +253,9 @@ user_session_mapping = {}  # Key: user_id, Value: current_session_id
 
 # BambooAI parameters
 EXPLORATORY = True
-# Web search (docs/OSS_DESIGN.md D28): google_ai needs a Gemini key; off without one, or when WEB_SEARCH_MODE=off.
-SEARCH_TOOL = bool(os.getenv('GEMINI_API_KEY')) and os.getenv('WEB_SEARCH_MODE', 'google_ai') not in ('off', 'none', 'false', '0')
+# Web search (docs/OSS_DESIGN.md D28): on where the Web Search seat's provider has its key (bambooai/web_search.py);
+# WEB_SEARCH_MODE=off turns it off.
+SEARCH_TOOL = os.getenv('WEB_SEARCH_MODE', 'on').lower() not in ('off', 'none', 'false', '0')
 WEBUI = True
 
 # Initialize SweatStack integration

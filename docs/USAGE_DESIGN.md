@@ -40,7 +40,7 @@ and had only written to the JSON run log:
 | `cached_tokens` | prompt tokens served from the provider's cache |
 | `cache_write_tokens` | prompt tokens written to the cache (Anthropic's write premium) |
 | `cache_savings` | what the same prompt would have cost uncached, minus what it did - negative on a write-heavy turn |
-| `search_fee` | the grounding-search fee inside the cost |
+| `search_fee` | the fee of the web searches inside the cost: an engine's price per search (OpenRouter's web search, 0335) or Google's grounding fee |
 | `image_fee` | the image-output fee inside the cost |
 
 The five are NULL on rows from before 0255 and on rows an older app writes: the dialog reads NULL as *not

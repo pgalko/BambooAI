@@ -36,8 +36,9 @@ PAGE = 1000                  # rows per fetch
 MAX_ROWS = 50000             # the most rows one answer aggregates (the answer says when it stopped there)
 _FACTS = {}                  # thread file -> (mtime, {run id: the facts the ledger shows}); re-read when the file changes
 
-# a seat whose name changed: the Pathfinder was the Architect until 2.9, and its calls before are recorded under that name
-_NOW = {"Architect": "Pathfinder"}
+# a seat whose name changed: the Pathfinder was the Architect until 2.9, Web Search was the Google Search Executor, and
+# their calls before are recorded under those names
+_NOW = {"Architect": "Pathfinder", "Google Search Executor": "Web Search"}
 
 # a chain the thread store does not know, named by the seat that spent on it (the last two seats are retired, 2.8: the
 # calls they made before stay in the record, and keep their name). The Pathfinder's own such chain is a set of next

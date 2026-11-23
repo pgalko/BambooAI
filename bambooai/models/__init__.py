@@ -57,11 +57,12 @@ def _effective_effort(configured, requested, agent=None, declared=None):
 
 
 class ModelManager:
-    def __init__(self, user_id=None, api_keys=None):
-        """Initialize ModelManager with user-specific configuration"""
+    def __init__(self, user_id=None, api_keys=None, config=None):
+        """Initialize ModelManager with user-specific configuration - or with `config`, one already read (the web
+        search's check runs a seat of the template, which no file on the box holds flattened)."""
         self.user_id = user_id
         self.api_keys = api_keys or {}
-        self.config = self._load_llm_config()
+        self.config = config if config is not None else self._load_llm_config()
         self._preflight_providers()
         self._preflight_pricing()
     

@@ -138,7 +138,8 @@ nothing to install.
    scikit-learn, Matplotlib and Plotly.
 2. Stop the app with Ctrl+C and add your provider key to `~/bambooai/.env`. An
    [OpenRouter](https://openrouter.ai) key covers the default `cost` preset. The `performance` and `max`
-   presets also need an Anthropic key for their Claude seats. Set `GEMINI_API_KEY` to enable web search.
+   presets also need an Anthropic key for their Claude seats. Web search runs on OpenRouter as well, so
+   the same key covers it.
    For local inference, see [Ollama](#ollama) or [vLLM](#vllm).
 3. Start `bambooai serve` again, upload a CSV, Parquet, JSON or XLSX file, and ask a question. Choose
    *Quick*, *Deep* or *Adaptive* in the composer.
@@ -181,7 +182,7 @@ abbreviated in the prompt but remain available through `SHOW`.
 | `CELL` | Execute a Python cell in the persistent kernel. |
 | `SHOW n` | Reopen a previous cell's full output. `SHOW SAVED k` opens a saved analysis the brief names. |
 | `NAMES` | Inspect variables in the kernel. |
-| `SEARCH` | Search the web with Google AI grounding and return sources. |
+| `SEARCH` | Search the web and return the findings with their sources. |
 | `READ` | Read passages from attached documents or Intervals.icu context using the Reader seat. |
 | `ASK` | Request input from the user; the answer continues in the next run. |
 | `REPORT` | Finish the investigation and write the report. |
@@ -362,7 +363,8 @@ supported.
 
 | Variable | Purpose |
 |---|---|
-| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY` | Keys for the providers used by your seats; `GEMINI_API_KEY` also enables grounded web search (`SEARCH`). |
+| `OPENROUTER_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GROQ_API_KEY`, `XAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `GEMINI_API_KEY` | Keys for the providers used by your seats. |
+| `WEB_SEARCH_MODE` | `off` disables web search. Otherwise `SEARCH` is available whenever the `Web Search` seat's provider has its key. |
 | `BAMBOO_LEVEL` | Initial model preset: `cost` (default), `performance` or `max`, until one is saved in the app. |
 | `BAMBOO_COMPUTE` | `docker` (default) or `local`. |
 | `EXECUTOR_PORT` | Published executor port (default `5055`). |
@@ -379,7 +381,7 @@ supported.
 A **seat** is a model role such as `Analyst`, `Reviewer` or `Reader`. Each seat has its own model,
 provider, reasoning effort and token limit. The working-folder `LLM_CONFIG_template.json` defines four
 seat groups, `free_agent_configs`, `cost_agent_configs`, `performance_agent_configs` and
-`max_agent_configs`, plus `tier_properties` and `model_properties`.
+`max_agent_configs`, plus `tier_properties`, `search_engines` and `model_properties`.
 
 The shipped `performance` configuration illustrates the structure (the keys and values below are kept as
 defined in the template):
@@ -396,12 +398,15 @@ defined in the template):
   {"agent": "Coder",                     "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 16000, "temperature": 0}},
   {"agent": "Reviewer",                  "details": {"model": "openai/gpt-6.1-sol",                 "provider": "openrouter",  "reasoning_effort": "high",   "max_tokens": 48000, "temperature": 0}},
   {"agent": "Promoter",                  "details": {"model": "claude-sonnet-5-5",                  "provider": "anthropic",   "reasoning_effort": "medium", "max_tokens": 32000, "temperature": 0}},
-  {"agent": "Google Search Executor",    "details": {"model": "gemini-flash-latest",                "provider": "gemini",      "reasoning_effort": "none",   "max_tokens":  8000, "temperature": 0}},
-  {"agent": "Google Search Summarizer",  "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 12000, "temperature": 0}},
+  {"agent": "Web Search",                "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens":  8000, "temperature": 0, "search_engine": "perplexity"}},
   {"agent": "Image Generator",           "details": {"model": "deepseek/deepseek-v4.1-flash-1017",  "provider": "openrouter",  "reasoning_effort": "none",   "max_tokens": 28000, "temperature": 0}}
 ],
 "tier_properties": {
   "performance": {"analyst_turns_quick": 4, "analyst_turns_deep": 15, "analyst_turns_adaptive": 50, "analyst_review_every": 8}
+},
+"search_engines": {
+  "perplexity": {"per_search": 0.005, "parameters": {"engine": "perplexity"}},
+  "parallel":   {"per_search": 0.001, "parameters": {"engine": "parallel", "mode": "fast"}}
 },
 "model_properties": {
   "claude-sonnet-5-5": {"capability": "reasoning", "multimodal": "true", "templ_formating": "xml",
@@ -417,7 +422,8 @@ Anthropic, Google, Groq, Mistral, xAI, DeepSeek, Ollama and vLLM.
 
 `Pathfinder`, `Memory Reader` and `Memory Pieces` may be left out. The Pathfinder and the reader of the saved
 analyses then use the `Analyst` seat, and the reader's second model the `Reader` seat. A config written before 2.9
-names the Pathfinder's seat `Architect`; that name is still read.
+names the Pathfinder's seat `Architect`, and one written up to 2.9 names `Web Search` as `Google Search Executor`;
+both names are still read.
 
 | Seat | Function |
 |---|---|
@@ -428,8 +434,7 @@ names the Pathfinder's seat `Architect`; that name is still read.
 | `Reader` | Targeted document and context reads (`READ`). |
 | `Coder` | Codes Intervals.icu context against the codebook; falls back to `Reader`. |
 | `Promoter` | Extracts routine inputs; falls back to `Analyst`. |
-| `Google Search Executor` | Grounded Gemini search. |
-| `Google Search Summarizer` | Search digest with citations. |
+| `Web Search` | Answers the Analyst's `SEARCH` with sourced findings; see [Web search](#web-search). |
 | `Image Generator` | SVG infographic for thread synthesis, not every analysis report. |
 
 Seat fields are `model`, `provider`, `reasoning_effort`, `max_tokens` and `temperature`. The effort
@@ -443,6 +448,30 @@ For short code or JSON replies, a lower reasoning effort may leave more of `max_
 the actual answer. In particular, keep `Figures` at a low effort and give `Promoter` enough output
 tokens. BambooAI generates `config/<user>/LLM_CONFIG.json` for the chosen preset and rebuilds it when
 the template is newer.
+
+### Web search
+
+The `Web Search` seat answers the Analyst's `SEARCH`: its model searches the web and returns findings, each
+tied to the page it comes from. The seat's provider decides how the search runs:
+
+- **`openrouter`** (as shipped: DeepSeek V4.1 Flash) uses OpenRouter's web search with any model OpenRouter
+  carries, on the same key as the other seats. `search_engine` names the engine: `perplexity` (the default) or
+  `parallel`, both defined under `search_engines` with their price per search and the parameters sent to
+  OpenRouter. Each search costs that price, on top of the model's tokens.
+- **`gemini`** uses Google's own search with a Gemini model, for example `gemini-flash-latest`; it needs
+  `GEMINI_API_KEY`, and the model's `grounding_search_request` is the price per search.
+
+A figure counts as sourced only when the answer ties it to a page the search returned, and an answer given
+without a search is not passed to the Analyst. To try the seat outside the app, run this in the working
+folder; it prints the searches, sources, tokens and cost:
+
+```bash
+python -m bambooai.web_search "average wheat yield per hectare, world, latest year"
+```
+
+A working folder created before this version keeps its own template, with search on Gemini. To move it to
+OpenRouter, copy the `Web Search` seat and the `search_engines` block from the packaged
+`web_app/LLM_CONFIG_template.json` into it, in place of the `Google Search` seats.
 
 ### Ollama
 
@@ -577,7 +606,7 @@ their respective services. Running Python in Docker does not, by itself, keep mo
   optional context and profile files.
 - **SweatStack:** OAuth integration, requiring `SWEATSTACK_CLIENT_ID` and `SWEATSTACK_CLIENT_SECRET`
   from your own app registration.
-- **Web search:** Set `GEMINI_API_KEY` to make `SEARCH` available with grounded sources.
+- **Web search:** `SEARCH` runs on the `Web Search` seat; see [Web search](#web-search).
 
 ### Documents
 

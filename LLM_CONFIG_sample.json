@@ -51,22 +51,13 @@
       }
     },
     {
-      "agent": "Google Search Executor",
-      "details": {
-        "reasoning_effort": "none",
-        "model": "gemini-flash-latest",
-        "provider": "gemini",
-        "max_tokens": 8000,
-        "temperature": 0
-      }
-    },
-    {
-      "agent": "Google Search Summarizer",
+      "agent": "Web Search",
       "details": {
         "reasoning_effort": "none",
         "model": "deepseek/deepseek-v4.1-flash",
         "provider": "openrouter",
-        "max_tokens": 12000,
+        "search_engine": "perplexity",
+        "max_tokens": 8000,
         "temperature": 0
       }
     },
@@ -81,6 +72,21 @@
       }
     }
   ],
+  "search_engines": {
+    "perplexity": {
+      "per_search": 0.005,
+      "parameters": {
+        "engine": "perplexity"
+      }
+    },
+    "parallel": {
+      "per_search": 0.001,
+      "parameters": {
+        "engine": "parallel",
+        "mode": "fast"
+      }
+    }
+  },
   "model_properties": {
     "gpt-5.6-luna": {
       "capability": "reasoning",

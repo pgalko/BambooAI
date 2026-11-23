@@ -27,7 +27,7 @@ a run can be watched arriving.
 | the orchestrator / Nomad | `fake_orchestrator.py`: the same HTTP surface, one local executor for everyone, "ready" decided by the real `/health`, every call recorded at `/_harness/calls` |
 | Auth0 | browser: `browser/auth0_stub.js` (always signed in as `auth0|localuser`); server: `validate_auth0_token` accepts the token `local-token` |
 | Supabase | `fake_supabase.py`: an in-memory store behind the app's own client code, seeded with one free-tier user; unknown RPCs answer `{}` |
-| web search | the scenario's canned digest and sources, through `SmartSearchOrchestrator` |
+| web search | the Web Search seat, **real**, on OpenRouter as the template seats it; OpenRouter's client is scripted: it answers the seat's one request with the scenario's reply, in OpenRouter's shape |
 | the CDN libraries | `browser/vendor.py`: real copies first (`browser/vendor/`, filled from copies on the machine and downloaded when there is network), stand-ins otherwise; the Auth0 SDK is always the stand-in |
 | Stripe, SweatStack, Intervals, Endura | unconfigured / a minimal stand-in; their dialogs open, nothing connects |
 
