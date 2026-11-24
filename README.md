@@ -195,15 +195,16 @@ correct. Calculations take place in `CELL`; report figures are generated afterwa
 
 ### Analysis modes
 
-| Mode | Turns in `performance` | Dollar budget | Review |
-|---|---:|---:|---|
-| **Quick** | 4 | $0.30 | None |
-| **Deep** | 15 | $1.50 | None |
-| **Adaptive** | Up to 50 | $4.00 | Every 8 turns |
+| Mode | Turns in `performance` | Dollar budget | Web searches | Review |
+|---|---:|---:|---:|---|
+| **Quick** | 4 | $0.30 | 2 | None |
+| **Deep** | 15 | $1.50 | 4 | None |
+| **Adaptive** | Up to 50 | $4.00 | 6 | Every 8 turns |
 
 Turn limits and Adaptive review frequency come from `tier_properties` in `LLM_CONFIG_template.json`. The
-dollar budgets are set in the application, **not** in `tier_properties`. The Adaptive depth control can
-reduce the turn allowance within the preset's limit.
+dollar budgets and the web searches are set in the application, **not** in `tier_properties`; what the
+searches cost counts toward the dollar budget. The Adaptive depth control can reduce the turn allowance
+within the preset's limit.
 
 In Adaptive mode, a separate `Reviewer` examines the work at intervals, including the code and outputs
 supporting current results. It can request another test, narrow a claim or recommend reporting. A report

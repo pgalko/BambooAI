@@ -12,10 +12,12 @@ config has one, a stronger model at the run's decision points). When the analyst
 writes REPORT the session asks for the plain-language REWRITE, runs the two
 guards, verifies the assembled script in a fresh kernel, and stores the lot.
 
-`llm(system, user) -> (text, usage)` is whatever model layer the host provides.
+`llm(system, user) -> (text, usage)` is whatever model layer the host provides; so are `search(query)` and `read(arg)`,
+which return (digest, usage) the same way: what a lookup costs counts against the run's budget as a model call does.
 """
 from __future__ import annotations
 
+import ast
 import json
 import logging
 import os
@@ -518,14 +520,14 @@ class Budget:
     dollars: float = 2.0
     review_every: int = 0       # 0 = no self-review turns; long budgets use 8
     max_failures: int = 5       # consecutive failed cells before the session forces the report
-    searches: int = 4           # web searches per run; beyond it SEARCH answers with what is already on hand
+    searches: int = 4           # web searches per run; beyond it SEARCH answers with what is already on hand (by mode: preset)
     reads: int = 3              # document reads per run, the same way (docs/DOCUMENTS_DESIGN.md)
 
     @staticmethod
     def preset(name: str) -> "Budget":
-        return {"quick": Budget(turns=5, dollars=0.3),
-                "deep": Budget(turns=15, dollars=1.5),
-                "adaptive": Budget(turns=50, dollars=4.0, review_every=8)}[name]
+        return {"quick": Budget(turns=5, dollars=0.3, searches=2),
+                "deep": Budget(turns=15, dollars=1.5, searches=4),
+                "adaptive": Budget(turns=50, dollars=4.0, review_every=8, searches=6)}[name]
 
 
 @dataclass
@@ -534,6 +536,12 @@ class Action:
     arg: str = ""      # code, cell number, query, question or the report text
     more: tuple = ()   # the further actions a reply carried after this one, which did not run (2026-10-03)
     tool_call: bool = False    # read from a tool call the reply wrote in place of its marker lines (2026-10-18)
+
+
+def lookups_done(run: Run, kind: str) -> int:
+    """The searches ('search') or document reads ('read') a run has made: its turns of that kind that ran - not one the
+    budget answered."""
+    return sum(1 for t in run.turns if t.kind == kind and t.stdout and not t.stdout.startswith(f"({kind} budget"))
 
 
 def _draws_figure(code: str) -> bool:
@@ -719,13 +727,44 @@ def _cell_code(code: str) -> str:
     return bare if bare != code.rstrip() and _compiles(bare) else code
 
 
+_CALLED = ("SHOW", "NAMES", "SEARCH", "READ", "ASK")      # the actions a block may write as a call of their word
+
+
+def _called(code: str) -> str:
+    """The action a python block writes as a call of its word and nothing else - SEARCH("the query"), SHOW(3, 4) - as
+    the action's line, 'SEARCH the query'; '' for any other code. The kernel has no such name: as a cell it could only
+    fail on it (2026-11-24: a search written so ran as a cell, failed on its name, and the turn was lost)."""
+    try:
+        body = ast.parse(code).body
+    except (SyntaxError, ValueError):
+        return ""
+    call = body[0].value if len(body) == 1 and isinstance(body[0], ast.Expr) else None
+    if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name) and call.func.id in _CALLED):
+        return ""
+    given = list(call.args) + [k.value for k in call.keywords]
+    if not all(isinstance(a, ast.Constant) and isinstance(a.value, (str, int)) for a in given):
+        return ""
+    return " ".join([call.func.id] + [str(a.value) for a in given])
+
+
+def _bare(query: str) -> str:
+    """A query as meant: without a closing colon, and without a pair of brackets or quotes around the whole of it
+    (2026-11-24: 'SEARCH (the query):' went to the search with both)."""
+    q = query.strip().rstrip(":").rstrip()
+    for o, c in (("(", ")"), ('"', '"'), ("'", "'"), ("`", "`")):
+        if len(q) > 1 and q[0] == o and q[-1] == c and o not in q[1:-1] and c not in q[1:-1]:
+            return q[1:-1].strip()
+    return q
+
+
 def _actions_in(body: str):
     """The actions one ###ACTION### block carries, in order, and why it carries none. A python fence is a cell, with or
     without the word CELL before it; an action word at the start of a line, outside a fence, is that action (any case on
     the block's first line, upper case after it, so prose is not read as an action); after REPORT the rest of the block
     is the report. A fence without its closing line is not a cell: unfinished code does not run. A fence that holds an
     action and no Python - SEARCH and its query, between fences - is that action (2026-11-23: it ran as a cell, failed
-    on its first word, and the turn was lost)."""
+    on its first word, and the turn was lost), and so is a fence that is a call of an action's word and nothing else,
+    SEARCH("the query") (`_called`, 2026-11-24). A query is taken without what it was wrapped in (`_bare`)."""
     body = re.sub(r"\A\s*```[ \t]*\n\s*CELL\s*\n```[ \t]*\n", "CELL\n", body or "")    # a fenced CELL word is the word
     lines = body.strip("\n").splitlines()
     acts, i, first, cell_word, unclosed = [], 0, True, False, False
@@ -741,9 +780,10 @@ def _actions_in(body: str):
                 break
             lang, code = ln.strip()[3:].strip().lower(), "\n".join(lines[i + 1:j]).rstrip()
             if lang in ("", "python", "py", "python3") and code.strip():
+                called = _called(code)
                 word = re.fullmatch(r"[A-Z]+", code.strip())           # NAMES alone is Python too, a name: it means the action
                 opens = _ACTION_WORD_RE.match(code.strip().split("\n", 1)[0])
-                fenced = _actions_in(code)[0] if opens and (word or not _compiles(code)) else []
+                fenced = _actions_in(called)[0] if called else (_actions_in(code)[0] if opens and (word or not _compiles(code)) else [])
                 acts.extend(fenced or [Action("cell", _cell_code(code))])
             i, first = j + 1, False
             continue
@@ -778,7 +818,7 @@ def _actions_in(body: str):
                     arg = nxt.split()[0] if nxt else ""
                 acts.append(Action("show", arg))
             else:                                                    # search, read: the query is its one line
-                acts.append(Action(verb, arg))
+                acts.append(Action(verb, _bare(arg)))
         elif ln.strip():
             first = False
         i += 1
@@ -809,7 +849,7 @@ class Session:
         self.kernel_factory = kernel_factory
         self.replay_runner = replay_runner      # (run, script) -> (stdout, error); the host may also collect figures
         self._image = None                      # a figure the person asks about, set by run() (2026-10-13)
-        self.read = read                        # read(arg) -> digest text over the thread's documents, or None when the host has none
+        self.read = read                        # read(arg) -> (digest over the thread's documents, usage), or None when the host has none
         self.saved = saved                      # saved(thread, run) -> a saved analysis whole, or None when it is saved no more (SHOW SAVED k)
         self.unit_text = unit_text              # unit_text("D1.17") -> the unit's text, for the report guard; None when unknown
         self.kernel_prelude = kernel_prelude    # source the host wants in the kernel (the document objects): run committed at the
@@ -932,6 +972,12 @@ class Session:
         # the limit, not a countdown (2026-10-05: "turn 31 of 48 (17 left)" read as turns to fill, and a run that had its
         # finding at turn 13 reported at 47)
         task = f"TASK: turn {turn_no}; up to {budget.turns} turns and ${budget.dollars:.2f} (spent ${spent:.2f})."
+        # once the run has searched, or read, how many are left - every turn (2026-11-24: told only in the turn after a
+        # search, a run tried a fifth search five turns later and lost the turn)
+        for kind, limit, name in (("search", budget.searches, "Web searches"), ("read", budget.reads, "Document reads")):
+            done = lookups_done(run, kind)
+            if limit and done:
+                task += f" {name} left in this run: {limit - done}."      # never below 0: a lookup past the limit is not made
         if last:
             task += "\n" + LAST_TURNS_LINE
         parts.append(task)
@@ -1148,22 +1194,23 @@ class Session:
                 extra = "NAMES IN THE KERNEL:\n" + turn.stdout
             elif action.verb == "search":
                 turn.text = action.arg                          # the query, so SHOW SEARCH k can name it
-                done = sum(1 for t in run.turns if t.kind == "search" and t.stdout and not t.stdout.startswith("(search budget"))
+                done = lookups_done(run, "search")
                 if budget.searches and done >= budget.searches:
                     turn.stdout = (f"(search budget for this run used: {done} of {budget.searches}. Work with what the earlier "
                                    f"searches returned - SHOW SEARCH k re-opens any of them whole - or state plainly what was not found.)")
                     extra = f"SEARCH ({action.arg}):\n" + turn.stdout
                 else:
                     self.emit({"type": "lookup_start", "run": run.id, "kind": "search", "query": action.arg})
-                    turn.stdout = tools.search(self.search, action.arg)
+                    # what the search cost counts against the run's budget, as a model call does (2026-11-24: a run's four
+                    # searches cost more than its thirteen turns, and what it had spent counted none of them)
+                    turn.stdout, used = tools.search(self.search, action.arg)
+                    spent += float(used.get("cost") or 0.0)
                     k = len(self.nb.searches(run.id)) + 1          # this search's number once recorded
                     shown = view_digest(turn.stdout, f"SHOW SEARCH {k} for all")
-                    left = budget.searches - done - 1 if budget.searches else None
-                    extra = (f"SEARCH ({action.arg}):\n" + shown + (SOURCES_CITED if sources.pages(turn.stdout) else "")
-                             + (f"\n(searches left in this run: {left})" if left is not None else ""))
+                    extra = f"SEARCH ({action.arg}):\n" + shown + (SOURCES_CITED if sources.pages(turn.stdout) else "")
             elif action.verb == "read":
                 turn.text = action.arg                          # scope and query, so SHOW READ k can name it
-                done = sum(1 for t in run.turns if t.kind == "read" and t.stdout and not t.stdout.startswith("(read budget"))
+                done = lookups_done(run, "read")
                 if budget.reads and done >= budget.reads:
                     turn.stdout = (f"(read budget for this run used: {done} of {budget.reads}. Work with what the earlier reads "
                                    f"returned - SHOW READ k re-opens any of them whole - read the document in a cell "
@@ -1171,11 +1218,11 @@ class Session:
                     extra = f"READ ({action.arg}):\n" + turn.stdout
                 else:
                     self.emit({"type": "lookup_start", "run": run.id, "kind": "read", "query": action.arg})
-                    turn.stdout = tools.read(self.read, action.arg)
+                    turn.stdout, used = tools.read(self.read, action.arg)      # the reader's calls count, as a search's do
+                    spent += float(used.get("cost") or 0.0)
                     k = len(self.nb.reads(run.id)) + 1              # this read's number once recorded
                     shown = view_digest(turn.stdout, f"SHOW READ {k} for all")
-                    left = budget.reads - done - 1 if budget.reads else None
-                    extra = f"READ ({action.arg}):\n" + shown + (f"\n(reads left in this run: {left})" if left is not None else "")
+                    extra = f"READ ({action.arg}):\n" + shown
             elif action.verb == "ask":
                 turn.text = action.arg
                 run.turns.append(turn)

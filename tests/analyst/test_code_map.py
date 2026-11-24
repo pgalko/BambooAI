@@ -552,7 +552,7 @@ k = PersistentKernel(df=df, generated_dir=os.path.join(work, "generated"))
 try:
     s = Session(k, nb_i, scenario_llm, store=store, data_description="field_trial.csv: 720 rows x 6 columns",
                 kernel_factory=lambda: PersistentKernel(df=df, generated_dir=os.path.join(work, "generated")),     # the replay's DS.save, out of the repo
-                search=lambda q: SEARCH, map_inputs=map_inputs)
+                search=lambda q: (SEARCH, {}), map_inputs=map_inputs)
     i1 = s.run(FT.QUESTIONS[0], budget=Budget(turns=15, dollars=1.5), run_id="1", data=DATA, mode="Deep")      # the fixtures' numbers as ids
     i2 = s.run(FT.QUESTIONS[1], parent=i1.id, budget=Budget(turns=15, dollars=1.5), run_id="2", data=DATA, mode="Deep")
 finally:

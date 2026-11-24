@@ -123,28 +123,30 @@ def names(kernel, limit: int = 200) -> str:
     return "\n".join(lines) if lines else "(no user-defined names yet)"
 
 
-def search(search_fn: Optional[Callable[[str], str]], query: str) -> str:
-    """Web search through the platform's existing seam (a callable taking the
-    query and returning text), or a note that it is off."""
+def search(search_fn: Optional[Callable[[str], tuple]], query: str) -> tuple:
+    """Web search through the host's seam - a callable taking the query and returning (digest, usage), usage
+    {"cost": what the search cost} - or a note that it is off: (text, usage)."""
     if search_fn is None:
-        return "(web search is not enabled)"
+        return "(web search is not enabled)", {}
     try:
-        return search_fn(query) or "(no results)"
+        text, usage = search_fn(query)
+        return text or "(no results)", dict(usage or {})
     except Exception as exc:                          # noqa: BLE001
         logger.warning("search failed: %s", exc)
-        return f"(search failed: {exc})"
+        return f"(search failed: {exc})", {}
 
 
-def read(read_fn: Optional[Callable[[str], str]], arg: str) -> str:
-    """A document read through the host's seam (a callable taking 'D2 what you are looking for' or
-    'ALL ...' and returning the digest), or a note that no documents can be read here."""
+def read(read_fn: Optional[Callable[[str], tuple]], arg: str) -> tuple:
+    """A document read through the host's seam - a callable taking 'D2 what you are looking for' or 'ALL ...' and
+    returning (digest, usage), as the search's - or a note that no documents can be read here: (text, usage)."""
     if read_fn is None:
-        return "(documents are not available in this workspace)"
+        return "(documents are not available in this workspace)", {}
     try:
-        return read_fn(arg) or "(the read returned nothing)"
+        text, usage = read_fn(arg)
+        return text or "(the read returned nothing)", dict(usage or {})
     except Exception as exc:                          # noqa: BLE001
         logger.warning("read failed: %s", exc)
-        return f"(read failed: {exc})"
+        return f"(read failed: {exc})", {}
 
 
 def ask_user(emit: Optional[Callable[[dict], None]], question: str) -> None:

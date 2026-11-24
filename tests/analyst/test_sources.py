@@ -92,6 +92,22 @@ check("parse: an action written inside a fence is the action - SEARCH with its q
       and (_fence("```python\nSEARCH = df.shape\nprint(SEARCH)\n```").verb, _fence("```python\nSEARCH = df.shape\nprint(SEARCH)\n```").arg) == ("cell", "SEARCH = df.shape\nprint(SEARCH)")
       and _fence("```python\nprint(1\n```").verb == "cell" and _fence("```python\nNAMES = 3\n```").verb == "cell",
       (_fence("```\nSEARCH yield by soil type\n```"), _fence("```\nNAMES\n```"), _fence("```\nREPORT\n# Title\n\nThe answer.\n```")))
+_as = lambda body: (_fence(body).verb, _fence(body).arg)
+check("parse: an action written in a fence as a call of its word and nothing else is the action (0341: SEARCH(\"...\") ran as a cell and failed on its name) - its query or its "
+      "numbers as given, by position or by name; a call with a variable, a call inside other code, a block with more in it and a call of a lower-case name - a function of the "
+      "kernel's own - stay cells. A query is taken without the brackets "
+      "or quotes around the whole of it and a closing colon (0341: 'SEARCH (the query):' went out so); brackets inside it stay",
+      _as("```python\nSEARCH(\"yield by soil type, plot as unit\")\n```") == ("search", "yield by soil type, plot as unit")
+      and _as("```python\nSEARCH(query='yield by soil type')\n```") == ("search", "yield by soil type")
+      and _as("```python\nSHOW(3, 4)\n```") == ("show", "3 4") and _as("```python\nNAMES()\n```") == ("names", "") and _as("```python\nSHOW('RUN 2')\n```") == ("show", "RUN 2")
+      and _as("```python\nASK('Which season do you mean?')\n```") == ("ask", "Which season do you mean?")
+      and _as("```python\nSEARCH(q)\n```") == ("cell", "SEARCH(q)") and _as("```python\nprint(SEARCH('x'))\n```") == ("cell", "print(SEARCH('x'))")
+      and _as("```python\nSEARCH('x')\nprint(1)\n```") == ("cell", "SEARCH('x')\nprint(1)") and _as("```python\nRESULT('x', 1)\n```")[0] == "cell"
+      and _as("```python\nsearch('x')\n```") == ("cell", "search('x')")
+      and _as("SEARCH (yield by soil type, plot as unit):") == ("search", "yield by soil type, plot as unit") and _as('SEARCH "yield by soil type"') == ("search", "yield by soil type")
+      and _as("SEARCH `yield by soil type`:") == ("search", "yield by soil type") and _as("SEARCH (loam) or (clay)") == ("search", "(loam) or (clay)")
+      and _as("SEARCH yield (2024) by soil") == ("search", "yield (2024) by soil") and _as("READ D1 (the wet season):") == ("read", "D1 (the wet season)"),
+      [_as(b) for b in ("```python\nSEARCH(\"x\")\n```", "SEARCH (x):", "SEARCH (loam) or (clay)")])
 # the list the analyst ends its report with, as the first live report with sources did (0338): a page more than its text cites, and a year no cell printed
 _OWN = "\n\n## Sources\n\n[1] FAO, \"Designing crop field trials\" - " + _FAO + "\n[2] A journal's review of repeated measures (2019) - " + _JRN + "\n[3] A guide to plot trials - " + _GDE
 _SRC_SCRIPT = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH yield by soil type",
@@ -110,7 +126,7 @@ def _src_llm(system, user, **hints):
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     _src_seen["prompts"].append(user)
     return _SRC_SCRIPT[len(_src_seen["prompts"]) - 1], {"cost": 0.001}
-_src_search = lambda q: _d1 if "soil" in q else _d2 if "unit" in q else _d3
+_src_search = lambda q: (_d1 if "soil" in q else _d2 if "unit" in q else _d3, {"cost": 0.0})
 ksrc = PersistentKernel(df=df); nbsrc = Notebook("tsrc")
 try:
     _ssrc = Session(ksrc, nbsrc, _src_llm, data_description="d", search=_src_search)
@@ -122,7 +138,8 @@ _p = _src_seen["prompts"]
 check("a search written inside a fence runs as the search: two searches and a cell, no failed turn",
       [t.kind for t in rs1.turns] == ["search", "search", "cell", "report", "rewrite"] and not any(t.error for t in rs1.turns) and rs1.turns[1].text == "plot as the unit", [(t.kind, t.error) for t in rs1.turns])
 check("the turn after a search: its digest whole, and under it how a source is cited and that the report writes no list of them; nothing else of it in view yet",
-      ("SEARCH (yield by soil type):\n" + _d1 + SOURCES_CITED + "\n(searches left in this run: 3)") in _p[1] and src.IN_VIEW_HEAD not in _p[1] and SOURCES_CITED == "\n(" + src.CITING + ")", _p[1][-600:])
+      ("SEARCH (yield by soil type):\n" + _d1 + SOURCES_CITED + "\n\n") in _p[1] and "Web searches left in this run: 3." in _p[1].split("TASK: turn")[-1]
+      and src.IN_VIEW_HEAD not in _p[1] and SOURCES_CITED == "\n(" + src.CITING + ")", _p[1][-600:])
 check("... the turn after the next search: the first search's sourced claims stay in view with their sources' numbers - a digest was in view for one turn, and a run searched twice for the same thing -, "
       "the newest search whole under them and not twice",
       (src.in_view([(1, "yield by soil type", _d1)]) + "\n\nSEARCH (plot as the unit):\n" + _d2) in _p[2] and "search 2 (plot as the unit)" not in _p[2] and _p[2].count("The plot is the unit over 12 seasons. [2]") == 1, _p[2][-900:])

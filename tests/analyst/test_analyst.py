@@ -1122,7 +1122,7 @@ def search_llm(system, user, **hints):
 calls = {"n": 0}
 def fake_search(q):
     calls["n"] += 1
-    return "SOURCED CLAIMS:\n- a figure [1]\n\nSOURCES:\n[1] x - https://x\n\nSUMMARY:\n" + ("long digest\n" * 1100) + "the last line survives"
+    return "SOURCED CLAIMS:\n- a figure [1]\n\nSOURCES:\n[1] x - https://x\n\nSUMMARY:\n" + ("long digest\n" * 1100) + "the last line survives", {"cost": 0.052}
 k7 = PersistentKernel(df=df); nb7 = Notebook("t7")
 try:
     r7 = Session(k7, nb7, search_llm, data_description="d", search=fake_search).run("q", budget=Budget(turns=10, dollars=1.0, searches=4))
@@ -1132,8 +1132,17 @@ srch = [t for t in r7.turns if t.kind == "search"]
 check("search budget: the seam is called four times, the fifth and sixth SEARCH answer from budget without a call",
       calls["n"] == 4 and len(srch) == 6 and srch[4].stdout.startswith("(search budget") and srch[5].stdout.startswith("(search budget"), (calls["n"], len(srch)))
 p2 = seen_s["prompts"][1]
-check("search view: a digest past the 12,000-character safety cap is cut from the middle - its head and its last line both in the prompt, the marker naming SHOW SEARCH 1 - the record keeps it whole, the count left is shown",
-      "SOURCED CLAIMS:" in p2 and "the last line survives" in p2 and "omitted from the middle for length; SHOW SEARCH 1 for all" in p2 and "searches left in this run: 3" in p2 and len(srch[0].stdout) > 13000, p2[-400:])
+check("search view: a digest past the 12,000-character safety cap is cut from the middle - its head and its last line both in the prompt, the marker naming SHOW SEARCH 1 - the record keeps it whole",
+      "SOURCED CLAIMS:" in p2 and "the last line survives" in p2 and "omitted from the middle for length; SHOW SEARCH 1 for all" in p2 and len(srch[0].stdout) > 13000, p2[-400:])
+_ps = seen_s["prompts"]
+check("what a search cost counts in what the run has spent, as a model call does (0341: a run's four searches cost more than its thirteen turns, and its task line counted none of "
+      "them); once the run has searched, every turn's task line says how many searches are left - the first turn's says nothing of them - and a search the budget answered costs nothing",
+      "searches left" not in _ps[0].lower()
+      and "TASK: turn 2; up to 10 turns and $1.00 (spent $0.05). Web searches left in this run: 3." in _ps[1]
+      and "TASK: turn 3; up to 10 turns and $1.00 (spent $0.11). Web searches left in this run: 2." in _ps[2]
+      and "TASK: turn 5; up to 10 turns and $1.00 (spent $0.21). Web searches left in this run: 0." in _ps[4]
+      and "TASK: turn 6; up to 10 turns and $1.00 (spent $0.21). Web searches left in this run: 0." in _ps[5]
+      and "(searches left in this run" not in "".join(_ps), [p[-150:] for p in _ps[:6]])
 check("SHOW SEARCH 1 re-opens the whole digest", len(nb7.render_search(r7.id, 1)) > 13000 and "--- search 1: query 0 ---" in nb7.render_search(r7.id, 1))
 # ---- a cell_start event precedes every cell run (the executor chip shows Executing) ----
 events10 = []
@@ -1147,6 +1156,8 @@ check("events: cell_start is emitted right before the cell's result", "cell_star
 
 # ---- Quick is five turns; the last-turns line never lands on the first turn (2026-09-09) ----
 check("quick: five turns at thirty cents", Budget.preset("quick").turns == 5 and abs(Budget.preset("quick").dollars - 0.3) < 1e-9)
+check("web searches by mode (0341, the product owner's numbers): Quick 2, Deep 4, Adaptive 6",
+      [Budget.preset(m).searches for m in ("quick", "deep", "adaptive")] == [2, 4, 6], [Budget.preset(m).searches for m in ("quick", "deep", "adaptive")])
 _seen = []
 def _spy_llm(system, user, **hints): _seen.append(user); return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nOne.", {"cost": 0.001}
 k11 = PersistentKernel(df=df); nb11 = Notebook("t11")

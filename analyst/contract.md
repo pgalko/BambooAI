@@ -105,7 +105,7 @@ One per turn.
 | a fenced python block | The cell to run. Print what the decision needs, under about 3,000 characters of output. |
 | `SHOW <cell numbers>` | Those cells, whole, in your next prompt. `SHOW RUN <run numbers>`: earlier chains of the thread, whole, and they stay in view for the rest of the run. `SHOW SEARCH <k>`: a search digest, whole. |
 | `NAMES` | List the objects in the kernel. |
-| `SEARCH <query>` | Search the web; the reply carries sourced claims and a summary. One aimed search usually settles a number; the budget is small, and the reply says how many are left. |
+| `SEARCH <query>` | Search the web; the reply carries sourced claims and a summary. One aimed search usually settles a number; the budget is small, and the task line says how many are left. |
 {READ_ROW}| `ASK <question>` | Put one question to the person; the run ends on it, and the answer starts the next chain with all in view. |
 | `REPORT` | The report, on the lines after it in this reply (see When you answer); the run ends. |
 

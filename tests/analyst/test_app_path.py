@@ -667,11 +667,12 @@ while not q.empty(): q.get()
 check("...quick = the tier's quick turns; adaptive with a depth of 5 = 40 turns with self-review",
       qk == BAMBOO.turns_quick and BAMBOO._last_budget.turns == 40 and BAMBOO._last_budget.review_every == 8, (qk, BAMBOO._last_budget))
 # the brain's menu: an explicit mode wins over the legacy flags
-for m_, want in (("quick", BAMBOO.turns_quick), ("deep", BAMBOO.turns_deep), ("adaptive", 40)):
+for m_, want, searches_ in (("quick", BAMBOO.turns_quick, 2), ("deep", BAMBOO.turns_deep, 4), ("adaptive", 40, 6)):
     state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode=m_, auto_explore=(m_ != "adaptive"), max_investigations=5)
     while not q.empty(): q.get()
-    check(f"mode={m_} sent by the brain's menu sets the budget regardless of the legacy flags", BAMBOO._last_budget.turns == want, BAMBOO._last_budget)
+    check(f"mode={m_} sent by the brain's menu sets the budget regardless of the legacy flags - its turns, and its web searches (0341: Quick 2, Deep 4, Adaptive 6)",
+          BAMBOO._last_budget.turns == want and BAMBOO._last_budget.searches == searches_, BAMBOO._last_budget)
 check("the cards carry the seat name the log entries use",
       all(e["seat"] == "Investigator" for e in events if e.get("type") == "pane_turn_start"))
 
@@ -789,11 +790,14 @@ _pages = [{"title": "Field trials by soil type", "link": "https://vertexaisearch
 _digest = web_search.digest("Soil type alone moves yield by 0.5-1.0 t/ha.", [{"text": "Soil type alone moves yield by 0.5-1.0 t/ha.", "links": _pages[:1]}], _pages)
 _known_seen = []
 def _seat(prompts, lacm, om, chain_id, messages, known=()):
-    _known_seen.append(list(known)); return _digest, _pages
+    _known_seen.append(list(known)); lacm.update_token_summary(chain_id, 5200, 140, 5340, 5.5, 0.0128, search_cost=0.01)     # the seat's call, logged
+    return _digest, _pages
 BAMBOO._search_seat = _seat
 BAMBOO._search = BAMBOO._web_search
-txt = BAMBOO._web_search("yield by soil type")
-check("search: the text is the seat's digest, with no second list of sources after it (0335)", txt == _digest and "Sources:" not in txt and not hasattr(BAMBOO, "_last_search_sources"), txt)
+txt, _used = BAMBOO._web_search("yield by soil type")
+check("search: the text is the seat's digest, with no second list of sources after it (0335); with it, what the search cost - the seat's call as logged under the chain - "
+      "which the run's budget counts (0341)",
+      txt == _digest and "Sources:" not in txt and not hasattr(BAMBOO, "_last_search_sources") and set(_used) == {"cost"} and abs(_used["cost"] - 0.0128) < 1e-9, (txt[:80], _used))
 while not q.empty(): q.get()
 BAMBOO._emit({"type": "search", "run": run3.id, "text": txt})
 ev = [json.loads(q.get()) for _ in range(q.qsize())]
@@ -1095,20 +1099,20 @@ try:
     check("unit_text resolves a context passage for the report guard - the English rendering when there is one - and says None for an id the context does not hold",
           _bc._unit_text("C.1") == "legs heavy today, cut it short" and _bc._unit_text("C.9") is None and _bb._unit_text("C.1") is None)
     _bc.models.llm_call = lambda *a, **k: '- [C.1] "legs heavy today"\n- [C.2] "take tomorrow easy"\n- [C.1] "legs light"\nSUMMARY: Heavy legs, an easy day asked [C.1][C.2].'
-    _dg = _bc._read("CTX how were the legs")
+    _dg, _read_used = _bc._read("CTX how were the legs")
     check("READ CTX dispatches to the context: the Reader's quotes verified against the passages, the digest under [C.n] with day, kind and author, the unverifiable quote dropped",
           _dg.startswith("PASSAGES") and '- [C.1] (2026-09-01 · activity_message · subject) "legs heavy today"' in _dg and '- [C.2] (2026-09-01 · activity_message · coach Coach) "take tomorrow easy"' in _dg
-          and "legs light" not in _dg and _bc._last_read_query == "CTX how were the legs" and [x["id"] for x in _bc._last_read_passages] == ["C.1", "C.2"], _dg)
-    _bc._read("CTX")
-    check("READ CTX without a question is answered without a reader call", _bc._read("CTX").startswith("(READ CTX needs what you are looking for") and _bc._last_read_passages == [])
+          and "legs light" not in _dg and _bc._last_read_query == "CTX how were the legs" and [x["id"] for x in _bc._last_read_passages] == ["C.1", "C.2"]
+          and set(_read_used) == {"cost"}, (_dg, _read_used))
+    check("READ CTX without a question is answered without a reader call", _bc._read("CTX")[0].startswith("(READ CTX needs what you are looking for") and _bc._last_read_passages == [])
     _bc.models.llm_call = lambda *a, **k: "NO"
-    check("a documents' READ still goes to the documents (none on this thread: the message says so)", _bc._read("D1 the sample").startswith("(no documents are attached"), _bc._read("D1 the sample"))
+    check("a documents' READ still goes to the documents (none on this thread: the message says so)", _bc._read("D1 the sample")[0].startswith("(no documents are attached"), _bc._read("D1 the sample"))
     # the pane event after a READ over a rendered passage carries the original beside the quote (S2: the chip's hover)
     _ctx_da = os.path.join(_auxdir, "context_notes_20260101_to_20260430.csv")
     pd.DataFrame([{"id": "C.1", "kind": "activity_message", "date": "2026-03-01", "time": "08:10", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "da", "text": "benene var tunge", "text_en": "the legs were heavy", "chars": 16}]).to_csv(_ctx_da, index=False)
     _be = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ctx_da])
     _be.models.llm_call = lambda *a, **k: '- [C.1] "the legs were heavy"\nSUMMARY: heavy [C.1].'
-    _dg2 = _be._read("CTX the legs")
+    _dg2, _ = _be._read("CTX the legs")
     import queue as _q2
     _be.output_manager.output_queue = _q2.Queue()
     from analyst import Notebook as _NB2, Run as _Run2

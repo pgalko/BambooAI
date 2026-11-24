@@ -146,7 +146,7 @@ def fake_llm(system, user, **hints):
 store = NotebookStore(tempfile.mkdtemp()); nb = Notebook("t-read")
 read_calls = []
 def host_read(arg):
-    read_calls.append(arg); dg, _ = R.read(tdir, arg, reader); return dg
+    read_calls.append(arg); dg, _ = R.read(tdir, arg, reader); return dg, {"cost": 0.02}
 def host_unit_text(uid):
     try:
         return next(R.unit_text(u) for u in D.read_units(tdir, uid.split(".")[0])["units"] if u["id"] == uid)
@@ -192,7 +192,12 @@ check("view_digest: a pathological digest is cut from the middle at line ends - 
 cut_line = shown_big.split("... [")[0].rstrip().splitlines()[-1]
 check("view_digest: the cut falls at a line end, never inside a passage", cut_line.startswith("- [D1.") and cut_line.endswith('"'), cut_line[-60:])
 first_read_prompt = next((u for u in prompts if "READ (D2 what about the wet season):" in u), "")
-check("the next prompt carries the whole digest after a READ, with the reads-left line", run.turns[0].stdout in first_read_prompt and "(reads left in this run: 2)" in first_read_prompt, first_read_prompt[-300:])
+check("the next prompt carries the whole digest after a READ; the first turn's task line says nothing of the reads, and from then on every task line says how many are left, and what the reads cost counts in what the run has "
+      "spent - not the read the budget answered (0341, as the searches)",
+      "reads left" not in prompts[0].lower() and run.turns[0].stdout in first_read_prompt
+      and "TASK: turn 2; up to 10 turns and $1.00 (spent $0.02). Document reads left in this run: 2." in first_read_prompt
+      and "TASK: turn 5; up to 10 turns and $1.00 (spent $0.06). Document reads left in this run: 0." in prompts[4] and "(reads left in this run" not in "".join(prompts),
+      (first_read_prompt[-200:], prompts[4][-200:]))
 check("guard: the number 40 came from the cited passage [D2.3], so it passes; 4.2 did not and is disclosed; [D9.9] is disclosed as not in the documents",
       "40" not in (run.report.split("CHECK:")[1] if "CHECK:" in run.report else "") and "4.2" in run.report.split("CHECK:")[1] and "not in this thread's documents: [D9.9]" in run.report, run.report[-500:])
 events2 = []
@@ -275,7 +280,7 @@ def llm_c(system, user, **hints):
     k = min(ic["n"], len(script_c) - 1); ic["n"] += 1
     return script_c[k], {"cost": 0.001}
 def host_read_c(arg):
-    return R.read_context(notes, arg, reader_ctx)[0] if C.parse_context_scope(arg) is not None else R.read(tdir, arg, reader)[0]
+    return (R.read_context(notes, arg, reader_ctx)[0] if C.parse_context_scope(arg) is not None else R.read(tdir, arg, reader)[0]), {"cost": 0.0}
 def host_unit_text_c(uid):
     if re.match(r"^C\.\d+$", uid):
         hit = notes[notes["id"] == uid]

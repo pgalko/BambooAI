@@ -431,13 +431,16 @@ class BambooAI:
 
     # ------------------------------------------------------------ the tools
     def _web_search(self, query):
+        """One SEARCH: the Web Search seat's digest - the pane's card reads the search's pages and claims from it (0339) -
+        and what the search cost, which counts against the run's budget (0341)."""
         self._last_search_query = query
         # the pages the path's searches have numbered so far: a page keeps its number, whichever search finds it (0337)
         before = self.notebook.searches(str(self.chain_id)) if self.notebook is not None else []
+        cost = self._chain_cost()
         result, _ = self._search_seat(self.prompts, self.log_and_call_manager, self.output_manager,
                                       self.chain_id, [{"role": "user", "content": query}],
                                       known=sources_mod.along(t.stdout for t in before))
-        return str(result or "")      # the digest: the pane's card reads the search's pages and claims from it (0339)
+        return str(result or ""), {"cost": max(0.0, self._chain_cost() - cost)}
 
     # ------------------------------------------------------------- the READ
     def _reader_seat(self):
@@ -480,13 +483,14 @@ class BambooAI:
     def _read(self, arg):
         """One READ over the thread's documents: the Reader seat called once over the candidates, every passage
         verified verbatim. Runs on the platform; the kernel never calls a model. The passages are kept for the
-        pane's row."""
+        pane's row. Returns the digest and what the reader's calls cost, which counts against the run's budget (0341)."""
         def call_reader(system, user):
             if self.kill_signal or self._stop_event.is_set():
                 raise ExecutionInterrupted("stopped by the user")
             messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
             return self.models.llm_call(self.log_and_call_manager, messages, agent=self._reader_seat(), chain_id=self.chain_id)
 
+        cost = self._chain_cost()
         if context_mod.parse_context_scope(arg) is not None:      # READ CTX ... / READ C.120-160 ...: the words beside the data
             notes, _codes = self._context_frames()
             digest, passages = reading.read_context(notes, arg, call_reader)
@@ -494,7 +498,7 @@ class BambooAI:
             digest, passages = reading.read(self._documents_dir(), arg, call_reader)
         self._last_read_query = arg
         self._last_read_passages = passages
-        return digest
+        return digest, {"cost": max(0.0, self._chain_cost() - cost)}
 
     def _kernel_prelude(self):
         """The source that defines D1, D2, ... and CTX in the kernel: run uncommitted by the session at the start of a
@@ -1710,13 +1714,13 @@ class BambooAI:
         if mode == "adaptive":
             # the Depth dial: each step is about eight analyst turns (2026-09-06: x4 gave an
             # "adaptive" run of eight turns); never fewer than 16, never above the tier's ceiling
-            budget = Budget(turns=self.turns_adaptive, dollars=4.0, review_every=self.review_every)
+            budget = Budget(turns=self.turns_adaptive, dollars=4.0, review_every=self.review_every, searches=6)    # searches by mode (0341)
             if max_investigations:
                 budget.turns = max(16, min(self.turns_adaptive, int(max_investigations) * 8))
         elif mode == "deep":
-            budget = Budget(turns=self.turns_deep, dollars=1.5)
+            budget = Budget(turns=self.turns_deep, dollars=1.5, searches=4)
         else:
-            budget = Budget(turns=self.turns_quick, dollars=0.3)
+            budget = Budget(turns=self.turns_quick, dollars=0.3, searches=2)
         if src is not None:
             budget, mode = Budget(**src.budget), (src.mode or mode).lower()      # the limits and the mode of the run it goes on from
         self._last_budget = budget
