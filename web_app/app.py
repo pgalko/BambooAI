@@ -336,8 +336,10 @@ def get_bamboo_ai(session_id, df=None):
             df=df,
             user_id=get_user_id(),
             search_tool=SEARCH_TOOL,
-            df_id=prefs['df_id'],
-            auxiliary_datasets=prefs['auxiliary_datasets'],
+            # read without insisting (0349): the frame's id is absent from the settings once the primary dataset was
+            # taken off - the removal routes delete it - and that is a session without a dataset, not an error
+            df_id=prefs.get('df_id'),
+            auxiliary_datasets=prefs.get('auxiliary_datasets') or [],
             api_keys=api_keys,
             executor_api_url=base_url,
             execution_mode=GLOBAL_EXECUTION_MODE

@@ -274,6 +274,11 @@ def load_auxiliary_from_cache():
                 prefs['auxiliary_datasets'] = []
             prefs['auxiliary_datasets'].append(file_path)
             cache_bp.user_preferences[session_id] = prefs
+        # the instance is given the list (0349), as the upload's and the removal's routes give it: an instance built while
+        # the session had no files keeps a list of its own, and was not told of a file loaded here - nor was the analyst
+        instance = cache_bp.bamboo_ai_instances.get(session_id)
+        if instance is not None:
+            instance.auxiliary_datasets = prefs['auxiliary_datasets']
         
         # Generate auxiliary dataset preview: the Data tab's first page (2026-09-08), else the old HTML sample
         _aux_client = cache_bp.executor_client.ExecutorAPIClient(

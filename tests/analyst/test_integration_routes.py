@@ -1,9 +1,9 @@
 """The integrations on the web app's side, with no browser and no executor (0348). The modules that put data into a
 session - Intervals.icu, Endura, SweatStack, the dataset cache - and the container's routes are started as
 web_app/app.py starts them: each with the names its own call there hands it, on a Flask app of the suite's. The
-executor, the orchestrator and the key store are stand-ins. Each load is then driven through its route, as the page
-drives it: what the executor is asked for, what the session's settings and its instance hold afterwards, what the page
-is answered.
+executor, the orchestrator and the key store are stand-ins; a session's instance is built by the web app's own
+get_bamboo_ai, taken from its file (0349). Each load is then driven through its route, as the page drives it: what the
+executor is asked for, what the session's settings and its instance hold afterwards, what the page is answered.
 
 tests/e2e/test_integrations.py walks these loads in a browser, against the real executor and the stack's
 Intervals.icu; it needs Playwright, the FIT parser and pyarrow, and is skipped where they are not installed. This
@@ -43,7 +43,7 @@ store.get_endura_api_key = lambda user_id, auth0_id: "key-of-the-races"
 store.get_sweatstack_token = lambda user_id, auth0_id: "token-of-the-first"
 sys.modules["auth"], sys.modules["auth.supabase_client"] = signed_in, store
 
-EXECUTOR = "http://executor.test"
+ADDRESS = {"now": "http://executor.test:5001"}         # where the user's container answers: another port each time it is started
 PAGE = {"columns": ["plot", "yield_t_ha"], "rows": [[1, 4.4], [2, 4.9]], "total": 2}       # a frame's or a file's first page, as the executor gives it
 ANSWERS, asked = {}, []                                # the executor's answer by path; what it was asked: (path, body)
 
@@ -62,7 +62,7 @@ class Reply:
 
 
 def executor(url, **kw):
-    path = url[len(EXECUTOR):]
+    path = "/" + url.split("/", 3)[3]
     asked.append((path, kw.get("json") or {}))
     if path in ("/dataframe_page", "/aux_page"):
         return Reply(dict(PAGE))
@@ -75,15 +75,31 @@ def sent_to(path):
 
 
 SETTINGS, INSTANCES, restarts = {}, {}, []             # the web app's user_preferences and bamboo_ai_instances; the containers restarted
+put_away = []                                          # the sessions whose instance the factory put away to make another
+quiet = logging.getLogger("the integrations' lines"); quiet.propagate = False; quiet.addHandler(logging.NullHandler())
+with open(os.path.join(ROOT, "web_app", "app.py"), encoding="utf-8") as f:
+    APP = ast.parse(f.read())
 
 
-def instance_of(session_id):
-    """As the web app's get_bamboo_ai: the session's instance, built from its settings where it has none - the files as
-    the host keeps them, the settings' own list where it holds any."""
-    if session_id not in INSTANCES:
-        prefs = SETTINGS.get(session_id, {"auxiliary_datasets": [], "df_id": None})
-        INSTANCES[session_id] = types.SimpleNamespace(df=None, df_id=prefs["df_id"], auxiliary_datasets=prefs["auxiliary_datasets"] or [], load_params=None, kill_signal=False)
-    return INSTANCES[session_id]
+class Host(types.SimpleNamespace):
+    """A session's instance as far as these routes touch it: what the host keeps of its data, as the host keeps it - the
+    files it is handed, or a list of its own where it is handed none."""
+    def __init__(self, df=None, df_id=None, auxiliary_datasets=None, executor_api_url=None, **more):
+        super().__init__(df=df, df_id=df_id, auxiliary_datasets=auxiliary_datasets or [], load_params=None, kill_signal=False, executor_api_url=executor_api_url)
+
+
+def from_the_app(name, **names):
+    """A function of web_app/app.py - a file the battery cannot load whole - as its own source has it, over stand-ins
+    for the names it uses."""
+    scope = dict(names)
+    exec(compile(ast.Module(body=[n for n in APP.body if isinstance(n, ast.FunctionDef) and n.name == name], type_ignores=[]), "web_app/app.py", "exec"), scope)
+    return scope[name]
+
+
+# the session's instance: made, or made again where the container's address changed, by the web app's own factory
+instance_of = from_the_app("get_bamboo_ai", user_preferences=SETTINGS, bamboo_ai_instances=INSTANCES, BambooAI=Host, get_user_id=lambda: "u1",
+                           executor_base_url=lambda user_id: ADDRESS["now"], logger=quiet, SEARCH_TOOL=True, GLOBAL_EXECUTION_MODE="api",
+                           cleanup_and_remove_bamboo_instance=lambda session_id, instances: (put_away.append(session_id), instances.pop(session_id, None)))
 
 
 class Orchestrator:
@@ -92,11 +108,9 @@ class Orchestrator:
         return {"status": "success", "message": "restarted"}
 
 
-quiet = logging.getLogger("the integrations' lines"); quiet.propagate = False; quiet.addHandler(logging.NullHandler())
-
 # what the web app hands the integrations, by the name each is handed under
 THINGS = {"user_preferences": SETTINGS, "bamboo_ai_instances": INSTANCES, "get_user_id": lambda: "u1", "get_bamboo_ai": instance_of,
-          "get_dynamic_executor_urls": lambda user_id: {"EXECUTOR_API_BASE_URL": EXECUTOR}, "global_execution_mode": "api",
+          "get_dynamic_executor_urls": lambda user_id: {"EXECUTOR_API_BASE_URL": ADDRESS["now"]}, "global_execution_mode": "api",
           "logger": quiet, "utils": utils, "executor_client": executor_client, "max_aux": 2,
           "cleanup_and_remove_bamboo_instance": lambda session_id: INSTANCES.pop(session_id, None), "container_orchestrator": Orchestrator(),
           "get_user_compute_tier": lambda user_id: "plus"}
@@ -107,9 +121,8 @@ from integrations import cache_manager as CM, endura as EN, intervals as IV, swe
 STARTS = {"init_cache_integration": CM.init_cache_integration, "init_container_status_integration": CS.init_container_status_integration,
           "init_endura_integration": EN.init_endura_integration, "init_intervals_integration": IV.init_intervals_integration,
           "init_sweatstack_integration": SW.init_sweatstack_integration}
-with open(os.path.join(ROOT, "web_app", "app.py"), encoding="utf-8") as f:
-    HANDS = {n.func.id: [k.arg for k in n.keywords] for n in ast.walk(ast.parse(f.read()))
-             if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and re.fullmatch(r"init_\w+_integration", n.func.id)}
+HANDS = {n.func.id: [k.arg for k in n.keywords] for n in ast.walk(APP)
+         if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and re.fullmatch(r"init_\w+_integration", n.func.id)}
 app = Flask("integrations"); app.secret_key = "the suite's"
 started, refused = [], {}
 for name in sorted(HANDS):
@@ -260,6 +273,16 @@ with mock.patch.object(requests, "post", executor), mock.patch.object(requests, 
     check("the dataset cache, a frame loaded from it: the settings are that frame's id; the instance holds it and that it came from the cache; the page is answered "
           "its first page - and a second frame in the same session is given to the instance that stands", frames == [True, True] and stood[0] is stood[1],
           (frames, SETTINGS.get("s4"), held("s4")))
+    first = page("s4").post("/cache/load_auxiliary", json={"file_path": "datasets/u1/plots.csv"})
+    told = held("s4")
+    INSTANCES["s4"].auxiliary_datasets = []                # an instance that has not got a file its session lists, as one was left before 0349
+    again = page("s4").post("/cache/load_auxiliary", json={"file_path": "datasets/u1/plots.csv"})
+    check("...a file loaded from it where the instance stands with a list of its own, as one built while the session had no files (0349: the file joined the "
+          "session's files and the instance was not told of it, nor the analyst): the instance is given the session's files; and loaded again, the file is "
+          "listed once and an instance that had not got it has it",
+          first.status_code == 200 and SETTINGS["s4"]["auxiliary_datasets"] == ["datasets/u1/plots.csv"] and told == ("frame-10", ["datasets/u1/plots.csv"], {"source": "cache", "df_id": "frame-10"})
+          and again.status_code == 200 and (again.get_json() or {}).get("aux_count") == 1 and held("s4") == told and INSTANCES["s4"] is stood[1],
+          (first.status_code, again.status_code, SETTINGS.get("s4"), told, held("s4")))
     files = [page("s6").post("/cache/load_auxiliary", json={"file_path": path}) for path in ("datasets/u1/plots.csv", "datasets/u1/soil.csv", "datasets/u1/plots.csv", "datasets/u1/rain.csv")]
     check("...files loaded from it, into a session the app holds nothing for yet: each joins the session's files once and is answered its first page; a file past the "
           "limit the web app hands this integration is refused, and the session keeps the files it had - and nothing else",
@@ -275,6 +298,28 @@ with mock.patch.object(requests, "post", executor), mock.patch.object(requests, 
           r.status_code == 200 and (r.get_json() or {}).get("status") == "success" and restarts == [("u1", "plus")] and standing.kill_signal is True and bool(loaded["df_id"])
           and len(loaded["auxiliary_datasets"]) == 3 and (SETTINGS["s1"]["auxiliary_datasets"], SETTINGS["s1"]["df_id"]) == ([], None) and INSTANCES.get("s1") is not standing
           and held("s1") == (None, [], None), (r.status_code, r.get_json(), SETTINGS["s1"], held("s1")))
+
+    # -------------------------------------------------------------------------------------- the container back at another address
+    off = page("s2").post("/endura/remove_data")           # the primary dataset taken off: the route deletes the frame's id from the settings
+    stood = INSTANCES.get("s2"), INSTANCES.get("s3")
+    ADDRESS["now"] = "http://executor.test:5002"           # the container was stopped for idleness and started again
+
+    def asked_again(session_id):
+        """The session's next question: the app makes its instance again, the container's address having changed."""
+        try:
+            return instance_of(session_id)
+        except Exception as exc:                               # noqa: BLE001 - what the question would be answered with
+            return exc
+
+    built = [asked_again(session_id) for session_id in ("s2", "s3")]
+    check("a session whose primary dataset was taken off, when the user's container comes back at another address (0349: the removal deletes the frame's id from "
+          "the settings, the instance was built again by reading that id with no fallback, and every question of the session ended in an error until a new "
+          "conversation): the instance that stood is put away and another built for the new address, with no frame and the files the session still lists; a "
+          "session that has its frame is built with it",
+          off.status_code == 200 and "df_id" not in SETTINGS["s2"] and all(isinstance(b, Host) for b in built) and put_away == ["s2", "s3"] and built[0] is not stood[0]
+          and built[0].executor_api_url == ADDRESS["now"]
+          and held("s2") == (None, race_files("r10"), None) and built[1] is not stood[1] and built[1].executor_api_url == ADDRESS["now"] and bool(SETTINGS["s3"]["df_id"])
+          and held("s3") == (SETTINGS["s3"]["df_id"], [], None), (off.status_code, built, SETTINGS.get("s2"), held("s2"), held("s3")))
 
 # ------------------------------------------------------------------------------------------ what a session's settings hold
 kept = sorted({key for prefs in SETTINGS.values() for key in prefs})
