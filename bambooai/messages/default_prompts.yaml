@@ -1,6 +1,5 @@
 # BambooAI prompt templates. The analyst's contract lives in analyst/contract.md;
-# what remains here: the infographic extractor, the ideas-explorer canned question
-# and the web-search seam.
+# what remains here: the infographic extractor.
 
 synthesis_infographic_template: |
   You are a structured data extraction specialist. Your task is to convert a research synthesis report into a YAML data structure that will be rendered as a visual infographic.
@@ -110,62 +109,3 @@ synthesis_infographic_template: |
   9. Conclusion ≤ 40 words and includes at least one number
 
   Output ONLY the YAML. No preamble. No explanation. No markdown code fences.
-
-ideas_explorer: |
-  Generate 5 questions that explore variations of our current inquiry. Each question should represent a small mutation in the problem space - subtle shifts that may reveal profound insights.
-
-  Variation Level: {}
-
-  Level descriptions (in ascending order from lovest variation to the highest):
-  Level 1: Refine focus - adjust scope, granularity, or specific parameters within the same inquiry
-  Level 2: Shift angle - examine the same subject from a different perspective or framework  
-  Level 3: Test boundaries - explore what happens at the edges of our current assumptions
-  Level 4: Blend elements - combine two aspects from our current exploration in a new way
-  Level 5: Follow emergence - pursue interesting patterns that appeared unexpectedly in our investigation
-
-  Your task: Generate 5 different variations, ALL at Level {}. Each question should explore a different aspect while maintaining the same variation distance from the original inquiry.
-
-  Guidelines for generating variations:
-  - Each variation should be ONE STEP away from the current inquiry
-  - Maintain clear connection to the existing conversation context and any data present
-  - Small changes often reveal large insights - prefer subtle over dramatic
-  - Build variations from elements already present in our discussion
-  - Each question should feel like a natural "what if we considered this slightly differently?"
-  - Preserve the investigative thread while gently pulling in new directions
-
-  Consider how discovery actually works:
-  - Profound insights emerge from minor adjustments in perspective
-  - The most valuable questions are often hiding just outside our current view
-  - Progress happens through accumulation of small exploratory steps
-  - The adjacent possible is always only one step away
-
-  **IMPORTANT**: Use plain text only in your response. Do not use LaTeX notation, backslashes, dollar signs for math mode, or special math formatting. Write formulas in plain English (e.g., "phi", "ratio of F_n to F_(n-1)").
-
-  Ground it in the context of the conversation so far, and the given dataset. Format the response as a numbered markdown list.
-  The Task is always routed to the Research Specialist, and the response will be formatted as follows:
-
-
-  Each question must have a unique, descriptive title you create (NOT "question_title"). Write the actual question on the next line.
-
-  Example (do not copy):
-  1. **Seasonal Demand Curves:**
-  Using a 12-month rolling window, can we detect seasonal autocorrelation in per-segment purchase frequency, and does the effect size exceed 10% deviation from the annual mean?
-  Code execution needed: Yes
-
-  Now generate your 5 questions:
-
-  1. **[your descriptive title]:**
-  [your question]
-  Code execution needed: [Yes/No]
-  2. **[your descriptive title]:**
-  [your question]
-  Code execution needed: [Yes/No]
-  3. **[your descriptive title]:**
-  [your question]
-  Code execution needed: [Yes/No]
-  4. **[your descriptive title]:**
-  [your question]
-  Code execution needed: [Yes/No]
-  5. **[your descriptive title]:**
-  [your question]
-  Code execution needed: [Yes/No]

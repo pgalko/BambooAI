@@ -1,10 +1,7 @@
-import os
-from io import StringIO
 import sys
 import queue
 import json
 import logging
-import pandas as pd
 import plotly.graph_objects as go
 import plotly.io as pio
 import base64
@@ -12,14 +9,14 @@ import base64
 from bambooai.output_manager import OutputManager
 
 class WebOutputManager(OutputManager):
+    """The page's manager: what a run shows goes to `output_queue` as events the page reads (query-processing.js), and
+    the person's question comes in on `input_queue`."""
+
     def __init__(self):
         super().__init__()
-        self.web_mode = True
         self.output_queue = queue.Queue()
         self.input_queue = queue.Queue()
-        self.capture_output = StringIO()
         self.last_chunk_ended_with_newline = True
-        self.max_interactive_points = 20000
         self.plot_size_threshold_mb = 2  # Convert plots larger than 2MB to PNG
 
         try:
@@ -43,8 +40,7 @@ class WebOutputManager(OutputManager):
 
     def plot_json_to_png(self, plot_json):
         """One plot wrapper, converted to a PNG wrapper (json string), or
-        None on failure. The single conversion seam: size-triggered
-        optimization and the synthesis figure resolver both ride it."""
+        None on failure: what a plot over the size threshold is sent as."""
         try:
             plot_data = json.loads(plot_json) if isinstance(plot_json, str) else plot_json
             if plot_data.get('format') == 'png':
@@ -79,12 +75,6 @@ class WebOutputManager(OutputManager):
             if plot_data.get('format') == 'png':
                 return json.dumps(plot_data) if not isinstance(plot_json, str) else plot_json, 'png'
             
-            # Extract actual plot data
-            if plot_data.get('type') == 'plot' and 'data' in plot_data:
-                actual_plot_data = json.loads(plot_data['data']) if isinstance(plot_data['data'], str) else plot_data['data']
-            else:
-                actual_plot_data = plot_data
-            
             plot_json_str = json.dumps(plot_data) if not isinstance(plot_json, str) else plot_json
             plot_size_mb = sys.getsizeof(plot_json_str) / (1024 * 1024)
             
@@ -102,87 +92,43 @@ class WebOutputManager(OutputManager):
 
     def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
         formatted_message = str(message)
-        
-        # Check silent mode first (inherited from parent)
-        if self.silent_mode:
-            self._captured_output.append(formatted_message)
-            if end:
-                self._captured_output.append(end)
-            return
-        
-        # Original web mode behavior
-        if self.web_mode:
-            if self.last_chunk_ended_with_newline and formatted_message.startswith("\n"):
-                formatted_message = formatted_message.lstrip("\n")
-            if end:
-                formatted_message += end
-                self.last_chunk_ended_with_newline = end.endswith("\n")
+
+        if self.last_chunk_ended_with_newline and formatted_message.startswith("\n"):
+            formatted_message = formatted_message.lstrip("\n")
+        if end:
+            formatted_message += end
+            self.last_chunk_ended_with_newline = end.endswith("\n")
+        else:
+            self.last_chunk_ended_with_newline = False
+
+        if formatted_message:
+            if thought:
+                self.output_queue.put(json.dumps({"thought": formatted_message, "chain_id": chain_id}))
             else:
-                self.last_chunk_ended_with_newline = False
-            
-            if formatted_message:
-                if thought:
-                    self.output_queue.put(json.dumps({"thought": formatted_message, "chain_id": chain_id}))
-                else:
-                    self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
-        else:
-            super().print_wrapper(formatted_message, end='', flush=flush, chain_id=chain_id, thought=thought)
-    
-    def send_assistant_consultation(self, chain_id, query_summary, response_content):
-        """
-        Send a Socratic assistant consultation result to the frontend.
-        Displays as a single collapsible tool call with query and response.
-        """
-        if self.web_mode:
-            self.output_queue.put(json.dumps({
-                "type": "assistant_consultation",
-                "query_summary": query_summary,
-                "response": response_content,
-                "chain_id": chain_id
-            }))
-        else:
-            # CLI/Notebook mode - print formatted output
-            print(f"\n{'='*60}")
-            print(f"ASSISTANT PERSPECTIVE")
-            print(f"{'='*60}")
-            print(f"Query: {query_summary}")
-            print(f"\nPerspective:\n{response_content}")
-            print(f"{'='*60}\n")
+                self.output_queue.put(json.dumps({"text": formatted_message, "chain_id": chain_id}))
 
     def send_synthesis_image(self, image_base64, mime_type, chain_id=None):
         """Send synthesis infographic image to frontend"""
-        if self.web_mode:
-            self.output_queue.put(json.dumps({
-                'type': 'synthesis_image',
-                'data': image_base64,
-                'mime_type': mime_type,
-                'chain_id': chain_id
-            }))
-
-    def get_captured_output(self):
-        output = self.capture_output.getvalue()
-        self.capture_output.truncate(0)
-        self.capture_output.seek(0)
-        return output
+        self.output_queue.put(json.dumps({
+            'type': 'synthesis_image',
+            'data': image_base64,
+            'mime_type': mime_type,
+            'chain_id': chain_id
+        }))
 
     def get_user_input(self):
-        if self.web_mode:
-            try:
-                return self.input_queue.get(block=False)
-            except queue.Empty:
-                return None
-        else:
-            return super().display_user_input_prompt()
+        try:
+            return self.input_queue.get(block=False)
+        except queue.Empty:
+            return None
 
     def add_user_input(self, user_input):
         self.input_queue.put(user_input)
 
     def send_chain_id(self, thread_id, chain_id, df_id, **extra):
-        # `parent_chain_id` rides here for plain user chains (rule B,
-        # 2026-08-27): the server knows where the chain attached, and the
-        # browser draws the map from that one record. Adaptive runs omit
-        # it - their new_iteration headers place probes under their
-        # planning turn.
+        # `parent_chain_id` rides here (rule B, 2026-08-27): the server
+        # knows where the chain attached, and the browser draws the map
+        # from that one record.
         self.output_queue.put(json.dumps({
             "type": "id",
             "thread_id": thread_id, 
@@ -191,112 +137,64 @@ class WebOutputManager(OutputManager):
             **extra,
         }))
 
-    def display_results(self, chain_id=None, execution_mode=None, 
-                        df_id=None, api_client=None, df=None, 
-                        query=None, data_model=None, 
-                        plan=None, code=None, answer=None, 
-                        simplified_answer=None,
-                        plot_jsons=None, review=None, 
+    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None,
+                        plan=None, code=None, answer=None, simplified_answer=None, plot_jsons=None,
                         generated_datasets=None, code_exec_results=None, report_head=None):
         from bambooai import utils
-        
-        if self.web_mode:
-            if df_id is not None:
-                # the Data tab (2026-09-07): the first page as JSON for the grid; the browser fetches the rest on demand
+
+        if df_id is not None:
+            # the Data tab (2026-09-07): the first page as JSON for the grid; the browser fetches the rest on demand
+            page = None
+            try:
+                if execution_mode == 'api' and api_client is not None and df_id:
+                    page = api_client.dataframe_page(df_id, 0, 50)
+                elif df is not None:
+                    page = utils.page_frame(df, 0, 50)
+            except Exception as exc:                       # noqa: BLE001
+                logging.getLogger(__name__).warning("Data tab: page request failed (%s); falling back to the 100-row preview", exc)
                 page = None
-                try:
-                    if execution_mode == 'api' and api_client is not None and df_id:
-                        page = api_client.dataframe_page(df_id, 0, 50)
-                    elif df is not None:
-                        page = utils.page_frame(df, 0, 50)
-                except Exception as exc:                       # noqa: BLE001
-                    logging.getLogger(__name__).warning("Data tab: page request failed (%s); falling back to the 100-row preview", exc)
-                    page = None
-                if page:
-                    page['df_id'] = df_id
-                    df_json = json.dumps({'type': 'dataframe', 'data': page, 'chain_id': chain_id})
-                else:
-                    if execution_mode == 'api':
-                        build = api_client.executor_build() if api_client is not None else None
-                        logging.getLogger(__name__).warning("Data tab: the executor returned no page (build %s) - falling back to the 100-row preview; "
-                                                            "an image before 2026-09-07 has no /dataframe_page", build or "unknown/pre-2026-09-07")
-                    df_index = utils.computeDataframeSample(df=df,execution_mode=execution_mode, df_id=df_id, executor_client=api_client)
-                    df_html = df_index.to_html(classes='dataframe', border=0, index=False)
-                    df_json = json.dumps({'type': 'dataframe', 'data': df_html, 'chain_id': chain_id})
-                self.output_queue.put(df_json)
-            
-            # the report's head (2026-10-17): a top-level key, like 'error' - the page keeps it with the chain for its export and
-            # never makes a tab of it; sent before the answer so the Answer tab's head is there when the answer renders
-            if report_head:
-                self.output_queue.put(json.dumps({'report_head': report_head, 'chain_id': chain_id}))
-            for data_type, data in [
-                ('query', query),
-                ('model', data_model),
-                ('plan', plan),
-                ('code', code),
-                ('answer', answer),
-                ('simplified_answer', simplified_answer),
-                ('code_exec_results', code_exec_results)      # generated datasets are the pane's pills, not a tab (2026-10-06: the tab was empty)
-            ]:
-                if data:
-                    self.output_queue.put(json.dumps({'type': data_type, 'data': data, 'chain_id': chain_id}))
+            if page:
+                page['df_id'] = df_id
+                df_json = json.dumps({'type': 'dataframe', 'data': page, 'chain_id': chain_id})
+            else:
+                if execution_mode == 'api':
+                    build = api_client.executor_build() if api_client is not None else None
+                    logging.getLogger(__name__).warning("Data tab: the executor returned no page (build %s) - falling back to the 100-row preview; "
+                                                        "an image before 2026-09-07 has no /dataframe_page", build or "unknown/pre-2026-09-07")
+                df_index = utils.computeDataframeSample(df=df,execution_mode=execution_mode, df_id=df_id, executor_client=api_client)
+                df_html = df_index.to_html(classes='dataframe', border=0, index=False)
+                df_json = json.dumps({'type': 'dataframe', 'data': df_html, 'chain_id': chain_id})
+            self.output_queue.put(df_json)
 
-            if plot_jsons:
-                for plot_json in plot_jsons:
-                    optimized_plot, format_type = self.optimize_plot_json(plot_json)
-                    self.output_queue.put(optimized_plot)
-            
-            self.output_queue.put(json.dumps({'type': 'end', 'data': None, 'chain_id': chain_id}))
-        else:
-            super().display_results(df=df, data_model=data_model, plan=plan, code=code, answer=answer, review=review)
+        # the report's head (2026-10-17): a top-level key, like 'error' - the page keeps it with the chain for its export and
+        # never makes a tab of it; sent before the answer so the Answer tab's head is there when the answer renders
+        if report_head:
+            self.output_queue.put(json.dumps({'report_head': report_head, 'chain_id': chain_id}))
+        for data_type, data in [
+            ('plan', plan),
+            ('code', code),
+            ('answer', answer),
+            ('simplified_answer', simplified_answer),
+            ('code_exec_results', code_exec_results)      # generated datasets are the pane's pills, not a tab (2026-10-06: the tab was empty)
+        ]:
+            if data:
+                self.output_queue.put(json.dumps({'type': data_type, 'data': data, 'chain_id': chain_id}))
 
-    def display_tool_start(self, agent, model, chain_id=None):
-        if self.silent_mode:
-            return
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'tool_start': {'agent': agent, 'model': model}, 'chain_id': chain_id}))
-        else:
-            super().display_tool_start(agent, model, chain_id)
+        if plot_jsons:
+            for plot_json in plot_jsons:
+                optimized_plot, format_type = self.optimize_plot_json(plot_json)
+                self.output_queue.put(optimized_plot)
+
+        self.output_queue.put(json.dumps({'type': 'end', 'data': None, 'chain_id': chain_id}))
 
     def display_error(self, error, chain_id=None):
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'error': str(error), 'chain_id': chain_id}))
-        else:
-            super().display_error(error, chain_id)
-
-    def display_corrected_code(self, code, chain_id=None):
-        # A top-level key, like 'error', handled by the front end BEFORE the
-        # generic type branch (which would invent a right-pane tab for it).
-        # The pane's last fenced script is the FAULTY one - the corrector
-        # streams edit blocks now, not a full fence - so this event is how
-        # the reader ever sees the script that actually ran.
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'corrected_code': str(code), 'chain_id': chain_id}))
-        else:
-            super().display_corrected_code(code, chain_id)
-
-    def display_user_input_prompt(self):
-        if self.web_mode:
-            return None
-        else:
-            return super().display_user_input_prompt()
+        self.output_queue.put(json.dumps({'error': str(error), 'chain_id': chain_id}))
 
     def display_tool_info(self, action, action_input, chain_id=None):
-        if self.silent_mode:
-            return
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'tool_call': {'action': action, 'input': action_input}, 'chain_id': chain_id}))
-        else:
-            super().display_tool_info(action, action_input, chain_id)
+        self.output_queue.put(json.dumps({'tool_call': {'action': action, 'input': action_input}, 'chain_id': chain_id}))
 
     def display_system_messages(self, message, chain_id=None):
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'system_message': message}))
-        else:
-            super().display_system_messages(message, chain_id)
+        self.output_queue.put(json.dumps({'system_message': message}))
 
     def display_call_summary(self, summary_text):
-        if self.web_mode:
-            self.output_queue.put(json.dumps({'call_summary': summary_text}))
-        else:
-            super().display_call_summary(summary_text)
+        self.output_queue.put(json.dumps({'call_summary': summary_text}))

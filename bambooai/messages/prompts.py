@@ -2,31 +2,15 @@
 import os
 import yaml
 import importlib.resources
-import sys
 import warnings
-
-from logger_config import get_logger
-logger = get_logger(__name__)
 
 _DEFAULT_PROMPTS_PACKAGE_PATH = "bambooai.messages"
 _DEFAULT_PROMPTS_FILENAME = "default_prompts.yaml"
 
+# The prompts by name: the loader makes an attribute of each name listed here and of no other, so a prompt in the file
+# is listed here and read somewhere (a test holds the three to each other). The analyst's own prompts are not here:
+# analyst/contract.md and the files beside it.
 _EXPECTED_TEMPLATES = [
-    
-    "expert_selector_system", "expert_selector_user",
-    "analyst_selector_system", "analyst_selector_user", "analyst_selector_system_auto",
-    "theorist_system", "ideas_explorer", "outer_delve",
-    # The loader materializes ONLY listed names; a census pin holds
-    # every yaml key registered here (lesson of 2026-08-21, ledger).
-    "exploration_synthesis",
-    "code_generator_system_df", "code_generator_system_gen",
-    "code_generator_user_df_no_plan",
-    "code_generator_user_df_findings", "code_generator_user_gen_findings",
-    "code_generator_user_gen_no_plan",
-    "code_generator_core_requirements","error_corector_system", 
-    "error_corector_system_reasoning","error_corector_edited_system", 
-    "error_corector_edited_system_reasoning","solution_summarizer_system","solution_summarizer_custom_code_system", "solution_summarizer_simplified_system",
-    "plot_query", "plot_query_routing", "socratic_assistant_system",
     "synthesis_infographic_template",
 ]
 

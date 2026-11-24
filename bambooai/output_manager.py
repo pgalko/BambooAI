@@ -7,47 +7,28 @@ import pandas as pd
 class OutputManager:
     def __init__(self):
         # Summary colors
-        self.color_result_header_ntb = 'blue'
         self.color_result_header_cli = 'green'
-        self.color_result_body_code = '#555555'
-        self.color_result_body_text = '#555555'
-        # agent colors
-        self.color_tool_header = 'magenta'
         # Error colors
         self.color_error_ntb = '#d86c00'
         self.color_error_cli = {'color': '\033[31m', 'reset': '\033[0m'}
-        # User input and info colors
-        self.color_usr_input_prompt = 'blue'
+        # Info colors
         self.color_info = 'green'
         # Token summary colors
-        self.color_token_summary_header_ntb = 'blue'
-        self.color_token_summary_text_ntb = '#555555'
         self.color_token_summary_cli = 'yellow'
         # Check if the code is running in a Jupyter notebook
         self.is_notebook = 'ipykernel' in sys.modules
 
-        self.silent_mode = False
-        self._captured_output = []
-    
     # Display the complete results.
-    def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None, query=None, data_model=None, research=None, plan=None, code=None, answer=None, plot_jsons=None, review=None, generated_datasets=None):
+    def display_results(self, df=None, code=None, answer=None, generated_datasets=None, **for_the_page):
+        """What a run shows outside the page: the data's structure, the script, the answer, the files it made. The
+        host hands over what the page shows as well - its tabs, the figures, the report's head: taken, and left out
+        (0345: this took no `code_exec_results`, and outside the page a run ended in a TypeError at its report)."""
         self.display_formated_df(df)
-        self.display_formatted_data_model(data_model)
-        self.display_formatted_search(research)
-        self.display_formated_plan(plan)
         self.display_formated_code(code)
         self.display_formated_answer(answer)
         self.display_generated_datasets(generated_datasets)
 
-    # Markdown formated Agent summaries
-    def display_formated_plan(self, plan):
-        if plan is not None:
-            if self.is_notebook:
-                display(Markdown(f"## Reasoning and Planning:\n\n```yaml\n{plan['yaml']}\n```"))
-            else:
-                cprint(f"\n>> Reasoning and Planning:", self.color_result_header_cli, attrs=['bold'])
-                self.print_wrapper(plan)
-
+    # Markdown formated summaries
     def display_formated_df(self, df):
         if df is not None:
             if self.is_notebook:
@@ -59,14 +40,6 @@ class OutputManager:
             else:
                 cprint(f"\n>> Here is the structure of your dataframe:", self.color_result_header_cli, attrs=['bold'])
                 self.print_wrapper(df.dtypes)
-
-    def display_formatted_data_model(self, data_model):
-        if data_model is not None:
-            if self.is_notebook:
-                display(Markdown(f"## Data Model:\n\n```yaml\n{data_model['yaml']}\n```"))
-            else:
-                cprint(f"\n>> Data Model:", self.color_result_header_cli, attrs=['bold'])
-                self.print_wrapper(data_model['yaml'])
 
     def display_formated_code(self, code):
         if code is not None:
@@ -83,17 +56,6 @@ class OutputManager:
             else:
                 cprint(f"\n>> I now have the final answer:\n{answer}", self.color_result_header_cli, attrs=['bold'])
 
-    def display_formatted_search(self, triplets):
-        if triplets:
-            research_content = f"## Research Findings:\n\n"
-            for triplet in triplets:
-                research_content += f"### Query: {triplet['query']}\n\n{triplet['result']}\n\n### Sources:\n"
-                for link in triplet['links']:
-                    research_content += f"\nTitle: {link['title']}  \nLink: {link['link']}  \n\n"
-
-            if self.is_notebook:
-                display(Markdown(research_content))
-
     def display_generated_datasets(self, generated_datasets):
         if generated_datasets:
             if self.is_notebook:
@@ -101,64 +63,14 @@ class OutputManager:
                 for dataset in generated_datasets:
                     display(Markdown(f"- File: {dataset}\n"))
 
-    # Display the header for the agent
-    def display_tool_start(self, agent, model, chain_id=None):
-        color = self.color_tool_header
-        if agent == 'Planner':
-            msg = 'Drafting a plan to provide a comprehensive answer, please wait...'
-        elif agent == 'Dataframe Inspector':
-            msg = 'Inspecting the dataframe schema, please wait...'
-        elif agent == 'Theorist':
-            msg = 'Working on an answer to your question, please wait...'
-        elif agent == 'Expert Selector':
-            msg = 'Selecting the expert to best answer your query, please wait...'
-        elif agent == 'Code Generator':
-            msg = 'I am generating the code, please wait...'
-        elif agent == 'Reviewer':
-            msg = 'I am going to assess and rank the answer, please wait...'
-        elif agent == 'Solution Summarizer':
-            msg = 'Summarizing the solution, please wait...'
-        elif agent == 'Analyst Selector':
-            msg = 'Selecting the analyst to best answer your query, please wait...'
-        
-
-        if self.is_notebook:
-            display(HTML(f'<p style="color:{color};">\nCalling Model: {model}</p>'))
-            display(HTML(f'<p><b style="color:{color};">{msg}</b></p><br>'))
-        else:
-            cprint(f"\n>> Calling Model: {model}", color)
-            cprint(f"\n>> {msg}\n", color, attrs=['bold'])
-    
     # Display the error message
     def display_error(self, error, chain_id=None):
         if self.is_notebook:
-            display(HTML(f'<br><b><span style="color:{self.color_error_ntb};">I ran into an issue:</span></b><br><pre style="color:{self.color_error_ntb};">{error}</pre><br><b><span style="color:{self.color_error_ntb};">I will examine it, and try again with an adjusted code.</span></b><br>'))
+            display(HTML(f'<br><b><span style="color:{self.color_error_ntb};">I ran into an issue:</span></b><br><pre style="color:{self.color_error_ntb};">{error}</pre><br>'))
         else:
-            sys.stderr.write(f"{self.color_error_cli['color']}\n>> I ran into an issue:{error}. \n>> I will examine it, and try again with an adjusted code.{self.color_error_cli['reset']}\n")
+            sys.stderr.write(f"{self.color_error_cli['color']}\n>> I ran into an issue: {error}{self.color_error_cli['reset']}\n")
             sys.stderr.flush()
-    
-    # Display the input to enter the prompt
-    def display_corrected_code(self, code, chain_id=None):
-        # The Error Corrector answers with edit blocks, not a full script,
-        # so the corrected script must be shown by the harness - it is the
-        # only party that has it. The web manager overrides this with a
-        # dedicated stream event; here it prints, like the rest of the CLI.
-        if self.is_notebook:
-            display(Markdown(f'**Corrected script:**\n```python\n{code}\n```'))
-        else:
-            print(f"\n>> Corrected script:\n{code}\n")
 
-    def display_user_input_prompt(self):
-        if self.is_notebook:
-            display(HTML(f'<b style="color:{self.color_usr_input_prompt};">Enter your question or type \'exit\' to quit:</b>'))
-            time.sleep(1)
-            question = input()
-        else:
-            cprint("\nEnter your question or type 'exit' to quit:", self.color_usr_input_prompt, attrs=['bold'])
-            question = input()
-
-        return question
-    
     def display_tool_info(self,action, action_input, chain_id=None):
         if self.is_notebook:
             display(HTML(f'<span style="color:{self.color_info};">-- Performing Action {action}: \"{action_input}\"</span>'))
@@ -178,7 +90,7 @@ class OutputManager:
             # Split the summary text into lines
             summary_lines = summary_text.split('\n')
             # Start the Markdown table with headers
-            markdown_table = '**Chain Summary (Detailed info in bambooai_consolidated_log.json file):**\n\n'
+            markdown_table = '**Chain Summary:**\n\n'
             markdown_table += '| Metric                      | Value          |\n'
             markdown_table += '|-----------------------------|----------------|\n'
             # Populate the table with data
@@ -191,29 +103,9 @@ class OutputManager:
 
             display(Markdown(markdown_table))
         else:
-            cprint("\n>> Chain Summary (Detailed info in bambooai_consolidated_log.json file):", self.color_token_summary_cli, attrs=['bold'])
+            cprint("\n>> Chain Summary:", self.color_token_summary_cli, attrs=['bold'])
             self.print_wrapper(summary_text)
 
     # A wrapper for the print function. This can be used to add additional behaviors or formatting to the print function
-    def set_silent(self, silent=True):
-        """Enable/disable silent mode for capturing output without displaying"""
-        self.silent_mode = silent
-        if silent:
-            self._captured_output = []  # Reset capture buffer when entering silent mode
-    
-    def get_captured_output(self):
-        """Get captured output from silent mode"""
-        return ''.join(self._captured_output)
-    
     def print_wrapper(self, message, end="\n", flush=False, chain_id=None, thought=False):
-        formatted_message = str(message)
-        
-        if self.silent_mode:
-            # Capture instead of print
-            self._captured_output.append(formatted_message)
-            if end:
-                self._captured_output.append(end)
-            return
-        
-        # Original behavior
-        print(formatted_message, end=end, flush=flush)
+        print(str(message), end=end, flush=flush)

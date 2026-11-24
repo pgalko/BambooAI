@@ -253,7 +253,7 @@ class _Quiet:
     """The output manager for the model call of a search. A provider that streams (Gemini) sends the answer as text;
     outside a turn's card the page appends text to the pane as it comes, and a search runs between two cards. So the
     answer goes out as thought tokens, which the page drops there, and the provider's own 'Thinking' notice is not
-    forwarded; everything else - an error, the silent mode - passes through."""
+    forwarded; everything else - an error, for one - passes through."""
 
     def __init__(self, om):
         self._om = om
