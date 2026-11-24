@@ -60,6 +60,8 @@ RESULT("outcome Y, group B vs group A at matched age, 42 subjects", est, lo, hi,
 -> RESULT: outcome Y, group B vs group A at matched age, 42 subjects: +3.2 (95% CI +0.8 to +5.6) units, B higher
 ```
 
+`low` and `high` are a 95% confidence interval. A count, a total or a date has none: leave them out,
+`RESULT(what, n, unit="plots")`. Bounds of another kind are named: `interval="range"`, `"IQR"`, `"90% CI"`.
 A number written into the call instead of computed is marked as typed on the line. Every line is
 kept, with its cell number, under RESULTS SO FAR in every later prompt. A revised estimate gets a new
 line; the earlier one stays. When an earlier line is wrong or mislabelled, record the corrected estimate

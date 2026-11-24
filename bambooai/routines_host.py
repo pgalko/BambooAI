@@ -85,7 +85,7 @@ def _ledger(expected: List[dict]) -> List[str]:
         if e.get("estimate") is not None:
             line += f": {e['estimate']}"
             if e.get("low") is not None and e.get("high") is not None:
-                line += f" (95% CI {e['low']} to {e['high']})"
+                line += f" ({e.get('interval') or '95% CI'} {e['low']} to {e['high']})"      # a line kept before 0342 names none: a 95% CI
             if e.get("unit"):
                 line += f" {e['unit']}"
             if e.get("direction"):

@@ -20,7 +20,12 @@ def check(name, cond, detail=""):
 r = rt.parse_result_line("RESULT: (test H1) (corrects cell 3) log value, group B vs A within type: +0.16 (95% CI +0.14 to +0.18) log units, B higher")
 check("parse_result_line: tags, what, the three numbers as printed, unit and direction",
       r and r["test"] == "H1" and r["corrects"] == "3" and r["what"] == "log value, group B vs A within type" and r["estimate"] == "+0.16" and r["low"] == "+0.14"
-      and r["high"] == "+0.18" and r["unit"] == "log units" and r["direction"] == "B higher" and r["ci"] == 95 and not r["typed"], r)
+      and r["high"] == "+0.18" and r["unit"] == "log units" and r["direction"] == "B higher" and r["interval"] == "95% CI" and not r["typed"], r)
+_rng = rt.parse_result_line("RESULT: shared years, median of 7: +43.00 (range +2.00 to +70.00) years, longest first")
+_cnt = rt.parse_result_line("RESULT: plots compared: +3 plots")
+check("parse_result_line (0342): bounds the line names - a range, not a confidence interval - are read with their name, the unit after them; a count has no bounds and no name",
+      _rng["estimate"] == "+43.00" and (_rng["low"], _rng["high"], _rng["interval"]) == ("+2.00", "+70.00", "range") and _rng["unit"] == "years" and _rng["direction"] == "longest first"
+      and (_cnt["estimate"], _cnt["low"], _cnt["high"], _cnt["interval"], _cnt["unit"]) == ("+3", None, None, "", "plots"), (_rng, _cnt))
 r2 = rt.parse_result_line("RESULT: ratio: B over A: +1,234 (95% CI +1,100 to +1,400), up - typed: the numbers were written into the call, not computed")
 check("parse_result_line: a colon inside the label, thousands separators, no unit, the typed mark",
       r2 and r2["what"] == "ratio: B over A" and r2["estimate"] == "+1,234" and rt.number(r2["estimate"]) == 1234 and r2["unit"] == "" and r2["direction"] == "up" and r2["typed"], r2)
@@ -246,6 +251,10 @@ check("source_kind: the executor's names map to the four kinds", rt.source_kind(
 
 # ---- the host's path: propose and create over a real kernel with a scripted promoter ----
 from bambooai import routines_host as host
+_led = host._ledger([{"cell": 1, "label": "shared years", "estimate": "+43.00", "low": "+2.00", "high": "+70.00", "interval": "range", "unit": "years"},
+                     {"cell": 1, "label": "B minus A", "estimate": "+0.62", "low": "+0.37", "high": "+0.84", "unit": "t/ha", "direction": "B higher"}, {"cell": 2, "label": "plots", "estimate": "+3"}])
+check("the promoter's ledger names a line's bounds as the line did (0342) - a range as a range; a line kept before names none: a 95% CI; a count has no bounds",
+      "(range +2.00 to +70.00) years" in _led[0] and "(95% CI +0.37 to +0.84) t/ha, B higher" in _led[1] and "CI" not in _led[2], _led)
 host.RETRY_PAUSE = 0.0                                  # a script that could not be carried out is tried once more at once here
 df = pd.DataFrame({"v": [100, 150, 160, 170, 200], "g": ["a", "a", "b", "b", "b"]})
 nb4 = Notebook("t4")

@@ -263,9 +263,12 @@ def _literal_number(node):
     return False
 
 
-def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None, corrects=None, ci=95):
+def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None, corrects=None, ci=95, interval=None):
     """Record an estimate the cell computed (2026-10-06): the words are the analyst's, the numbers are values the
-    cell computed, and the kernel prints the line and keeps a record for the session's ledger. A number written
+    cell computed, and the kernel prints the line and keeps a record for the session's ledger. The bounds are a
+    confidence interval at `ci` per cent unless `interval` names what they are - "range", "IQR" (2026-11-24: a
+    count and a spread over seven people were printed as 95% CIs, and a run recorded them twice more to put the
+    label right); without bounds the line has none. A number written
     into the call instead of computed - a literal, or an expression of literals - is marked on the line and in
     the record: it is a claim, not a result (an analyst had typed +6.1 into a line whose own regression printed
     -0.19, and the report quoted it)."""
@@ -293,8 +296,9 @@ def RESULT(what, estimate, low=None, high=None, unit="", direction="", test=None
         corr = f"(corrects cell {corrects}) " if corrects is not None else ""
     tags = (f"(test {test}) " if test else "") + corr
     dec = _decimals_for((estimate, low, high))
-    interval = f" ({ci}% CI {_fmt_num(low, dec)} to {_fmt_num(high, dec)})" if low is not None and high is not None else ""
-    text = f"{tags}{what}: {_fmt_num(estimate, dec)}{interval}{(' ' + unit) if unit else ''}{(', ' + direction) if direction else ''}"
+    named = str(interval or "").replace("(", "").replace(")", "").strip() or f"{ci}% CI"      # no bracket of its own: the line's readers go by them
+    bounds = f" ({named} {_fmt_num(low, dec)} to {_fmt_num(high, dec)})" if low is not None and high is not None else ""
+    text = f"{tags}{what}: {_fmt_num(estimate, dec)}{bounds}{(' ' + unit) if unit else ''}{(', ' + direction) if direction else ''}"
     if typed:
         text += " - typed: the numbers were written into the call, not computed"
     print("RESULT: " + text)

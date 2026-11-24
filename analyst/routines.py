@@ -42,9 +42,9 @@ _CELL_MARK_RE = re.compile(r"^# --- cell (\d+) ---$", re.M)
 _TAIL_MARK = "\n# --- the executor's own display options back ---"
 _NUM = r"[-+][\d,]*\.?\d+(?:[eE][-+]?\d+)?"
 _TAGS_RE = re.compile(r"^(?P<tags>(?:\((?:test [^)]*|corrects cells? [^)]*)\) )*)(?P<rest>.*)$", re.S)
-_LINE_NUM_RE = re.compile(r"^(?P<what>.*?): (?P<est>" + _NUM + r")(?: \((?P<ci>\d+)% CI (?P<lo>" + _NUM + r") to (?P<hi>" + _NUM + r")\))?"
+_LINE_NUM_RE = re.compile(r"^(?P<what>.*?): (?P<est>" + _NUM + r")(?: \((?P<named>[^()]*?) (?P<lo>" + _NUM + r") to (?P<hi>" + _NUM + r")\))?"
                           r"(?: (?P<unit>[^,]*?))?(?:, (?P<dir>.*?))?(?P<typed> - typed: .*)?$", re.S)
-_LINE_ANY_RE = re.compile(r"^(?P<what>.*?): (?P<est>[^\s(,]+)(?: \((?P<ci>\d+)% CI (?P<lo>\S+) to (?P<hi>\S+)\))?"
+_LINE_ANY_RE = re.compile(r"^(?P<what>.*?): (?P<est>[^\s(,]+)(?: \((?P<named>[^()]*?) (?P<lo>\S+) to (?P<hi>\S+)\))?"
                           r"(?: (?P<unit>[^,]*?))?(?:, (?P<dir>.*?))?(?P<typed> - typed: .*)?$", re.S)
 _KEY_REF_RE = re.compile(r"INPUTS\[\s*['\"]([A-Za-z_]\w*)['\"]\s*\]")
 _KEY_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
@@ -58,7 +58,8 @@ def new_id() -> str:
 # ----------------------------------------------------------------------------- the RESULT line, read back
 def parse_result_line(line: str) -> Optional[dict]:
     """One printed RESULT line (with or without its 'RESULT: ' prefix) as a record: tags, what, estimate, low, high
-    (as the strings the kernel printed), unit, direction, typed. None when the line is not a RESULT line."""
+    (as the strings the kernel printed), what the bounds are - `interval`: '95% CI', 'range' (0342) -, unit, direction,
+    typed. None when the line is not a RESULT line."""
     s = (line or "").strip()
     if s.startswith("RESULT:"):
         s = s[len("RESULT:"):].strip()
@@ -72,7 +73,7 @@ def parse_result_line(line: str) -> Optional[dict]:
     test = re.search(r"\(test ([^)]*)\)", tags)
     corr = re.search(r"\(corrects cells? ([^)]*)\)", tags)
     return {"tags": tags, "what": mm.group("what").strip(), "estimate": mm.group("est"), "low": mm.group("lo"), "high": mm.group("hi"),
-            "ci": int(mm.group("ci")) if mm.group("ci") else None, "unit": (mm.group("unit") or "").strip(),
+            "interval": mm.group("named") or "", "unit": (mm.group("unit") or "").strip(),
             "direction": (mm.group("dir") or "").strip(), "typed": bool(mm.group("typed")),
             "test": test.group(1) if test else None, "corrects": corr.group(1) if corr else None}
 
@@ -119,7 +120,7 @@ def expected_results(cells: Iterable, order: Iterable[int]) -> List[dict]:
         for i, r in enumerate(c.results or []):
             p = parse_result_line("RESULT: " + str(r.get("text") or "")) or {"what": str(r.get("text") or "")[:120], "estimate": None, "low": None, "high": None, "unit": "", "direction": ""}
             out.append({"cell": c.cell_no, "index": i, "label": p["what"], "typed": bool(r.get("typed")) or bool(p.get("typed")),
-                        "estimate": p["estimate"], "low": p["low"], "high": p["high"], "unit": p["unit"], "direction": p["direction"], "dropped": False})
+                        "estimate": p["estimate"], "low": p["low"], "high": p["high"], "interval": p.get("interval") or "", "unit": p["unit"], "direction": p["direction"], "dropped": False})
     return out
 
 

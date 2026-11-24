@@ -213,7 +213,10 @@ def rule_bootstrap_rng():
     check("rule: a bootstrap through a helper given rng by position - the helper always re-draws rows; the call is a bootstrap of N resamples",
           f["resamples"] and f["produces"] == "estimate" and len(it) == 1 and it[0]["kind"] == "estimate" and it[0]["label"] == "estimate: bootstrap, 1,000 resamples"
           and "bootstrap" in v["rows"][0]["chips"] and {c["text"] for c in v["recipes"]["r1"]["choices"]} == {"random seed 1", "B=1000"}
-          and v["results"]["r1"]["interval"] == "4.78 to 4.96", (f, it, v["rows"][0], v["recipes"]["r1"]["choices"]))
+          and v["results"]["r1"]["interval"] == "4.78 to 4.96" and "interval_name" not in v["results"]["r1"], (f, it, v["rows"][0], v["recipes"]["r1"]["choices"]))
+    named = codemap.build_record(record([cell(1, "y = df['yield_t_ha']\nRESULT('yield', y.median(), y.min(), y.max(), 't/ha', interval='range')\n", [rec("yield: +4.87 (range +3.10 to +6.20) t/ha", 2)])]))["view"]["results"]["r1"]
+    check("the trace reads a result's bounds with what the line names them (0342): a range is shown as a range, its number and unit as before",
+          (named["estimate"], named["interval"], named["interval_name"], named["unit"]) == ("+4.87", "3.10 to 6.20", "range", "t/ha"), named)
 
 
 def rule_alias():
@@ -852,8 +855,8 @@ check("a correction, a line at a time, on the real kernel: of the three lines of
       "gave new words are marked in the ledger of the prompts that follow, each by its cell, and the third stands",
       rb.status == "answered" and len(led) == 5 and led[0].startswith("- [cell 1] (corrected by cell 2) yield, regime B minus A, all seasons: ")
       and led[1].startswith("- [cell 1] (corrected by cell 3) yield, regime C minus A, all seasons: ") and led[2] == "- [cell 1] plots in the trial: +120"
-      and len(by_line_seen) == 4 and "RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(led[:4]) + "\n" in by_line_seen[3]
-      and "\n".join([led[0], led[1].replace("(corrected by cell 3) ", ""), led[2]]) + "\n\n" in by_line_seen[2] and "corrected by" not in by_line_seen[1],
+      and len(by_line_seen) == 4 and "RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(led) + "\n\n" in by_line_seen[3]
+      and "\n".join([led[0], led[1].replace("(corrected by cell 3) ", ""), led[2], led[3]]) + "\n\n" in by_line_seen[2] and "corrected by" not in by_line_seen[1],
       (rb.status, led, by_line_seen[-1][-900:]))
 vb = (rb.code_map or {}).get("view") or {}
 check("... and on the code trace of the same run: the same two lines replaced, by the same cells, the third recorded, and the check counts two - a map of version 5 or later, so "

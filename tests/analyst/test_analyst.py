@@ -680,9 +680,29 @@ check("report guard: a number only a typed RESULT line carries is flagged as not
       "6.1" in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "") and "1.5" not in (rr.report[rr.report.find("CHECK"):] if "CHECK" in rr.report else "x1.5"), rr.report[-500:])
 check("ledger: a printed line that merely begins with RESULT: is not a record - only RESULT(...) is",
       result_lines(rn) == [] if "rn" in dir() else True)
-check("results ledger: while the newest cell's output is in view whole its lines are not repeated in the ledger; they appear once that cell has aged out of the whole view, and on the report turn (2026-10-06)",
-      "RESULTS SO FAR" not in res_prompts[1] and "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[2]
-      and "- [cell 1] B vs A mean" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "- [cell 3] C vs A" not in [p_ for p_ in res_prompts if "TASK:" in p_][-1], [p_[-250:] for p_ in res_prompts[1:3]])
+check("results ledger: every line is there from the turn after its cell, the newest cell's too (0342: left out while that cell's output was in view, a run took its newest lines for "
+      "not recorded and recorded them again) - and on the report turn",
+      "RESULTS SO FAR" not in res_prompts[0] and "RESULTS SO FAR (printed by your cells; the report quotes these):\n- [cell 1] B vs A mean" in res_prompts[1]
+      and "- [cell 1] B vs A mean" in [p_ for p_ in res_prompts if "TASK:" in p_][-1] and "- [cell 3] C vs A" in [p_ for p_ in res_prompts if "TASK:" in p_][-1], [p_[-250:] for p_ in res_prompts[1:3]])
+# what a RESULT's bounds are (0342): a confidence interval unless the call names them; without bounds the line has none - in the kernel and in the replayed script alike
+_kb = PersistentKernel(df=None)
+_BOUNDS = ("n, m, lo, hi = 3, 43.0, 2.0, 70.0\nRESULT('plots compared', n, unit='plots')\nRESULT('shared years, median of 7', m, lo, hi, 'years', interval='range')\n"
+           "RESULT('the middle half', m, lo, hi, interval='(IQR)')\nRESULT('B minus A', m, lo, hi, 'units', 'B higher')\nRESULT('B minus A', m, lo, hi, ci=90)")
+try:
+    _bout, _berr, _ = _kb.execute(_BOUNDS)
+finally:
+    _kb.cleanup()
+_blines = ["RESULT: plots compared: +3 plots", "RESULT: shared years, median of 7: +43.00 (range +2.00 to +70.00) years", "RESULT: the middle half: +43.00 (IQR +2.00 to +70.00)",
+           "RESULT: B minus A: +43.00 (95% CI +2.00 to +70.00) units, B higher", "RESULT: B minus A: +43.00 (90% CI +2.00 to +70.00)"]
+import contextlib as _cl0, io as _io0
+from analyst.replay import assemble as _assemble0
+from analyst.notebook import Turn as _Turn0
+_bscript, _ = _assemble0([_Turn0(kind="cell", cell_no=1, code=_BOUNDS, stdout="x")], "see [cell 1]")
+with _cl0.redirect_stdout(_io0.StringIO()) as _bbuf:
+    exec(_bscript, {"df": None})
+check("RESULT (0342): its bounds are a 95% CI - or ci's - unless the call names what they are, interval='range', a bracket in the name dropped; a count without bounds prints "
+      "none; the replayed script prints the same lines",
+      not _berr and _bout.strip().splitlines() == _blines and [l for l in _bbuf.getvalue().splitlines() if l.startswith("RESULT:")] == _blines, (_berr, _bout, _bbuf.getvalue()[-400:]))
 check("contract: names DS and the comparison part of the report, and shows the RESULT: line with a neutral example",
       "`df = DS.load()`" in c_all and "- the comparison: what the question asks to compare, and what you compared" in c_all and "RESULT: outcome Y, group B vs group A at matched age" in c_all and "## Results" in c_all)
 from analyst.session import FIGURES_LATER as FIGURES_LATER_
@@ -1415,9 +1435,8 @@ _rl = _Run(id="rl", question="q", parent=None)
 _rl.turns = [_Turn(kind="cell", cell_no=2, code="a", results=[_kept(_B), _kept(_C), _kept(_N)]), _Turn(kind="cell", cell_no=5, code="b", results=[_kept(_by_words, 2)]),
              _Turn(kind="cell", cell_no=6, code="c", results=[_kept(_by_number, 2)])]
 _marked = ["- [cell 2] (corrected by cell 5) " + _B, "- [cell 2] (corrected by cell 6) " + _C, "- [cell 2] " + _N]
-check("ledger: a correction marks the line it replaced - one by its words, one by its number - and the line recorded beside them stands; so too while the correcting "
-      "cells' own lines are left out, their output being in view",
-      result_lines(_rl) == _marked + ["- [cell 5] " + _by_words, "- [cell 6] " + _by_number] and result_lines(_rl, omit=(5, 6)) == _marked, result_lines(_rl))
+check("ledger: a correction marks the line it replaced - one by its words, one by its number - and the line recorded beside them stands",
+      result_lines(_rl) == _marked + ["- [cell 5] " + _by_words, "- [cell 6] " + _by_number], result_lines(_rl))
 _rl.turns.append(_Turn(kind="cell", cell_no=7, code="d", results=[_kept("(corrects cell two) soil types compared: +3", "two")]))
 check("ledger: a correction that names no cell by its number marks nothing and the ledger is still made (reading it as a number had raised)",
       result_lines(_rl) == _marked + ["- [cell 5] " + _by_words, "- [cell 6] " + _by_number, "- [cell 7] (corrects cell two) soil types compared: +3"], result_lines(_rl))
@@ -1546,7 +1565,9 @@ check("the total cap: a pathological output is shortened from the middle with a 
       "HEAD-" in view and "-TAIL" in view and "omitted from the middle" in view and "small one" in view and len(view) < 170_000, len(view))
 
 bad = re.findall(r"\b(athlete|driver|altitude|sea level|hr_max|race|F1|Formula)\b", c, re.I)
-check("contract: one page - under 9,000 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit), neutral", len(c) < 9000 and not bad, (len(c), bad))
+check("contract: one page - under 9,300 without documents (2026-10-06: Results with RESULT(...), DS with save, the comparison, the budget as a limit; 0342: what a RESULT's bounds "
+      "are, and that a count has none), neutral",
+      len(c) < 9300 and not bad and "A count, a total or a date has none: leave them out" in c and 'Bounds of another kind are named: `interval="range"`' in c, (len(c), bad))
 check("contract: DS.save(frame, name) saves a dataset for the person - CSV by default, json/parquet/xlsx/txt by the name, a string as text - listed in the Dataset cache under Generated",
       "`DS.save(frame,\n\"name\")` saves a dataset for the person as CSV - `\"name.json\"`, `\"name.parquet\"`, `\"name.xlsx\"` or\n`\"name.txt\"` in that format, and a string as a text file: it appears in their Dataset cache under\nGenerated." in c)
 check("contract: a reply with more than one action runs the first and the rest does not - said in Format", "A reply\nwith more than one action runs the first; the rest does not run." in c)

@@ -498,7 +498,7 @@
                 const sc = res.status === 'not computed' ? 'empty' : (res.status === 'corrected' ? 'replaced' : (isPr ? 'printed' : 'recorded'));
                 const stText = isPr ? WORDS.status.printed : (res.status === 'corrected' ? fill(WORDS.status.corrected, { n: res.corrected_by }) : (res.status === 'not computed' ? WORDS.status.nan : WORDS.status.recorded));
                 head = '<div class="cm-big ' + sc + '">' + esc(isPr ? (res.lines && res.lines.length ? res.lines : [res.line]).join('\n') : (res.estimate || '—')) + '</div>' +
-                    (!isPr && (res.interval || res.unit) ? '<div class="cm-iv">' + esc(res.interval ? '95% CI ' + res.interval + (res.unit ? ' · ' + res.unit : '') : res.unit) + '</div>' : '') +
+                    (!isPr && (res.interval || res.unit) ? '<div class="cm-iv">' + esc(res.interval ? (res.interval_name || '95% CI') + ' ' + res.interval + (res.unit ? ' · ' + res.unit : '') : res.unit) + '</div>' : '') +
                     '<div class="cm-p">' + esc(isPr ? fill(WORDS.panel.printedLabel, { n: res.cell }) : res.label) + '</div>' +
                     '<span class="cm-status ' + sc + '">' + esc(stText) + '</span>' + (isPr ? '' : '<div class="cm-hownot">' + WORDS.howNot + '</div>');
             }

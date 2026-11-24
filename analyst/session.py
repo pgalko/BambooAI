@@ -449,20 +449,21 @@ def result_records(run):
     return [(x.cell_no, r) for x in run.cells() for r in (x.results or [])]
 
 
-def result_lines(run, omit=()) -> List[str]:
+def result_lines(run) -> List[str]:
     """The ledger: one line per RESULT(...) a committed cell recorded, with its cell number - the record of what is
     established, kept whole in every prompt whatever the window does to the cells (2026-10-05: a run spent two cells
     locating the specification behind a number it had printed twenty turns earlier). The lines come from the kernel's
     records, not from printed text (2026-10-06: a printed line can carry numbers nobody computed; the kernel marks
     those). A line a later cell corrected - RESULT(..., corrects=14) - is marked, so a known-wrong line stops reading
     as evidence: the line of cell 14 with the later one's words or number, and every line of cell 14 when none has
-    either (routines.corrected_by)."""
+    either (routines.corrected_by). The newest cell's lines are there with the rest (2026-11-24: left out while that
+    cell's output was in view, a run took its newest lines for not recorded and recorded them again)."""
     rows = result_records(run)
     corrected = corrected_by((c, r["text"], r.get("corrects")) for c, r in rows)
     disputed = disputed_cells(run)
     return [f"- [cell {c}] " + (f"(corrected by cell {corrected[i]}) " if i in corrected else "")
             + (disputed_mark(disputed[c]) if c in disputed else "") + r["text"]
-            for i, (c, r) in enumerate(rows) if c not in omit]      # omit: cells whose output is in view whole, so the line is not shown twice
+            for i, (c, r) in enumerate(rows)]
 
 
 def evidence_text(turn) -> str:
@@ -941,8 +942,7 @@ class Session:
             parts.append(FIGURE_ASKED_LINE)
         parts.append(f"YOUR NOTE (as you last wrote it):\n{run.note or '(none yet - write it this turn)'}")
         parts.append("CELLS SO FAR:\n" + self.nb.render_cells(run.id, everything=everything))
-        shown_whole = {run.cells()[-1].cell_no} if run.cells() and not everything else set()   # the newest cell rides whole
-        results = result_lines(run, omit=shown_whole)
+        results = result_lines(run)
         if results:
             parts.append("RESULTS SO FAR (printed by your cells; the report quotes these):\n" + "\n".join(results))
         # the passages this run's reads returned stay in view for the rest of the run - the lines with their ids, as a

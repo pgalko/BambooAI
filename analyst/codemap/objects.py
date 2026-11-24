@@ -325,8 +325,10 @@ def build_map(doc):
         rec["own_lines"] = line_spans(by, r.get("stmts") or [r["stmt"]])
         rec.pop("ops", None); rec.pop("closure", None)
         # number and interval from the printed line
-        m = re.search(r":\s*([+\-−]?[\d.,]+|[+\-]?nan)(?:\s*\(95% CI ([^)]*)\))?\s*(.*)$", r["line"] or "") if r["kind"] == "result" else None
-        rec["estimate"], rec["interval"], rec["unit_dir"] = (m.group(1), m.group(2), m.group(3)) if m else ("", "", "")
+        m = re.search(r":\s*([+\-−]?[\d.,]+|[+\-]?nan)(?:\s*\(([^()]*?) ([+\-−]?[\d.,]+ to [^)]*)\))?\s*(.*)$", r["line"] or "") if r["kind"] == "result" else None
+        rec["estimate"], rec["interval"], rec["unit_dir"] = (m.group(1), m.group(3), m.group(4)) if m else ("", "", "")
+        if m and m.group(2) and m.group(2) != "95% CI":
+            rec["interval_name"] = m.group(2)          # what the bounds are where the line names them - a range, a 90% CI (0342); a 95% CI where it does not
         results.append(rec)
 
     # ---- cells ------------------------------------------------------------------------------------------------------

@@ -569,6 +569,7 @@ def steps_view(m, chain_id, events=(), mode="", titles=None):
         results[r["id"]] = dict(id=r["id"], kind=r.get("kind", "result"), cell=r["cell"], label=r["label"],
                                 short=(r["line"] if len(r["line"]) <= 58 else r["line"][:57].rstrip() + "…") if printed else short_label(r["label"]),
                                 estimate=r["estimate"], interval=(r["interval"] or "").replace("+", ""), unit=r["unit_dir"], status=r["status"],
+                                **({"interval_name": r["interval_name"]} if r.get("interval_name") else {}),      # bounds that are no 95% CI (0342)
                                 corrected_by=r.get("corrected_by"), test=r.get("test"), line=r["line"], lines=r.get("lines", []))
     distinct_shorts(results)
     used_by = {}

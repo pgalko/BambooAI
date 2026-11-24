@@ -43,7 +43,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-11-20 v75 (the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-11-24 v76 (a RESULT names what its bounds are - interval="range" - where they are no confidence interval; since v75 the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 

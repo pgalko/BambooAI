@@ -175,6 +175,9 @@ check('panel, the branching chain: the checks as buttons - a citation into chain
   sm4.querySelector('.cm-check.cites[data-act="open-chain"][data-chain="3"][data-cell="5"] a.cm-chain').textContent === 'chain 3' && sm4.querySelector('.cm-check.chain[data-act="open-chain"][data-chain="3"]')
   && sm4.querySelector('.cm-check.typed[data-act="pick-s"][data-cell="14"]') && sm4.querySelector('.cm-check.corrected[data-act="pick-r"]') && sm4.querySelector('.cm-used .in').textContent === 'From chain 3', sm4.querySelector('.cm-checks').innerHTML.slice(0, 500));
 const rp = el(b.result(TRIAL, c1, 'r1'));
+const ranged = JSON.parse(JSON.stringify(TRIAL)); ranged.results.r1.interval_name = 'range';
+check('panel, a result whose bounds the line names (0342): the name stands before them - a range is not called a 95% CI; a result kept before names none and reads as a 95% CI',
+  el(b.result(ranged, c1, 'r1')).querySelector('.cm-iv').textContent === 'range 0.38 to 0.76 \u00b7 t/ha, B higher' && rp.querySelector('.cm-iv').textContent.startsWith('95% CI 0.38'));
 check('panel, a result: the kicker with the cell, the number, the interval and unit, the label, "recorded", the line that the map does not judge it, Made from, the items in order with names, sizes and glossed steps, the final line, the choices, the cells it rests on, Open in the notebook',
   rp.querySelector('.cm-kicker span').textContent === 'How this number was made · cell 2' && rp.querySelector('.cm-big').textContent === '+0.57' && rp.querySelector('.cm-iv').textContent === '95% CI 0.38 to 0.76 · t/ha, B higher'
   && rp.querySelector('.cm-status.recorded').textContent === 'recorded' && rp.querySelector('.cm-hownot').textContent === 'The trace shows how this number was made, not whether it is right.'
