@@ -316,7 +316,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-24: 2.9.1 (patches 0335-0350; executor image v76).** Web search is a seat, Web Search, on
+- **Status 2026-11-25: 2.9.1 (patches 0335-0351; executor image v76).** Web search is a seat, Web Search, on
   OpenRouter as it ships - DeepSeek V4.1 Flash with OpenRouter's web search tool, Perplexity its engine and Parallel
   the alternative - so one OpenRouter key runs the search as it runs every other seat; a seat put on a Gemini model
   searches with Google as before. Search is on where the seat's provider has its key. Each search is charged at its
@@ -339,7 +339,9 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   the dataset cache reaches the analyst (0349).
   `python -m bambooai.web_search` runs the seat once and says what it found and what it cost (D28). The hosted
   editions rebuild the executor image as v76 with the app and restart the orchestrator; no migration;
-  `requirements.txt` names PyYAML, requests and psutil, which the hosted app imports (0350).
+  `requirements.txt` names PyYAML, requests and psutil, which the hosted app imports (0350). The Mistral adapter
+  takes the SDK's client from where the SDK installed keeps it: under `mistralai.client` from 2.0 on, at the top of
+  the package in 1.x (0351).
 - **Status 2026-11-22: 2.9.0 (patches 0318-0334).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
   back to any turn of an analysis, gives the Analyst a hint, and the analysis goes on from there another way; the
   first way stays, and the Analysis map shows every turn of every branch. The kernel keeps its state after every cell

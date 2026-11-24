@@ -1,8 +1,11 @@
 """Every provider adapter's stream, run once over scripted chunks with no network (0344): the text comes back whole, in
 the seven-part answer the model layer reads, with the tokens the provider reported. The adapters had each carried the
 tool loops of the first version - a search, a question to the person, a second model - which nothing could reach; with
-them gone this is what holds the plain stream of each. A tool call no one asked for is not acted on."""
-import os, sys, types
+them gone this is what holds the plain stream of each. A tool call no one asked for is not acted on.
+
+An adapter that cannot be imported streams nothing. Mistral's SDK moved its client in 2.0, and the adapter is loaded
+here over a made-up SDK in each of the two layouts (0351)."""
+import importlib.machinery, importlib.util, os, sys, types
 from types import SimpleNamespace as NS
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path[:0] = [HERE, os.path.dirname(os.path.dirname(HERE))]
@@ -116,6 +119,53 @@ client = Chat(mistral_chunks)
 got, out = stream(mistral_models, client, Unset=None, SDKError=ConnectionError)      # the SDK's own names, stood in for where it is absent
 check("Mistral: the stream's text whole, the usage as reported; one request, no tool sent",
       plain(got, out) and len(client.requests) == 1 and "tools" not in client.requests[0] and "tool_choice" not in client.requests[0], (got[:5], client.requests))
+
+
+# ---- Mistral's SDK keeps its client in one of two places: the adapter loads over either
+class Client:
+    def __init__(self, api_key=None): self.api_key = api_key
+
+
+class ClientOf2(Client): pass
+
+
+class ClientOf1(Client): pass
+
+
+def made_up(name, package=False, **holds):
+    """A module of a made-up SDK that holds `holds` and nothing else. A package of it has no folder: no module is found under it."""
+    module = types.ModuleType(name)
+    module.__spec__ = importlib.machinery.ModuleSpec(name, None, is_package=package)
+    if package:
+        module.__path__ = []
+    vars(module).update(holds)
+    return module
+
+
+def mistral_over(sdk):
+    """The adapter loaded afresh while `sdk` - module name to module, None for a module that is not there - is the SDK
+    installed: the client its init() builds, or the error it did not load for."""
+    spec = importlib.util.spec_from_file_location("mistral_models_afresh", mistral_models.__file__)
+    adapter = importlib.util.module_from_spec(spec)
+    with mock.patch.dict(sys.modules, sdk):
+        try:
+            spec.loader.exec_module(adapter)
+        except ImportError as e:
+            return e
+        return adapter.init({"mistral": "a-key"})
+
+
+def is_client(built, kind):
+    return type(built) is kind and built.api_key == "a-key"
+
+
+built = mistral_over({"mistralai": made_up("mistralai", package=True), "mistralai.client": made_up("mistralai.client", package=True, Mistral=ClientOf2)})
+check("Mistral's SDK from 2.0 on - the client under mistralai.client, nothing at the top of the package: the adapter loads, and its init() builds that client with the key",
+      is_client(built, ClientOf2), repr(built))
+top = made_up("mistralai", package=True, Mistral=ClientOf1)
+built = [mistral_over({"mistralai": top, "mistralai.client": under}) for under in (made_up("mistralai.client", MistralClient=Client), None)]
+check("... and 1.x - the client at the top of the package, none under mistralai.client, be that module the first client's or not there: the adapter loads, on that client",
+      all(is_client(b, ClientOf1) for b in built), repr(built))
 
 # ---- the Responses adapters
 client = Responses(responses_events())

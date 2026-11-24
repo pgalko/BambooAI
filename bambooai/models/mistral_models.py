@@ -2,7 +2,12 @@ import os
 import threading
 import time
 
-from mistralai import Mistral
+# The SDK's client, from where the SDK installed keeps it (0351): under mistralai.client from 2.0 on, at the top of
+# `mistralai` in 1.x. pyproject.toml names the SDK without a version, so either may be the one installed.
+try:
+    from mistralai.client import Mistral
+except ImportError:
+    from mistralai import Mistral
 
 # Try to import SDKError for proper error handling
 try:
