@@ -19,8 +19,7 @@ _EXPECTED_TEMPLATES = [
     # The loader materializes ONLY listed names; a census pin holds
     # every yaml key registered here (lesson of 2026-08-21, ledger).
     "exploration_synthesis",
-    "google_search_query_generator_system", 
-    "google_search_react_system","google_search_summarizer_system",
+    "google_search_react_system",
     "code_generator_system_df", "code_generator_system_gen",
     "code_generator_user_df_no_plan",
     "code_generator_user_df_findings", "code_generator_user_gen_findings",

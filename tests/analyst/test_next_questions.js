@@ -387,7 +387,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     && qp.indexOf('window.NextQuestionsUI.holds()') > qp.indexOf('stopAutoExplore();') && qp.includes('if (next) window.NextQuestionsUI.started(next);')
     && qp.indexOf('if (next) window.NextQuestionsUI.started(next);') > qp.indexOf('beginLiveChain(framed);') && qp.includes('if (!synthesis && !next) {') && qp.includes('if (!framed && !next) queryInput.value = query;')
     && qp.includes('if (next) requestBody.next = { set: next.set, k: next.k };') && qp.includes('if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);')
-    && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') > qp.indexOf("if (data.type === \"id\")") && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') < qp.indexOf('data.type === "html"'));
+    && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') > qp.indexOf("if (data.type === \"id\")") && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') < qp.indexOf('data.type === "pane_run_start"'));
   check('the pane and the map: a finished analysis is dressed when its closing card is made and when its chain is shown again; the map asks the Pathfinder\'s module for the mark, which asks this one',
     js('stream-pane.js').includes('append(build.runEnd(r));\n        if (window.NextQuestionsUI) window.NextQuestionsUI.dress(p);')
     && js('workflow-management.js').includes('if (window.NextQuestionsUI) window.NextQuestionsUI.restore(response);')

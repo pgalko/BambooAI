@@ -7,9 +7,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 import base64
 from contextlib import redirect_stdout
-import pyarrow as pa
-import pyarrow.parquet as pq
-import zlib
 from datetime import datetime
 
 from logger_config import get_logger
@@ -222,17 +219,6 @@ pio.show = show
         except Exception as e:
             self.log_to_file(f"Error executing via API client: {str(e)}")
             return df, None, str(e), [], []
-
-    def _serialize_df(self, df):
-        buffer = io.BytesIO()
-        pq.write_table(pa.Table.from_pandas(df), buffer)
-        compressed = zlib.compress(buffer.getvalue())
-        return base64.b64encode(compressed).decode('utf-8')
-
-    def _deserialize_df(self, df_str):
-        decompressed = zlib.decompress(base64.b64decode(df_str))
-        buffer = io.BytesIO(decompressed)
-        return pq.read_table(buffer).to_pandas()
 
     def filter_exec_traceback(self, code, full_traceback, exception_type, exception_value):
         # Calculate offset from monkey patch if in webui mode

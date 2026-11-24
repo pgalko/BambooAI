@@ -177,17 +177,3 @@ def repair_markdown_tables(text: str) -> str:
         out.append(line)
         i += 1
     return "\n".join(out)
-
-
-def resolve_figures(text: str, figures_by_cell: dict) -> List[dict]:
-    """The figure payloads a report references, in order of first mention.
-    `figures_by_cell` maps cell number -> list of plot payloads."""
-    out, seen = [], set()
-    for m in FIG_REF_RE.finditer(text or ""):
-        n = int(m.group(1))
-        if n in seen:
-            continue
-        seen.add(n)
-        for k, fig in enumerate(figures_by_cell.get(n) or []):
-            out.append({"cell": n, "index": k, "figure": fig})
-    return out

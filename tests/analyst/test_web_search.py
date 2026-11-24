@@ -654,5 +654,18 @@ with contextlib.redirect_stdout(io.StringIO()) as nowhere:
 os.chdir(WORK)
 check("... in a folder without a configuration it says where to run it, and exits 2", code == 2 and "LLM_CONFIG_template.json" in nowhere.getvalue(), (code, nowhere.getvalue()))
 
+# started as the README says, `python -m bambooai.web_search` (0343: as __main__ its logger was given the orchestrator's log file, which a laptop does not have)
+import runpy
+from unittest import mock as _mock
+_out, _rc, _why = io.StringIO(), None, ""
+with _mock.patch.dict(os.environ, {"APP_ROOT_DIR": os.path.join(tempfile.gettempdir(), "no-such-box")}), _mock.patch.object(sys, "argv", ["web_search", "--help"]), contextlib.redirect_stdout(_out):
+    try:
+        runpy.run_module("bambooai.web_search", run_name="__main__")
+    except SystemExit as e:
+        _rc = e.code
+    except Exception as e:                # noqa: BLE001
+        _why = repr(e)
+check("the check runs as a module where no box is: its help comes, with no log file of the orchestrator's asked for", _rc == 0 and "--provider" in _out.getvalue(), (_rc, _why))
+
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

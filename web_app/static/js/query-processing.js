@@ -263,7 +263,6 @@ function processChunk(chunk) {
                     if (window.BranchUI) window.BranchUI.announced(data);      // a branch asked for: the server has started it
                     if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);      // the run is on: the question that started it is marked on its card
                 }
-                else if (data.type === "html") { /* the search seam's SERP preview: retired, nothing renders it (2026-09-06) */ }
                 else if (data.type === "pane_run_start")  { if (typeof paneRunStart === 'function') paneRunStart(data); }
                 else if (data.type === "pane_turn_start") { if (typeof paneTurnStart === 'function') paneTurnStart(data); }
                 else if (data.type === "pane_turn_end")   { if (typeof paneTurnEnd === 'function') paneTurnEnd(data); }

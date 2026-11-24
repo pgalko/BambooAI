@@ -39,13 +39,6 @@ class OutputManager:
         self.display_formated_answer(answer)
         self.display_generated_datasets(generated_datasets)
 
-    def send_html_content(self, html_content, chain_id=None):
-        """Display HTML content directly in the notebook"""
-        if self.is_notebook:
-            display(HTML(html_content))
-        else:
-            pass
-
     # Markdown formated Agent summaries
     def display_formated_plan(self, plan):
         if plan is not None:
@@ -117,8 +110,6 @@ class OutputManager:
             msg = 'Inspecting the dataframe schema, please wait...'
         elif agent == 'Theorist':
             msg = 'Working on an answer to your question, please wait...'
-        elif agent == 'Google Search Query Generator':
-            msg = 'I am going to generate the queries and search the internet for the answer, please wait...'
         elif agent == 'Expert Selector':
             msg = 'Selecting the expert to best answer your query, please wait...'
         elif agent == 'Code Generator':

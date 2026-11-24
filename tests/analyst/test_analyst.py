@@ -1175,9 +1175,6 @@ kinds10 = [e.get("type") for e in events10]
 check("events: cell_start is emitted right before the cell's result", "cell_start" in kinds10 and kinds10.index("cell_start") < kinds10.index("cell"), kinds10)
 
 # ---- Quick is five turns; the last-turns line never lands on the first turn (2026-09-09) ----
-check("quick: five turns at thirty cents", Budget.preset("quick").turns == 5 and abs(Budget.preset("quick").dollars - 0.3) < 1e-9)
-check("web searches by mode (0341, the product owner's numbers): Quick 2, Deep 4, Adaptive 6",
-      [Budget.preset(m).searches for m in ("quick", "deep", "adaptive")] == [2, 4, 6], [Budget.preset(m).searches for m in ("quick", "deep", "adaptive")])
 _seen = []
 def _spy_llm(system, user, **hints): _seen.append(user); return "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## r\n\nOne.", {"cost": 0.001}
 k11 = PersistentKernel(df=df); nb11 = Notebook("t11")

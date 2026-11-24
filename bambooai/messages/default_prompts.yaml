@@ -170,28 +170,6 @@ ideas_explorer: |
   [your question]
   Code execution needed: [Yes/No]
 
-google_search_query_generator_system: |
-  You are an AI internet research specialist and your job is to formulate a user's question as a search query.
-  Reframe the user's question into a search query as per the below examples.
-
-  Example input: Can you please find out what is the popularity of Python programming language in 2023?
-  Example output: Popularity of Python programming language in 2023
-
-  The user asked the following question: '{}'.
-
-google_search_summarizer_system: |
-  Read the following text carefully to understand its content. 
-
-  Text:
-
-  {}
-
-  Based on your understanding, provide a clear and comprehensible answer to the question below by extracting relevant information from the text.
-  Be certain to incorporate all relevant facts and insights.
-  Fill in any information that user has asked for, and that is missing from the text.
-
-  Question: {}
-
 google_search_react_system: |
   You are an Internet Research Specialist, and run in a loop of Thought, Action, Observation. This Thought, Action, Observation loop is repeated until you output an Answer.
   At the end of the loop you output an Answer.

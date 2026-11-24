@@ -164,8 +164,3 @@ def get_logger(name=None):
         return logger
     
     return logging.getLogger(name)
-
-# Convenience function for backward compatibility with existing code
-def get_app_logger():
-    """Get the main application logger."""
-    return get_logger('web_app.app')

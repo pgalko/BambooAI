@@ -9,7 +9,6 @@ import threading
 import time
 import re
 import sys
-from importlib import metadata as _metadata     # pkg_resources (setuptools) is absent from new virtualenvs on Python 3.12
 from typing import Optional, Union, Dict, List
 import unicodedata
 import pyarrow.parquet as pq
@@ -57,28 +56,6 @@ def get_readable_date(date_obj=None, tz=None):
 
     return date_obj.strftime(f"%a {ordinal(date_obj.day)} of %b %Y")
 
-def get_package_versions():
-    # Get package versions
-    versions = {
-        'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
-    }
-    
-    # Get installed packages
-    installed_packages = {}
-    for dist in _metadata.distributions():
-        name = (dist.metadata['Name'] or '').lower()
-        if name:
-            installed_packages[name] = dist.version
-    
-    # Check for pandas
-    versions['pandas_version'] = installed_packages.get('pandas', 'Not installed')
-    
-    # Check for plotly
-    versions['plotly_version'] = installed_packages.get('plotly', 'Not installed')
-    
-    return versions
-
-# TODO: Implement storing dataset details if needed
 def store_dataset_details(execution_mode: str = 'local',
                           user_id: str = None, 
                           thread_id: str = None, 

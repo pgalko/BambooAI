@@ -165,12 +165,6 @@ class WebOutputManager(OutputManager):
         self.capture_output.seek(0)
         return output
 
-    def get_queue_output(self):
-        output = []
-        while not self.output_queue.empty():
-            output.append(self.output_queue.get_nowait())
-        return '\n'.join(output)
-    
     def get_user_input(self):
         if self.web_mode:
             try:
@@ -208,16 +202,6 @@ class WebOutputManager(OutputManager):
             return None
         else:
             return super().request_user_feedback(chain_id, query_clarification, context_needed)
-
-    def send_html_content(self, html_content, chain_id=None):
-        if self.web_mode:
-            self.output_queue.put(json.dumps({
-                "type": "html",
-                "content": html_content,
-                "chain_id": chain_id
-            }))
-        else:
-            super().send_html_content(html_content, chain_id)
 
     def display_results(self, chain_id=None, execution_mode=None, 
                         df_id=None, api_client=None, df=None, 

@@ -521,11 +521,8 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     
     # Build response based on tool mode
     if tool_mode == 'native':
-        search_triplets, search_html = extract_grounding_triplets(grounding_metadata_list)
-        
-        if search_html:
-            output_manager.send_html_content(search_html, chain_id=chain_id)
-        
+        search_triplets, _preview = extract_grounding_triplets(grounding_metadata_list)
+
         # Count actual search queries performed
         search_query_count = sum(
             len(metadata.web_search_queries) 

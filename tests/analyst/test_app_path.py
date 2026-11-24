@@ -799,7 +799,7 @@ check("search: the text is the seat's digest, with no second list of sources aft
       "which the run's budget counts (0341)",
       txt == _digest and "Sources:" not in txt and not hasattr(BAMBOO, "_last_search_sources") and set(_used) == {"cost"} and abs(_used["cost"] - 0.0128) < 1e-9, (txt[:80], _used))
 while not q.empty(): q.get()
-BAMBOO._emit({"type": "search", "run": run3.id, "text": txt})
+BAMBOO._emit({"type": "search", "run": run3.id, "text": txt, "query": "yield by soil type"})      # as the session sends it: the query rides with the digest
 ev = [json.loads(q.get()) for _ in range(q.qsize())]
 lk = next(e for e in ev if e.get("type") == "pane_lookup")
 check("the pane's search carries the query and the first finding as its short line - not the digest's heading (0335) -, and for its card (0339) the pages by the numbers the digest gives "

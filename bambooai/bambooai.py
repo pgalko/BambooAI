@@ -93,7 +93,6 @@ class BambooAI:
         self._replay = {}                 # run id -> {"results", "plots", "datasets"} from the replay
         self._mode_label = 'Deep'
         self.df_name = ''
-        self._last_search_query = ''
         self.df = df
         self.df_id = df_id
         self.auxiliary_datasets = auxiliary_datasets or []
@@ -433,7 +432,6 @@ class BambooAI:
     def _web_search(self, query):
         """One SEARCH: the Web Search seat's digest - the pane's card reads the search's pages and claims from it (0339) -
         and what the search cost, which counts against the run's budget (0341)."""
-        self._last_search_query = query
         # the pages the path's searches have numbered so far: a page keeps its number, whichever search finds it (0337)
         before = self.notebook.searches(str(self.chain_id)) if self.notebook is not None else []
         cost = self._chain_cost()
@@ -1270,7 +1268,7 @@ class BambooAI:
             self._pane('pane_lookup_start', kind=ev.get("kind"), query=ev.get("query") or '', model=model or '')
         elif kind in ("show", "names", "search", "read"):
             text = ev.get('text') or ''
-            query = ev.get('query') or (self._last_search_query if kind == "search" else (getattr(self, '_last_read_query', '') if kind == "read" else ''))
+            query = ev.get('query') or (getattr(self, '_last_read_query', '') if kind == "read" else '')
             # a search's card (0339): its pages by the numbers the report cites them by, and the claims tied to them - from
             # its digest, the record the analyst read
             found = sources_mod.card(text) if kind == "search" else {"sources": [], "claims": []}

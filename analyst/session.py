@@ -521,14 +521,8 @@ class Budget:
     dollars: float = 2.0
     review_every: int = 0       # 0 = no self-review turns; long budgets use 8
     max_failures: int = 5       # consecutive failed cells before the session forces the report
-    searches: int = 4           # web searches per run; beyond it SEARCH answers with what is already on hand (by mode: preset)
+    searches: int = 4           # web searches per run; beyond it SEARCH answers with what is already on hand (the app sets it by mode)
     reads: int = 3              # document reads per run, the same way (docs/DOCUMENTS_DESIGN.md)
-
-    @staticmethod
-    def preset(name: str) -> "Budget":
-        return {"quick": Budget(turns=5, dollars=0.3, searches=2),
-                "deep": Budget(turns=15, dollars=1.5, searches=4),
-                "adaptive": Budget(turns=50, dollars=4.0, review_every=8, searches=6)}[name]
 
 
 @dataclass

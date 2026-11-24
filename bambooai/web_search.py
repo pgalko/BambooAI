@@ -22,7 +22,7 @@ import re
 
 from analyst.sources import CLAIMS_HEAD, SOURCES_HEAD, listed, numbers, same as _same, site
 from logger_config import get_logger
-logger = get_logger(__name__)
+logger = get_logger("bambooai.web_search")      # by name: run as a module this is __main__, which the logger takes for the orchestrator
 
 SEAT = "Web Search"
 SEAT_BEFORE = "Google Search Executor"      # the seat's name until 2.9: a configuration written then is still read
