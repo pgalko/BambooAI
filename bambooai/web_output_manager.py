@@ -191,18 +191,6 @@ class WebOutputManager(OutputManager):
             **extra,
         }))
 
-    def request_user_feedback(self, chain_id=None, query_clarification=None, context_needed=None):
-        if self.web_mode:
-            self.output_queue.put(json.dumps({
-                "type": "request_user_context",
-                "query_clarification": query_clarification,
-                "context_needed": context_needed,
-                "chain_id": chain_id
-            }))
-            return None
-        else:
-            return super().request_user_feedback(chain_id, query_clarification, context_needed)
-
     def display_results(self, chain_id=None, execution_mode=None, 
                         df_id=None, api_client=None, df=None, 
                         query=None, data_model=None, 

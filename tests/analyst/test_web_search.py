@@ -103,12 +103,17 @@ check("... off without the key of the seat's own provider - a Gemini key no long
       and W.unavailable(OLD) == "GEMINI_API_KEY is not set" and W.unavailable(cfg_with(provider="vllm")) == "the Web Search seat's provider is 'vllm'; web search runs on openrouter or gemini"
       and W.unavailable({"agent_configs": []}) == "the configuration has no 'Web Search' seat", (W.unavailable(CFG), with_gemini, W.unavailable(cfg_with(provider="vllm"))))
 
-from bambooai import cli, google_search                           # noqa: E402
+from bambooai import cli                                          # noqa: E402
 check("the self-hosted edition's .env: no key is said to turn search on, the line that turns it off is there, and no default names the old mode",
       "WEB_SEARCH_MODE" not in cli.DEFAULTS and "turns web search on" not in cli.ENV_TEMPLATE and "# WEB_SEARCH_MODE=off" in cli.ENV_TEMPLATE
       and "web search runs on the Web Search seat" in cli.ENV_TEMPLATE and "# GEMINI_API_KEY=\n" in cli.ENV_TEMPLATE)
-check("the name the adapters' unused search function is imported under gives the seat: made without arguments or with the keys",
-      google_search.SmartSearchOrchestrator is W.WebSearch and W.WebSearch().api_keys == {} and W.WebSearch(api_keys={"a": 1}).api_keys == {"a": 1})
+import importlib.util as _ilu, glob as _glob
+_adapters = "".join(open(f, encoding="utf-8").read() for f in _glob.glob(os.path.join(ROOT, "bambooai", "models", "*.py")))
+check("the adapters' old tool loops are gone (0344): no module of the old search or of the questions a tool put, no adapter names them or keeps a list of functions to call, "
+      "and the seat is made without arguments or with the keys",
+      all(_ilu.find_spec(m) is None for m in ("bambooai.google_search", "bambooai.context_retrieval", "bambooai.models.gemini_models_openai"))
+      and not any(w in _adapters for w in ("SmartSearchOrchestrator", "context_retrieval", "available_functions", "google_search_react_system", "consult_assistant"))
+      and W.WebSearch().api_keys == {} and W.WebSearch(api_keys={"a": 1}).api_keys == {"a": 1})
 
 # -------------------------------------------------------------------------- the claims an answer's links make
 ANSWER = """- Regime B plots yielded 3.2 t/ha on loam in 2024 ([fao.org](https://www.fao.org/agriculture/crops/field-trials)).
@@ -392,8 +397,15 @@ check("... the searches run, from the usage, with their engine: the record the d
       "the tokens as reported, the cached part of the prompt for its price",
       found[1] == {"__meta__": {"search_billed": 2, "search_engine": "perplexity"}} and (meta.get("search_requests"), meta.get("search_engine"), meta.get("search_pages")) == (2, "perplexity", 3)
       and (t_in, t_out, t_all) == (14210, 512, 14722) and cached == (4000, 0) and meta.get("reasoning_effort") == "none" and meta.get("max_tokens") == 8000 and "truncated" not in meta, (found[1], meta, cached))
-check("a tool that is not the seat's is no search: function tools go the stream's way as before", OR._web_search_tool([{"type": "function", "function": {"name": "web_search"}}, {"name": "google_search"}]) is None
-      and OR._web_search_tool(None) is None and OR._web_search_tool([{"name": "x"}, TOOL]) is TOOL)
+def _refused(tools):
+    try:
+        OR.llm_stream(None, None, None, "c", [], "m", 0, 100, tools)
+    except ValueError as e:
+        return "Web Search seat" in str(e)
+    return False
+check("a tool that is not the seat's is no search, and the adapter takes no other (0344: the old function tools went the stream's way)",
+      OR._web_search_tool([{"type": "function", "function": {"name": "web_search"}}, {"name": "google_search"}]) is None
+      and OR._web_search_tool(None) is None and OR._web_search_tool([{"name": "x"}, TOOL]) is TOOL and _refused([{"type": "function", "function": {"name": "web_search"}}]))
 
 
 class SDKReply:

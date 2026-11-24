@@ -1,10 +1,8 @@
-import json
 import os
 import threading
 import time
 import openai
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 from bambooai.models import prompt_cache
 from bambooai.models import resilience
@@ -41,25 +39,6 @@ def _convert_messages_to_input(messages):
             input_items.append({"role": role, "content": content})
     instructions = "\n\n".join(instructions_parts) if instructions_parts else None
     return input_items, instructions
-
-
-def _convert_tools(tools):
-    """Convert Chat Completions tool format to Responses API flat format."""
-    if not tools:
-        return None
-    converted = []
-    for tool in tools:
-        if "function" in tool:
-            func = tool["function"]
-            converted.append({
-                "type": "function",
-                "name": func["name"],
-                "description": func.get("description", ""),
-                "parameters": func.get("parameters", {}),
-            })
-        else:
-            converted.append(tool)
-    return converted
 
 
 # ---------------------------------------------------------------------------
@@ -107,7 +86,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str,
 
 
 # ---------------------------------------------------------------------------
-# Streaming call (with tool-call loop)
+# Streaming call
 # ---------------------------------------------------------------------------
 
 def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str,
@@ -116,16 +95,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                reasoning_models: list = None, reasoning_effort: str = "medium",
                api_keys=None, stop_event: threading.Event = None):
     """
-    Streaming Responses API call with tool-call support.
+    Streaming Responses API call. `tools` is the Web Search seat's: this adapter runs no search, and takes none.
     Return signature matches openai_models.llm_stream exactly.
     """
     collected_messages = []
-    function_calls = []
-    search_triplets = []
-    google_search_messages = [
-        {"role": "system",
-         "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}
-    ]
 
     if reasoning_effort == "minimal":
         reasoning_effort = "none"
@@ -137,28 +110,16 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
     openai_client = init(api_keys)
 
-    # Available tool implementations (identical to openai_models.py)
-    available_functions = {
-        "google_search": google_search.SmartSearchOrchestrator(api_keys=api_keys),
-        "request_user_context": context_retrieval.request_user_context,
-        "consult_assistant": context_retrieval.consult_assistant,
-    }
-
-    def add_triplet(query, result, links):
-        search_triplets.append({"query": query, "result": result, "links": links})
 
     # --- Convert from Chat Completions format ---
     input_items, instructions = _convert_messages_to_input(messages)
-    converted_tools = _convert_tools(tools)
 
-    def build_kwargs(input_data, prev_response_id=None):
+    def build_kwargs(input_data):
         """Build request kwargs, reusing common logic."""
         kw = dict(model=model, input=input_data, stream=True)
         kw["extra_body"] = prompt_cache.openai_extras(model)
 
-        if prev_response_id:
-            kw["previous_response_id"] = prev_response_id
-        elif instructions:
+        if instructions:
             kw["instructions"] = instructions
 
         if reasoning_models and model in reasoning_models:
@@ -172,16 +133,14 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
         kw["max_output_tokens"] = max_tokens
 
-        if converted_tools:
-            kw["tools"] = converted_tools
-        if response_format and not prev_response_id:
+        if response_format:
             kw["text"] = {"format": response_format}
         return kw
 
     def process_stream(stream):
         """
         Iterate over a Responses API event stream.
-        Populates collected_messages / function_calls and returns (response_id, usage).
+        Populates collected_messages and returns (response_id, usage).
         Reasoning summaries are buffered and flushed as complete sections
         (matching how Gemini emits thoughts in larger chunks).
         """
@@ -204,10 +163,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             elif event.type == "response.output_text.delta":
                 collected_messages.append(event.delta)
                 output_manager.print_wrapper(event.delta, end="", flush=True, chain_id=chain_id)
-
-            elif event.type == "response.output_item.done":
-                if getattr(event.item, 'type', None) == "function_call":
-                    function_calls.append(event.item)
 
             elif event.type == "response.completed":
                 resp_id = event.response.id
@@ -249,42 +204,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
         return resp_id, usage_prompt, usage_completion
 
-    def execute_tool(function_name, function_args):
-        """Execute a single tool call, return the string result."""
-        function_to_call = available_functions[function_name]
-
-        if function_name == "google_search":
-            google_search_messages.append(
-                {"role": "user", "content": function_args.get("search_query")})
-            result, links = function_to_call(
-                prompt_manager, log_and_call_manager, output_manager, chain_id,
-                messages=google_search_messages)
-            add_triplet(function_args.get("search_query"), result, links)
-            return result
-
-        if function_name == "request_user_context":
-            return function_to_call(
-                output_manager, log_and_call_manager, chain_id,
-                function_args.get("query_clarification"),
-                function_args.get("context_needed"))
-
-        if function_name == "consult_assistant":
-            return function_to_call(
-                output_manager, log_and_call_manager, chain_id,
-                function_args.get("analytical_goal"),
-                function_args.get("data_context"),
-                function_args.get("decision_point"),
-                function_args.get("options_considered"),
-                function_args.get("plan_constraints"),
-                reasoning_models, api_keys)
-
-        raise ValueError(f"Unknown function: {function_name}")
-
     # --- Main streaming loop ---
     try:
         combined_prompt = 0
         combined_completion = 0
-        response_id = None
 
         start_time = time.time()
 
@@ -299,48 +222,9 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             openai.APIError, output_manager=output_manager,
             chain_id=chain_id, label="OpenAI")
         stream = StoppableStreamWrapper(raw_stream, stop_event)
-        resp_id, p_tok, c_tok = process_stream(stream)
-        response_id = resp_id
+        _resp_id, p_tok, c_tok = process_stream(stream)
         combined_prompt += p_tok
         combined_completion += c_tok
-
-        # Tool-call loop
-        max_iterations = 10
-        iteration = 0
-
-        while function_calls and iteration < max_iterations:
-            iteration += 1
-
-            # Build function_call_output items
-            tool_outputs = []
-            for fc in function_calls:
-                func_args = json.loads(fc.arguments)
-                result = execute_tool(fc.name, func_args)
-                tool_outputs.append({
-                    "type": "function_call_output",
-                    "call_id": fc.call_id,
-                    "output": result,
-                })
-
-            function_calls = []
-
-            # Same pre-token restart on the tool follow-up round. The
-            # closure binds response_id BY VALUE at wrap time (the retry must
-            # re-send the same request, not one built from a later id).
-            _prev_id = response_id
-            raw_stream = resilience.restartable(
-                lambda: openai_client.responses.create(
-                    **build_kwargs(tool_outputs, prev_response_id=_prev_id)),
-                openai.APIError, output_manager=output_manager,
-                chain_id=chain_id, label="OpenAI")
-            stream = StoppableStreamWrapper(raw_stream, stop_event)
-            resp_id, p_tok, c_tok = process_stream(stream)
-            response_id = resp_id
-            combined_prompt += p_tok
-            combined_completion += c_tok
-
-            if not function_calls:
-                break
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -362,11 +246,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     combined_total = combined_prompt + combined_completion
     tokens_per_second = combined_completion / elapsed_time if elapsed_time > 0 else 0
 
-    if tools:
-        return (full_reply_content, search_triplets, messages,
-                combined_prompt, combined_completion, combined_total,
-                elapsed_time, tokens_per_second)
-    else:
-        return (full_reply_content, messages,
-                combined_prompt, combined_completion, combined_total,
-                elapsed_time, tokens_per_second)
+    return (full_reply_content, messages,
+            combined_prompt, combined_completion, combined_total,
+            elapsed_time, tokens_per_second)

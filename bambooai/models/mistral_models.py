@@ -1,4 +1,3 @@
-import json
 import os
 import threading
 import time
@@ -24,7 +23,6 @@ except ImportError:
         Unset = None
         UNSET = None
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 
 
@@ -146,8 +144,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     Stream responses from Mistral's API with complete API keys dictionary support.
     
     Supports:
-    - Tool calls (google_search, request_user_context, consult_assistant)
-    - Multiple tool call iterations
     - Native usage token tracking
     - StoppableStreamWrapper for cancellation
     - Reasoning models with prompt_mode
@@ -161,7 +157,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         model: Model identifier string
         temperature: Sampling temperature
         max_tokens: Maximum tokens to generate
-        tools: Optional list of tool definitions
+        tools: the Web Search seat's; this adapter runs no search, and takes none
         response_format: Optional response format specification
         reasoning_models: List of model names that support reasoning mode
         reasoning_effort: Reasoning effort level (note: Mistral uses prompt_mode instead)
@@ -169,38 +165,15 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         stop_event: Optional threading.Event for stopping the stream
         
     Returns:
-        If tools provided: Tuple of (content, search_triplets, messages, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second)
-        Otherwise: Tuple of (content, messages, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second)
+        Tuple of (content, messages, prompt_tokens, completion_tokens, total_tokens, elapsed_time, tokens_per_second)
     """
     collected_chunks = []
     collected_messages = []
-    tool_calls = []
-    search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
 
     client = init(api_keys)
 
-    # Define the available functions
-    request_user_context = context_retrieval.request_user_context
-    consult_assistant = context_retrieval.consult_assistant
-    google_search_function = google_search.SmartSearchOrchestrator(api_keys=api_keys)
 
-    available_functions = {
-        "google_search": google_search_function,
-        "request_user_context": request_user_context,
-        "consult_assistant": consult_assistant
-    }
-
-    def add_triplet(query, result, links):
-        """Add a triplet to the search_triplets list"""
-        triplet = {
-            "query": query,
-            "result": result,
-            "links": links
-        }
-        search_triplets.append(triplet)
-
-    def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="medium"):
+    def get_response(model, messages, temperature, max_tokens, response_format, reasoning_models=None, reasoning_effort="medium"):
         """Get streaming response from Mistral API"""
         # Check if this is a reasoning model - Mistral uses prompt_mode instead of reasoning_effort
         if reasoning_models and model in reasoning_models:
@@ -209,8 +182,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 model=model,
                 messages=messages,
                 max_tokens=max_tokens,
-                tools=tools,
-                tool_choice="auto" if tools else None,
                 prompt_mode="reasoning",
             )
         else:
@@ -219,13 +190,11 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=tools,
-                tool_choice="auto" if tools else None,
                 response_format=response_format,
             )
 
-    def process_stream_chunk(event, tool_calls, collected_chunks, collected_messages):
-        """Process a single stream chunk and extract content/tool calls"""
+    def process_stream_chunk(event, collected_chunks, collected_messages):
+        """Process a single stream chunk and extract its content"""
         # Mistral streaming returns events with a 'data' attribute containing the chunk
         chunk = event.data if hasattr(event, 'data') else event
         
@@ -240,38 +209,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             if delta and is_valid_content(delta.content):
                 collected_messages.append(delta.content)
                 output_manager.print_wrapper(delta.content, end="", flush=True, chain_id=chain_id)
-            
-            # Check for tool calls - handle both delta.tool_calls and choice.delta.tool_calls
-            tc_list = None
-            if delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
-                tc_list = delta.tool_calls
-            
-            if tc_list:
-                for tcchunk in tc_list:
-                    # Get the index, default to 0 if not present
-                    tc_index = getattr(tcchunk, 'index', 0) or 0
-                    
-                    # Ensure tool_calls list is large enough
-                    while len(tool_calls) <= tc_index:
-                        tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                    tc = tool_calls[tc_index]
-
-                    # Handle id
-                    if hasattr(tcchunk, 'id') and tcchunk.id:
-                        tc["id"] += tcchunk.id
-                    
-                    # Handle function - it might be an object or dict
-                    func = getattr(tcchunk, 'function', None)
-                    if func:
-                        if hasattr(func, 'name') and func.name:
-                            tc["function"]["name"] += func.name
-                        elif isinstance(func, dict) and func.get('name'):
-                            tc["function"]["name"] += func['name']
-                            
-                        if hasattr(func, 'arguments') and func.arguments:
-                            tc["function"]["arguments"] += func.arguments
-                        elif isinstance(func, dict) and func.get('arguments'):
-                            tc["function"]["arguments"] += func['arguments']
 
         # Check for usage data in the chunk (typically comes at the end)
         if hasattr(chunk, 'usage') and chunk.usage:
@@ -290,7 +227,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         combined_total_tokens_used = 0
 
         # Get the first raw stream
-        raw_stream_1 = get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
+        raw_stream_1 = get_response(model, messages, temperature, max_tokens, response_format, reasoning_models, reasoning_effort)
 
         # Wrap with StoppableStreamWrapper if stop_event is provided
         if stop_event:
@@ -302,117 +239,13 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
         # Iterate through the stream of events
         for event in stoppable_stream_1:
-            usage_data = process_stream_chunk(event, tool_calls, collected_chunks, collected_messages)
+            usage_data = process_stream_chunk(event, collected_chunks, collected_messages)
             if usage_data["prompt"] > 0:
                 combined_prompt_tokens_used = usage_data["prompt"]
             if usage_data["completion"] > 0:
                 combined_completion_tokens_used = usage_data["completion"]
             if usage_data["total"] > 0:
                 combined_total_tokens_used = usage_data["total"]
-
-        # Process tool calls - may happen multiple times
-        max_iterations = 10
-        iteration = 0
-
-        while tool_calls and iteration < max_iterations:
-            iteration += 1
-
-            # Add assistant message with tool calls to history
-            # Mistral expects tool_calls in a specific format
-            assistant_msg = {
-                "role": "assistant",
-                "content": "",  # Mistral may require content field
-                "tool_calls": [
-                    {
-                        "id": tc["id"],
-                        "type": "function",
-                        "function": {
-                            "name": tc["function"]["name"],
-                            "arguments": tc["function"]["arguments"]
-                        }
-                    }
-                    for tc in tool_calls
-                ]
-            }
-            messages.append(assistant_msg)
-
-            # Process each tool call
-            for index, tool_call in enumerate(tool_calls):
-                function_name = tool_call['function']['name']
-                function_to_call = available_functions.get(function_name)
-                
-                if function_to_call is None:
-                    continue
-                    
-                function_args = json.loads(tool_call['function']['arguments'])
-
-                if function_name == "google_search":
-                    google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
-                    function_response, links = function_to_call(
-                        prompt_manager,
-                        log_and_call_manager,
-                        output_manager,
-                        chain_id,
-                        messages=google_search_messages
-                    )
-                    add_triplet(function_args.get("search_query"), function_response, links)
-
-                elif function_name == "request_user_context":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("query_clarification"),
-                        function_args.get("context_needed")
-                    )
-
-                elif function_name == "consult_assistant":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("analytical_goal"),
-                        function_args.get("data_context"),
-                        function_args.get("decision_point"),
-                        function_args.get("options_considered"),
-                        function_args.get("plan_constraints"),
-                        reasoning_models,
-                        api_keys
-                    )
-
-                # Add tool response to message history
-                # Mistral uses "tool" role for tool responses
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call['id'],
-                    "name": function_name,
-                    "content": str(function_response) if function_response else "",
-                })
-
-            # After processing ALL tool calls, get the next stream
-            raw_stream = get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models, reasoning_effort)
-            
-            if stop_event:
-                stoppable_stream = StoppableStreamWrapper(raw_stream, stop_event)
-            else:
-                stoppable_stream = raw_stream
-
-            # Reset tool_calls for the next iteration
-            tool_calls = []
-
-            # Process the new stream using the same helper function
-            for event in stoppable_stream:
-                usage_data = process_stream_chunk(event, tool_calls, collected_chunks, collected_messages)
-                if usage_data["prompt"] > 0:
-                    combined_prompt_tokens_used = usage_data["prompt"]
-                if usage_data["completion"] > 0:
-                    combined_completion_tokens_used = usage_data["completion"]
-                if usage_data["total"] > 0:
-                    combined_total_tokens_used = usage_data["total"]
-
-            # If no new tool calls were requested, we're done
-            if not tool_calls:
-                break
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -449,7 +282,4 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     else:
         tokens_per_second = 0
 
-    if tools:
-        return full_reply_content, search_triplets, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
-    else:
-        return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
+    return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second

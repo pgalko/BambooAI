@@ -159,18 +159,6 @@ class OutputManager:
 
         return question
     
-    # Request user feedback
-    def request_user_feedback(self, chain_id=None, query_clarification=None, context_needed=None):
-        if self.is_notebook:
-            display(HTML(f'<b style="color:{self.color_info};">Requesting user feedback: \"{query_clarification}\"</b>'))
-            time.sleep(1)
-            feedback = input()
-        else:
-            cprint(f"\nRequesting user feedback: \"{query_clarification}\"", self.color_info)
-            feedback = input()
-        
-        return feedback
- 
     def display_tool_info(self,action, action_input, chain_id=None):
         if self.is_notebook:
             display(HTML(f'<span style="color:{self.color_info};">-- Performing Action {action}: \"{action_input}\"</span>'))

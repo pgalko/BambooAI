@@ -107,7 +107,7 @@ class Pane:
 
 
 class Prompts:
-    google_search_react_system = "{}"
+    pass
 
 
 LAST_PANE = [None]

@@ -1,10 +1,8 @@
-import json
 import os
 import threading
 import time
 import openai
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 
 # The dispatcher's turn-level retry catches exactly these; see models/__init__.
@@ -90,44 +88,21 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str, respo
 def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: str, messages: str, model: str, temperature: str, max_tokens: str,
                tools: str = None, response_format: str = None, reasoning_models: list = None, reasoning_effort: str = "medium", api_keys=None, stop_event: threading.Event = None):  
     """
-    Stream responses from OpenAI's API with complete API keys dictionary support
+    Stream responses from OpenAI's API with complete API keys dictionary support. `tools` is the Web Search seat's:
+    this adapter runs no search, and takes none.
     """
     collected_chunks = []
     collected_messages = []
-    tool_calls = []
-    search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
 
     if reasoning_effort == "minimal":
         reasoning_effort = "none"
     prompt_cache.record_meta(reasoning_effort=reasoning_effort,
                              max_tokens=max_tokens)
 
-    tools = tools
-
     openai_client = init(api_keys)
     
-    # Define the available functions
-    request_user_context = context_retrieval.request_user_context
-    consult_assistant = context_retrieval.consult_assistant
-    google_search_function = google_search.SmartSearchOrchestrator(api_keys=api_keys)
 
-    available_functions = {
-        "google_search": google_search_function,
-        "request_user_context": request_user_context,
-        "consult_assistant": consult_assistant
-    }
-
-    def add_triplet(query, result, links):
-        '''Add a triplet to the search_triplets list'''
-        triplet = {
-            "query": query,
-            "result": result,
-            "links": links
-        }
-        search_triplets.append(triplet)
-
-    def get_response(model, messages, temperature, max_tokens, tools, response_format, reasoning_models=None, reasoning_effort="low"):
+    def get_response(model, messages, temperature, max_tokens, response_format, reasoning_models=None, reasoning_effort="low"):
         if reasoning_models and model in reasoning_models:
             output_manager.display_tool_info('Thinking', f"Reasoning Effort: {reasoning_effort}", chain_id=chain_id)
             return openai_client.chat.completions.create(
@@ -135,7 +110,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 messages=messages,
                 reasoning_effort=reasoning_effort,
                 max_completion_tokens=max_tokens,
-                tools=tools,
                 stream=True,
                 stream_options={"include_usage": True},
                 extra_body=prompt_cache.openai_extras(model),
@@ -147,7 +121,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                tools=tools,
                 stream=True,
                 stream_options={"include_usage": True},
                 response_format=response_format,
@@ -170,7 +143,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         # effort/max_tokens exclusivity) is deliberately NOT copied here.
         raw_stream_1 = resilience.restartable(
             lambda: get_response(model, messages, temperature, max_tokens,
-                                 tools, response_format, reasoning_models,
+                                 response_format, reasoning_models,
                                  reasoning_effort),
             openai.APIError, output_manager=output_manager,
             chain_id=chain_id, label="OpenAI")
@@ -187,19 +160,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 if delta and delta.content is not None:
                     collected_messages.append(delta.content)  # save the message
                     output_manager.print_wrapper(delta.content,end="",flush=True,chain_id=chain_id)
-                elif delta and delta.tool_calls:
-                    for tcchunk in delta.tool_calls:
-                        # Ensure tool_calls list is large enough:
-                        while len(tool_calls) <= tcchunk.index:
-                            tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                        tc = tool_calls[tcchunk.index]
-            
-                        if tcchunk.id:
-                            tc["id"] += tcchunk.id
-                        if tcchunk.function.name:
-                            tc["function"]["name"] += tcchunk.function.name
-                        if tcchunk.function.arguments:
-                            tc["function"]["arguments"] += tcchunk.function.arguments
 
             # If there are no choices but usage data is present, accumulate usage tokens.
             elif hasattr(chunk, 'usage') and chunk.usage:
@@ -207,116 +167,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 combined_completion_tokens_used += chunk.usage.completion_tokens
                 combined_total_tokens_used += chunk.usage.total_tokens
 
-        # Process tool calls - may happen multiple times
-        max_iterations = 10  # Prevent infinite loops
-        iteration = 0
-        
-        while tool_calls and iteration < max_iterations:
-            iteration += 1
-            
-            messages.append(
-                {
-                    "tool_calls": tool_calls,
-                    "role": 'assistant',
-                }                    
-            )
-            
-            # Process each tool call
-            for index, tool_call in enumerate(tool_calls):
-                function_name = tool_call['function']['name']
-                function_to_call = available_functions[function_name]
-                function_args = json.loads(tool_call['function']['arguments'])
-                
-                if function_name == "google_search":
-                    google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
-                    function_response, links = function_to_call(
-                        prompt_manager,
-                        log_and_call_manager,
-                        output_manager, 
-                        chain_id,
-                        messages=google_search_messages
-                    )
-                    add_triplet(function_args.get("search_query"), function_response, links)
-
-                elif function_name == "request_user_context":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("query_clarification"),
-                        function_args.get("context_needed")
-                    )
-                    
-                elif function_name == "consult_assistant":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("analytical_goal"),
-                        function_args.get("data_context"),
-                        function_args.get("decision_point"),
-                        function_args.get("options_considered"),
-                        function_args.get("plan_constraints"),
-                        reasoning_models,
-                        api_keys
-                    )
-                
-                messages.append(
-                    {
-                        "tool_call_id": tool_call['id'],
-                        "role": "tool",
-                        "name": function_name,
-                        "content": function_response,
-                    }  # extend conversation with function response
-                )
-
-            # After processing ALL tool calls, get the next stream
-            # The model might want to make more tool calls or provide a final answer
-            # Same pre-token restart on the tool follow-up round.
-            raw_stream = resilience.restartable(
-                lambda: get_response(model, messages, temperature, max_tokens,
-                                     tools, response_format, reasoning_models,
-                                     reasoning_effort),
-                openai.APIError, output_manager=output_manager,
-                chain_id=chain_id, label="OpenAI")
-            stoppable_stream = StoppableStreamWrapper(raw_stream, stop_event)
-            
-            # Reset tool_calls for the next iteration
-            tool_calls = []
-            
-            # Process the new stream
-            for chunk in stoppable_stream:
-                if chunk.choices:  # Only proceed if there are choices
-                    delta = chunk.choices[0].delta
-                    collected_chunks.append(chunk)  # save the event response
-
-                    if delta and delta.content is not None:
-                        collected_messages.append(delta.content)  # save the message
-                        output_manager.print_wrapper(delta.content, end="", flush=True, chain_id=chain_id)
-                    elif delta and delta.tool_calls:
-                        # Model wants to make more tool calls
-                        for tcchunk in delta.tool_calls:
-                            # Ensure tool_calls list is large enough:
-                            while len(tool_calls) <= tcchunk.index:
-                                tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            tc = tool_calls[tcchunk.index]
-                
-                            if tcchunk.id:
-                                tc["id"] += tcchunk.id
-                            if tcchunk.function.name:
-                                tc["function"]["name"] += tcchunk.function.name
-                            if tcchunk.function.arguments:
-                                tc["function"]["arguments"] += tcchunk.function.arguments
-
-                # If there are no choices but usage data is present, accumulate usage tokens
-                elif hasattr(chunk, 'usage') and chunk.usage:
-                    combined_prompt_tokens_used += chunk.usage.prompt_tokens
-                    combined_completion_tokens_used += chunk.usage.completion_tokens
-                    combined_total_tokens_used += chunk.usage.total_tokens
-            
-            # If no new tool calls were requested, we're done
-            if not tool_calls:
-                break
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -347,7 +197,4 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
     else:
         tokens_per_second = 0
 
-    if tools:
-        return full_reply_content, search_triplets, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
-    else:
-        return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
+    return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second

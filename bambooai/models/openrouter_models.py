@@ -58,7 +58,6 @@ THINKING_BUDGET = {
 STREAM_RETRY_BACKOFF = float(os.getenv("STREAM_RETRY_BACKOFF", "2"))
 import tiktoken
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 
 # The dispatcher's turn-level retry catches exactly these; see models/__init__.
@@ -71,17 +70,6 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Module level switches / helpers
 # ---------------------------------------------------------------------------
-
-# When False (default) the text from every streaming round is concatenated, which
-# preserves the historical behaviour: an agent that narrates before calling a tool
-# keeps that narration in the returned content.
-# Flip to True if you would rather only keep the text emitted after the final tool
-# round -- useful when a model emits a partial <plan>/code block, calls a tool, and
-# then re-emits a complete one (concatenation can confuse the reg_ex extractors).
-RETURN_FINAL_ROUND_ONLY = False
-
-# Hard ceiling on tool-call round trips before we force a plain text answer.
-MAX_TOOL_ITERATIONS = 10
 
 # OpenRouter forwards `reasoning.effort` to the upstream provider. Only the gpt-5
 # family accepts "minimal"; everything else expects high|medium|low. bambooai asks
@@ -816,18 +804,18 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                reasoning_models: list = None, reasoning_effort: str = "medium", api_keys=None,
                stop_event: threading.Event = None):
     """
-    Stream responses from OpenRouter's API with complete tool calls and StoppableStreamWrapper support
+    Stream responses from OpenRouter's API, stoppable. `tools` is the Web Search seat's tool and no other: with it the
+    call is one search request (llm_search); without, the stream.
     """
     search = _web_search_tool(tools)
     if search:                # the Web Search seat: one request, the searches run by OpenRouter
         return llm_search(messages, model, temperature, max_tokens, search, reasoning_models, reasoning_effort, api_keys)
+    if tools:
+        raise ValueError("OpenRouter: the only tool this adapter takes is the Web Search seat's")
     collected_chunks = []
-    collected_messages = []   # text from every round
-    round_messages = []       # text from the current round only
+    collected_messages = []
     reasoning_messages = []
-    tool_calls = []
-    search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
+    tool_calls = []           # a call the provider made of the model's own text: turned back into text below
 
     # Initialised up front so the exception handlers can always reference them.
     encoding = _get_encoding()
@@ -858,27 +846,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
 
     openai_client = init(api_keys)
 
-    # Define the available functions
-    request_user_context = context_retrieval.request_user_context
-    consult_assistant = context_retrieval.consult_assistant
-    google_search_function = google_search.SmartSearchOrchestrator(api_keys=api_keys)
-
-    available_functions = {
-        "google_search": google_search_function,
-        "request_user_context": request_user_context,
-        "consult_assistant": consult_assistant
-    }
-
-    def add_triplet(query, result, links):
-        '''Add a triplet to the search_triplets list'''
-        triplet = {
-            "query": query,
-            "result": result,
-            "links": links
-        }
-        search_triplets.append(triplet)
-
-    def get_response(model, messages, temperature, max_tokens, active_tools, response_format,
+    def get_response(model, messages, temperature, max_tokens, response_format,
                      reasoning_models=None, effort="medium"):
         """Helper function to create a streaming response from OpenRouter"""
         if _reasoning_body(model, reasoning_models, effort, max_tokens, style):
@@ -908,13 +876,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         if prompt_cache.takes_cache_control(model):
             request_body["messages"] = prompt_cache.anthropic_messages(
                 request_body.get("messages", messages))
-
-        # Add tools if provided
-        if active_tools:
-            request_body["tools"] = active_tools
-            # Stop OpenRouter's fallback routing from landing on an upstream that
-            # silently ignores the `tools` parameter.
-            extra_body["provider"] = {"require_parameters": True}
 
         # Add response format if provided
         if response_format:
@@ -960,92 +921,13 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                 time.sleep(delay)
         raise last_exc
 
-    def dispatch_tool_calls(pending_tool_calls):
-        """
-        Execute each tool call and append the assistant + tool messages.
-
-        Every tool_call_id MUST receive a matching `role: "tool"` reply, otherwise
-        the follow-up request is rejected for having a dangling call. So failures
-        (unknown function, malformed arguments) are reported back as tool content
-        rather than skipped.
-        """
-        messages.append({
-            "role": "assistant",
-            "content": None,          # some upstreams reject a message with no content key
-            "tool_calls": pending_tool_calls,
-        })
-
-        for tool_call in pending_tool_calls:
-            function_name = tool_call['function']['name']
-            function_to_call = available_functions.get(function_name)
-            function_response = None
-            function_args = None
-
-            try:
-                function_args = json.loads(tool_call['function']['arguments'] or "{}")
-            except json.JSONDecodeError as e:
-                logger.warning(f"Malformed tool arguments for {function_name}: {e}")
-                function_response = f"Error: could not parse arguments for {function_name} ({e}). Please retry with valid JSON."
-
-            if function_response is None and not function_to_call:
-                output_manager.display_system_messages(f"Warning: Unknown function {function_name}")
-                function_response = f"Error: unknown function '{function_name}'. Available functions: {', '.join(available_functions)}."
-
-            if function_response is None:
-                try:
-                    if function_name == "google_search":
-                        google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
-                        function_response, links = function_to_call(
-                            prompt_manager,
-                            log_and_call_manager,
-                            output_manager,
-                            chain_id,
-                            messages=google_search_messages
-                        )
-                        add_triplet(function_args.get("search_query"), function_response, links)
-
-                    elif function_name == "request_user_context":
-                        function_response = function_to_call(
-                            output_manager,
-                            log_and_call_manager,
-                            chain_id,
-                            function_args.get("query_clarification"),
-                            function_args.get("context_needed")
-                        )
-
-                    elif function_name == "consult_assistant":
-                        function_response = function_to_call(
-                            output_manager,
-                            log_and_call_manager,
-                            chain_id,
-                            function_args.get("analytical_goal"),
-                            function_args.get("data_context"),
-                            function_args.get("decision_point"),
-                            function_args.get("options_considered"),
-                            function_args.get("plan_constraints"),
-                            reasoning_models,
-                            api_keys
-                        )
-                except Exception as e:
-                    logger.warning(f"Tool '{function_name}' raised: {e}")
-                    function_response = f"Error: '{function_name}' failed ({e})."
-
-            # Add tool response to messages
-            messages.append({
-                "tool_call_id": tool_call['id'],
-                "role": "tool",
-                "name": function_name,
-                "content": function_response if isinstance(function_response, str) else str(function_response),
-            })
-
     try:
         # Fallback prompt token estimate, replaced by real usage when it arrives.
         prompt_tokens_used = _estimate_prompt_tokens(messages, encoding)
 
-        active_tools = tools
         truncated = False
 
-        # Get the first stream.
+        # Open the stream.
         #
         # _restartable reopens it if the provider closes the connection before
         # sending anything - a distinct failure from one that never opens, and
@@ -1053,162 +935,118 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         def _open_stream():
             return StoppableStreamWrapper(
                 get_response(model, messages, temperature, max_tokens,
-                             active_tools, response_format, reasoning_models,
+                             response_format, reasoning_models,
                              effort),
                 stop_event)
 
         stoppable_stream = _restartable(_open_stream, output_manager, chain_id)
 
-        iteration = 0
+        for chunk in stoppable_stream:
+            collected_chunks.append(chunk)
 
-        while True:
-            iteration += 1
-            tool_calls = []      # Reset for each iteration
-            round_messages = []  # Reset for each iteration
+            # OpenRouter stamps every chunk with the upstream that is
+            # serving it. Without this the 9tps host has no name and the
+            # ignore/order levers have nothing to aim at.
+            served_by = getattr(chunk, 'provider', None) or served_by
 
-            # Process the current stream
-            for chunk in stoppable_stream:
-                collected_chunks.append(chunk)
+            # The usage chunk typically arrives last and carries no choices.
+            chunk_usage = getattr(chunk, 'usage', None)
+            if chunk_usage:
+                saw_usage = True
+                # from_openai_usage reads prompt_tokens_details.cached_tokens
+                # and records it on the side channel that write_to_log
+                # prices. Reading the three top-level fields directly - as
+                # this did - throws the cache split away, so every STREAMING
+                # agent reported zero cached tokens while the non-streaming
+                # llm_call path (which does call it) reported them correctly.
+                # That is why only Executor rows showed a cache hit.
+                prompt_cache.from_openai_usage(chunk_usage)
+                usage_prompt += getattr(chunk_usage, 'prompt_tokens', 0) or 0
+                usage_completion += getattr(chunk_usage, 'completion_tokens', 0) or 0
+                usage_total += getattr(chunk_usage, 'total_tokens', 0) or 0
 
-                # OpenRouter stamps every chunk with the upstream that is
-                # serving it. Keep the last one seen: on a multi-round tool
-                # loop that is the host that produced the final answer, and
-                # on the overwhelmingly common single round they are all the
-                # same. Without this the 9tps host has no name and the
-                # ignore/order levers have nothing to aim at.
-                served_by = getattr(chunk, 'provider', None) or served_by
+            if chunk.choices and len(chunk.choices) > 0:
+                # TRUNCATION WAS INVISIBLE.
+                #
+                # finish_reason == "length" means the model hit max_tokens
+                # mid-answer. Nothing read it, so a half-written response was
+                # returned as if complete and the caller failed later on
+                # unparseable output - which presents as a stall rather than
+                # an error. On a reasoning model the thinking is charged to
+                # the same budget, so a seat can spend it all before writing
+                # anything at all.
+                if getattr(chunk.choices[0], 'finish_reason', None) == 'length':
+                    truncated = True
+                    prompt_cache.record_meta(truncated=True)
 
-                # The usage chunk typically arrives last and carries no choices.
-                chunk_usage = getattr(chunk, 'usage', None)
-                if chunk_usage:
-                    saw_usage = True
-                    # from_openai_usage reads prompt_tokens_details.cached_tokens
-                    # and records it on the side channel that write_to_log
-                    # prices. Reading the three top-level fields directly - as
-                    # this did - throws the cache split away, so every STREAMING
-                    # agent reported zero cached tokens while the non-streaming
-                    # llm_call path (which does call it) reported them correctly.
-                    # That is why only Executor rows showed a cache hit.
-                    prompt_cache.from_openai_usage(chunk_usage)
-                    usage_prompt += getattr(chunk_usage, 'prompt_tokens', 0) or 0
-                    usage_completion += getattr(chunk_usage, 'completion_tokens', 0) or 0
-                    usage_total += getattr(chunk_usage, 'total_tokens', 0) or 0
+                delta = chunk.choices[0].delta
+                if not delta:
+                    continue
 
-                if chunk.choices and len(chunk.choices) > 0:
-                    # TRUNCATION WAS INVISIBLE.
-                    #
-                    # finish_reason == "length" means the model hit max_tokens
-                    # mid-answer. Nothing read it, so a half-written response was
-                    # returned as if complete and the caller failed later on
-                    # unparseable output - which presents as a stall rather than
-                    # an error. On a reasoning model the thinking is charged to
-                    # the same budget, so a seat can spend it all before writing
-                    # anything at all.
-                    if getattr(chunk.choices[0], 'finish_reason', None) == 'length':
-                        truncated = True
-                        prompt_cache.record_meta(truncated=True)
+                # Handle content. These are independent `if`s, not `elif`s:
+                # some upstreams put content and tool_calls in the same delta.
+                if getattr(delta, 'content', None):
+                    collected_messages.append(delta.content)
+                    output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
 
-                    delta = chunk.choices[0].delta
-                    if not delta:
-                        continue
+                # Handle reasoning (for reasoning models).
+                #
+                # thought=True routes this into the collapsible block that
+                # get_response already opened for a reasoning model. Without
+                # it the reasoning went to data.text and appended raw to the
+                # pane, so every reasoning agent dumped its thinking into
+                # the output while its Thinking block sat there empty.
+                # `delta.content` is deliberately NOT marked: that is the
+                # answer, and it belongs in the pane.
+                _rt = _reasoning_delta_text(delta)
+                if _rt:
+                    reasoning_messages.append(_rt)
+                    output_manager.print_wrapper(_rt, end='', flush=True, chain_id=chain_id, thought=True)
 
-                    # Handle content. These are independent `if`s, not `elif`s:
-                    # some upstreams put content and tool_calls in the same delta.
-                    if getattr(delta, 'content', None):
-                        collected_messages.append(delta.content)
-                        round_messages.append(delta.content)
-                        output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
+                # Handle tool calls
+                if getattr(delta, 'tool_calls', None):
+                    for tcchunk in delta.tool_calls:
+                        # `index` is optional on some upstreams; assume slot 0.
+                        idx = getattr(tcchunk, 'index', None)
+                        if idx is None:
+                            idx = 0
 
-                    # Handle reasoning (for reasoning models).
-                    #
-                    # thought=True routes this into the collapsible block that
-                    # get_response already opened for a reasoning model. Without
-                    # it the reasoning went to data.text and appended raw to the
-                    # pane, so every reasoning agent dumped its thinking into
-                    # the output while its Thinking block sat there empty.
-                    # `delta.content` is deliberately NOT marked: that is the
-                    # answer, and it belongs in the pane.
-                    _rt = _reasoning_delta_text(delta)
-                    if _rt:
-                        reasoning_messages.append(_rt)
-                        output_manager.print_wrapper(_rt, end='', flush=True, chain_id=chain_id, thought=True)
+                        while len(tool_calls) <= idx:
+                            tool_calls.append({
+                                "id": "",
+                                "type": "function",
+                                "function": {"name": "", "arguments": ""}
+                            })
+                        tc = tool_calls[idx]
 
-                    # Handle tool calls
-                    if getattr(delta, 'tool_calls', None):
-                        for tcchunk in delta.tool_calls:
-                            # `index` is optional on some upstreams; assume slot 0.
-                            idx = getattr(tcchunk, 'index', None)
-                            if idx is None:
-                                idx = 0
+                        if getattr(tcchunk, 'id', None):
+                            tc["id"] += tcchunk.id
+                        if getattr(tcchunk, 'type', None):
+                            tc["type"] = tcchunk.type
 
-                            while len(tool_calls) <= idx:
-                                tool_calls.append({
-                                    "id": "",
-                                    "type": "function",
-                                    "function": {"name": "", "arguments": ""}
-                                })
-                            tc = tool_calls[idx]
+                        # The opening chunk often carries only id/type, with no
+                        # `function` attribute at all.
+                        fn = getattr(tcchunk, 'function', None)
+                        if fn:
+                            if getattr(fn, 'name', None):
+                                tc["function"]["name"] += fn.name
+                            if getattr(fn, 'arguments', None):
+                                tc["function"]["arguments"] += fn.arguments
 
-                            if getattr(tcchunk, 'id', None):
-                                tc["id"] += tcchunk.id
-                            if getattr(tcchunk, 'type', None):
-                                tc["type"] = tcchunk.type
+        # Drop any slots that never received an id or a name.
+        tool_calls = [tc for tc in tool_calls if tc["id"] and tc["function"]["name"]]
 
-                            # The opening chunk often carries only id/type, with no
-                            # `function` attribute at all.
-                            fn = getattr(tcchunk, 'function', None)
-                            if fn:
-                                if getattr(fn, 'name', None):
-                                    tc["function"]["name"] += fn.name
-                                if getattr(fn, 'arguments', None):
-                                    tc["function"]["arguments"] += fn.arguments
-
-            # Drop any slots that never received an id or a name.
-            tool_calls = [tc for tc in tool_calls if tc["id"] and tc["function"]["name"]]
-
-            # A tool call when NO tools were offered is the provider intercepting the
-            # model's own text (2026-09-05, Muse: the analyst's Python cell came back as
-            # a code-interpreter call with empty content, every other turn). It is not
-            # dispatched - there is nothing to dispatch to - it is turned back into the
-            # text it was: a fenced python block for a code call, the raw arguments else.
-            if tool_calls and not active_tools:
-                salvaged = _tool_calls_as_text(tool_calls)
-                if salvaged:
-                    logger.warning("OpenRouter: %s emitted %d native tool call(s) with no tools offered; "
-                                   "returned as text (%d chars)", model, len(tool_calls), len(salvaged))
-                    collected_messages.append(salvaged)
-                    round_messages.append(salvaged)
-                break
-
-            # If no tool calls, we're done
-            if not tool_calls:
-                break
-
-            # Execute the tool calls and append their results
-            dispatch_tool_calls(tool_calls)
-
-            if iteration >= MAX_TOOL_ITERATIONS:
-                # Force a plain text answer instead of abandoning an unconsumed
-                # stream (or looping forever).
-                logger.warning(
-                    f"Tool call limit ({MAX_TOOL_ITERATIONS}) reached for agent model {model}; "
-                    "requesting a final answer without tools."
-                )
-                output_manager.display_system_messages(
-                    "Warning: tool call limit reached. Requesting a final answer without tools."
-                )
-                active_tools = None
-
-            # Get the next stream after processing tool calls. `messages` and
-            # `active_tools` have changed, so the closure is rebuilt.
-            def _open_stream():
-                return StoppableStreamWrapper(
-                    get_response(model, messages, temperature, max_tokens,
-                                 active_tools, response_format,
-                                 reasoning_models, effort),
-                    stop_event)
-
-            stoppable_stream = _restartable(_open_stream, output_manager, chain_id)
+        # A tool call - none is ever offered - is the provider intercepting the
+        # model's own text (2026-09-05, Muse: the analyst's Python cell came back as
+        # a code-interpreter call with empty content, every other turn). It is turned
+        # back into the text it was: a fenced python block for a code call, the raw
+        # arguments else.
+        if tool_calls:
+            salvaged = _tool_calls_as_text(tool_calls)
+            if salvaged:
+                logger.warning("OpenRouter: %s emitted %d native tool call(s) with no tools offered; "
+                               "returned as text (%d chars)", model, len(tool_calls), len(salvaged))
+                collected_messages.append(salvaged)
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -1216,10 +1054,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         output_manager.print_wrapper("", chain_id=chain_id)
 
         # Get the complete text received
-        if RETURN_FINAL_ROUND_ONLY and round_messages:
-            full_reply_content = ''.join(round_messages)
-        else:
-            full_reply_content = ''.join([m for m in collected_messages])
+        full_reply_content = ''.join([m for m in collected_messages])
         reasoning = ''.join([m for m in reasoning_messages])
 
         # An empty answer with tokens billed (2026-09-05, Muse: every other turn)
@@ -1305,8 +1140,4 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         except Exception:                                       # noqa: BLE001
             pass
 
-    # Return format depends on whether tools were used
-    if tools:
-        return full_reply_content, search_triplets, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
-    else:
-        return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
+    return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second

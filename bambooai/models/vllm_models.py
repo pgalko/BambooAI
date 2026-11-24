@@ -11,7 +11,6 @@ Facts established against vLLM 0.30 serving Qwen3.8-27B (2026-10-02):
     message instead of a traceback.
   * The server never bills: prices are the template's (zero for a local model).
 """
-import json
 import os
 import threading
 import time
@@ -22,7 +21,6 @@ try:
 except ImportError:                                     # the openai client depends on httpx; be tolerant
     httpx = None
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 
 from logger_config import get_logger
@@ -187,41 +185,19 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
                reasoning_models: list = None, reasoning_effort: str = "medium", api_keys=None,
                stop_event: threading.Event = None):  
     """
-    Stream responses from VLLM's API with complete tool calls and StoppableStreamWrapper support
-    Note: VLLM tool support depends on the model being served and may require specific configurations
+    Stream responses from VLLM's API, stoppable. `tools` is the Web Search seat's: this adapter runs no search, and
+    takes none.
     """
     collected_chunks = []
     collected_messages = []
     usage_prompt = usage_completion = usage_reasoning = 0        # the server's counts, from the final chunk
-    tool_calls = []
-    search_triplets = []
-    google_search_messages = [{"role": "system", "content": prompt_manager.google_search_react_system.format(utils.get_readable_date())}]
 
     openai_client = init(api_keys)
     
-    # Define the available functions
-    request_user_context = context_retrieval.request_user_context
-    consult_assistant = context_retrieval.consult_assistant
-    google_search_function = google_search.SmartSearchOrchestrator(api_keys=api_keys)
-
-    available_functions = {
-        "google_search": google_search_function,
-        "request_user_context": request_user_context,
-        "consult_assistant": consult_assistant
-    }
-
-    def add_triplet(query, result, links):
-        '''Add a triplet to the search_triplets list'''
-        triplet = {
-            "query": query,
-            "result": result,
-            "links": links
-        }
-        search_triplets.append(triplet)
 
     from bambooai.models.openrouter_models import _tail_guarded, _reasoning_delta_text   # the same wire protocol, the same guard
 
-    def get_response(model, messages, temperature, max_tokens, tools, response_format):
+    def get_response(model, messages, temperature, max_tokens, response_format):
         """One streaming request to the server, with exact usage at the end, the seat's thinking control,
         and the three-phase guard around the stream."""
         params = {
@@ -258,121 +234,29 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
         prompt_tokens_used += 3  # reply primer
         _preflight(output_manager, chain_id, model, prompt_tokens_used, max_tokens)
         
-        # Get the first stream
-        raw_stream = get_response(model, messages, temperature, max_tokens, tools, response_format)
+        raw_stream = get_response(model, messages, temperature, max_tokens, response_format)
         stoppable_stream = StoppableStreamWrapper(raw_stream, stop_event)
-        
-        # Process tool calls - may happen multiple times
-        max_iterations = 10  # Prevent infinite loops
-        iteration = 0
-        
-        while iteration < max_iterations:
-            iteration += 1
-            tool_calls = []  # Reset for each iteration
-            
-            # Process the current stream
-            for chunk in stoppable_stream:
-                collected_chunks.append(chunk)
-                chunk_usage = getattr(chunk, 'usage', None)
-                if chunk_usage:                                     # the final chunk: the server's own counts
-                    usage_prompt = getattr(chunk_usage, 'prompt_tokens', 0) or 0
-                    usage_completion = getattr(chunk_usage, 'completion_tokens', 0) or 0
-                    details = getattr(chunk_usage, 'completion_tokens_details', None)
-                    usage_reasoning = (getattr(details, 'reasoning_tokens', 0) or 0) if details else 0
-                
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta = chunk.choices[0].delta
-                    reasoning_text = _reasoning_delta_text(delta) if delta else None
-                    if reasoning_text:                              # the model's thinking: the pane's reasoning block, never the answer
-                        output_manager.print_wrapper(reasoning_text, end='', flush=True, chain_id=chain_id, thought=True)
-                    
-                    # Handle content
-                    if delta and delta.content:
-                        collected_messages.append(delta.content)
-                        output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
-                    
-                    # Handle tool calls (if supported by your VLLM setup)
-                    elif delta and hasattr(delta, 'tool_calls') and delta.tool_calls:
-                        for tcchunk in delta.tool_calls:
-                            # Ensure tool_calls list is large enough
-                            while len(tool_calls) <= tcchunk.index:
-                                tool_calls.append({"id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            tc = tool_calls[tcchunk.index]
-                            
-                            if tcchunk.id:
-                                tc["id"] += tcchunk.id
-                            if tcchunk.function.name:
-                                tc["function"]["name"] += tcchunk.function.name
-                            if tcchunk.function.arguments:
-                                tc["function"]["arguments"] += tcchunk.function.arguments
-            
-            # If no tool calls, we're done
-            if not tool_calls:
-                break
-            
-            # Process tool calls
-            messages.append({
-                "tool_calls": tool_calls,
-                "role": 'assistant',
-            })
-            
-            # Execute each tool call
-            for tool_call in tool_calls:
-                function_name = tool_call['function']['name']
-                function_to_call = available_functions.get(function_name)
-                
-                if not function_to_call:
-                    output_manager.display_system_messages(f"Warning: Unknown function {function_name}")
-                    continue
-                
-                function_args = json.loads(tool_call['function']['arguments'])
-                
-                if function_name == "google_search":
-                    google_search_messages.append({"role": "user", "content": function_args.get("search_query")})
-                    function_response, links = function_to_call(
-                        prompt_manager,
-                        log_and_call_manager,
-                        output_manager, 
-                        chain_id,
-                        messages=google_search_messages
-                    )
-                    add_triplet(function_args.get("search_query"), function_response, links)
-                
-                elif function_name == "request_user_context":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("query_clarification"),
-                        function_args.get("context_needed")
-                    )
 
-                elif function_name == "consult_assistant":
-                    function_response = function_to_call(
-                        output_manager,
-                        log_and_call_manager,
-                        chain_id,
-                        function_args.get("analytical_goal"),
-                        function_args.get("data_context"),
-                        function_args.get("decision_point"),
-                        function_args.get("options_considered"),
-                        function_args.get("plan_constraints"),
-                        reasoning_models,
-                        api_keys
-                    )
+        for chunk in stoppable_stream:
+            collected_chunks.append(chunk)
+            chunk_usage = getattr(chunk, 'usage', None)
+            if chunk_usage:                                     # the final chunk: the server's own counts
+                usage_prompt = getattr(chunk_usage, 'prompt_tokens', 0) or 0
+                usage_completion = getattr(chunk_usage, 'completion_tokens', 0) or 0
+                details = getattr(chunk_usage, 'completion_tokens_details', None)
+                usage_reasoning = (getattr(details, 'reasoning_tokens', 0) or 0) if details else 0
                 
-                # Add tool response to messages
-                messages.append({
-                    "tool_call_id": tool_call['id'],
-                    "role": "tool",
-                    "name": function_name,
-                    "content": function_response,
-                })
-            
-            # Get the next stream after processing tool calls
-            raw_stream = get_response(model, messages, temperature, max_tokens, tools, response_format)
-            stoppable_stream = StoppableStreamWrapper(raw_stream, stop_event)
-        
+            if chunk.choices and len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                reasoning_text = _reasoning_delta_text(delta) if delta else None
+                if reasoning_text:                              # the model's thinking: the pane's reasoning block, never the answer
+                    output_manager.print_wrapper(reasoning_text, end='', flush=True, chain_id=chain_id, thought=True)
+                    
+                # Handle content
+                if delta and delta.content:
+                    collected_messages.append(delta.content)
+                    output_manager.print_wrapper(delta.content, end='', flush=True, chain_id=chain_id)
+
         end_time = time.time()
         elapsed_time = end_time - start_time
         
@@ -416,8 +300,4 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager, chain_id: s
             output_manager.display_system_messages(f"Unexpected error: {str(e)}")
             raise
     
-    # Return format depends on whether tools were used
-    if tools:
-        return full_reply_content, search_triplets, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
-    else:
-        return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second
+    return full_reply_content, messages, prompt_tokens_used, completion_tokens_used, total_tokens_used, elapsed_time, tokens_per_second

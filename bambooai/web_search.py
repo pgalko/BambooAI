@@ -304,7 +304,7 @@ class WebSearch:
             instruction = SEARCH_INSTRUCTION + " " + WITH_LINKS
             reasoning = [m for m, p in (models.get_model_properties() or {}).items() if (p or {}).get("capability") == "reasoning"]
         elif provider == "gemini":
-            tool, instruction, reasoning = {"name": "google_search"}, SEARCH_INSTRUCTION, None      # called as it was before 0335
+            tool, instruction, reasoning = {"name": "google_search"}, SEARCH_INSTRUCTION, None      # Google's own search: the Gemini adapter knows it by this name
         else:
             raise ValueError(unavailable(models.config, self.api_keys) or f"the {seat} seat cannot search")
 

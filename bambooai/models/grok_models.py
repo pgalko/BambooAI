@@ -1,10 +1,8 @@
-import json
 import os
 import threading
 import time
 import openai
 
-from bambooai import google_search, utils, context_retrieval
 from bambooai.utils import StoppableStreamWrapper
 
 # The dispatcher's turn-level retry catches exactly these; see models/__init__.
@@ -60,33 +58,6 @@ def _convert_messages_to_input(messages):
         if role in ('system', 'user', 'assistant'):
             input_items.append({"role": role, "content": content})
     return input_items
-
-
-def _convert_tools(tools):
-    """
-    Convert Chat Completions nested tool format to Responses API flat format.
-    
-    Chat Completions:  {"type": "function", "function": {"name": ..., "parameters": ...}}
-    Responses API:     {"type": "function", "name": ..., "parameters": ...}
-    
-    If tools are already in flat format (e.g. grok_responses_tools_definition),
-    they pass through unchanged.
-    """
-    if not tools:
-        return None
-    converted = []
-    for tool in tools:
-        if "function" in tool:
-            func = tool["function"]
-            converted.append({
-                "type": "function",
-                "name": func["name"],
-                "description": func.get("description", ""),
-                "parameters": func.get("parameters", {}),
-            })
-        else:
-            converted.append(tool)
-    return converted
 
 
 # ---------------------------------------------------------------------------
@@ -174,7 +145,7 @@ def llm_call(messages: str, model: str, temperature: str, max_tokens: str,
 
 
 # ---------------------------------------------------------------------------
-# Streaming call (with tool-call loop)
+# Streaming call
 # ---------------------------------------------------------------------------
 
 def llm_stream(prompt_manager, log_and_call_manager, output_manager,
@@ -187,7 +158,7 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
         reasoning_effort=reasoning_effort,
         max_tokens=max_tokens)
     """
-    Streaming Responses API call with tool-call support via xAI.
+    Streaming Responses API call via xAI. `tools` is the Web Search seat's: this adapter runs no search, and takes none.
     Return signature matches the existing grok_models.llm_stream exactly.
     
     Key xAI differences from the OpenAI Responses module:
@@ -198,42 +169,18 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
       summaries via {"summary": "auto"} instead.
     """
     collected_messages = []
-    function_calls = []
-    search_triplets = []
-    google_search_messages = [
-        {"role": "system",
-         "content": prompt_manager.google_search_react_system.format(
-             utils.get_readable_date())}
-    ]
 
     client = init(api_keys)
 
-    # Available tool implementations
-    available_functions = {
-        "google_search": google_search.SmartSearchOrchestrator(api_keys=api_keys),
-        "request_user_context": context_retrieval.request_user_context,
-        "consult_assistant": context_retrieval.consult_assistant,
-    }
-
-    def add_triplet(query, result, links):
-        search_triplets.append(
-            {"query": query, "result": result, "links": links}
-        )
-
     # --- Convert from internal message format ---
     input_items = _convert_messages_to_input(messages)
-    converted_tools = _convert_tools(tools)
 
     # ------------------------------------------------------------------
     # Request builder
     # ------------------------------------------------------------------
     def build_kwargs(input_data):
         """
-        Build request kwargs for each streaming call.
-        
-        Because store=False, we cannot use previous_response_id (xAI has
-        no server-side state to chain to).  Instead, the tool-call loop
-        passes the full accumulated context as input_data each time.
+        Build request kwargs for the streaming call. store=False: nothing is kept on xAI's servers.
         """
         kw = dict(
             model=model,
@@ -258,8 +205,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
 
         kw["max_output_tokens"] = max_tokens
 
-        if converted_tools:
-            kw["tools"] = converted_tools
         if response_format:
             kw["text"] = {"format": response_format}
 
@@ -271,19 +216,13 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
     def process_stream(stream):
         """
         Iterate over a Responses API event stream.
-        Populates collected_messages / function_calls.
-        Returns (output_items, prompt_tokens, completion_tokens).
-
-        output_items contains all completed items from the response
-        (reasoning, messages, function_calls) — needed for stateless
-        context passing on the next tool-call iteration.
+        Populates collected_messages. Returns (prompt_tokens, completion_tokens).
 
         Handles ALL known reasoning event types since xAI may emit
         different events than OpenAI:
         - response.reasoning_text.delta        (raw reasoning text)
         - response.reasoning_summary_text.delta (reasoning summaries)
         """
-        output_items = []
         usage_prompt = usage_completion = 0
         thinking_buffer = []
 
@@ -323,14 +262,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
                 output_manager.print_wrapper(
                     event.delta, end="", flush=True, chain_id=chain_id,
                 )
-
-            # -- Completed output items --
-            elif event.type == "response.output_item.done":
-                # Collect ALL output items for stateless context passing
-                # (includes reasoning items with encrypted_content)
-                output_items.append(event.item)
-                if getattr(event.item, 'type', None) == "function_call":
-                    function_calls.append(event.item)
 
             # -- Response completed (carries usage data) --
             elif event.type == "response.completed":
@@ -372,51 +303,10 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
                 chain_id=chain_id, thought=True,
             )
 
-        return output_items, usage_prompt, usage_completion
+        return usage_prompt, usage_completion
 
     # ------------------------------------------------------------------
-    # Tool executor
-    # ------------------------------------------------------------------
-    def execute_tool(function_name, function_args):
-        """Execute a single tool call, return the string result."""
-        function_to_call = available_functions.get(function_name)
-        if function_to_call is None:
-            raise ValueError(f"Unknown function: {function_name}")
-
-        if function_name == "google_search":
-            google_search_messages.append(
-                {"role": "user",
-                 "content": function_args.get("search_query")}
-            )
-            result, links = function_to_call(
-                prompt_manager, log_and_call_manager, output_manager,
-                chain_id, messages=google_search_messages,
-            )
-            add_triplet(function_args.get("search_query"), result, links)
-            return result
-
-        if function_name == "request_user_context":
-            return function_to_call(
-                output_manager, log_and_call_manager, chain_id,
-                function_args.get("query_clarification"),
-                function_args.get("context_needed"),
-            )
-
-        if function_name == "consult_assistant":
-            return function_to_call(
-                output_manager, log_and_call_manager, chain_id,
-                function_args.get("analytical_goal"),
-                function_args.get("data_context"),
-                function_args.get("decision_point"),
-                function_args.get("options_considered"),
-                function_args.get("plan_constraints"),
-                reasoning_models, api_keys,
-            )
-
-        raise ValueError(f"Unknown function: {function_name}")
-
-    # ------------------------------------------------------------------
-    # Main streaming loop (stateless — full context each call)
+    # Main streaming loop
     # ------------------------------------------------------------------
     try:
         combined_prompt = 0
@@ -435,49 +325,9 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
             openai.APIError, output_manager=output_manager,
             chain_id=chain_id, label="xAI")
         stream = StoppableStreamWrapper(raw_stream, stop_event)
-        output_items, p_tok, c_tok = process_stream(stream)
+        p_tok, c_tok = process_stream(stream)
         combined_prompt += p_tok
         combined_completion += c_tok
-
-        # Tool-call loop (stateless context accumulation)
-        # Each iteration rebuilds the full context:
-        #   original input + all prior output items + new tool outputs
-        max_iterations = 10
-        iteration = 0
-        accumulated_context = list(input_items)  # Start with original input
-
-        while function_calls and iteration < max_iterations:
-            iteration += 1
-
-            # Append the model's output items (reasoning, function_calls, etc.)
-            # to the accumulated context
-            accumulated_context.extend(output_items)
-
-            # Execute tools and append function_call_output items
-            for fc in function_calls:
-                func_args = json.loads(fc.arguments)
-                result = execute_tool(fc.name, func_args)
-                accumulated_context.append({
-                    "type": "function_call_output",
-                    "call_id": fc.call_id,
-                    "output": result,
-                })
-
-            function_calls = []  # Reset for next iteration
-
-            # Same pre-token restart on the tool follow-up round.
-            raw_stream = resilience.restartable(
-                lambda: client.responses.create(
-                    **build_kwargs(accumulated_context)),
-                openai.APIError, output_manager=output_manager,
-                chain_id=chain_id, label="xAI")
-            stream = StoppableStreamWrapper(raw_stream, stop_event)
-            output_items, p_tok, c_tok = process_stream(stream)
-            combined_prompt += p_tok
-            combined_completion += c_tok
-
-            if not function_calls:
-                break
 
         end_time = time.time()
         elapsed_time = end_time - start_time
@@ -504,14 +354,9 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
                 combined_completion / elapsed_time if elapsed_time > 0 else 0
             )
             output_manager.print_wrapper("", chain_id=chain_id)
-            if tools:
-                return (full_reply_content, search_triplets, messages,
-                        combined_prompt, combined_completion, combined_total,
-                        elapsed_time, tokens_per_second)
-            else:
-                return (full_reply_content, messages,
-                        combined_prompt, combined_completion, combined_total,
-                        elapsed_time, tokens_per_second)
+            return (full_reply_content, messages,
+                    combined_prompt, combined_completion, combined_total,
+                    elapsed_time, tokens_per_second)
         else:
             output_manager.display_system_messages(
                 f"xAI Grok API Error: {str(e)}"
@@ -526,11 +371,6 @@ def llm_stream(prompt_manager, log_and_call_manager, output_manager,
         combined_completion / elapsed_time if elapsed_time > 0 else 0
     )
 
-    if tools:
-        return (full_reply_content, search_triplets, messages,
-                combined_prompt, combined_completion, combined_total,
-                elapsed_time, tokens_per_second)
-    else:
-        return (full_reply_content, messages,
-                combined_prompt, combined_completion, combined_total,
-                elapsed_time, tokens_per_second)
+    return (full_reply_content, messages,
+            combined_prompt, combined_completion, combined_total,
+            elapsed_time, tokens_per_second)

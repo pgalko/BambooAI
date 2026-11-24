@@ -17,8 +17,6 @@ class Out:
     def display_tool_info(self, *a, **k): pass
     def print_wrapper(self, *a, **k): pass
 
-class PM: google_search_react_system = "{}"
-
 class Client:
     def __init__(self, exc): self.exc = exc; self.calls = 0
     @property
@@ -31,10 +29,9 @@ REQ = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
 
 def run(exc):
     out, client = Out(), Client(exc)
-    with mock.patch.object(O, "init", return_value=client), mock.patch.object(O.google_search, "SmartSearchOrchestrator"), \
-         mock.patch.object(resilience, "STREAM_RETRY_BACKOFF", 0):
+    with mock.patch.object(O, "init", return_value=client), mock.patch.object(resilience, "STREAM_RETRY_BACKOFF", 0):
         try:
-            O.llm_stream(PM(), None, out, "c", [], "gpt-x", 0, 100)
+            O.llm_stream(None, None, out, "c", [], "gpt-x", 0, 100)
             raised = None
         except BaseException as e:
             raised = e

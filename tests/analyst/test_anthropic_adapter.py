@@ -75,7 +75,7 @@ def _drive(details, stream=None):
     om, got = _OM(), []
     A.init = lambda api_keys=None: NS(messages=NS(create=lambda **kw: (stream if stream is not None else _refusal_stream(details))))
     A.set_model_properties(SONNET); A.set_reasoning_style("effort"); A.set_reasoning_efforts(SONNET["reasoning_efforts"])
-    r = A.call_and_parse_stream(om, got, None, [{"role": "user", "content": "q"}], "sys", "claude-sonnet-5-5", 0, 1000, "c1",
+    r = A.call_and_parse_stream(om, got, [{"role": "user", "content": "q"}], "sys", "claude-sonnet-5-5", 0, 1000, "c1",
                                 api_keys={"anthropic": "k"}, effort="high")
     return om, got, r, prompt_cache.last_meta()
 _init = A.init
@@ -86,7 +86,7 @@ try:
           got == ["[claude-sonnet-5-5 declined this request: stop_reason refusal, reasoning_extraction]"]
           and om.msgs == ["claude-sonnet-5-5 declined this request (stop_reason: refusal, reasoning_extraction): The request asks for the model's reasoning."]
           and meta.get("declined") == "reasoning_extraction" and meta.get("declined_why") == "The request asks for the model's reasoning."
-          and r[6] == 412 and r[7] == 0, (got, om.msgs, meta, r[6:]))
+          and r[2] == 412 and r[3] == 0, (got, om.msgs, meta, r[2:]))
     om, got, r, meta = _drive(None)
     check("a refusal without stop_details (an older SDK, or no category): 'no category given', and nothing else differs",
           got == ["[claude-sonnet-5-5 declined this request: stop_reason refusal, no category given]"]
@@ -98,7 +98,7 @@ try:
     check("a thinking block streams to the pane as thought, the text as text; the meta carries the thinking's length and block count; the reply is the text alone",
           om.thoughts == ["Sea-level laps are the abroad ", "sessions; fit within athlete."] and "".join(om.text) == "###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"
           and got == ["###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"] and meta.get("thinking_chars") == 59 and meta.get("thinking_blocks") == 1
-          and r[5][0].thinking == "Sea-level laps are the abroad sessions; fit within athlete." and r[7] == 90, (om.thoughts, om.text, got, meta))
+          and r[3] == 90, (om.thoughts, om.text, got, meta))
     om, got, r, meta = _drive(None, stream=_thinking_stream([]))
     check("a reply with no thinking block (adaptive thinking skipped it): nothing on the thought channel, thinking_chars 0 and thinking_blocks 0 in the meta",
           om.thoughts == [] and meta.get("thinking_chars") == 0 and meta.get("thinking_blocks") == 0 and got == ["###STEP###\nDone.\n###NOTE###\nn\n###ACTION###\nNAMES"], (om.thoughts, meta))
