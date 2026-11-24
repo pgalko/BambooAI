@@ -34,3 +34,6 @@ stripe>=16,<17
 httpx
 pdfplumber
 python-docx
+pyyaml
+requests
+psutil
