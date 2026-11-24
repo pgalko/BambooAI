@@ -1816,6 +1816,8 @@ class BambooAI:
             if self.webui:
                 kwargs["simplified_answer"] = run.rewrite or None
                 kwargs["report_head"] = self._report_head(run, mode)
+            else:                                   # printed outside the page: the sources under the answer as lines (0340)
+                kwargs["answer"] += sources_mod.as_text(self._report_sources(run))
             self.output_manager.display_results(**kwargs)
         try:
             self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
@@ -1847,7 +1849,12 @@ class BambooAI:
         # trajectory, not the result (Palo, 2026-10-17); the typed question stands in when the note has no such line
         return {"title": run.title or "", "question": question_line(run.note) or run.question or "", "data": data,
                 "mode": str(mode or ""), "replay": run.replay_status or "",
-                "cells": len(run.cells()), "prepared": time.strftime("%Y-%m-%d")}
+                "cells": len(run.cells()), "prepared": time.strftime("%Y-%m-%d"), "sources": self._report_sources(run)}
+
+    def _report_sources(self, run):
+        """The sources under the report (0340): the pages it cites, by the numbers its path's searches gave them - each
+        its number, title, address and site. The page draws the list and the chips in the text from these."""
+        return sources_mod.of_report(run.report, [t.stdout for t in self.notebook.searches(run.id)]) if self.notebook is not None else []
 
     # --------------------------------------------------------- infographic
     def _generate_synthesis_image(self, report_text):

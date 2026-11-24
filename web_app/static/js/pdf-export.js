@@ -153,6 +153,10 @@ function injectPrintStyles() {
             }
             #pdf-print-container .cite.doc, #pdf-print-container .cite.ctx { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; }
             #pdf-print-container .cite.web { color: #1f5f8b; border-color: #9cbfd8; background: #eef5fb !important; text-decoration: none; }   /* a web source (0337): a link, kept as one in the PDF */
+            #pdf-print-container .answer-sources ol { margin: 0; padding: 0; list-style: none; }   /* the report's sources (0340): a number, the title, the site */
+            #pdf-print-container .answer-sources li { margin: 0 0 2pt; }
+            #pdf-print-container .answer-sources .src a { color: #222; text-decoration: none; }
+            #pdf-print-container .answer-sources .site { margin-left: 4pt; color: #777; }
             #pdf-print-container .cite.fig { color: #6b4e16; border-color: #d5c39a; background: #fbf6ea !important; }
             #pdf-print-container .pdf-meta {
                 font-size: 9pt;

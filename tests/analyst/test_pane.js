@@ -41,23 +41,32 @@ check('the read marks the view reads are the same map', w.documentsReadMarks['D1
 const cited = w.paneCiteHtml('<p>Rain was 40% above [D1.3] and plots [cell 2] <code>x[D1.3]</code> <a title="[cell 9]">t</a></p>');
 check('paneCiteHtml: chips in the text between tags - a document chip with its passage, a cell chip - and nothing inside a tag is touched',
       cited.includes('data-unit="D1.3"') && cited.includes('paneOpenRecipe(this,2)') && cited.includes('title="[cell 9]"') && cited.split('class="cite').length === 4, cited);
-// the report's web sources (0337): its Sources list - each item a source's number, the page's title as a link and, after it,
-// its site (0338) - says where a citation [3] leads
-const withSources = w.paneCiteHtml('<p>Loam gave 3.2 t/ha [1]. The unit is the plot [2][1]; <code>[1]</code>, a[2], [2024], [9], [cell 2] and <a href="https://other.example.org/">a page [1]</a>.</p>'
-  + '<h2 id="sources">Sources</h2><ul>\n<li>[1] <a href="https://www.fao.org/agriculture/crops/field-trials?a=1&amp;b=2">Designing crop <em>field</em> trials</a> (fao.org)</li>\n'
-  + '<li>[2] <a href="https://onlinelibrary.wiley.com/journal/agronomy">Repeated &quot;measures&quot;</a> (onlinelibrary.wiley.com)</li>\n</ul>');
-check('a web source cited by its number is a chip that opens the page in another tab - where the report\'s Sources list has a page under that number -, in the text and in the list; its hover '
-  + 'names the page and its site; a number in code, an index, a year, a number of no source and one inside a link stay as written; a link to another site opens in another tab',
-  withSources.split('class="cite web"').length === 6
-  && withSources.includes('<a class="cite web" href="https://www.fao.org/agriculture/crops/field-trials?a=1&amp;b=2" target="_blank" rel="noopener noreferrer" title="Designing crop field trials — fao.org">1</a>')
-  && withSources.includes('title="Repeated &quot;measures&quot; — onlinelibrary.wiley.com">2</a><a class="cite web"')
+// the report's web sources as data (0340): the pages it cites, as the host sends them with the report - the chips in its text and the
+// list under it are drawn from them (the chips had been made from a list read back out of the rendered answer)
+const webPages = [{n: 1, title: 'Designing crop field trials [PDF]', url: 'https://www.fao.org/agriculture/crops/field-trials?a=1&b=2', host: 'fao.org'},
+                  {n: 2, title: 'Repeated "measures" & <i>plots</i> at $5 to $10, *two* seasons', url: 'https://onlinelibrary.wiley.com/journal/agronomy', host: 'onlinelibrary.wiley.com'}];
+const withSources = w.paneCiteHtml('<p>Loam gave 3.2 t/ha [1]. The unit is the plot [2][1]; <code>[1]</code>, a[2], [2024], [9], [cell 2] and <a href="https://other.example.org/">a page [1]</a>.</p>', webPages);
+check('a web source cited by its number is a chip that opens the page in another tab where the report\'s sources have a page under that number; its hover names the page and its site; '
+  + 'a number in code, an index, a year, a number of no source and one inside a link stay as written; a link to another site opens in another tab',
+  withSources.split('class="cite web"').length === 4
+  && withSources.includes('<a class="cite web" href="https://www.fao.org/agriculture/crops/field-trials?a=1&amp;b=2" target="_blank" rel="noopener noreferrer" title="Designing crop field trials [PDF] — fao.org">1</a>')
+  && withSources.includes('title="Repeated &quot;measures&quot; &amp; &lt;i&gt;plots&lt;/i&gt; at $5 to $10, *two* seasons — onlinelibrary.wiley.com">2</a><a class="cite web"')
   && withSources.includes('<code>[1]</code>, a[2], [2024], [9], ') && withSources.includes('paneOpenRecipe(this,2)')
-  && withSources.includes('<a href="https://other.example.org/" target="_blank" rel="noopener noreferrer">a page [1]</a>')
-  && withSources.includes('<li><a class="cite web"')
-  && withSources.includes('</a> <a href="https://www.fao.org/agriculture/crops/field-trials?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">Designing crop <em>field</em> trials</a> (fao.org)</li>'), withSources);
-check('an answer without a Sources list keeps its bracketed numbers; a link that leads to no other site is left as written',
+  && withSources.includes('<a href="https://other.example.org/" target="_blank" rel="noopener noreferrer">a page [1]</a>'), withSources);
+check('an answer without sources keeps its bracketed numbers; a link that leads to no other site is left as written',
   w.paneCiteHtml('<p>Loam [1] and <a href="#x">here</a> <a title="t">t</a></p>') === '<p>Loam [1] and <a href="#x">here</a> <a title="t">t</a></p>'
+  && w.paneCiteHtml('<p>Loam [1]</p>', []) === '<p>Loam [1]</p>'
   && w.paneCite('web', { n: '3', url: 'https://www.fao.org/a', title: 'A page', host: 'fao.org' }) === '<a class="cite web" href="https://www.fao.org/a" target="_blank" rel="noopener noreferrer" title="A page — fao.org">3</a>');
+const listHtml = w.paneSourcesHtml(webPages), listBox = doc.createElement('div'); listBox.innerHTML = listHtml;
+const listItems = listBox.querySelectorAll('.answer-sources li');
+check('the list under the answer (0340): a heading and a line for each page - its number as the text\'s chip, its title as a link opening it in another tab, its site; a title is text, '
+  + 'whatever it holds - its brackets, its pairs of $, its stars, its quotes and a tag are no markup and no formula; no pages, no list',
+  listBox.querySelector('.answer-sources h2').textContent === 'Sources' && listItems.length === 2
+  && listItems.map(li => li.textContent).join('|') === '1Designing crop field trials [PDF]fao.org|2Repeated "measures" & <i>plots</i> at $5 to $10, *two* seasonsonlinelibrary.wiley.com'
+  && listItems[0].querySelector('.src a').getAttribute('href') === 'https://www.fao.org/agriculture/crops/field-trials?a=1&b=2' && listItems[0].querySelector('.src a').getAttribute('target') === '_blank'
+  && listItems[1].querySelector('.cite.web').getAttribute('title') === 'Repeated "measures" & <i>plots</i> at $5 to $10, *two* seasons — onlinelibrary.wiley.com'
+  && listItems[1].querySelector('.site').textContent === 'onlinelibrary.wiley.com' && !/\\\[|<em>|<strong>|<i>/.test(listHtml)
+  && w.paneSourcesHtml([]) === '' && w.paneSourcesHtml(null) === '', listHtml);
 // a READ over the context (docs/CONTEXT_DESIGN.md S2): the chip's hover carries the passage's day, kind and author with the
 // quote, and the original beneath it when the quote is a rendering; the click lands on the READ in the Investigation tab
 w.paneLookupStart({kind:'read', query:'CTX the legs on the climbs', model:'deepseek/deepseek-v4.1-flash'});

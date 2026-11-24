@@ -183,6 +183,17 @@
 #content-answer .markdown-content code { font-size: 12.5px; }
 #content-answer .answer-key .value { font-size: 16px; }
 #content-answer .answer-provenance { font-size: var(--fs-meta); }
+/* the report's sources (0340): drawn from the pages it cites - its number as the text's chip, the title, the site; no bullets, the
+   numbers in one column. The title in the text's colour and the blue on hover: the chips carry the blue */
+#content-answer .answer-sources { margin-top: 26px; }
+#content-answer .answer-sources h2 { margin: 0 0 10px; }
+#content-answer .answer-sources ol { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+#content-answer .answer-sources li { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: baseline; margin: 0; }
+#content-answer .answer-sources li > .cite.web { justify-self: end; }
+#content-answer .answer-sources .src { font-size: 13.5px; line-height: 1.45; }
+#content-answer .answer-sources .src a { color: var(--text-primary); text-decoration: none; }
+#content-answer .answer-sources .src a:hover { color: var(--c-lookup); text-decoration: underline; }
+#content-answer .answer-sources .site { margin-left: 8px; font-size: 12px; color: var(--text-quaternary); white-space: nowrap; }
 
 /* ---- an Explore page kept from before 2.8 (the retired ideas path): its five questions as cards, to be read. Nothing
    makes these cards any more, and nothing runs them: the questions that follow an analysis are in the left pane (pane.css). */

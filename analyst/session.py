@@ -1257,14 +1257,11 @@ class Session:
 
     # ----- the ending: rewrite, guards, replay ------------------------------
     def _finish(self, run: Run, report_text: str, budget: Budget, spent: float) -> None:
-        # one list of sources under a report, the engine's (0338: the analyst ended its report with a list of its own, the
-        # engine's came under it, and the Rewriter copied the first): a list the analyst made of the path's pages is taken
-        # out here, before the figures step, the guards and the Rewriter read the report, and the pages it named are listed
-        searched = [t.stdout for t in self.nb.searches(run.id)]
-        known = sources.along(searched)
-        report_text, named = sources.own_list(rep.repair_markdown_tables(report_text), known)
+        # the page draws the report's sources itself, from its searches (0340): a list of them the analyst wrote all the same
+        # goes, before the figures step, the guards and the Rewriter read the report
+        report_text = sources.drop_list(rep.repair_markdown_tables(report_text))
         run.title = report_title(report_text)         # the report's first line, the analyst's own title (2026-10-17); '' when it opens otherwise
-        run.report = report_text + sources.listing(report_text, known, named)      # on the record from here (a stop during the steps below keeps it)
+        run.report = report_text                      # as written, on the record from here (a stop during the steps below keeps it)
         # the figures, drawn once, after the report, from the variables the cells left in the kernel (2026-10-11): the
         # report gains a Figures section that cites them, and from here on the section is part of the report - the
         # guards, the rewrite, the replay and a routine read it as such
@@ -1289,6 +1286,7 @@ class Session:
         stated = ([self._brief(run)] if run.brief else []) + [t.stdout for t in run.turns if t.kind == "show" and (t.stdout or "").startswith("--- saved analysis ")]
         # a number in a claim a search of the path tied to a source is the source's (0337: a report made of sourced dates
         # ended by calling each of them unverified); one the search gave no source for is not
+        searched = [t.stdout for t in self.nb.searches(run.id)]
         claimed = [text for text in (sources.claims(d) for d in searched) if text]
         check = rep.guard_technical(report_text, [evidence_text(c) for c in cells] + [evidence_code(c) for c in cells] + unit_texts + stated + claimed,
                                     searched=bool(claimed))
@@ -1305,8 +1303,7 @@ class Session:
             # said what they expect and the report gives no verdict on it
             answered = run.brief_outcome["stated"] and (run.brief_outcome["expected"] or not run.brief.get("expects"))
             check_b = BRIEF_UNANSWERED if briefs.held(run.brief, has_data(run.data)) and not answered else ""
-        # the report ends with the pages it cites, each a link (0337): the reader follows a citation [3] from there
-        run.report = report_text + sources.listing(report_text, known, named) + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
+        run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
         # the plain-language rewrite by the same analyst
         self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
         t_rw = time.time()
@@ -1315,9 +1312,9 @@ class Session:
                    "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
         # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
         # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
-        rewrite, named_plain = sources.own_list(with_title(strip_cell_tokens(strip_scaffold(text)), run.title), known)      # its own list out, as the report's
+        rewrite = sources.drop_list(with_title(strip_cell_tokens(strip_scaffold(text)), run.title))      # a list of sources of its own goes, as the report's
         check2 = rep.guard_rewrite(rewrite, report_text)
-        run.rewrite = rewrite + sources.listing(rewrite, known, named_plain) + (f"\n\n> {check2}" if check2 else "")
+        run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
         # the review after the report: only in a run that has reviews during it (Adaptive). Quick and Deep make no reviewer
         # call at all (2026-10-05, Palo: in Deep it cost 35-40% of the run and 20-40 s, before the replay, for no value a

@@ -365,13 +365,17 @@ async function updateTabContent(type, data, id = null, format = null) {
             // Restore LaTeX content; then the citation chips - [cell 7], [fig 7], [D1.17] - as part of the HTML itself, so
             // the stored technical answer carries them through toggles and re-renders (stream-pane.js, 2026-10-03)
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
-            if (type === 'answer' && typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
+            // the report's sources (0340): the host sends them with the report's head, as data - the chips in the text and the list
+            // under it are drawn from them
+            const sources = (currentData.reportHead && currentData.reportHead.sources) || [];
+            if (type === 'answer' && typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent, sources);
             // what the report says against its brief is not the answer's: it goes to the run's Brief tab (architect.js, 0312)
             if (window.ArchitectUI) {
                 const cut = window.ArchitectUI.cutAnswer(finalContent);
                 finalContent = cut.html;
                 window.ArchitectUI.turnedOut(_root, cut.against);
             }
+            if (type === 'answer' && typeof paneSourcesHtml === 'function') finalContent += paneSourcesHtml(sources);
             
             // Add the content to the DOM
             content += '<div class="markdown-content content-body">' + finalContent + '</div>';
@@ -834,6 +838,7 @@ function renderLatex(element) {
         strict: false,
         trust: true,
         ignoredTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code', 'option'],
+        ignoredClasses: ['answer-sources'],      // a source's title is text: a pair of $ in it is no formula (0340)
         errorCallback: function(msg) {
             console.warn('KaTeX error:', msg);
         }
@@ -958,8 +963,10 @@ function handleSimplifiedSummaryToggle() {
             let parsedContent = marked.parse(protectedContent);
             let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
             // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
-            if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent);
+            const sources = (currentData.reportHead && currentData.reportHead.sources) || [];      // the report's, under both versions (0340)
+            if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent, sources);
             if (window.ArchitectUI) finalContent = window.ArchitectUI.cutAnswer(finalContent).html;      // the rewrite keeps the part "Against the brief": not in the answer
+            if (typeof paneSourcesHtml === 'function') finalContent += paneSourcesHtml(sources);
             
             answerContent.innerHTML = finalContent;
             currentData.summaryViewMode = 'simplified';

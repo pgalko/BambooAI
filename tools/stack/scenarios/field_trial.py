@@ -380,8 +380,9 @@ SEARCH_CLAIMS = ("Field trials that compare fertiliser regimes across heterogene
                  "since soil type alone can move yield by 0.5-1.0 t/ha",
                  "The plot is the experimental unit: seasons within a plot are repeated measures, and intervals computed "
                  "over rows came out 41.7% too narrow in one review")
-SEARCH_PAGES = [{"url": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials"},
-                {"url": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures in plot trials"}]
+# titles as pages have them - brackets, a pair of $ (0340: a title's brackets, escaped for markdown, had been read as a formula)
+SEARCH_PAGES = [{"url": "https://www.fao.org/agriculture/crops/field-trials", "title": "FAO: designing crop field trials [PDF]"},
+                {"url": "https://onlinelibrary.wiley.com/journal/agronomy", "title": "Agronomy Journal: repeated measures at $5 to $10 a plot"}]
 SEARCH_RETURNED = [{"url": "https://www.example.org/trial-design", "title": "Notes on trial design"}] + SEARCH_PAGES      # as the search returns them: a page more than the answer links
 SEARCH_USAGE = {"prompt_tokens": 5200, "completion_tokens": 140, "total_tokens": 5340, "server_tool_use": {"web_search_requests": 2}}
 SEARCH_REPLY = {

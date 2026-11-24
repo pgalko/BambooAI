@@ -69,5 +69,16 @@ check('the export prints the answer as its tab holds it, and since 0312 that hol
   + '(architect.js cutAnswer): what goes to other people says nothing of a brief they have not seen. The print styles carry no rule for its card any more',
   pe.includes('const contentClone = answerContent.cloneNode(true);') && !pe.includes('ar-against') && !/against the brief/i.test(pe)
   && (crSrc.match(/window\.ArchitectUI\.cutAnswer\(finalContent\)/g) || []).length === 2);
+const tabsCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tabs.css'), 'utf8');
+check('the report\'s sources (0340): the page draws them from the report\'s head, as data, under both versions of the answer - after the part against the brief is cut - and the maths '
+  + 'leaves them alone; on the page a title is quiet, in the text\'s colour, the blue on hover; no bullets; printed, the list has no bullets and its titles stay plain',
+  (crSrc.match(/const sources = \(currentData\.reportHead && currentData\.reportHead\.sources\) \|\| \[\];/g) || []).length === 2
+  && (crSrc.match(/paneCiteHtml\(finalContent, sources\)/g) || []).length === 2 && (crSrc.match(/finalContent \+= paneSourcesHtml\(sources\);/g) || []).length === 2
+  && crSrc.indexOf('paneSourcesHtml(sources)') > crSrc.indexOf('window.ArchitectUI.cutAnswer(finalContent)') && crSrc.includes("ignoredClasses: ['answer-sources'],")
+  && tabsCss.includes('#content-answer .answer-sources .src a { color: var(--text-primary); text-decoration: none; }')
+  && tabsCss.includes('#content-answer .answer-sources .src a:hover { color: var(--c-lookup); text-decoration: underline; }')
+  && tabsCss.includes('#content-answer .answer-sources ol { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }')
+  && tabsCss.includes('#content-answer .answer-sources .site { margin-left: 8px; font-size: 12px; color: var(--text-quaternary); white-space: nowrap; }')
+  && pe.includes('#pdf-print-container .answer-sources ol { margin: 0; padding: 0; list-style: none; }') && pe.includes('#pdf-print-container .answer-sources .src a { color: #222; text-decoration: none; }'));
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
 console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

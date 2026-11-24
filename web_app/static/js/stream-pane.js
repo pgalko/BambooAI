@@ -296,9 +296,8 @@
             // [cell n] opens the code trace on that number's recipe (2026-10-24, the third way in; the cell's code is a click
             // further, from the trace's panel); the chip hands over itself, so the trace can read the sentence it sits in
             if (kind === 'cell') return '<span class="cite cell" title="How this number was made" onclick="if(typeof paneOpenRecipe===\'function\')paneOpenRecipe(this,' + esc(ref) + ')">cell ' + esc(ref) + '</span>';
-            // [3] where the report's Sources list has a page under that number (0337): the chip opens the page in another
-            // tab, and its hover names the page. ref: {n, url, title, host} as paneCiteHtml read them from the list - text
-            // of the rendered answer, escaped there
+            // a web source's number (0337): the chip opens the page in another tab, and its hover names the page. ref: {n,
+            // url, title, host}, escaped by build.chip
             if (kind === 'web') return '<a class="cite web" href="' + ref.url + '" target="_blank" rel="noopener noreferrer" title="' + (ref.title ? ref.title + ' — ' : '') + ref.host + '">' + ref.n + '</a>';
             return '<span class="cite ' + kind + '" onclick="if(typeof paneOpenTab===\'function\')paneOpenTab(\'Plots\')">' + kind + ' ' + esc(ref) + '</span>';
         }
@@ -498,17 +497,13 @@
     // stored HTML carries the chips and no later re-render loses them (2026-10-03: a walk at run end had raced the rendering).
     // A passage named by its bare id - "C.39 - written 4 August" - is a chip too when the passage is known (a READ returned
     // it, or the report's cited passages arrived), outside code (2026-10-14: the first live run named every passage so)
-    // The report's web sources (0337): its Sources list - each item a source's number and the page's title as a link to
-    // it (analyst/sources.py) - says where a citation [3] leads; the citation becomes a chip that opens the page, in the
-    // text and in the list, outside code and outside a link. A link to another site opens in another tab: a click on a
-    // source had replaced the app
-    window.paneCiteHtml = function (html) {
+    // A web source's number - [3] - is a chip that opens the page where `sources`, the pages the report cites as the host
+    // sends them with it ({n, title, url, host}; analyst/sources.py), has a page under that number (0340: the chips had
+    // been made from a list read back out of the rendered answer), outside code and outside a link. A link to another
+    // site opens in another tab: a click on a source had replaced the app
+    window.paneCiteHtml = function (html, sources) {
         html = String(html || '');
-        const web = {};
-        html.replace(/<li>\s*(?:<p>)?\s*\[(\d+)\]\s*<a href="(https?:\/\/[^"]+)"[^>]*>([\s\S]*?)<\/a>/g, (m, n, url, title) => {
-            if (!web[n]) web[n] = { n: n, url: url, title: title.replace(/<[^>]+>/g, ''), host: url.replace(/^https?:\/\/(www\.)?/, '').split(/[\/?#]/)[0] };
-            return m;
-        });
+        const web = {}; (sources || []).forEach(p => { if (p && p.url) web[p.n] = p; });
         let code = 0, link = 0;
         return html.split(/(<[^>]+>)/).map(seg => {
             if (seg.startsWith('<')) {
@@ -518,11 +513,18 @@
                 return seg;
             }
             let out = seg;
-            if (!code && !link) out = out.replace(/(?<![\w\]\[])((?:\[\d+\])+)(?![(\[\w])/g, marks => marks.replace(/\[(\d+)\]/g, (m, n) => web[n] ? build.cite('web', web[n]) : m));
+            if (!code && !link) out = out.replace(/(?<![\w\]\[])((?:\[\d+\])+)(?![(\[\w])/g, marks => marks.replace(/\[(\d+)\]/g, (m, n) => web[n] ? build.chip(web[n]) : m));
             if (!code) out = out.replace(/(?<![\[\w.])(C\.\d+|D\d+\.\d+)(?![\w\]])(?!\.\d)/g, (m, id) => unitPassages[id] ? build.cite(id.startsWith('C.') ? 'ctx' : 'doc', id) : m);
             return out.replace(/\[(cell|fig)\s*(\d+)\]|\[(D\d+\.\d+)\]|\[(C\.\d+)\]/g, (m, kind, num, unit, passage) =>
                 passage ? build.cite('ctx', passage) : (unit ? build.cite('doc', unit) : build.cite(kind, num)));
         }).join('');
+    };
+    // the report's sources under it (0340): drawn from the same pages, each its number, its title as a link and its site -
+    // a title is text, whatever it holds (a title's brackets, escaped for markdown, had been read as a formula)
+    window.paneSourcesHtml = function (sources) {
+        const pages = (sources || []).filter(p => p && p.url);
+        return pages.length ? '<section class="answer-sources"><h2>Sources</h2><ol>' + pages.map(p => '<li>' + build.chip(p) + '<span class="src"><a href="' + esc(p.url) +
+            '" target="_blank" rel="noopener noreferrer">' + esc(p.title || p.host || p.url) + '</a><span class="site">' + esc(p.host || '') + '</span></span></li>').join('') + '</ol></section>' : '';
     };
     // the passages the report cites, resolved by the host at report time, so a chip has its hover even when no READ
     // returned the passage (a cell read it); a READ's verified quote is kept where one exists

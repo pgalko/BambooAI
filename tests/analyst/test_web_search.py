@@ -385,9 +385,9 @@ check("... only a host that takes tools is asked - one that ignores them answers
       body["extra_body"]["provider"] == {"require_parameters": True, "order": ["deepseek"], "allow_fallbacks": True} and body["extra_body"]["usage"] == {"include": True}
       and body["extra_body"]["reasoning"] == {"effort": "none"}, body["extra_body"])
 answer, found, messages, t_in, t_out, t_all, elapsed, speed = got
-check("... read back: the answer whole; the pages its annotations cite, each once, in order - the address under url_citation or on the annotation itself, 'Link' for a page without a title, "
+check("... read back: the answer whole; the pages its annotations cite, each once, in order - the address under url_citation or on the annotation itself, a title as it came, none for a page without one, "
       "what is no citation of a page left out; the question that was asked",
-      answer == ANSWER and found[0] == {"query": "Search Internet for: yield", "result": ANSWER, "links": [OTHER, FAO, {"title": "Link", "link": JOURNAL["link"]}]} and messages is MESSAGES, found[0])
+      answer == ANSWER and found[0] == {"query": "Search Internet for: yield", "result": ANSWER, "links": [OTHER, FAO, {"title": "", "link": JOURNAL["link"]}]} and messages is MESSAGES, found[0])
 check("... the searches run, from the usage, with their engine: the record the dispatcher bills from, and said to the seat and the log - with the pages they returned; "
       "the tokens as reported, the cached part of the prompt for its price",
       found[1] == {"__meta__": {"search_billed": 2, "search_engine": "perplexity"}} and (meta.get("search_requests"), meta.get("search_engine"), meta.get("search_pages")) == (2, "perplexity", 3)
@@ -450,11 +450,11 @@ entry = logged("u_perplexity")[-1]
 rates = TPL["model_properties"][DEEPSEEK]
 tokens_cost = (10210 * rates["prompt_tokens"] + 4000 * rates["cache_read_tokens"] + 512 * rates["completion_tokens"]) / 1000
 check("the seat through the dispatcher, the adapter and the log, on the template's own seat: the request carries the seat's model, its routing and the tool; "
-      "the digest comes back with its two sources - the pages the answer links, of the three the searches returned",
+      "the digest comes back with its two sources - the pages the answer links, of the three the searches returned -, a page with no title named by its site (0340)",
       len(bodies) == 1 and bodies[0]["model"] == DEEPSEEK and bodies[0]["extra_body"]["provider"]["order"] == ["deepseek"] and bodies[0]["extra_body"]["tools"][0]["type"] == "openrouter:web_search"
       and bodies[0]["extra_body"]["reasoning"] == {"effort": "none"} and bodies[0]["messages"][1]["content"] == "Search Internet for: yield of regime B on loam"
       and text.startswith(W.CLAIMS_HEAD + "\n- Regime B plots yielded 3.2 t/ha on loam in 2024. [1]") and [s["link"] for s in sources] == [FAO["link"], JOURNAL["link"]]
-      and OTHER["link"] not in text and W.listed(text, W.SOURCES_HEAD) == [f"[1] {FAO['title']} - {FAO['link']}", f"[2] Link - {JOURNAL['link']}"], (bodies, text[:200]))
+      and OTHER["link"] not in text and W.listed(text, W.SOURCES_HEAD) == [f"[1] {FAO['title']} - {FAO['link']}", f"[2] onlinelibrary.wiley.com - {JOURNAL['link']}"], (bodies, text[:200]))
 check("... the call's record: the Web Search seat's, two searches on Perplexity at $0.005 each on top of the tokens - the cached part of the prompt at its own price -, "
       "the three pages they returned, the billing note not in the messages kept",
       (entry["agent"], entry["model"], entry["search_requests"], entry["search_engine"], entry["search_pages"]) == ("Web Search", DEEPSEEK, 2, "perplexity", 3) and abs(entry["search_fee"] - 0.01) < 1e-12

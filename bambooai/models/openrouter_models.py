@@ -740,7 +740,7 @@ def _cited_pages(annotations):
         address = str(cited.get("url") or "").strip()
         if address and address not in seen:
             seen.add(address)
-            pages.append({"title": str(cited.get("title") or "").strip() or "Link", "link": address})
+            pages.append({"title": str(cited.get("title") or "").strip(), "link": address})      # no title: the seat names the page by its site
     return pages
 
 

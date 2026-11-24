@@ -1,50 +1,35 @@
-"""Web sources (0337). A search's digest - the text a SEARCH returns; the host writes it (bambooai/web_search.py) -
+"""Web sources (0337, 0340). A search's digest - the text a SEARCH returns; the host writes it (bambooai/web_search.py) -
 lists the claims its search tied to a source under CLAIMS_HEAD, a line each that ends with its sources' numbers, and
-those sources under SOURCES_HEAD, a line each: `[3] the page's title - its address`. From those two lists, three
-things a run needs: a page has one number along a path, whichever search finds it; the sourced claims of a run's
-searches stay in view to its report; a report ends with the pages it cites, each a link - in one list, made here; and
-a search's card in the pane shows its pages by the same numbers.
+those sources under SOURCES_HEAD, a line each: `[3] the page's title - its address`. From those two lists what a run
+needs: a page has one number along a path, whichever search finds it; the sourced claims of a run's searches stay in
+view to its report; and the pages a report cites, by those numbers, as data - the search's card in the pane and the
+list under the report in the Answer tab are drawn from it. The report's text holds no list of them.
 
 (2026-11-23, the second live search: each digest numbered its sources from 1, so [3] in a report was three pages; a
-digest was in view for one turn, so a run searched for the same thing twice and wrote its report without its first
-search; and a reader had no way from a citation to its page. The third, 0338: the analyst ended its report with a
-list of the sources of its own - 'the pages cited are listed under the report' read as its task -, the list made
-here came under it, and the plain-language version copied the one and was given the other.)"""
+digest was in view for one turn, so a run searched for the same thing twice; and a reader had no way from a citation
+to its page. 2026-11-24, 0340: the list under a report had been written into its text as markdown - a title's
+brackets escaped with backslashes, which the page's maths then read as a formula - and the page read the list back out
+of the rendered answer to make its chips.)"""
 import re
 
 CLAIMS_HEAD = "SOURCED CLAIMS (each sentence with the sources behind it):"
 SOURCES_HEAD = "SOURCES:"
 IN_VIEW_HEAD = "CLAIMS THIS RUN'S SEARCHES RETURNED (each with its sources' numbers; SHOW SEARCH k re-opens a search whole):"
 CITING = "In the report cite a source by the number it has here, as [3], and write no list of sources: one is added under the report from its citations, each page a link."
-REPORT_HEAD = "## Sources"
-UNTITLED = "Link"            # the title the seat gives a page that has none (bambooai/web_search.py)
 _PAGE = re.compile(r"^\[(\d+)\] (.*) - (https?://\S+)$")
 _CODE = re.compile(r"```.*?```|`[^`\n]*`", re.S)
 _CITED = re.compile(r"(?<![\w\]\[])((?:\[\d+\])+)(?![(\[\w])")      # [3] and [3][5]: not x[3], [cell 3], [text][3], [[3]] or [3](...)
-_ADDRESS = re.compile(r"https?://(?:[^\s<>()\[\]\"*`]|\([^\s()]*\))+")      # an address in a text; it may hold a pair of brackets
+_MARKS = re.compile(r"\s*((?:\[\d+\])+)$")                           # the sources' numbers a claim ends with: ' [1][4]'
 _HEADING = re.compile(r"#{1,6} ")
-_MARKS = re.compile(r"\s*((?:\[\d+\])+)$")          # the sources' numbers a claim ends with: ' [1][4]'
-# the heading a writer gives a list of sources of its own: '## Sources', '**References:**', 'Sources cited:', '### 7. Sources and links'
-_OWN_HEAD = re.compile(r"(?:#{1,6} *|\*\*)?(?:\d+[.)] *)?(?:web )?(?:sources?|references?|bibliography|citations?|works cited)(?: \w+){0,2}:?(?:\*\*)?:?", re.I)
-_OWN_LINE = re.compile(r"(?:[-*+] +)?\**(?:\[(\d+)\]|(\d+)[.)])?")      # the number a line of such a list opens with, if any: in brackets - '[3] ...', '- **[3]** ...' -, or plain - '3. ...'
-
-
-def _words(title):
-    """A page's title as words in markdown, none of it read as markup."""
-    return re.sub(r"([\\`*_\[\]<>|])", r"\\\1", " ".join((title or "").split()))
-
-
-def _href(address):
-    """A page's address as a markdown link's: a bracket would end the link, a space cut it."""
-    return address.replace("(", "%28").replace(")", "%29").replace(" ", "%20")
+_LIST_HEAD = re.compile(r"(?:#{1,6} *|\*\*)?(?:sources|references):?(?:\*\*)?:?", re.I)    # '## Sources', '**References:**', 'Sources:'
 
 
 def same(address):
     """A page's address as two spellings of it compare: without scheme, 'www.', fragment or closing slash, the host
-    in lower case, a bracket as a link writes it."""
+    in lower case."""
     a = re.sub(r"^https?://(www\.)?", "", (address or "").strip().rstrip(".,;:"), flags=re.I).split("#", 1)[0].rstrip("/")
     host, slash, rest = a.partition("/")
-    return _href(host.lower() + slash + rest)
+    return host.lower() + slash + rest
 
 
 def site(address):
@@ -112,15 +97,17 @@ def findings(digest):
     return out
 
 
+def view(page):
+    """A page as the app shows it: its number, its title, its address - a quote or an angle bracket that rode along at
+    its end is not part of it - and its site."""
+    url = page["link"].strip("'\"<>")
+    return {"n": page["n"], "title": page["title"], "url": url, "host": site(url)}
+
+
 def card(digest):
-    """What a search's card in the pane shows (0339): its pages by the numbers the report cites them by - each with
-    its title, or its site where it has none, its address and its site - and the claims tied to them. A quote or an
-    angle bracket at the end of an address is not part of it."""
-    shown = []
-    for p in pages(digest):
-        link = p["link"].strip("'\"<>")
-        shown.append({"n": p["n"], "title": site(link) if p["title"] in ("", UNTITLED) else p["title"], "url": link, "host": site(link)})
-    return {"sources": shown, "claims": findings(digest)}
+    """What a search's card in the pane shows (0339): its pages by the numbers the report cites them by, and the claims
+    tied to them."""
+    return {"sources": [view(p) for p in pages(digest)], "claims": findings(digest)}
 
 
 def in_view(searches):
@@ -148,39 +135,29 @@ def cited(text, known):
     return [by[n] for n in sorted(found) if n in by]
 
 
-def own_list(text, known):
-    """`text` without the list of sources its writer made, and the pages that list named: a report has one list of its
-    web sources, `listing`'s. The writer's goes when it is a list of pages of `known`, numbered as they are, and nothing
-    else - the last part headed Sources or References, each line of it a page: by its address, any number the line
-    gives it the page's own, or with no address by the number in brackets the line opens with. Anything else stays
-    as written - `text` as it is, and no pages -: a note among the lines, a page of no search, and a list in numbers
-    of its writer's own, by which its text then cites."""
+def of_report(text, digests):
+    """The sources under a report (0340): of the pages the searches of its path numbered - their digests, `digests` -
+    those its text cites, by number, as the page draws them."""
+    return [view(p) for p in cited(text, along(digests))]
+
+
+def drop_list(text):
+    """`text` without a list of sources its writer made all the same - a section headed Sources or References, to the
+    next heading -: the page draws the report's sources itself, from its searches."""
     lines = (text or "").split("\n")
-    heads = [i for i, line in enumerate(lines) if _OWN_HEAD.fullmatch(line.strip())]
-    if not heads:
-        return text, []
-    start = heads[-1]
-    end = next((i for i in range(start + 1, len(lines)) if _HEADING.match(lines[i])), len(lines))
-    by_address, by_number = {same(p["link"]): p for p in known}, {p["n"]: p for p in known}
-    named = []
-    for line in filter(None, (line.strip() for line in lines[start + 1:end])):
-        given, (bracket, plain) = _ADDRESS.findall(line), _OWN_LINE.match(line).groups()
-        marked = re.findall(r"\[(\d+)\]", line) + ([plain] if plain else [])      # the numbers the line gives its page
-        found = [by_address.get(same(a)) for a in given] if given else [by_number.get(int(bracket)) if bracket else None]
-        if None in found or (given and any(int(n) not in [p["n"] for p in found] for n in marked)):
-            return text, []
-        named += found
-    if not named:
-        return text, []
-    rest = "\n".join(lines[end:]).strip("\n")
-    return "\n".join(lines[:start]).rstrip() + ("\n\n" + rest if rest else ""), named
+    if not any(_LIST_HEAD.fullmatch(line.strip()) for line in lines):
+        return text
+    kept, dropping = [], False
+    for line in lines:
+        if _LIST_HEAD.fullmatch(line.strip()):
+            dropping = True
+        elif dropping and _HEADING.match(line):
+            dropping = False
+        if not dropping:
+            kept.append(line)
+    return "\n".join(kept).rstrip()
 
 
-def listing(text, known, also=()):
-    """The part a report that cites web sources ends with: REPORT_HEAD and a line for each page it cites - its number,
-    its title as a link to it, and its site (the page makes the citations in the text links from this list) -, and
-    for each page of `also`, those a list of its writer's own named. '' when there is none."""
-    found = {p["n"]: p for p in [*cited(text, known), *also]}
-    if not found:
-        return ""
-    return "\n\n" + REPORT_HEAD + "\n\n" + "\n".join(f"- [{n}] [{_words(p['title'])}]({_href(p['link'])}) ({site(p['link'])})" for n, p in sorted(found.items()))
+def as_text(shown):
+    """The sources under an answer printed outside the page - in a terminal or a notebook -, a line each."""
+    return ("\n\nSources:\n" + "\n".join(f"- [{p['n']}] {p['title']} - {p['url']}" for p in shown)) if shown else ""

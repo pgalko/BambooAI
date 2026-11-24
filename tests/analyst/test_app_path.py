@@ -117,11 +117,11 @@ check("web events: id, the Data tab (no Query tab), live Investigation-tab updat
 # report stands on, the mode, the replay's verdict and the day - kept with the chain for the export's top section
 _heads = [e for e in events if "report_head" in e]
 _head = _heads[0]["report_head"] if _heads else {}
-check("the report's head rides before the answer as a top-level key (no tab for it): the report's title (its first line), the question as the analyst understood it (the note's line, not the typed question), the data line, the mode, the replay's verdict, the cells, the day; no lead",
+check("the report's head rides before the answer as a top-level key (no tab for it): the report's title (its first line), the question as the analyst understood it (the note's line, not the typed question), the data line, the mode, the replay's verdict, the cells, the day, its sources (none: it searched nothing); no lead",
       len(_heads) == 1 and events.index(_heads[0]) < next(i for i, e in enumerate(events) if e.get("type") == "answer") and _head.get("title") == "B exceeds A"
       and "lead" not in _head and _head.get("question") == "q" and _head.get("mode") in ("deep", "quick", "adaptive")
       and _head.get("replay") in ("reproduced", "differed", "failed", "") and isinstance(_head.get("cells"), int) and re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(_head.get("prepared"))) and isinstance(_head.get("data"), str)
-      and "lineage" not in _head, (_head, [e.get("type") or next(iter(e)) for e in events][:12]))
+      and "lineage" not in _head and _head.get("sources") == [], (_head, [e.get("type") or next(iter(e)) for e in events][:12]))
 # the usage ledger (2026-10-31, docs/USAGE_DESIGN.md): one line per run as it ended, beside the thread files, so the Usage dialog names an
 # analysis after its thread file is discarded (a thread not saved as a favourite goes at the next sign-in)
 _ledger_path = os.path.join(work, "storage", "u1", "usage_ledger.jsonl")
@@ -809,9 +809,16 @@ from analyst.notebook import Turn as _Turn
 _searching = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 _searching.turns.append(_Turn(kind="search", text="yield by soil type", stdout=_digest))
 BAMBOO._web_search("plot as the unit")
+_was_report, _searching.report = _searching.report, "Soil type moves yield [1]; not [3], no page of the path, nor [9]."
+_head_s = BAMBOO._report_head(_searching)
+_searching.report = _was_report
 _searching.turns.pop()
-check("search: the seat is told the pages the searches before it on the path numbered - none before the first, then those the first one's digest lists, by number (0337)",
-      _known_seen == [[], [{"n": 1, "title": "Field trials by soil type", "link": _pages[0]["link"]}, {"n": 2, "title": "Link", "link": "https://journals.example.org/x"}]], _known_seen)
+check("search: the seat is told the pages the searches before it on the path numbered - none before the first, then those the first one's digest lists, by number (0337); a page "
+      "with no title is named by its site",
+      _known_seen == [[], [{"n": 1, "title": "Field trials by soil type", "link": _pages[0]["link"]}, {"n": 2, "title": "journals.example.org", "link": "https://journals.example.org/x"}]], _known_seen)
+check("the report's head carries its sources as data (0340): the pages its text cites, by the numbers its path's searches gave them - each its title, its address without the quote that "
+      "rode along, its site -; a number that is no page of the path is none. The page draws the list under the report and the chips in its text from them",
+      _head_s["sources"] == [{"n": 1, "title": "Field trials by soil type", "url": "https://vertexaisearch.cloud.google.com/grounding-api-redirect/AUZIYQEw8=", "host": "vertexaisearch.cloud.google.com"}], _head_s)
 # when an instance searches (0335): asked for, and its Web Search seat's provider has its key - a Gemini key had decided it
 from unittest import mock
 _engines = {"perplexity": {"per_search": 0.005}}
