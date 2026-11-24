@@ -2,10 +2,8 @@ import hashlib
 import os
 import time
 import requests
-from datetime import datetime
-from flask import Blueprint, request, jsonify, session
+from flask import Blueprint, jsonify, session
 from auth import requires_auth
-import gc
 
 # Create the blueprint
 container_status_bp = Blueprint('container_status', __name__)
@@ -127,7 +125,6 @@ def _restart_managed_container(name: str):
     prefs = container_status_bp.user_preferences.get(session_id)
     if prefs:
         prefs['auxiliary_datasets'] = []
-        prefs['ontology_path'] = None
         prefs['df_id'] = None
     try:
         container_status_bp.cleanup_and_remove_bamboo_instance(session_id)
@@ -174,7 +171,6 @@ def restart_container():
             prefs = container_status_bp.user_preferences.get(session_id)
             if prefs:
                 prefs['auxiliary_datasets'] = []
-                prefs['ontology_path'] = None
                 prefs['df_id'] = None
                 
                 # Cleanup with timeout protection

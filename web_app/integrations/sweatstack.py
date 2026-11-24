@@ -16,7 +16,6 @@ from auth.supabase_client import (
     get_sweatstack_token, 
     remove_sweatstack_token,
     get_sweatstack_integration_status,
-    is_sweatstack_token_expired,
     get_user_subscription
 )
 
@@ -219,8 +218,6 @@ def init_sweatstack_integration(app, **dependencies):
     sweatstack_bp.logger = dependencies['logger']
     
     # Additional constants from main app
-    sweatstack_bp.EXPLORATORY = dependencies['EXPLORATORY']
-    sweatstack_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
     sweatstack_bp.utils = dependencies['utils']
     sweatstack_bp.executor_client = dependencies['executor_client']
     
@@ -443,7 +440,7 @@ def _load_data_via_executor(session_id, access_token, data):
     
     # Update user preferences and BambooAI instance
     prefs = sweatstack_bp.user_preferences.get(session_id, {
-        'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
+        'auxiliary_datasets': []
     })
     prefs['df_id'] = new_df_id
 

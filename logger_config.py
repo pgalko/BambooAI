@@ -4,7 +4,6 @@ Unified logging configuration for BambooAI project.
 
 import logging
 import sys
-from datetime import datetime
 import os
 
 # Global flag to track if logging has been configured

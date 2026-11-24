@@ -6,7 +6,6 @@ import threading
 import time
 import uuid
 import json
-from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from auth import requires_auth, get_current_user_id
 
@@ -110,12 +109,9 @@ def init_intervals_integration(app, **dependencies):
     intervals_bp.get_user_id = dependencies['get_user_id']
     intervals_bp.get_bamboo_ai = dependencies['get_bamboo_ai']
     intervals_bp.get_dynamic_executor_urls = dependencies['get_dynamic_executor_urls']
-    intervals_bp.global_execution_mode = dependencies['global_execution_mode']
     intervals_bp.logger = dependencies['logger']
     
     # Additional constants from main app
-    intervals_bp.EXPLORATORY = dependencies['EXPLORATORY']
-    intervals_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
     intervals_bp.utils = dependencies['utils']
     intervals_bp.executor_client = dependencies['executor_client']
     
@@ -331,7 +327,7 @@ def load_data():
         session['intervals_df_id'] = new_df_id
         session['intervals_job_id'] = job_data['job_id']
         # how the data was asked for (2026-10-10, routines): kept with the job, put on the instance when it completes
-        prefs = intervals_bp.user_preferences.setdefault(session_id, {'planning': False, 'auxiliary_datasets': []})
+        prefs = intervals_bp.user_preferences.setdefault(session_id, {'auxiliary_datasets': []})
         from analyst.routines import key_fingerprint
         prefs['load'] = {'source': 'intervals', 'start_date': data['start_date'], 'end_date': data['end_date'],
                          'metrics': list(data.get('metrics', []) or []), 'aux_kinds': list(data.get('aux_datasets', []) or []), 'df_id': new_df_id,
@@ -380,7 +376,7 @@ def get_job_status(job_id):
 
             # Update user preferences
             prefs = intervals_bp.user_preferences.get(session_id, {
-                'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
+                'auxiliary_datasets': []
             })
             # the session's files: those of the kinds this load asked for are replaced by what it wrote, the rest stay
             # (2026-10-29: a load of one dataset alone replaces that dataset's files; an upload, another kind's file, keep)

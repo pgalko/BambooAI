@@ -130,12 +130,9 @@ function handleQuerySubmit(options = {}) {
         chain_id: framed ? framed.parentChainId : currentData.chain_id,
         thread_id: currentData.thread_id,
         mode: (typeof currentMode !== 'undefined' ? currentMode : 'deep'),
-        auto_explore: autoExploreEnabled,
         // THE SIMPLIFICATION (2026-08-18): the dial means INVESTIGATIONS -
-        // "up to N investigations, each up to M steps". The legacy key is
-        // still sent so an older server keeps working.
-        max_investigations: autoExploreIterations,
-        max_iterations: autoExploreIterations
+        // "up to N investigations, each up to M steps".
+        max_investigations: autoExploreIterations
     };
 
     if (next) requestBody.next = { set: next.set, k: next.k };      // the server marks it as run on the analysis it follows

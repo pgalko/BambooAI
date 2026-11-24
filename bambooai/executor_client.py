@@ -2,7 +2,7 @@
 
 import requests
 import pandas as pd
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any, List
 import logging
 import os
 from datetime import datetime
@@ -96,114 +96,6 @@ class ExecutorAPIClient:
                 'generated_datasets': []
             }
 
-    # TODO: Function to store dataset details if needed   
-    def store_dataset_details(self, user_id, thread_id, chain_id, df_id, auxiliary_datasets):
-        """Store dataset details in database"""
-        
-        self.log_to_file(f"Storing dataset details for user_id={user_id}, thread_id={thread_id}, chain_id={chain_id}, df_id={df_id}")
-        
-        metadata_records = []
-        
-        # Process primary dataset if df_id exists
-        if df_id:
-            try:
-                response = requests.get(
-                    f"{self.base_url}/cache/preview/{df_id}",
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    df_data = response.json()
-                    df_metadata = df_data.get('metadata', {})
-                    
-                    # Determine source
-                    source = df_metadata.get('source', 'Unknown')
-                    if source == 'csv':
-                        source = 'CSV'
-                    elif source == 'sweatstack':
-                        source = 'SweatStack'
-                    elif source == 'intervals':
-                        source = 'Intervals'
-                    elif source == 'endura':
-                        source = 'Endura'
-                    elif source == 'Unknown' and df_metadata.get('original_filename', '').endswith('.parquet'):
-                        source = 'Parquet'
-                    
-                    record = {
-                        'identifier': df_id,
-                        'type': 'Primary',
-                        'source': source,
-                        'original_filename': df_metadata.get('original_filename'),
-                        'columns': df_data.get('columns', []),
-                        'date_range': df_metadata.get('date_range'),
-                        'shape': df_data.get('shape')
-                    }
-                    metadata_records.append(record)
-                    self.log_to_file(f"Primary dataset metadata: {record}")
-            except Exception as e:
-                self.log_to_file(f"Error getting primary dataset metadata: {str(e)}")
-        
-        # Process auxiliary datasets (max 3)
-        for aux_path in auxiliary_datasets[:3]:
-            try:
-                response = requests.post(
-                    f"{self.base_url}/cache/preview_aux",
-                    json={'file_path': aux_path, 'user_id': user_id},
-                    timeout=10
-                )
-                if response.status_code == 200:
-                    aux_data = response.json()
-                    
-                    filename = aux_data.get('filename', '')
-                    source = 'CSV'  # Default
-                    date_range = None
-                    
-                    if 'activity_summary_' in filename or 'wellness_data_' in filename or 'activity_intervals_' in filename or 'context_notes_' in filename or 'context_codes_' in filename:
-                        source = 'Intervals'
-                        # Extract date range from filename
-                        import re
-                        match = re.search(r'_(\d{8})_to_(\d{8})', filename)
-                        if match:
-                            start = match.group(1)
-                            end = match.group(2)
-                            date_range = f"{start[:4]}-{start[4:6]}-{start[6:]} to {end[:4]}-{end[4:6]}-{end[6:]}"
-                    if 'athlete_profiles_race_' in filename or 'race_turns_race_' in filename or 'race_climbs_race_' in filename or 'race_waymarkers_race_' in filename:
-                        source = 'Endura'
-                    
-                    record = {
-                        'identifier': aux_path,
-                        'type': 'Auxiliary',
-                        'source': source,
-                        'original_filename': filename,
-                        'columns': aux_data.get('columns', []),
-                        'date_range': date_range,
-                        'shape': aux_data.get('shape')
-                    }
-                    metadata_records.append(record)
-                    self.log_to_file(f"Auxiliary dataset metadata: {record}")
-            except Exception as e:
-                self.log_to_file(f"Error getting auxiliary dataset metadata for {aux_path}: {str(e)}")
-        
-        # Insert into database
-        from bambooai.db.supabase_client import SupabaseClient
-        self.supabase_client = SupabaseClient()
-
-        if metadata_records and hasattr(self, 'supabase_client') and self.supabase_client:
-            success = self.supabase_client.insert_dataset_metadata(
-                bamboo_user_id=user_id,
-                thread_id=thread_id,
-                chain_id=chain_id,
-                metadata_records=metadata_records
-            )
-            if success:
-                self.log_to_file(f"Successfully stored {len(metadata_records)} dataset metadata records in database")
-            else:
-                self.log_to_file("Failed to store dataset metadata in database")
-        else:
-            self.log_to_file(f"Metadata collected but not stored in DB (records: {len(metadata_records)}, client available: {hasattr(self, 'supabase_client')})")
-        
-        return metadata_records
-      
-        
     def compute_dataframe_sample(self, df_id: str, order_by: str = 'Datetime', ascending: bool = False) -> Optional[pd.DataFrame]:
         """Call the executor API to compute DataFrame index"""
         self.log_to_file(f"Attempting to compute index for df_id={df_id}")
@@ -379,31 +271,6 @@ class ExecutorAPIClient:
             
         except requests.RequestException as e:
             self.log_to_file(f"Failed to get summary via API: {str(e)}")
-            return None
-
-    def dataframe_to_string(self, df_id: str, num_rows: int = 5) -> Optional[str]:
-        """Call the executor API to convert DataFrame to string"""
-        self.log_to_file(f"Attempting to convert to string for df_id={df_id}")
-        try:
-            response = requests.post(
-                f"{self.base_url}/df_utils/df_to_string",
-                json={
-                    'df_id': df_id,
-                    'num_rows': num_rows
-                }
-            )
-            response.raise_for_status()
-            result = response.json()
-            
-            if 'error' in result:
-                self.log_to_file(f"Error converting to string: {result['error']}")
-                return None
-                
-            self.log_to_file(f"Successfully converted to string for df_id={df_id}")
-            return result['data']
-            
-        except requests.RequestException as e:
-            self.log_to_file(f"Failed to convert to string via API: {str(e)}")
             return None
 
     def get_dataframe_columns(self, df_id: str) -> Optional[Dict[str, Any]]:

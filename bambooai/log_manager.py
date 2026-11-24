@@ -5,7 +5,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 import threading
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 

@@ -1,12 +1,9 @@
-import io
 import os
 import sys
 import json
-import traceback
 import matplotlib
 import matplotlib.pyplot as plt
 import base64
-from contextlib import redirect_stdout
 from datetime import datetime
 
 from logger_config import get_logger
@@ -18,7 +15,6 @@ class CodeExecutor:
         self.plots_dir = os.path.join("iframe_figures", user_id) if user_id else "iframe_figures"
         self.log_dir = os.path.join('logs', user_id) if user_id else 'logs'
         os.makedirs(self.log_dir, exist_ok=True)
-        self.original_df = None
 
         self.api_client = api_client
 
@@ -104,9 +100,6 @@ pio.show = show
                 persist_df=True, timeout=None, step_timeout=None):
         # step_timeout: the seconds the script may take where it runs on this machine - the kernel's own limit where
         # none is given (the draft of the figures, 2026-11-18: a look ahead that is not to take the time of an analysis)
-        # Store the original DataFrame for resetting if needed
-        self._original_df = df.copy() if df is not None else None
-
         if self.mode == 'local':
             return self._execute_local(code, df, generated_datasets_path, step_timeout)
         elif self.mode == 'api':

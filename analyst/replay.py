@@ -11,7 +11,7 @@ verify()    - run the assembled script in a fresh kernel and check that the
 """
 from __future__ import annotations
 
-from typing import Callable, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 from . import tools
 from .notebook import Turn

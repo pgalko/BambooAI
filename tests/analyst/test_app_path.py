@@ -90,8 +90,8 @@ class FakeModels:
 B.ModelManager = FakeModels
 
 df = pd.DataFrame({"arm": np.tile(["A", "B"], 100), "x": np.random.default_rng(1).normal(size=200)}); df.loc[df.arm == "B", "x"] += 0.5
-BAMBOO = B.BambooAI(df=df, df_id="d1", user_id="u1", exploratory=True, planning=True)
-check("the instance builds with the old constructor arguments and no seats", BAMBOO._seat() == "Investigator" and BAMBOO.store is not None)
+BAMBOO = B.BambooAI(df=df, df_id="d1", user_id="u1")
+check("the instance builds with no seats", BAMBOO._seat() == "Investigator" and BAMBOO.store is not None)
 # the effort a call asks for (2026-10-18): _llm hands it to the model layer as reasoning_effort, and the usage says what the call was asked at
 from bambooai.models import prompt_cache as _pc
 _seen = []
@@ -104,9 +104,15 @@ finally:
     BAMBOO.llm_stream = _orig_stream
 check("_llm: an effort rides to the model layer as reasoning_effort, and none when none is asked; the usage says the effort the call was asked at",
       _seen[0].get("reasoning_effort") == ("medium", "high") and "reasoning_effort" not in _seen[1] and _u1.get("effort") == "medium", (_seen, _u1))
+import threading as _thr
+_keys = []
+_kt = _thr.Thread(target=lambda: _keys.append((_pc.session_key(), _pc.session_key("c7")))); _kt.start(); _kt.join()
+check("the cache key a provider is given to keep a conversation on one cache: one for the process - the same from another thread, as each turn runs on its own "
+      "- and a chain's is it with the chain's id (0347: a thread could be given a key of its own, by a function nothing called)",
+      _keys == [(_pc.session_key(), _pc.session_key() + "-c7")] and len(_pc.session_key()) == 32, _keys)
 
 BAMBOO.output_manager.add_user_input("Is B higher than A?")
-BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None)
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
 q = BAMBOO.output_manager.output_queue; events = []
 while not q.empty(): events.append(json.loads(q.get()))
 types = [e.get("type") for e in events if e.get("type")]
@@ -624,7 +630,7 @@ check("retired (2.8): /query reads no branching_cv and sends no canned question,
 
 # follow-up on the same thread, standing on run1: the kernel is reused (d is still defined)
 state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("And again?")
-BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run1.id)
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run1.id, mode="deep")
 while not q.empty(): q.get()
 run2 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("follow-up: parent is run1, the warm kernel was reused, cells number along the path (3)",
@@ -632,7 +638,7 @@ check("follow-up: parent is run1, the warm kernel was reused, cells number along
 
 # a branch from run1 (not the tip): a fresh kernel rehydrated from run1's cells
 state.update(i=0, script=FOLLOW); BAMBOO.output_manager.add_user_input("Branch question")
-BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run1.id)
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=run1.id, mode="deep")
 while not q.empty(): q.get()
 run3 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("branch: parent is run1, rehydrated from its path (d exists), numbered 3 again on its own branch, sibling unseen",
@@ -644,7 +650,7 @@ check("the workflow map has three nodes with the right parents",
 # a prose follow-up (no cells): no replay, no Code/Plots/Results tabs re-shown from the parent
 PROSE = ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\nFibonacci was a medieval Italian mathematician. No numbers here.\n"]
 state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("Who was Fibonacci?")
-BAMBOO.pd_agent_converse(thread_id="1001", chain_id=int(run3.id))
+BAMBOO.pd_agent_converse(thread_id="1001", chain_id=int(run3.id), mode="deep")
 events3 = []
 while not q.empty(): events3.append(json.loads(q.get()))
 run4 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
@@ -657,22 +663,25 @@ check("the id event's parent carries the browser's own value and type (the map d
 _h3 = next((e["report_head"] for e in events3 if "report_head" in e), {})
 check("a follow-up's head carries the question as the analyst understood it, not the typed fragment and not the thread's earlier questions (2026-10-17, Palo: the report is the chain's result, not the trajectory)",
       _h3.get("question") == "q" and "lineage" not in _h3 and _h3.get("replay") == "" and _h3.get("cells") == 0, _h3)
-check("modes: the brain (planning) means deep, auto_explore means adaptive, neither means quick",
+check("modes: a run asked for as deep runs under the deep budget",
       BAMBOO._last_budget.turns == BAMBOO.turns_deep)
-BAMBOO.planning = False; state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None)
-while not q.empty(): q.get()
-qk = BAMBOO._last_budget.turns
-state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, auto_explore=True, max_investigations=5)
-while not q.empty(): q.get()
-check("...quick = the tier's quick turns; adaptive with a depth of 5 = 40 turns with self-review",
-      qk == BAMBOO.turns_quick and BAMBOO._last_budget.turns == 40 and BAMBOO._last_budget.review_every == 8, (qk, BAMBOO._last_budget))
-# the brain's menu: an explicit mode wins over the legacy flags
+# a run asked for without a mode, or with a word that is none of the three, is a quick one (0347: until then two older
+# switches chose - the instance's planning, the call's auto_explore - which the page had stopped setting)
+_no_mode = []
+for _m in (None, "thorough"):
+    state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode=_m, max_investigations=5)
+    while not q.empty(): q.get()
+    _no_mode.append((BAMBOO._last_budget.turns, BAMBOO._last_budget.searches, BAMBOO.notebook.runs[str(BAMBOO.chain_id)].mode))
+check("...a run without a mode, or with a word that is no mode, is a quick one: the tier's quick turns and its two web searches, the depth dial unread, and the "
+      "run's record says Quick", _no_mode == [(BAMBOO.turns_quick, 2, "Quick")] * 2 and BAMBOO.turns_quick != BAMBOO.turns_deep, _no_mode)
+# the brain's menu: each mode sets its budget
 for m_, want, searches_ in (("quick", BAMBOO.turns_quick, 2), ("deep", BAMBOO.turns_deep, 4), ("adaptive", 40, 6)):
     state.update(i=0, script=PROSE); BAMBOO.output_manager.add_user_input("q")
-    BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode=m_, auto_explore=(m_ != "adaptive"), max_investigations=5)
+    BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode=m_, max_investigations=5)
     while not q.empty(): q.get()
-    check(f"mode={m_} sent by the brain's menu sets the budget regardless of the legacy flags - its turns, and its web searches (0341: Quick 2, Deep 4, Adaptive 6)",
-          BAMBOO._last_budget.turns == want and BAMBOO._last_budget.searches == searches_, BAMBOO._last_budget)
+    check(f"mode={m_} sent by the brain's menu sets the budget - its turns, and its web searches (0341: Quick 2, Deep 4, Adaptive 6); adaptive with a depth of 5 = "
+          f"40 turns with self-review", BAMBOO._last_budget.turns == want and BAMBOO._last_budget.searches == searches_
+          and (m_ != "adaptive" or BAMBOO._last_budget.review_every == 8), BAMBOO._last_budget)
 check("the cards carry the seat name the log entries use",
       all(e["seat"] == "Investigator" for e in events if e.get("type") == "pane_turn_start"))
 
@@ -1576,9 +1585,9 @@ try:
     state["i"] = 0
     state["promoter"] = ('{"name": "End value", "inputs": [{"key": "start", "label": "Starting value", "type": "number", "default": "1.0", "origin": "the analysis started at 1"}], '
                          '"edits": [{"cell": 1, "find": "start = 1.0", "replace": "start = INPUTS[\'start\']"}], "kept": []}')
-    BN = B.BambooAI(df=None, df_id=None, user_id="u2", exploratory=True, planning=True)
+    BN = B.BambooAI(df=None, df_id=None, user_id="u2")
     BN.output_manager.add_user_input("Where does it end after twenty steps from 1.0?")
-    BN.pd_agent_converse(thread_id="2001", chain_id=None)
+    BN.pd_agent_converse(thread_id="2001", chain_id=None, mode="deep")
     qn = BN.output_manager.output_queue
     _evn = [json.loads(qn.get()) for _ in range(qn.qsize())]
     runN = BN.notebook.runs[str(BN.chain_id)]
@@ -1604,9 +1613,9 @@ try:
     _still = _caught["runner"]("print('still runs')", 60)
     BN.df_id = None
     state["script"], state["i"], state["promoter"] = SCRIPT, 0, _keep_promoter
-    BD = B.BambooAI(df=df, df_id="d1", user_id="u3", exploratory=True, planning=True)
+    BD = B.BambooAI(df=df, df_id="d1", user_id="u3")
     BD.output_manager.add_user_input("Is B higher than A?")
-    BD.pd_agent_converse(thread_id="3001", chain_id=None)
+    BD.pd_agent_converse(thread_id="3001", chain_id=None, mode="deep")
     _pb = BD.propose_routine("3001", BD.notebook.runs[str(BD.chain_id)].id, billing_chain_id="9102")
     _rh.create = _spy
     try:

@@ -2,7 +2,6 @@
 
 from flask import Blueprint, request, jsonify, redirect
 from auth import requires_auth, get_current_user_id
-from datetime import datetime
 import logging
 try:
     import stripe
@@ -21,7 +20,6 @@ from auth.supabase_client import (
     get_user_subscription,
     get_balance,
     add_funds,
-    get_user_llm_config,
     get_monthly_usage,
     get_tier_limits
 )

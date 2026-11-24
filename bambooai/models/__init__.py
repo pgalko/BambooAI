@@ -2,7 +2,6 @@ import importlib
 import logging
 import os
 import threading
-import contextlib
 import time
 import json
 import sys
@@ -123,26 +122,6 @@ class ModelManager:
         api_type = model_props.get('api_type', 'chat_completions')
         
         return model, provider, max_tokens, temperature, response_format, api_type
-
-    @contextlib.contextmanager
-    def seat_on_another_seats_model(self, agent, donor_agent):
-        """Run `agent` on `donor_agent`'s model, provider, effort and budget
-        for the duration of the block, then restore it exactly (2026-09-03:
-        the Theorist's provider queue failed a finished run's synthesis; the
-        last rung runs the Theorist on the Synthesizer's model). The seat
-        NAME stays, so the run log shows which seat ran on which model - a
-        fallback is never silent."""
-        configs = self.config.get("agent_configs", [])
-        seat = next((i for i in configs if i.get('agent') == agent), None)
-        donor = next((i for i in configs if i.get('agent') == donor_agent), None)
-        if seat is None or donor is None:
-            raise ValueError(f"seat_on_another_seats_model: '{agent}' or '{donor_agent}' not configured")
-        saved = dict(seat.get('details') or {})
-        try:
-            seat['details'] = dict(donor.get('details') or {})
-            yield
-        finally:
-            seat['details'] = saved
 
     def get_agent_reasoning_effort(self, agent):
         """The seat's configured effort word, or None when the config

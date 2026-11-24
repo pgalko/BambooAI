@@ -3,10 +3,9 @@
 Flask blueprint for managing labels functionality
 """
 
-import logging
 from flask import Blueprint, request, jsonify
 from auth import requires_auth, get_current_user_id
-from auth.supabase_client import get_service_client, supabase_configured
+from auth.supabase_client import get_service_client
 import os
 import json
 import glob

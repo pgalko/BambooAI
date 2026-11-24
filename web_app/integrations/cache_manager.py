@@ -3,7 +3,7 @@
 import re
 import requests
 from flask import Blueprint, request, jsonify, session
-from auth import requires_auth, get_current_user_id
+from auth import requires_auth
 import json
 
 # Create the blueprint
@@ -189,7 +189,7 @@ def load_primary_from_cache():
         
         # Get user preferences
         prefs = cache_bp.user_preferences.get(session_id, {
-            'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
+            'auxiliary_datasets': []
         })
         
         # Update with new df_id
@@ -259,7 +259,7 @@ def load_auxiliary_from_cache():
         
         # Get user preferences
         prefs = cache_bp.user_preferences.get(session_id, {
-            'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
+            'auxiliary_datasets': []
         })
         
         _one_athlete(session_id, prefs, _athlete_folder(file_path))      # an athlete's window file: the other athletes' files go first

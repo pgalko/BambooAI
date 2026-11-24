@@ -2,7 +2,6 @@
 Flask blueprint for agent instructions functionality
 """
 
-import logging
 import json
 import os
 from flask import request, Blueprint, jsonify

@@ -43,7 +43,7 @@ class FakeModels:
     def llm_call(self, *a, **k): return "NO_CARD"
 B.ModelManager = FakeModels
 
-inst = B.BambooAI(df=None, df_id=None, user_id="u1", exploratory=True, planning=True)
+inst = B.BambooAI(df=None, df_id=None, user_id="u1")
 tdir = os.path.join(work, "storage", "u1", "documents", "1002")
 e1 = docs.attach(tdir, md_path, "meeting.md")
 inst.thread_id = "1002"
@@ -53,7 +53,7 @@ check("DATA block: no dataset, yet the documents block with the map and where th
 check("the kernel root is datasets/<user>/documents in both compute modes", inst._kernel_documents_root() == "datasets/u1/documents")
 
 inst.output_manager.add_user_input("What did the meeting say about the pipeline?")
-inst.pd_agent_converse(thread_id="1002", chain_id=None)
+inst.pd_agent_converse(thread_id="1002", chain_id=None, mode="deep")
 q = inst.output_manager.output_queue; events = []
 while not q.empty(): events.append(json.loads(q.get()))
 run = inst.notebook.runs[str(inst.chain_id)]
@@ -78,7 +78,7 @@ class FakeModelsReader(FakeModels):
         return "NO_CARD"
 inst.models = FakeModelsReader()
 inst.output_manager.add_user_input("What is the pipeline figure?")
-inst.pd_agent_converse(thread_id="1002", chain_id=run.id)
+inst.pd_agent_converse(thread_id="1002", chain_id=run.id, mode="deep")
 q = inst.output_manager.output_queue; events2 = []
 while not q.empty(): events2.append(json.loads(q.get()))
 run2 = inst.notebook.runs[str(inst.chain_id)]
@@ -96,7 +96,7 @@ check("the task line in its original form; the pane got a cell row and a read ro
 SCRIPT[:] = ["###NOTE###\n" + NOTE + f"\n###ACTION###\nREAD {pipeline_unit} q{i}" for i in range(4)] + ["###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone.\n"]
 state.update(i=0)
 inst.output_manager.add_user_input("Read it four times")
-inst.pd_agent_converse(thread_id="1002", chain_id=run2.id)
+inst.pd_agent_converse(thread_id="1002", chain_id=run2.id, mode="deep")
 q = inst.output_manager.output_queue; events3 = []
 while not q.empty(): events3.append(json.loads(q.get()))
 read_rows = [e for e in events3 if e.get("type") == "pane_lookup" and e.get("kind") == "read"]

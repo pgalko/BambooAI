@@ -1,8 +1,6 @@
 import argparse
-import re
 import os
 import time
-import gc
 import sys
 import shutil
 import json
@@ -11,10 +9,8 @@ import threading
 import uuid
 import glob
 import pandas as pd
-from datetime import datetime, timedelta
-from queue import Queue, Empty
-from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory, redirect, url_for
-import tempfile
+from queue import Empty
+from flask import Flask, request, jsonify, Response, render_template, session, send_from_directory
 from dotenv import load_dotenv
 try:
     from google.cloud import storage                     # hosted edition only; unused by the self-hosted one
@@ -28,7 +24,7 @@ from werkzeug.exceptions import abort
 from auth import requires_auth, get_current_user_id, init_auth
 from auth.supabase_client import get_user_llm_config, get_user_subscription, increment_queries_counter, can_execute_chain, get_user_compute_tier, remove_label_from_chain
 from llm_config_builder import build_user_config, needs_rebuild
-from cleanup import ensure_user_directories, cleanup_user_on_auth, cleanup_threads_for_user, clear_datasets_folder_for_user, cleanup_old_user_sessions, cleanup_and_remove_bamboo_instance
+from cleanup import ensure_user_directories, cleanup_user_on_auth, clear_datasets_folder_for_user, cleanup_old_user_sessions, cleanup_and_remove_bamboo_instance
 from container_status_routes import init_container_status_integration
 from integrations.sweatstack import init_sweatstack_integration
 from integrations.intervals import init_intervals_integration
@@ -80,11 +76,6 @@ def user_path(root, *paths):
     user_id = get_user_id()
     return os.path.join(root, user_id, *paths)
 
-
-def cleanup_threads(debug_mode=False):
-    """Clean up threads for the current user - wrapper for backward compatibility"""
-    user_id = get_user_id()
-    cleanup_threads_for_user(user_id, debug_mode)
 
 def clear_datasets_folder():
     """Clear datasets folder for the current user - wrapper for backward compatibility"""
@@ -252,7 +243,6 @@ user_preferences = {}
 user_session_mapping = {}  # Key: user_id, Value: current_session_id
 
 # BambooAI parameters
-EXPLORATORY = True
 # Web search (docs/OSS_DESIGN.md D28): on where the Web Search seat's provider has its key (bambooai/web_search.py);
 # WEB_SEARCH_MODE=off turns it off.
 SEARCH_TOOL = os.getenv('WEB_SEARCH_MODE', 'on').lower() not in ('off', 'none', 'false', '0')
@@ -266,8 +256,6 @@ init_sweatstack_integration(app,
     get_dynamic_executor_urls=lambda user_id: get_dynamic_executor_urls(user_id),
     global_execution_mode=GLOBAL_EXECUTION_MODE,
     logger=logger,
-    EXPLORATORY=EXPLORATORY,
-    SEARCH_TOOL=SEARCH_TOOL,
     utils=utils,
     executor_client=executor_client 
 )
@@ -279,10 +267,7 @@ init_intervals_integration(app,
     get_user_id=get_user_id,
     get_bamboo_ai=lambda session_id: get_bamboo_ai(session_id),
     get_dynamic_executor_urls=lambda user_id: get_dynamic_executor_urls(user_id),
-    global_execution_mode=GLOBAL_EXECUTION_MODE,
     logger=logger,
-    EXPLORATORY=EXPLORATORY,
-    SEARCH_TOOL=SEARCH_TOOL,
     utils=utils,
     executor_client=executor_client 
 )
@@ -294,10 +279,7 @@ init_endura_integration(app,
     get_user_id=get_user_id,
     get_bamboo_ai=lambda session_id: get_bamboo_ai(session_id),
     get_dynamic_executor_urls=lambda user_id: get_dynamic_executor_urls(user_id),
-    global_execution_mode=GLOBAL_EXECUTION_MODE,
     logger=logger,
-    EXPLORATORY=EXPLORATORY,
-    SEARCH_TOOL=SEARCH_TOOL,
     utils=utils,
     executor_client=executor_client 
 )
@@ -335,7 +317,7 @@ def generate_dataframe_id() -> str:
 
 def get_bamboo_ai(session_id, df=None):
     """Factory function to create or retrieve BambooAI instances"""
-    prefs = user_preferences.get(session_id, {'planning': False, 'auxiliary_datasets': [], 'df_id': None})
+    prefs = user_preferences.get(session_id, {'auxiliary_datasets': [], 'df_id': None})
     
     # Get API keys for this session
     api_keys = {} # This is a placeholder, for possible future use if we want to pass specific user API keys to BambooAI
@@ -353,8 +335,6 @@ def get_bamboo_ai(session_id, df=None):
         bamboo_ai_instances[session_id] = BambooAI(
             df=df,
             user_id=get_user_id(),
-            exploratory=EXPLORATORY,
-            planning=prefs['planning'],
             search_tool=SEARCH_TOOL,
             df_id=prefs['df_id'],
             auxiliary_datasets=prefs['auxiliary_datasets'],
@@ -477,7 +457,7 @@ def load_json_with_datetime(file_path):
 
 def load_dataframe_to_bamboo_ai_instance(session_id, df=None, file=None, execution_mode='local'):
     new_df_id = generate_dataframe_id()
-    prefs = user_preferences.get(session_id, {'planning': False, 'auxiliary_datasets': []})
+    prefs = user_preferences.get(session_id, {'auxiliary_datasets': []})
     prefs['df_id'] = new_df_id
     user_preferences[session_id] = prefs
 
@@ -574,7 +554,6 @@ def start_new_conversation(session_id):
     clear_datasets_folder()
 
     prefs = user_preferences.get(session_id, {
-        'planning': False, 
         'auxiliary_datasets': [],
         'df_id': None
     })
@@ -649,7 +628,6 @@ def initialize_user_session():
         # Set preferences for the current session if not already set
         if current_session_id not in user_preferences:
             user_preferences[current_session_id] = {
-                'planning': False,
                 'auxiliary_datasets': [],
                 'df_id': None
             }
@@ -873,46 +851,6 @@ def index():
     
     return render_template('index.html', **common_context)
 
-@app.route('/update_planning', methods=['POST'])
-@requires_auth
-def update_planning():
-    session_id = session.get('session_id')
-    data = request.json
-    planning_enabled = data.get('planning', False)
-    
-    if not session_id:
-        return jsonify({'error': 'No session ID found'}), 400
-    
-    prefs = user_preferences.get(session_id, {'planning': False})
-    prefs['planning'] = planning_enabled
-    user_preferences[session_id] = prefs
-    
-    if session_id in bamboo_ai_instances:
-        current_instance = bamboo_ai_instances[session_id]
-        try:
-            current_instance.planning = planning_enabled
-            logger.info(f"Successfully updated BambooAI instance with planning={planning_enabled}")
-        except Exception as e:
-            logger.error(f"Failed to update BambooAI instance: {str(e)}")
-            return jsonify({'error': 'Failed to update BambooAI instance'}), 500
-    
-    return jsonify({
-        'message': f'Planning parameter updated to {planning_enabled}',
-        'current_state': prefs['planning']
-    }), 200
-
-@app.route('/get_planning_state', methods=['GET'])
-@requires_auth
-def get_planning_state():
-    session_id = session.get('session_id')
-    
-    if not session_id:
-        return jsonify({'error': 'No session ID found'}), 400
-    
-    current_state = user_preferences.get(session_id, {}).get('planning', False)
-    
-    return jsonify({'planning_enabled': current_state})
-
 # Upload primary dataset endpoint
 @app.route('/upload', methods=['POST'])
 @requires_auth
@@ -1021,7 +959,7 @@ def upload_auxiliary_dataset():
 
     prefs = user_preferences.get(session_id)
     if not prefs:
-        prefs = {'planning': False, 'auxiliary_datasets': []}
+        prefs = {'auxiliary_datasets': []}
         user_preferences[session_id] = prefs
     
     aux_datasets_list = prefs.get('auxiliary_datasets', [])
@@ -1306,17 +1244,11 @@ def query():
     step = request.json.get('step')          # ... under the brief of the step of its conversation on the person's screen when they started; none: the one in use
     branch = request.json.get('branch')      # {turn}: a branch (docs/BRANCH_DESIGN.md) - go on from that turn of chain `chain_id`, the query being the hint
 
-    # NEW: Auto-explore parameters
-    auto_explore = request.json.get('auto_explore', False)
-    mode = request.json.get('mode')          # quick | deep | adaptive (2026-09-05: the brain's menu); None -> legacy flags
+    mode = request.json.get('mode')          # quick | deep | adaptive (2026-09-05: the brain's menu); none: a quick run
     # THE SIMPLIFICATION (2026-08-18): the interface dial now means
     # INVESTIGATIONS - 'up to N investigations, each up to M steps'.
     # None means 'use the tier default'; the tier is also the ceiling.
-    # The legacy key is still accepted so an un-refreshed browser tab
-    # keeps working.
     max_investigations = request.json.get('max_investigations')
-    if max_investigations is None:
-        max_investigations = request.json.get('max_iterations')
 
     update_user_activity(get_user_id())
 
@@ -1336,7 +1268,6 @@ def query():
             thread_id=thread_id,
             chain_id=chain_id,
             image=image if image else None,
-            auto_explore=auto_explore,
             max_investigations=max_investigations,
             synthesis=synthesis,
             mode=mode,
@@ -1810,50 +1741,6 @@ def stop_exploration():
         return jsonify({"status": "stopped"}), 200
     return jsonify({"error": "No active session"}), 404
 
-@app.route('/submit_feedback', methods=['POST'])
-@requires_auth
-def submit_feedback():
-    data = request.json
-    feedback = data.get('feedback')
-    chain_id = data.get('chain_id')
-    query_clarification = data.get('query_clarification')
-    context_needed = data.get('context_needed')
-
-    if not all([feedback, chain_id, query_clarification, context_needed]):
-        logger.error('Missing required fields in feedback request: %s', data)
-        return jsonify({'error': 'Missing required fields'}), 400
-
-    # Construct feedback file path
-    feedback_file = os.path.join(user_path('temp'), f'feedback_{chain_id}.json')
-
-    # Load existing feedback or initialize empty list
-    feedback_list = []
-    try:
-        if os.path.exists(feedback_file):
-            with open(feedback_file, 'r') as f:
-                feedback_list = json.load(f)
-            logger.debug(f'Loaded existing feedback from {feedback_file}: {len(feedback_list)} entries')
-    except (json.JSONDecodeError, IOError) as e:
-        logger.warning(f'Failed to read {feedback_file}: {str(e)}. Initializing empty list.')
-
-    # Append new feedback
-    feedback_list.append({
-        'query_clarification': query_clarification,
-        'context_needed': context_needed,
-        'feedback': feedback,
-        'timestamp': pd.Timestamp.now().isoformat()
-    })
-
-    # Write back to file
-    try:
-        with open(feedback_file, 'w') as f:
-            json.dump(feedback_list, f, indent=2)
-            f.flush()  # Ensure write is committed
-        return jsonify({'message': 'Feedback received'}), 200
-    except Exception as e:
-        logger.error(f'Error writing feedback to {feedback_file}: {str(e)}')
-        return jsonify({'error': f'Failed to store feedback: {str(e)}'}), 500
-    
 @app.route('/download_generated_dataset', methods=['GET'])
 @requires_auth
 def download_generated_dataset():

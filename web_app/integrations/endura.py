@@ -1,9 +1,7 @@
 # integrations/endura.py
 
-import os
 import requests
 import json
-from datetime import datetime
 from flask import Blueprint, request, jsonify, session
 from auth import requires_auth, get_current_user_id
 
@@ -49,12 +47,9 @@ def init_endura_integration(app, **dependencies):
     endura_bp.get_user_id = dependencies['get_user_id']
     endura_bp.get_bamboo_ai = dependencies['get_bamboo_ai']
     endura_bp.get_dynamic_executor_urls = dependencies['get_dynamic_executor_urls']
-    endura_bp.global_execution_mode = dependencies['global_execution_mode']
     endura_bp.logger = dependencies['logger']
     
     # Additional constants from main app
-    endura_bp.EXPLORATORY = dependencies['EXPLORATORY']
-    endura_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
     endura_bp.utils = dependencies['utils']
     endura_bp.executor_client = dependencies['executor_client']
     
@@ -200,7 +195,7 @@ def load_data():
         
         # Update user preferences
         prefs = endura_bp.user_preferences.get(session_id, {
-            'planning': False, 'ontology_path': None, 'auxiliary_datasets': []
+            'auxiliary_datasets': []
         })
         prefs['df_id'] = new_df_id
         

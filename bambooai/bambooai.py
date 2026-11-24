@@ -21,7 +21,7 @@ from bambooai import log_manager, web_output_manager, utils, executor_client, co
 from bambooai.messages.prompts import PromptManager
 from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
-from analyst import Session, Budget, Notebook, NotebookStore
+from analyst import Session, Budget, NotebookStore
 from analyst import context as context_mod
 from analyst import profile as profile_mod
 from analyst import reach as reach_mod
@@ -68,12 +68,8 @@ class BambooAI:
                  user_id: str = None,
                  api_keys: dict = None,
                  auxiliary_datasets: list = None,
-                 max_conversations: int = 4,
                  search_tool: bool = False,
-                 exploratory: bool = True,
-                 planning: bool = False,
                  df_id: str = None,
-                 custom_prompt_file: str = None,
                  executor_api_url: str = None, execution_mode: str = None):
         self.user_id = user_id
         self.api_keys = api_keys if api_keys is not None else {}
@@ -95,8 +91,6 @@ class BambooAI:
         self.auxiliary_datasets = auxiliary_datasets or []
         self.load_params = None          # how the data loaded now was loaded (the integration routes set it; a routine's run repeats it)
         self.search_tool = bool(search_tool)
-        self.exploratory = exploratory
-        self.planning = planning            # the UI's dial: True -> the adaptive preset
         self.kill_signal = False
         self._stop_event = threading.Event()
         self.synthesis_infographic = os.getenv('SYNTHESIS_INFOGRAPHIC', 'true').lower() in ('1', 'true', 'yes')
@@ -106,7 +100,7 @@ class BambooAI:
         self.llm_stream = self.models.llm_stream
         self.model_dict = self.models.get_model_properties()
         self.reasoning_models = [m for m, info in self.model_dict.items() if info.get('capability') == 'reasoning']
-        self.prompts = PromptManager(custom_prompt_file_path=custom_prompt_file)
+        self.prompts = PromptManager()
         self.log_and_call_manager = log_manager.LogAndCallManager(self.model_dict, user_id=self.user_id, thread_id=self.thread_id,
                                                                   search_engines=self.models.config.get("search_engines"))
         logger.info("Run log: %s | consolidated: %s (cwd %s)", os.path.abspath(self.log_and_call_manager.run_log_file_path),
@@ -1621,7 +1615,7 @@ class BambooAI:
             self._drop_kernel()
 
     def pd_agent_converse(self, question=None, action=None, thread_id=None, chain_id=None,
-                          image=None, auto_explore=False, max_investigations=None, synthesis=False, mode=None, brief=None,
+                          image=None, max_investigations=None, synthesis=False, mode=None, brief=None,
                           run_id=None, candidate=None, step=None, after=None):
         # after: a branch (docs/BRANCH_DESIGN.md) - go on from turn `after` of chain `chain_id`, another way: the question
         # is the person's hint; the branch is a chain of its own beside that one, under its limits, mode and brief
@@ -1700,9 +1694,9 @@ class BambooAI:
             next_questions.ran(self.notebook.runs[parent], candidate, self.chain_id)      # kept with the run's first save
 
         # budget preset. The brain's menu sends mode = quick | deep | adaptive (2026-09-05);
-        # without it the legacy flags decide (auto_explore -> adaptive, planning -> deep).
+        # a run asked for without one is a quick run.
         if mode not in ("quick", "deep", "adaptive"):
-            mode = "adaptive" if auto_explore else ("deep" if self.planning else "quick")
+            mode = "quick"
         if mode == "adaptive":
             # the Depth dial: each step is about eight analyst turns (2026-09-06: x4 gave an
             # "adaptive" run of eight turns); never fewer than 16, never above the tier's ceiling

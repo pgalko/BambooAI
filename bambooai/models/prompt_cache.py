@@ -111,19 +111,12 @@ def last_meta():
 # conversation id every turn and xAI/OpenAI cache affinity never
 # crossed a turn boundary - measured in production as a flat
 # "cached 128" on every grok-4.6 turn (2026-08-15). The process-stable
-# default restores cross-turn affinity; new_session() remains the
-# deliberate per-thread override for tests and isolation.
+# key restores cross-turn affinity.
 _PROCESS_SESSION = uuid.uuid4().hex
 
 
 def session_key(chain_id=None):
-    key = getattr(_local, "session", None) or _PROCESS_SESSION
-    return f"{key}-{chain_id}" if chain_id else key
-
-
-def new_session():
-    _local.session = uuid.uuid4().hex
-    return _local.session
+    return f"{_PROCESS_SESSION}-{chain_id}" if chain_id else _PROCESS_SESSION
 
 
 # ── breakpoint placement ───────────────────────────────────────────────────
