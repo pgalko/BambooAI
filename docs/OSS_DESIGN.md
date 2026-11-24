@@ -316,7 +316,7 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
-- **Status 2026-11-24: after 2.9.0, not yet released (patches 0335-0345; executor image v76).** Web search is a seat, Web Search, on
+- **Status 2026-11-24: after 2.9.0, not yet released (patches 0335-0346; executor image v76).** Web search is a seat, Web Search, on
   OpenRouter as it ships - DeepSeek V4.1 Flash with OpenRouter's web search tool, Perplexity its engine and Parallel
   the alternative - so one OpenRouter key runs the search as it runs every other seat; a seat put on a Gemini model
   searches with Google as before. Search is on where the seat's provider has its key. Each search is charged at its
@@ -330,7 +330,8 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   its dollar budget, and once it has searched its task line says how many searches are left (0341). The Gemini
   adapter counts the thinking and the pages its URL tool read. A result line names what its bounds are where they are
   no confidence interval - `RESULT(..., interval="range")` -, and the results so far hold the newest cell's lines
-  (0342, image v76).
+  (0342, image v76). A run is shown on the page and nowhere else: the mode outside the page - a terminal, a notebook,
+  `webui=False` - is removed, with the two packages only it needed, `termcolor` and `ipython` (0346).
   `python -m bambooai.web_search` runs the seat once and says what it found and what it cost (D28).
 - **Status 2026-11-22: 2.9.0 (patches 0318-0334).** Branching an analysis (docs/BRANCH_DESIGN.md). The person goes
   back to any turn of an analysis, gives the Analyst a hint, and the analysis goes on from there another way; the

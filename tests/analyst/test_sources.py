@@ -48,10 +48,9 @@ _V3 = {"n": 3, "title": "A guide [to] plot_trials", "url": _GDE, "host": "exampl
 _rep = "Loam gave 3.2 t/ha [3]; the unit is the plot [3][1]. Not these: x[2], [cell 2], `[2]`, [see][2], [[2]](u), [2](u), [2024], [9].\n```\n[2]\n```"
 check("sources: a report cites a source by its number alone in brackets - [3], or [3][1] for two; an index, a cell's citation, a number in code or of no source is none. "
       "The sources under a report (0340) are the pages it cites, by number, as data - each its title as the search gave it, brackets and marks and all, its address and its site -, "
-      "of the pages its path's searches numbered; a report that cites none has none; printed outside the page they are lines under the answer",
+      "of the pages its path's searches numbered; a report that cites none has none",
       [p["n"] for p in src.cited(_rep, _known)] == [1, 3] and src.of_report(_rep, [_d1, _d2]) == [_V1, _V3]
-      and src.of_report("Nothing from the web: x[1].", [_d1, _d2]) == [] and src.of_report(_rep, []) == []
-      and src.as_text([_V1, _V3]) == "\n\nSources:\n- [1] Designing crop field trials - " + _FAO + "\n- [3] A guide [to] plot_trials - " + _GDE and src.as_text([]) == "",
+      and src.of_report("Nothing from the web: x[1].", [_d1, _d2]) == [] and src.of_report(_rep, []) == [],
       src.of_report(_rep, [_d1, _d2]))
 check("sources: what a search's card in the pane shows (0339) - its pages by the numbers the digest gives them, each with its title, its address and its site - a later search's pages "
       "by their numbers along the thread, not from 1; the claims, each with its sources' numbers; a quote that rode along at the end of an address is not part of it; a failed search "

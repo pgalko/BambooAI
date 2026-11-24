@@ -221,7 +221,6 @@ def init_sweatstack_integration(app, **dependencies):
     # Additional constants from main app
     sweatstack_bp.EXPLORATORY = dependencies['EXPLORATORY']
     sweatstack_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
-    sweatstack_bp.WEBUI = dependencies['WEBUI']
     sweatstack_bp.utils = dependencies['utils']
     sweatstack_bp.executor_client = dependencies['executor_client']
     

@@ -13,8 +13,7 @@ from logger_config import get_logger
 logger = get_logger(__name__)
 
 class CodeExecutor:
-    def __init__(self, webui=False, mode='local', api_client=None, user_id=None):
-        self.webui = webui
+    def __init__(self, mode='local', api_client=None, user_id=None):
         self.mode = mode
         self.plots_dir = os.path.join("iframe_figures", user_id) if user_id else "iframe_figures"
         self.log_dir = os.path.join('logs', user_id) if user_id else 'logs'
@@ -88,9 +87,8 @@ pio.show = show
                 if not os.path.isdir(self.plots_dir):
                     raise  # Re-raise if directory doesn't exist
 
-        if self.webui:
-            matplotlib.use('Agg')
-            plt.ioff()
+        matplotlib.use('Agg')        # figures are drawn to files, never to a window: the host runs in a server
+        plt.ioff()
 
     def log_to_file(self, message):
         """Write log message to file with timestamp"""
@@ -139,13 +137,11 @@ pio.show = show
             os.makedirs(generated_datasets_path, exist_ok=True)
         prelude = f"import os\n_plots_dir = {plots_dir!r}\n_generated_files = []\n"
         # the plotly capture is optional here: a machine without plotly still reproduces prints and matplotlib figures
-        patch = ""
-        if self.webui:
-            patch = "try:\n" + "".join("    " + line + "\n" for line in self.patch_code.splitlines()) + "except ImportError:\n    pass\n"
-            # the analysis kernel makes Figure.show a no-op (no display there); the reproduction run must reach the
-            # capture patch, as it does through the executor - so fig.show() goes to pio.show again (2026-09-14)
-            patch += ("try:\n    import plotly.graph_objects as _go\n    import plotly.io as _pio\n"
-                      "    _go.Figure.show = lambda self, *a, **k: _pio.show(self, *a, **k)\nexcept Exception:\n    pass\n")
+        patch = "try:\n" + "".join("    " + line + "\n" for line in self.patch_code.splitlines()) + "except ImportError:\n    pass\n"
+        # the analysis kernel makes Figure.show a no-op (no display there); the reproduction run must reach the
+        # capture patch, as it does through the executor - so fig.show() goes to pio.show again (2026-09-14)
+        patch += ("try:\n    import plotly.graph_objects as _go\n    import plotly.io as _pio\n"
+                  "    _go.Figure.show = lambda self, *a, **k: _pio.show(self, *a, **k)\nexcept Exception:\n    pass\n")
         script = prelude + patch + "\n" + code
         kernel = None
         try:
@@ -219,76 +215,3 @@ pio.show = show
         except Exception as e:
             self.log_to_file(f"Error executing via API client: {str(e)}")
             return df, None, str(e), [], []
-
-    def filter_exec_traceback(self, code, full_traceback, exception_type, exception_value):
-        # Calculate offset from monkey patch if in webui mode
-        patch_offset = len(self.patch_code.split('\n')) - 1 if self.webui else 0
-        
-        # Split the full traceback and code into lines
-        tb_lines = full_traceback.split('\n')
-        code_lines = code.split('\n')
-        
-        # Find the line numbers from traceback and adjust for patch offset
-        error_lines = []
-        for line in tb_lines:
-            if '<string>' in line:
-                line_num = int(line.split(', line ')[1].split(',')[0]) - patch_offset
-                error_lines.append(line_num)
-        
-        if error_lines:
-            actual_error_line = error_lines[0]
-            
-            # Get the relevant code snippet for context
-            start_line = max(0, actual_error_line - 3)
-            end_line = min(len(code_lines), actual_error_line + 2)
-            relevant_code = []
-            for i, line in enumerate(code_lines[start_line:end_line], start=start_line+1):
-                if i == actual_error_line:
-                    relevant_code.append(f"{i}: --> {line}")
-                else:
-                    relevant_code.append(f"{i}:     {line}")
-            relevant_code = '\n'.join(relevant_code)
-            
-            filtered_traceback = f"Error occurred in the following code snippet:\n\n{relevant_code}\n\n"
-            filtered_traceback += f"Error on line {actual_error_line}:\n"
-            filtered_traceback += f"{exception_type}: {exception_value}\n\n"
-            
-            filtered_traceback += "Traceback (most recent call last):\n"
-            
-            # Group traceback lines
-            traceback_groups = []
-            current_group = []
-            for line in tb_lines:
-                if '<string>' in line or exception_type in line:
-                    if current_group and 'File "<string>"' in current_group[0]:
-                        traceback_groups.append(current_group)
-                    current_group = [line]
-                elif current_group:
-                    current_group.append(line)
-            if current_group:
-                traceback_groups.append(current_group)
-            
-            # Process groups adjusting line numbers
-            for group in traceback_groups:
-                for line in group:
-                    if '<string>' in line:
-                        original_line_num = int(line.split(', line ')[1].split(',')[0])
-                        adjusted_line_num = original_line_num - patch_offset
-                        # Replace the line number in the traceback
-                        line = line.replace(f'line {original_line_num}', f'line {adjusted_line_num}')
-                        filtered_traceback += line + '\n'
-                        if 0 <= adjusted_line_num - 1 < len(code_lines):
-                            filtered_traceback += "    " + code_lines[adjusted_line_num - 1].strip() + '\n'
-                    elif exception_type in line and 'raise' in line:
-                        filtered_traceback += "    " + line + '\n'
-            
-            if not filtered_traceback.strip().endswith(str(exception_value)):
-                filtered_traceback += f"{exception_type}: {exception_value}\n"
-        else:
-            filtered_traceback = full_traceback
-        
-        # Truncate the traceback to 1000 characters
-        if len(filtered_traceback) > 1000:
-            filtered_traceback = filtered_traceback[:1000] + f"\n[...] (truncated to 1000 characters)\n"
-
-        return filtered_traceback

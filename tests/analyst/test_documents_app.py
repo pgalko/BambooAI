@@ -43,7 +43,7 @@ class FakeModels:
     def llm_call(self, *a, **k): return "NO_CARD"
 B.ModelManager = FakeModels
 
-inst = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, exploratory=True, planning=True)
+inst = B.BambooAI(df=None, df_id=None, user_id="u1", exploratory=True, planning=True)
 tdir = os.path.join(work, "storage", "u1", "documents", "1002")
 e1 = docs.attach(tdir, md_path, "meeting.md")
 inst.thread_id = "1002"
@@ -161,7 +161,7 @@ check("client.sync_documents: a second sync sends nothing", client.sync_document
 docs.remove(tdir2, "D1"); docs.attach(tdir2, md_path, "again.md")
 sent, removed = client.sync_documents("u1", tdir2)
 check("client.sync_documents: after remove and re-attach, D2 arrives and D1's three files go", (sent, removed) == (3, 3) and set(client.documents_inventory("u1")) == {"D2/text.json", "D2/text.md", "D2/tables/1.csv"}, (sent, removed))
-api_inst = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, execution_mode="api", executor_api_url=f"http://127.0.0.1:{port}")
+api_inst = B.BambooAI(df=None, df_id=None, user_id="u1", execution_mode="api", executor_api_url=f"http://127.0.0.1:{port}")
 api_inst.thread_id = "2001"; docs.remove(tdir2, "D2"); api_inst._sync_documents()
 check("the engine in api mode syncs through the client: an emptied thread clears the executor's folder", client.documents_inventory("u1") == {}, client.documents_inventory("u1"))
 check("client.remove_document: a document id", client.upload_document("u1", "D7/text.md", md_path) and client.remove_document("u1", "D7") and client.documents_inventory("u1") == {})
@@ -170,7 +170,7 @@ check("client.remove_document: a document id", client.upload_document("u1", "D7/
 old_client = ExecutorAPIClient(base_url=f"http://127.0.0.1:{port}/nowhere")       # every route 404s there
 check("client.sync_documents: None, not (0, 0), when the executor has no documents route", old_client.sync_documents("u1", tdir2) is None)
 docs.attach(tdir2, md_path, "again.md")
-old_inst = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, execution_mode="api", executor_api_url=f"http://127.0.0.1:{port}/nowhere")
+old_inst = B.BambooAI(df=None, df_id=None, user_id="u1", execution_mode="api", executor_api_url=f"http://127.0.0.1:{port}/nowhere")
 old_inst.thread_id = "2001"; old_inst._sync_documents()
 blk = old_inst._data_description()
 check("the engine with such an executor: the kernel is marked as having no copy, the DATA block says READ is the way, not the filesystem, and no kernel objects are prepared",

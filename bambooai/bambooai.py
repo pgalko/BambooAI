@@ -17,7 +17,7 @@ import time
 
 import pandas as pd
 
-from bambooai import log_manager, output_manager, web_output_manager, utils, executor_client, code_executor, documents, reading, web_search
+from bambooai import log_manager, web_output_manager, utils, executor_client, code_executor, documents, reading, web_search
 from bambooai.messages.prompts import PromptManager
 from bambooai.models import ModelManager
 from bambooai import synthesis_infographic
@@ -72,7 +72,6 @@ class BambooAI:
                  search_tool: bool = False,
                  exploratory: bool = True,
                  planning: bool = False,
-                 webui: bool = False,
                  df_id: str = None,
                  custom_prompt_file: str = None,
                  executor_api_url: str = None, execution_mode: str = None):
@@ -80,16 +79,14 @@ class BambooAI:
         self.api_keys = api_keys if api_keys is not None else {}
         self.thread_id = None
         self.chain_id = None
-        self.webui = webui
-        self.output_manager = web_output_manager.WebOutputManager() if webui else output_manager.OutputManager()
+        self.output_manager = web_output_manager.WebOutputManager()      # what a run shows goes to the page, and nowhere else (0346)
         self.execution_mode = execution_mode or os.getenv('EXECUTION_MODE', 'local')   # the app passes its own (2026-09-14)
         self.executor_api_url = executor_api_url
         self.api_client = executor_client.ExecutorAPIClient(base_url=self.executor_api_url) if self.executor_api_url else None
         # the executor runs the reproduction script exactly as the old pipeline ran its
         # consolidated script: it returns the results text, the Plotly figures and any
         # generated datasets, in local or api mode
-        self.executor = code_executor.CodeExecutor(webui=self.webui, mode=self.execution_mode,
-                                                   api_client=self.api_client, user_id=self.user_id)
+        self.executor = code_executor.CodeExecutor(mode=self.execution_mode, api_client=self.api_client, user_id=self.user_id)
         self._replay = {}                 # run id -> {"results", "plots", "datasets"} from the replay
         self._mode_label = 'Deep'
         self.df_name = ''
@@ -1198,9 +1195,8 @@ class BambooAI:
     # ------------------------------------------------------------- the UI
     def _tab(self, kind, data):
         """Update a right-pane tab live ('plan' is the Investigation tab)."""
-        q = getattr(self.output_manager, 'output_queue', None)
-        if q is not None and data:
-            q.put(json.dumps({'type': kind, 'data': data, 'chain_id': self.chain_id}))
+        if data:
+            self.output_manager.output_queue.put(json.dumps({'type': kind, 'data': data, 'chain_id': self.chain_id}))
 
     def _notebook_view(self, run):
         """The Investigation tab: the run as a notebook (analyst/render.py)."""
@@ -1209,10 +1205,8 @@ class BambooAI:
 
     def _pane(self, event_type, **payload):
         """One event for the left pane (stream-pane.js)."""
-        q = getattr(self.output_manager, 'output_queue', None)
-        if q is not None:
-            payload.update({'type': event_type, 'chain_id': self.chain_id})
-            q.put(json.dumps(payload))
+        payload.update({'type': event_type, 'chain_id': self.chain_id})
+        self.output_manager.output_queue.put(json.dumps(payload))
 
     def _emit(self, ev):
         """The artifact stream: the Investigation tab live, and the left pane's cards."""
@@ -1654,7 +1648,7 @@ class BambooAI:
         # thread and position
         self._on_thread(thread_id if thread_id is not None else utils.next_thread_id())
         self._sync_documents()                       # the thread's documents into the kernel's folder
-        if question is None and self.webui:
+        if question is None:
             # read before anything below can refuse the request: left waiting, it became the next question's text
             question = self.output_manager.get_user_input()
         parent = str(chain_id) if chain_id is not None and str(chain_id) in self.notebook.runs else None
@@ -1732,19 +1726,18 @@ class BambooAI:
         branch = {"of": int(own) if str(own).isdigit() else own, "turn": after, "hint": hint} if src is not None else None
         if src is not None:
             self._carry_drafts(src)                    # the drafts of the brief it runs under, kept under it before it is announced (0331)
-        if self.webui:
-            # the browser draws the map from this one record: the new chain and where it attached - and, for a branch, the
-            # chain and the turn it goes on from
-            self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui,
-                                              **({"branch_of": branch["of"], "branch_turn": after} if branch else {}))
-            self._pane('pane_run_start', mode=self._mode_label, of=budget.turns, dollars=budget.dollars, **({"branch": branch} if branch else {}))
-            # the Data tab, as before (the Query tab is retired: the question is the chain's own text)
-            if self.df is not None or self.df_id:
-                try:
-                    self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode,
-                                                        df_id=self.df_id, df=self.df, api_client=self.api_client)
-                except Exception:                              # noqa: BLE001
-                    logger.warning("Data preview skipped", exc_info=True)
+        # the browser draws the map from this one record: the new chain and where it attached - and, for a branch, the
+        # chain and the turn it goes on from
+        self.output_manager.send_chain_id(self.thread_id, self.chain_id, self.df_id, parent_chain_id=parent_for_ui,
+                                          **({"branch_of": branch["of"], "branch_turn": after} if branch else {}))
+        self._pane('pane_run_start', mode=self._mode_label, of=budget.turns, dollars=budget.dollars, **({"branch": branch} if branch else {}))
+        # the Data tab, as before (the Query tab is retired: the question is the chain's own text)
+        if self.df is not None or self.df_id:
+            try:
+                self.output_manager.display_results(chain_id=self.chain_id, execution_mode=self.execution_mode,
+                                                    df_id=self.df_id, df=self.df, api_client=self.api_client)
+            except Exception:                              # noqa: BLE001
+                logger.warning("Data preview skipped", exc_info=True)
 
         data_record = data_now if src is not None else self._data_record()   # what this run runs on, kept on the run (2026-10-10, routines)
         if src is None:
@@ -1811,18 +1804,12 @@ class BambooAI:
         else:
             if self.synthesis_infographic and run.report and synthesis:      # the infographic is a synthesis's (2026-09-08): ordinary chains skip the call
                 self._generate_synthesis_image(run.report)
-            kwargs = dict(chain_id=self.chain_id, answer=run.report or "(no report)",
-                          code=run.replay_script or None, plot_jsons=rep.get("plots") or None,
-                          code_exec_results=rep.get("results") or None, generated_datasets=rep.get("datasets"),
-                          plan=self._notebook_view(run))
-            if self.webui:
-                kwargs["simplified_answer"] = run.rewrite or None
-                kwargs["report_head"] = self._report_head(run, mode)
-            else:                                   # printed outside the page: the sources under the answer as lines (0340)
-                kwargs["answer"] += sources_mod.as_text(self._report_sources(run))
-            self.output_manager.display_results(**kwargs)
+            self.output_manager.display_results(chain_id=self.chain_id, answer=run.report or "(no report)", simplified_answer=run.rewrite or None,
+                                                report_head=self._report_head(run, mode), code=run.replay_script or None,
+                                                plot_jsons=rep.get("plots") or None, code_exec_results=rep.get("results") or None,
+                                                plan=self._notebook_view(run))
         try:
-            self.log_and_call_manager.print_summary_to_terminal(self.output_manager)
+            self.log_and_call_manager.send_call_summary(self.output_manager)
         except Exception:                                      # noqa: BLE001
             pass
         try:

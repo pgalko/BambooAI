@@ -96,8 +96,8 @@ class LogAndCallManager:
             self.token_summary[chain_id]['cache_write_tokens'] += cache_write_tokens
             self.token_summary[chain_id]['cache_savings'] += cache_savings
 
-    def print_summary_to_terminal(self, output_manager):
-        """Print summary including web search and image costs"""
+    def send_call_summary(self, output_manager):
+        """The summary of the calls so far - tokens, time, cost, the web search's and the images' among it - sent to the page."""
         prompt_tokens = 0
         completion_tokens = 0
         total_tokens = 0

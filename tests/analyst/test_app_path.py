@@ -90,7 +90,7 @@ class FakeModels:
 B.ModelManager = FakeModels
 
 df = pd.DataFrame({"arm": np.tile(["A", "B"], 100), "x": np.random.default_rng(1).normal(size=200)}); df.loc[df.arm == "B", "x"] += 0.5
-BAMBOO = B.BambooAI(df=df, df_id="d1", user_id="u1", webui=True, exploratory=True, planning=True)
+BAMBOO = B.BambooAI(df=df, df_id="d1", user_id="u1", exploratory=True, planning=True)
 check("the instance builds with the old constructor arguments and no seats", BAMBOO._seat() == "Investigator" and BAMBOO.store is not None)
 # the effort a call asks for (2026-10-18): _llm hands it to the model layer as reasoning_effort, and the usage says what the call was asked at
 from bambooai.models import prompt_cache as _pc
@@ -827,7 +827,7 @@ check("the report's head carries its sources as data (0340): the pages its text 
 from unittest import mock
 _engines = {"perplexity": {"per_search": 0.005}}
 _seated = dict(FakeModels.config, agent_configs=FakeModels.config["agent_configs"] + [{"agent": "Web Search", "details": {"model": "fake/model", "provider": "openrouter"}}], search_engines=_engines)
-_make = lambda **k: B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, **k)
+_make = lambda **k: B.BambooAI(df=None, df_id=None, user_id="u1", **k)
 with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k", "GEMINI_API_KEY": "g"}):
     _no_seat = _make(search_tool=True)
     with mock.patch.object(FakeModels, "config", _seated):
@@ -876,16 +876,16 @@ try:
     _auxdir = tempfile.mkdtemp(); _laps = os.path.join(_auxdir, "laps.csv"); _ath = os.path.join(_auxdir, "athletes.csv")
     pd.DataFrame({"athlete": ["a", "b", "c"], "pace": [3.5, 3.6, 3.4]}).to_csv(_laps, index=False)
     pd.DataFrame({"athlete": ["a", "b"], "nation": ["ETH", "KEN"]}).to_csv(_ath, index=False)
-    _ba = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_laps, _ath])
+    _ba = B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=[_laps, _ath])
     _desc = _ba._dataset_description()
     check("DATA with auxiliary files and no primary: says df is not defined and the files are the data, then each file's path and first rows (a run had read '(no dataset attached)' and nothing more)",
           _desc.startswith("No primary dataset is attached: `df` is not defined and DS has nothing to load.") and "AUXILIARY FILES (read them with pandas" in _desc
           and f"Path: {_laps}" in _desc and f"Path: {_ath}" in _desc and "ETH" in _desc and "3.5" in _desc, _desc[:600])
-    _bb = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath])
+    _bb = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", auxiliary_datasets=[_ath])
     _desc2 = _bb._dataset_description()
     check("DATA with a primary and an auxiliary file: the frame first, then the auxiliary block with the file's rows",
           _desc2.startswith("`df`: 2 rows x 1 columns") and "AUXILIARY FILES" in _desc2 and f"Path: {_ath}" in _desc2 and "KEN" in _desc2, _desc2[-400:])
-    check("DATA with nothing attached says so and that df is not defined", B.BambooAI(df=None, df_id=None, user_id="u1", webui=True)._dataset_description()
+    check("DATA with nothing attached says so and that df is not defined", B.BambooAI(df=None, df_id=None, user_id="u1")._dataset_description()
           == "(no dataset attached: `df` is not defined and DS has nothing to load; the question stands on its own, or on the documents below if any are attached)")
     # the context (2026-10-13, docs/CONTEXT_DESIGN.md §3.4): the context file's rows never enter DATA - the columns and the count do, and the map
     _ctx = os.path.join(_auxdir, "context_notes_20260615_to_20261013.csv")
@@ -893,7 +893,7 @@ try:
                   {"id": "C.2", "kind": "activity_message", "date": "2026-09-01", "time": "09:00", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "2", "author_id": "c9", "author_name": "Coach", "author_role": "coach", "private": False, "lang": "", "text": "take tomorrow easy", "text_en": "", "chars": 18},
                   {"id": "C.3", "kind": "status", "date": "2026-10-05", "time": "", "end_date": "2026-10-07", "activity_id": "", "event_id": "13", "source_id": "13", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "", "text": "SICK: cold", "text_en": "", "chars": 10},
                   {"id": "C.4", "kind": "day_note", "date": "2026-10-09", "time": "", "end_date": "", "activity_id": "", "event_id": "15", "source_id": "15", "author_id": "c9", "author_name": "", "author_role": "coach", "private": True, "lang": "", "text": "watch motivation", "text_en": "", "chars": 16}]).to_csv(_ctx, index=False)
-    _bc = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath, _ctx])
+    _bc = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", auxiliary_datasets=[_ath, _ctx])
     _desc3 = _bc._dataset_description()
     check("DATA with a context file: its entry is the path, the columns and the row count - no passage text in the head - and the map follows: the span, the passages by kind with authors, the roles, private entries, the months, the closing sentence",
           f"Path: {_ctx}" in _desc3 and "Columns: id, kind, date, time, end_date, activity_id" in _desc3 and "Rows: 4 (the rows are passages: read them with CTX" in _desc3
@@ -935,7 +935,7 @@ try:
                   {"id": "C.1", "code": "deviation", "tone": "negative", "quote": "cut it short", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.2", "code": "instruction", "tone": "neutral", "quote": "take tomorrow easy", "status": "codebook", "coder": "m", "codebook_version": 1},
                   {"id": "C.3", "code": "unwell_span", "tone": "negative", "quote": "SICK", "status": "proposed", "coder": "m", "codebook_version": 1}]).to_csv(_codes, index=False)
-    _bd = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ctx, _codes])
+    _bd = B.BambooAI(df=pd.DataFrame({"x": [1, 2]}), df_id=None, user_id="u1", auxiliary_datasets=[_ctx, _codes])
     _desc4 = _bd._dataset_description()
     check("DATA with the codes file too: the codes line - counts per code, codes used, passages without a code, the proposed ones named; the codes file's head is columns and count as well",
           "codes (the model's reading, one row per code, with the words it rests on): fatigue 1, deviation 1, instruction 1, unwell_span 1 (4 of 36 codes used); 1 passage carries none; proposed: unwell_span." in _desc4
@@ -953,7 +953,7 @@ try:
           _codes_disk["day"].tolist() == ["2026-09-01", "2026-09-01", "2026-09-01", "2026-10-05"] and list(_codes_disk.columns)[-1] == "day" and _puts == [], (_codes_disk.to_dict("records"), _puts))
     _empty = os.path.join(_auxdir, "context_notes_20260101_to_20260131.csv")
     pd.DataFrame(columns=["id", "kind", "date", "time", "end_date", "activity_id", "event_id", "source_id", "author_id", "author_name", "author_role", "private", "lang", "text", "text_en", "chars"]).to_csv(_empty, index=False)
-    _desc5 = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_empty])._dataset_description()
+    _desc5 = B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=[_empty])._dataset_description()
     check("a context file with no rows: the map says no passages in this window", "no passages in this window: nothing was written beside the data loaded." in _desc5 and "Rows: 0" in _desc5, _desc5)
     from analyst.routines import aux_kind as _ak
     check("the two file kinds are known to the routines' kind table (a routine's plan binds them like the summary and wellness files)",
@@ -966,14 +966,14 @@ try:
     _wide = [os.path.join(_auxdir, f"wide{k}.csv") for k in range(6)]
     for _p in _wide:
         pd.DataFrame({f"column_number_{c}": [f"value_{c}_{r}" for r in range(5)] for c in range(40)}).to_csv(_p, index=False)
-    _descw = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=_wide + [_ctx])._auxiliary_block()
+    _descw = B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=_wide + [_ctx])._auxiliary_block()
     _entries = _descw.split("AUXILIARY FILES", 1)[1].split("\n\nCONTEXT (", 1)[0].split("\n\n")
     _full = [e for e in _entries if "Head:" in e]; _compact = [e for e in _entries if "(the rows are left out to keep the prompt short; read the file for them)" in e]
     check("the auxiliary block keeps to its budget: six wide files and a context file - the first heads whole (cut at AUX_HEAD_CHARS each), the files past AUX_BLOCK_CHARS as path and columns, the context file's entry exempt",
           B.BambooAI.AUX_BLOCK_CHARS == 14000 and len(_full) == 4 and len(_compact) == 2 and all("Columns (40): column_number_0, column_number_1" in e and "value_" not in e for e in _compact)
           and all(f"Path: {_wide[k]}" in _compact[k - 4] for k in (4, 5)) and f"Path: {_ctx}\nColumns: id, kind, date" in _descw and "Rows: 4 (the rows are passages" in _descw
           and len(_descw) < B.BambooAI.AUX_BLOCK_CHARS + 2 * 600 + 1200, (len(_descw), [len(e) for e in _entries]))
-    check("the auxiliary block under the budget is as it was: every head whole", "(the rows are left out" not in B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=_wide[:3])._auxiliary_block())
+    check("the auxiliary block under the budget is as it was: every head whole", "(the rows are left out" not in B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=_wide[:3])._auxiliary_block())
     check("the compact entry without the columns says to read the file", B.BambooAI._aux_compact(3, "x.csv", None) == "3.\nPath: x.csv\nColumns: read the file for them\n(the rows are left out to keep the prompt short; read the file for them)")
     # the rider profile (2026-10-16, docs/RIDER_PROFILE_DESIGN.md): its DATA entry is the columns, the count and a line assembled from
     # the file's own rows - the measurements and each sport group's thresholds, the rest counted - never a head of five of a settings file
@@ -988,7 +988,7 @@ try:
                   {"section": "zone", "sport_types": "Ride|VirtualRide", "key": "hr_zone_2", "value": 155, "unit": "bpm", "low": 140, "high": 155, "note": "Z2"},
                   {"section": "custom_zone", "sport_types": "Ride|VirtualRide", "key": "Breath:low", "value": "Low", "unit": "respiration", "low": 10, "high": 25, "note": "set 'Breathing'"},
                   {"section": "custom_field", "sport_types": "", "key": "Lbl", "value": "INTERVAL_FIELD", "unit": "", "low": "", "high": "", "note": "select · 'Label' · options: 1 Recovery | 2 Endurance"}]).to_csv(_rider, index=False)
-    _descr = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ath, _rider])._dataset_description()
+    _descr = B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=[_ath, _rider])._dataset_description()
     check("DATA with the rider profile: the entry is the path, the columns, the count with what a row is, and the Settings line from the rows - the measurements, each sport group's thresholds (the model's estimates left in the file), the rest counted; no head of rows",
           f"Path: {_rider}\nColumns: section, sport_types, key, value, unit, low, high, note\nRows: 10 (one row per setting: section, key, value, unit, the bounds for a zone, a note; read the file with pandas)\nSettings: weight 71.5 kg, age 26 years; "
           "Ride|VirtualRide: ftp 300 W, lthr 170 bpm; Run: threshold_pace 3.5 m/s; also in the file: 2 zone rows with their bounds, 1 custom zone rows in 1 set (Breath 'Breathing' on respiration), 1 custom field definitions - the codes other files' columns carry, with their options" in _descr
@@ -1110,7 +1110,7 @@ try:
     # the pane event after a READ over a rendered passage carries the original beside the quote (S2: the chip's hover)
     _ctx_da = os.path.join(_auxdir, "context_notes_20260101_to_20260430.csv")
     pd.DataFrame([{"id": "C.1", "kind": "activity_message", "date": "2026-03-01", "time": "08:10", "end_date": "", "activity_id": "a1", "event_id": "", "source_id": "1", "author_id": "i1", "author_name": "", "author_role": "subject", "private": False, "lang": "da", "text": "benene var tunge", "text_en": "the legs were heavy", "chars": 16}]).to_csv(_ctx_da, index=False)
-    _be = B.BambooAI(df=None, df_id=None, user_id="u1", webui=True, auxiliary_datasets=[_ctx_da])
+    _be = B.BambooAI(df=None, df_id=None, user_id="u1", auxiliary_datasets=[_ctx_da])
     _be.models.llm_call = lambda *a, **k: '- [C.1] "the legs were heavy"\nSUMMARY: heavy [C.1].'
     _dg2, _ = _be._read("CTX the legs")
     import queue as _q2
@@ -1174,7 +1174,7 @@ try:
         return "\n".join(json.dumps(out[i]) for i in ids if i in out)
     _saved_n = _coder.BATCH_PASSAGES; _coder.BATCH_PASSAGES = 3
     try:
-        _bf = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=[_ctx3])
+        _bf = B.BambooAI(df=None, df_id=None, user_id="u3", auxiliary_datasets=[_ctx3])
         _bf.models.llm_call = _coder_reply
         _prog = []
         _rep = _bf.code_context(_ctx3, progress=lambda k, n: _prog.append((k, n)), billing_chain_id="load-1", key_mark="k-one")
@@ -1238,7 +1238,7 @@ try:
     def _coder5(*a, **k):
         ids = re.findall(r"^\[(C\.\d+)\] ", a[1][-1]["content"], re.M); _calls5.append(ids)
         return "\n".join(json.dumps({"id": i, "codes": ["recovery"], "tone": "neutral", "quotes": {"recovery": "seks runder"}, "lang": "da", "text_en": "Breathe in for four seconds, hold for seven, out for eight; six rounds with rest between them all."}) for i in ids)
-    _b5 = B.BambooAI(df=None, df_id=None, user_id="u5", webui=True, auxiliary_datasets=[_ctx5])
+    _b5 = B.BambooAI(df=None, df_id=None, user_id="u5", auxiliary_datasets=[_ctx5])
     _b5.models.llm_call = _coder5
     _rep5 = _b5.code_context(_ctx5)
     _n5 = pd.read_csv(_ctx5, dtype=str, keep_default_na=False).set_index("id")
@@ -1257,7 +1257,7 @@ try:
     _bf._context_coding = None
     check("the Coder seat: 'Coder' when the config carries it, the Reader's seat otherwise (the analyst's here)",
           _bf._coder_seat() == "Investigator" and (lambda cfg: (setattr(_bf.models, "config", {"agent_configs": cfg + [{"agent": "Coder", "details": {"model": "m", "provider": "fake"}}]}), _bf._coder_seat())[1])(list(_bf.models.config["agent_configs"])) == "Coder")
-    _bg = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=[_empty])
+    _bg = B.BambooAI(df=None, df_id=None, user_id="u3", auxiliary_datasets=[_empty])
     _rep_e = _bg.code_context(_empty)
     check("a context file with no passages: nothing to code, no call, no codes file; a file that cannot be read: an error in the report and nothing written",
           _rep_e["passages"] == 0 and _rep_e["coded"] == 0 and not os.path.exists(_empty.replace("context_notes_", "context_codes_")) and _bg.code_context(os.path.join(_ctxdir, "context_notes_19990101_to_19990131.csv")).get("error") == "the context file could not be read", _rep_e)
@@ -1273,7 +1273,7 @@ try:
     import integrations.intervals as IV
     _ctx4 = os.path.join(_ctxdir, "context_notes_20260901_to_20260930.csv")
     pd.DataFrame(_rows3[:4]).to_csv(_ctx4, index=False)
-    _bh = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=[_ctx4])
+    _bh = B.BambooAI(df=None, df_id=None, user_id="u3", auxiliary_datasets=[_ctx4])
     _gate = _thr.Event(); _calls4 = []
     def _slow_coder(*a, **k):
         _calls4.append(1); _gate.wait(5)
@@ -1341,7 +1341,7 @@ try:
     import integrations.cache_manager as CM
     _a0 = "/x/datasets/u3/intervals/i0/views/wellness_data_20260101_to_20260301.csv"; _a1 = "/x/datasets/u3/intervals/i1/views/wellness_data_20260101_to_20260301.csv"; _up = "/x/datasets/u3/upload.csv"
     _p6 = {"auxiliary_datasets": [_a0, _ath, _up]}
-    _bi = B.BambooAI(df=None, df_id=None, user_id="u3", webui=True, auxiliary_datasets=_p6["auxiliary_datasets"])
+    _bi = B.BambooAI(df=None, df_id=None, user_id="u3", auxiliary_datasets=_p6["auxiliary_datasets"])
     CM.cache_bp.bamboo_ai_instances = {"s6": _bi}
     CM._one_athlete("s6", _p6, ""); _none = _p6["auxiliary_datasets"] == [_a0, _ath, _up]
     CM._one_athlete("s6", _p6, "intervals/i0"); _own = _p6["auxiliary_datasets"] == [_a0, _ath, _up] and _bi.auxiliary_datasets is _p6["auxiliary_datasets"]
@@ -1372,11 +1372,13 @@ try:
     check("pricing preflight: a model string one character off an entry (claude-opus-5.5 for claude-opus-5-5) is named with the nearest entry, and the warning says the entry's facts do not apply (2026-10-08)",
           len(_h.lines) == 1 and "'claude-opus-5.5'" in _h.lines[0] and "The nearest entry is 'claude-opus-5-5' - a misspelling of it?" in _h.lines[0]
           and "effort levels, no_sampling" in _h.lines[0], _h.lines)
-    _om.display_results(chain_id="c3", answer="## r", generated_datasets=["datasets/u/generated/x.csv"])
+    _om.display_results(chain_id="c3", answer="## r")
     _events3 = []
     while not _om.output_queue.empty(): _events3.append(_json.loads(_om.output_queue.get()))
-    check("generated datasets are not a right-pane tab: display_results sends no generated_datasets payload (the pane's pills carry the files, 2026-10-06)",
-          not any(e.get('type') == 'generated_datasets' for e in _events3) and any(e.get('type') == 'answer' for e in _events3), [e.get('type') for e in _events3])
+    check("generated datasets are not a right-pane tab: display_results sends no generated_datasets payload (the pane's pills carry the files, 2026-10-06) - and takes "
+          "none (0346: the argument was for the manager outside the page)",
+          "generated_datasets" not in _insp.signature(_WOM.display_results).parameters and not any(e.get('type') == 'generated_datasets' for e in _events3)
+          and any(e.get('type') == 'answer' for e in _events3), [e.get('type') for e in _events3])
 except Exception as exc:                                     # noqa: BLE001
     check("the app's smaller paths: the checks ran", False, repr(exc))
 # ---- the infographic's YAML is mended before parsing; the infographic is a synthesis's only ----
@@ -1574,7 +1576,7 @@ try:
     state["i"] = 0
     state["promoter"] = ('{"name": "End value", "inputs": [{"key": "start", "label": "Starting value", "type": "number", "default": "1.0", "origin": "the analysis started at 1"}], '
                          '"edits": [{"cell": 1, "find": "start = 1.0", "replace": "start = INPUTS[\'start\']"}], "kept": []}')
-    BN = B.BambooAI(df=None, df_id=None, user_id="u2", webui=True, exploratory=True, planning=True)
+    BN = B.BambooAI(df=None, df_id=None, user_id="u2", exploratory=True, planning=True)
     BN.output_manager.add_user_input("Where does it end after twenty steps from 1.0?")
     BN.pd_agent_converse(thread_id="2001", chain_id=None)
     qn = BN.output_manager.output_queue
@@ -1602,7 +1604,7 @@ try:
     _still = _caught["runner"]("print('still runs')", 60)
     BN.df_id = None
     state["script"], state["i"], state["promoter"] = SCRIPT, 0, _keep_promoter
-    BD = B.BambooAI(df=df, df_id="d1", user_id="u3", webui=True, exploratory=True, planning=True)
+    BD = B.BambooAI(df=df, df_id="d1", user_id="u3", exploratory=True, planning=True)
     BD.output_manager.add_user_input("Is B higher than A?")
     BD.pd_agent_converse(thread_id="3001", chain_id=None)
     _pb = BD.propose_routine("3001", BD.notebook.runs[str(BD.chain_id)].id, billing_chain_id="9102")

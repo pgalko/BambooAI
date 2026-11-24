@@ -256,7 +256,6 @@ EXPLORATORY = True
 # Web search (docs/OSS_DESIGN.md D28): on where the Web Search seat's provider has its key (bambooai/web_search.py);
 # WEB_SEARCH_MODE=off turns it off.
 SEARCH_TOOL = os.getenv('WEB_SEARCH_MODE', 'on').lower() not in ('off', 'none', 'false', '0')
-WEBUI = True
 
 # Initialize SweatStack integration
 init_sweatstack_integration(app, 
@@ -269,7 +268,6 @@ init_sweatstack_integration(app,
     logger=logger,
     EXPLORATORY=EXPLORATORY,
     SEARCH_TOOL=SEARCH_TOOL,
-    WEBUI=WEBUI,
     utils=utils,
     executor_client=executor_client 
 )
@@ -285,7 +283,6 @@ init_intervals_integration(app,
     logger=logger,
     EXPLORATORY=EXPLORATORY,
     SEARCH_TOOL=SEARCH_TOOL,
-    WEBUI=WEBUI,
     utils=utils,
     executor_client=executor_client 
 )
@@ -301,7 +298,6 @@ init_endura_integration(app,
     logger=logger,
     EXPLORATORY=EXPLORATORY,
     SEARCH_TOOL=SEARCH_TOOL,
-    WEBUI=WEBUI,
     utils=utils,
     executor_client=executor_client 
 )
@@ -360,7 +356,6 @@ def get_bamboo_ai(session_id, df=None):
             exploratory=EXPLORATORY,
             planning=prefs['planning'],
             search_tool=SEARCH_TOOL,
-            webui=WEBUI,
             df_id=prefs['df_id'],
             auxiliary_datasets=prefs['auxiliary_datasets'],
             api_keys=api_keys,

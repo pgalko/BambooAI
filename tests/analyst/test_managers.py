@@ -1,11 +1,12 @@
-"""What a run shows, and the prompts it is given outside the analyst's own (0345). The page's output manager sends
-events the page reads; the terminal's prints. Both had carried the displays of the first version - a seat's start, a
-corrected script, a data model, a silent mode, a flag for a mode that was always on - which nothing called, and the
-prompt list named 25 prompts that no longer existed. With them gone this holds what is left: each event the page's
-manager sends, what the terminal's prints of a result, a run on the page and one outside it from the question to the
-answer, that neither manager defines a method the product does not call or takes an argument no run hands it, and
-that the prompt file, the loader's list and the host's reads name the same prompts."""
-import contextlib, inspect, io, json, os, re, sys, tempfile
+"""What a run shows, and the prompts it is given outside the analyst's own. The output manager sends events the page
+reads. It had carried the displays of the first version - a seat's start, a corrected script, a data model, a silent
+mode, a flag for a mode that was always on - which nothing called, and the prompt list named 25 prompts that no longer
+existed (0345). Beside it stood a second manager, for a terminal or a notebook, and a flag on the host to choose it:
+no run of this version had ever shown its report that way, and the mode is gone (0346). This holds what is left: each
+event the manager sends, a run from the question to the answer, that the manager defines no method the product does
+not call and takes no argument a run does not hand it, that the prompt file, the loader's list and the host's reads
+name the same prompts, and that the mode outside the page has left nothing behind."""
+import inspect, json, os, re, sys, tempfile, tomllib
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
 sys.path[:0] = [HERE, ROOT, os.path.join(ROOT, "delve")]
@@ -20,7 +21,8 @@ def check(name, cond, detail=""):
 
 
 os.chdir(tempfile.mkdtemp())                           # storage/ and logs/ land here
-from bambooai import bambooai as B, output_manager as OM  # noqa: E402
+from bambooai import bambooai as B  # noqa: E402
+from bambooai.code_executor import CodeExecutor  # noqa: E402
 from bambooai.web_output_manager import WebOutputManager  # noqa: E402
 from bambooai.messages import prompts as PR  # noqa: E402
 
@@ -39,14 +41,14 @@ def kind(event):
     return event.get("type") or next(iter(event))
 
 
-# ------------------------------------------------------------------------------------------ the page's manager
+# ------------------------------------------------------------------------------------------ the manager's events
 page = WebOutputManager()
 page.print_wrapper("\nRegime B yields more.", chain_id="c1")
 page.print_wrapper("\nOn loam too.", end="", chain_id="c1")
 page.print_wrapper("\nAnd on clay.", end="", chain_id="c1")
 page.print_wrapper("the gap is the same in each half", end="", chain_id="c1", thought=True)
 page.print_wrapper("", end="", chain_id="c1")
-check("page, what a model writes: a piece is a text event under its chain, a thought a thought event; a piece that opens with a line break right after a line "
+check("what a model writes: a piece is a text event under its chain, a thought a thought event; a piece that opens with a line break right after a line "
       "break loses it, any other keeps it; an empty piece sends nothing",
       sent(page) == [{"text": "Regime B yields more.\n", "chain_id": "c1"}, {"text": "On loam too.", "chain_id": "c1"}, {"text": "\nAnd on clay.", "chain_id": "c1"},
                      {"thought": "the gap is the same in each half", "chain_id": "c1"}])
@@ -56,21 +58,20 @@ page.display_system_messages("Stopped.", chain_id="c1")
 page.display_call_summary("Chain ID: c1\nTotal Tokens: 150\n")
 page.send_synthesis_image("PHN2Zz4=", "image/svg+xml", chain_id="c1")
 page.send_chain_id("t1", "c1", "d1", parent_chain_id=None)
-check("page, the notices: an error, a system message, the call summary, the infographic and the chain's ids each go out as the event the page reads",
+check("the notices: an error, a system message, the call summary, the infographic and the chain's ids each go out as the event the page reads",
       sent(page) == [{"error": "no data is loaded", "chain_id": "c1"}, {"system_message": "Stopped."}, {"call_summary": "Chain ID: c1\nTotal Tokens: 150\n"},
                      {"type": "synthesis_image", "data": "PHN2Zz4=", "mime_type": "image/svg+xml", "chain_id": "c1"},
                      {"type": "id", "thread_id": "t1", "chain_id": "c1", "df_id": "d1", "parent_chain_id": None}])
 
 nothing = page.get_user_input()
 page.add_user_input("Which regime yields more?")
-check("page, the question: read once from what the person sent, and nothing where nothing was sent", nothing is None and page.get_user_input() == "Which regime yields more?" and page.get_user_input() is None)
+check("the question: read once from what the person sent, and nothing where nothing was sent", nothing is None and page.get_user_input() == "Which regime yields more?" and page.get_user_input() is None)
 
 page.display_results(chain_id="c1", execution_mode="local", df_id="d1", df=TRIAL, api_client=None, plan="<div>the investigation</div>", code="print(1)", answer="## Answer\nB.",
-                     simplified_answer="B is higher.", plot_jsons=[json.dumps({"type": "plot", "data": "{}", "id": "p1"})], generated_datasets=["generated/by_regime.csv"],
-                     code_exec_results="1", report_head={"title": "B against A"})
+                     simplified_answer="B is higher.", plot_jsons=[json.dumps({"type": "plot", "data": "{}", "id": "p1"})], code_exec_results="1", report_head={"title": "B against A"})
 events = sent(page)
-check("page, a result: the data's first page, the report's head, a tab each for the investigation, the script, the answer, the plain answer and the script's output, the "
-      "figures, then the end - in that order, each under the chain, and nothing for the files a run made (the pane lists those)",
+check("a result: the data's first page, the report's head, a tab each for the investigation, the script, the answer, the plain answer and the script's output, the "
+      "figures, then the end - in that order, each under the chain",
       [kind(e) for e in events] == ["dataframe", "report_head", "plan", "code", "answer", "simplified_answer", "code_exec_results", "plot", "end"]
       and events[0]["data"]["df_id"] == "d1" and len(events[0]["data"]["rows"]) == 50 and events[1] == {"report_head": {"title": "B against A"}, "chain_id": "c1"}
       and events[4] == {"type": "answer", "data": "## Answer\nB.", "chain_id": "c1"} and all(e.get("chain_id") == "c1" for e in events if kind(e) != "plot"),
@@ -85,45 +86,15 @@ with mock.patch.object(page, "plot_json_to_png", return_value=picture):
 with mock.patch.object(page, "plot_json_to_png", return_value=None):
     not_drawn = page.optimize_plot_json(figure)
 page.plot_size_threshold_mb = 2
-check("page, a figure: under the size limit it is sent as it is; over it, as the picture made of it, and as it is where no picture could be made; one that is a "
+check("a figure: under the size limit it is sent as it is; over it, as the picture made of it, and as it is where no picture could be made; one that is a "
       "picture already is sent as that",
       as_it_is == (figure, "json") and over == (picture, "png") and not_drawn == (figure, "json") and page.optimize_plot_json(picture) == (picture, "png"), (as_it_is, over, not_drawn))
 
-# ------------------------------------------------------------------------------------------ the terminal's manager
-def printed(action):
-    """What the terminal's manager shows while `action` runs - the coloured lines and the plain ones; the error stream;
-    what `action` raised, if it did."""
-    lines, out, err, raised = [], io.StringIO(), io.StringIO(), None
-    with mock.patch.object(OM, "cprint", lambda text, *a, **k: lines.append(str(text))), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        try:
-            action()
-        except Exception as exc:                               # noqa: BLE001
-            raised = exc
-    return "\n".join(lines) + "\n" + out.getvalue(), err.getvalue(), raised
-
-
-terminal = OM.OutputManager()
-terminal.is_notebook = False
-shown, _, raised = printed(lambda: (terminal.display_results(chain_id="c1", execution_mode="local", df_id="d1", df=TRIAL, api_client=None),
-                                    terminal.display_results(chain_id="c1", answer="Regime B yields more [cell 1].", code="print(TRIAL.groupby('regime').mean())", plot_jsons=["{}"],
-                                                             code_exec_results="1", generated_datasets=["generated/by_regime.csv"], plan="<div>the investigation</div>")))
-check("terminal, a result: the data's columns, the script and the answer are printed; what only the page shows - the investigation's HTML, the figures, the script's "
-      "output - is taken and left out (0345: handed the script's output, the manager raised a TypeError, so no run outside the page ended with its report)",
-      raised is None and "yield_t_ha" in shown and "print(TRIAL.groupby('regime').mean())" in shown and "Regime B yields more [cell 1]." in shown and "<div" not in shown,
-      (repr(raised), shown[-400:]))
-_, errors, _ = printed(lambda: terminal.display_error("The analysis cannot go on from turn 3: its kernel is gone."))
-check("terminal, an error: printed as it is - the promise to 'try again with an adjusted code' was the first version's corrector's, and nothing tries again",
-      "The analysis cannot go on from turn 3: its kernel is gone." in errors and "try again" not in errors, errors)
-
-# ------------------------------------------------------------------------------------------ a run, on the page and outside it
+# ------------------------------------------------------------------------------------------ a run
 NOTE = "- Question as understood: q\n- Best estimate so far: none yet\n- Held fixed: -\n- Open doubts: -\n- Plan: p\n- Names: df"
-CELL = "###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nm = df.groupby('regime')['yield_t_ha'].mean().round(2)\nprint('means', m.to_dict())\n```"
-SCRIPT = [CELL, "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B above A\n\n## Answer\nRegime B yields more than regime A [cell 1].\n"]
-SEARCHED = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH yield by regime in field trials", CELL,
-            "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B above A\n\n## Answer\nRegime B yields more than regime A [cell 1], as trials elsewhere found [1].\n"]
-DIGEST = ("SOURCED CLAIMS (each sentence with the sources behind it):\n- Regime B out-yielded regime A in repeated trials. [1]\n\n"
-          "SOURCES:\n[1] Designing crop field trials - https://fao.example.org/trials\n\nSUMMARY (the search model's own words):\nB yields more.")
-state = {"i": 0, "script": SCRIPT}
+SCRIPT = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nm = df.groupby('regime')['yield_t_ha'].mean().round(2)\nprint('means', m.to_dict())\n```",
+          "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n# B above A\n\n## Answer\nRegime B yields more than regime A [cell 1].\n"]
+state = {"i": 0}
 
 
 class FakeModels:
@@ -145,61 +116,50 @@ class FakeModels:
             return "no"
         if system.startswith("You are given a task as an analyst will be given it"):
             return '{"cannot_place": []}'
-        i = min(state["i"], len(state["script"]) - 1); state["i"] += 1
-        return state["script"][i]
+        i = min(state["i"], len(SCRIPT) - 1); state["i"] += 1
+        return SCRIPT[i]
 
 
 B.ModelManager = FakeModels
 try:
-    on_page = B.BambooAI(df=TRIAL, df_id="d1", user_id="u1", webui=True)
-    handed, real = set(), on_page.output_manager.display_results
-    on_page.output_manager.display_results = lambda **kw: (handed.update(kw), real(**kw))[1]
-    on_page.output_manager.add_user_input("Does regime B yield more than regime A?")
-    state["i"] = 0
-    on_page.pd_agent_converse(thread_id="1001", chain_id=None)
-    kinds = [kind(e) for e in sent(on_page.output_manager)]
+    host = B.BambooAI(df=TRIAL, df_id="d1", user_id="u1")
+    handed, real = set(), host.output_manager.display_results
+    host.output_manager.display_results = lambda **kw: (handed.update(kw), real(**kw))[1]
+    host.output_manager.add_user_input("Does regime B yield more than regime A?")
+    host.pd_agent_converse(thread_id="1001", chain_id=None)
+    kinds = [kind(e) for e in sent(host.output_manager)]
     takes = set(inspect.signature(WebOutputManager.display_results).parameters) - {"self"}
-    check("a run on the page: the question is read from what the person sent, and the run's result goes out as the data, the report's head, the investigation, the "
-          "script, the answer and the end",
-          all(k in kinds for k in ("id", "dataframe", "report_head", "plan", "code", "answer", "end")) and kinds.index("report_head") < kinds.index("answer") < len(kinds) - 1 - kinds[::-1].index("end"),
-          kinds)
-    check("the page's manager takes for a result what a run hands it and no more: no argument is left that no run passes (the first version's question, data model "
-          "and review were such)", handed == takes, (sorted(takes - handed), sorted(handed - takes)))
-    on_page.pd_agent_converse(action="reset"); on_page.cleanup()
-
-    outside = B.BambooAI(df=TRIAL, df_id=None, user_id="u2", webui=False)
-    outside._search = lambda query: (DIGEST, {"cost": 0.0})          # the search seam, scripted: a digest with one source
-    state["i"], state["script"] = 0, SEARCHED
-    shown, _, raised = printed(lambda: outside.pd_agent_converse("Does regime B yield more than regime A?", thread_id="1002"))
-    check("a run outside the page (0345): it ends with its answer and its script printed, the data's columns before them, and no error - handed what the page shows "
-          "as well, the terminal's manager had raised at the report of every such run; the answer ends with the sources it cites, a line each (0340, which no run "
-          "had reached)",
-          raised is None and type(outside.output_manager) is OM.OutputManager and "Regime B yields more than regime A [cell 1], as trials elsewhere found [1]." in shown
-          and "\n\nSources:\n- [1] Designing crop field trials - https://fao.example.org/trials" in shown
-          and "groupby('regime')" in shown and "yield_t_ha" in shown and "<div" not in shown, (repr(raised), shown[-700:]))
-    outside.pd_agent_converse(action="reset"); outside.cleanup()
+    first = {k: kinds.index(k) for k in set(kinds)}
+    check("a run: the question is read from what the person sent; the page is told the chain's ids, that a run has started and the data's first page before any turn; the "
+          "investigation is sent as it grows; and the result goes out as the report's head, the script, the answer and the end, the run's end after them",
+          type(host.output_manager) is WebOutputManager and all(k in first for k in ("id", "pane_run_start", "dataframe", "pane_turn_start", "plan", "report_head", "code", "answer", "pane_run_end"))
+          and first["id"] < first["pane_run_start"] < first["dataframe"] < first["pane_turn_start"] < first["plan"] < first["report_head"] < first["answer"]
+          and kinds.count("plan") > 1 and kinds[-1] in ("end", "pane_run_end", "call_summary"), kinds)
+    check("the manager takes for a result what a run hands it and no more: no argument is left that no run passes (the first version's question, data model and "
+          "review were such, 0345; the files a run made, kept for the manager outside the page, 0346)", handed == takes, (sorted(takes - handed), sorted(handed - takes)))
+    host.pd_agent_converse(action="reset"); host.cleanup()
 except Exception:                                              # noqa: BLE001
     import traceback
-    check("a run, on the page and outside it: the checks ran", False, traceback.format_exc()[-1500:])
+    check("a run: the checks ran", False, traceback.format_exc()[-1500:])
 
-# ------------------------------------------------------------------------------------------ nothing idle
+# ------------------------------------------------------------------------------------------ nothing idle, nothing left behind
 def source(*parts):
     with open(os.path.join(ROOT, *parts), encoding="utf-8") as f:
         return f.read()
 
 
-MANAGERS = source("bambooai", "output_manager.py") + source("bambooai", "web_output_manager.py")
+MANAGER = source("bambooai", "web_output_manager.py")
 product = ""
 for folder in ("bambooai", "web_app", "analyst", "delve", "tools"):
     for where, _dirs, names in os.walk(os.path.join(ROOT, folder)):
         if "vendor" in where or "__pycache__" in where:
             continue
         for name in names:
-            if name.endswith(".py") and name not in ("output_manager.py", "web_output_manager.py"):
+            if name.endswith(".py") and name != "web_output_manager.py":
                 product += source(where, name)
-idle = [f"{cls.__name__}.{name}" for cls in (OM.OutputManager, WebOutputManager) for name, member in vars(cls).items()
-        if callable(member) and not name.startswith("__") and not re.search(r"\.%s\(" % name, product) and not re.search(r"self\.%s\(" % name, MANAGERS)]
-check("neither manager defines a method nothing calls: each is called by the product, or by the manager itself on its way to one (0345: a seat's start, a corrected "
+idle = [name for name, member in vars(WebOutputManager).items()
+        if callable(member) and not name.startswith("__") and not re.search(r"\.%s\(" % name, product) and not re.search(r"self\.%s\(" % name, MANAGER)]
+check("the manager defines no method nothing calls: each is called by the product, or by the manager itself on its way to one (0345: a seat's start, a corrected "
       "script, the prompt for a question, the silent mode and the assistant's consultation were defined and never called)", idle == [] and len(product) > 100000, idle)
 
 HOST = source("bambooai", "bambooai.py")
@@ -210,6 +170,14 @@ check("prompts (0345): the prompts in the file, the names the loader lists and t
       "prompt (the list named 25 of the first version's), no prompt without a reader (the file held one)",
       bool(in_file) and in_file == set(PR._EXPECTED_TEMPLATES) == read and all(isinstance(getattr(loaded, n, None), str) and getattr(loaded, n).strip() for n in in_file),
       (sorted(in_file), sorted(PR._EXPECTED_TEMPLATES), sorted(read)))
+
+listed = tomllib.loads(source("pyproject.toml"))["project"]["dependencies"] + [line for line in source("requirements.txt").splitlines() if line.strip() and not line.startswith("#")]
+asked_for = {re.split(r"[<>=!;\[ ]", entry.strip(), maxsplit=1)[0].lower() for entry in listed}
+check("retired (0346): the mode outside the page - neither the host nor the code executor takes a flag for it, there is one output manager and no module for another, "
+      "and the two packages only the other one imported are not asked for at an install",
+      "webui" not in inspect.signature(B.BambooAI.__init__).parameters and "webui" not in inspect.signature(CodeExecutor.__init__).parameters
+      and not os.path.exists(os.path.join(ROOT, "bambooai", "output_manager.py")) and "webui" not in product.lower() and "webui" not in MANAGER.lower()
+      and "pandas" in asked_for and not {"termcolor", "ipython"} & asked_for, sorted({"termcolor", "ipython"} & asked_for))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

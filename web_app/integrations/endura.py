@@ -55,7 +55,6 @@ def init_endura_integration(app, **dependencies):
     # Additional constants from main app
     endura_bp.EXPLORATORY = dependencies['EXPLORATORY']
     endura_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
-    endura_bp.WEBUI = dependencies['WEBUI']
     endura_bp.utils = dependencies['utils']
     endura_bp.executor_client = dependencies['executor_client']
     

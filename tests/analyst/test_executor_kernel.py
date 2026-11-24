@@ -92,7 +92,11 @@ finally:
 # with its number, and the executor reads the files sorted by name - with id(fig) alone in the name the order was the
 # order of the figures' addresses, and a run's two figures swapped places from one run to the next
 from bambooai.code_executor import CodeExecutor as _CE   # noqa: E402
-_ce = _CE.__new__(_CE); _CE.__init__(_ce, webui=True) if "webui" in _CE.__init__.__code__.co_varnames else _CE.__init__(_ce)
+import matplotlib as _mpl, matplotlib.pyplot as _plt   # noqa: E402
+_mpl.use("svg"); _plt.ion()                             # as a machine with a screen might stand: another backend, drawing as it goes
+_ce = _CE()
+check("the code executor draws to files whoever makes it (0346: matplotlib was put on Agg, and drawing as it goes turned off, only under the flag that said the page "
+      "was there; the flag is gone, the page always there)", _mpl.get_backend().lower() == "agg" and not _mpl.is_interactive(), (_mpl.get_backend(), _mpl.is_interactive()))
 _plots = tempfile.mkdtemp(prefix="bamboo_exec_plots_")
 _code = ("import plotly.graph_objects as go\n"
          "for _name in ('first', 'second', 'third', 'fourth'):\n"
@@ -103,6 +107,21 @@ _names = [[t.get("name") for t in json.loads(p["data"])["data"]][0] for p in _r.
 _files = sorted(f for f in os.listdir(_plots) if f.startswith("figure_"))
 check("executor: four figures shown in one script come back in the order shown, their files numbered 000-003 in that order",
       _names == ["first", "second", "third", "fourth"] and [f[:10] for f in _files] == ["figure_000", "figure_001", "figure_002", "figure_003"], (_names, _files, (_r.get("error") or "")[-200:]))
+# the same script reproduced on this machine: its kernel is a process of its own, and where there is no Plotly it is given the stack's stand-in, by its whole path
+import subprocess as _sub   # noqa: E402
+_pp_was = os.environ.get("PYTHONPATH")
+if _sub.run([sys.executable, "-c", "import plotly.graph_objects"], capture_output=True).returncode:
+    os.environ["PYTHONPATH"] = os.path.join(ROOT, "tools", "stack", "fakepkgs") + (os.pathsep + _pp_was if _pp_was else "")
+try:
+    _, _lout, _lerr, _lfigs, _ = _ce._execute_local(_code + "print('drawn')\n")
+finally:
+    if _pp_was is None:
+        os.environ.pop("PYTHONPATH", None)
+    else:
+        os.environ["PYTHONPATH"] = _pp_was
+_lnames = [[t.get("name") for t in json.loads(p["data"])["data"]][0] for p in _lfigs or [] if p.get("format") == "json"]
+check("the replay on this machine (0346): the script's figures are captured whoever made the code executor - the capture was put before the script only under the flag "
+      "for the page - and come back in the order shown", not _lerr and "drawn" in (_lout or "") and _lnames == ["first", "second", "third", "fourth"], (_lerr, _lout, _lnames))
 
 # a script that fails returns what it printed before the failure beside the error (2026-10-16, image v57): a routine's run
 # compares the RESULT lines its cells printed before the one that failed - the route used to return results: None, and

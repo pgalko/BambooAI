@@ -7,7 +7,6 @@ matplotlib
 seaborn
 plotly
 kaleido
-termcolor
 newspaper3k
 selenium
 google-generativeai
@@ -17,7 +16,6 @@ ollama
 anthropic
 mistralai
 flask
-ipython
 nbformat
 python-dotenv
 lxml_html_clean

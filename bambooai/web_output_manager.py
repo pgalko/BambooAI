@@ -6,14 +6,12 @@ import plotly.graph_objects as go
 import plotly.io as pio
 import base64
 
-from bambooai.output_manager import OutputManager
-
-class WebOutputManager(OutputManager):
-    """The page's manager: what a run shows goes to `output_queue` as events the page reads (query-processing.js), and
-    the person's question comes in on `input_queue`."""
+class WebOutputManager:
+    """The output manager: what a run shows goes to `output_queue` as events the page reads (query-processing.js), and
+    the person's question comes in on `input_queue`. There is one (0346): the manager that printed to a terminal or a
+    notebook went with the mode outside the page."""
 
     def __init__(self):
-        super().__init__()
         self.output_queue = queue.Queue()
         self.input_queue = queue.Queue()
         self.last_chunk_ended_with_newline = True
@@ -139,7 +137,7 @@ class WebOutputManager(OutputManager):
 
     def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None,
                         plan=None, code=None, answer=None, simplified_answer=None, plot_jsons=None,
-                        generated_datasets=None, code_exec_results=None, report_head=None):
+                        code_exec_results=None, report_head=None):
         from bambooai import utils
 
         if df_id is not None:

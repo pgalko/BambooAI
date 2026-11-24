@@ -9,7 +9,7 @@ import sys, types, importlib.abc, importlib.machinery
 # app.run() and a generic stub returns a non-mapping, killing the server.
 import pandas  # noqa: F401
 
-FAKE = {"pyarrow", "plotly", "termcolor", "IPython", "tiktoken", "anthropic",
+FAKE = {"pyarrow", "plotly", "tiktoken", "anthropic",
         "openai", "groq", "mistralai", "ollama", "supabase", "stripe", "rdflib",
         "selenium", "newspaper", "pinecone", "sweatstack", "yfinance",
         "geopandas", "fitparse", "google", "jose", "kaleido", "nbformat",
@@ -57,12 +57,3 @@ class _Finder(importlib.abc.MetaPathFinder, importlib.abc.Loader):
 
 
 sys.meta_path.insert(0, _Finder())
-
-# matplotlib inspects IPython.version_info when switching backends; give the
-# fake a real tuple so `matplotlib.use("Agg")` takes its normal path.
-try:
-    import IPython as _ip
-    _ip.version_info = (8, 30, 0)
-    _ip.__version__ = "8.30.0"
-except Exception:
-    pass

@@ -156,8 +156,3 @@ def drop_list(text):
         if not dropping:
             kept.append(line)
     return "\n".join(kept).rstrip()
-
-
-def as_text(shown):
-    """The sources under an answer printed outside the page - in a terminal or a notebook -, a line each."""
-    return ("\n\nSources:\n" + "\n".join(f"- [{p['n']}] {p['title']} - {p['url']}" for p in shown)) if shown else ""

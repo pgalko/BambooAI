@@ -117,7 +117,7 @@ def main(argv=None, host=None):
         environment()
         mode, url = compute(users[0])
         from bambooai import BambooAI
-        host = BambooAI(user_id=users[0], webui=True, execution_mode=mode, executor_api_url=url)      # webui: the model's stream goes to a queue, not to this terminal
+        host = BambooAI(user_id=users[0], execution_mode=mode, executor_api_url=url)
     from analyst import memory
     count = []
     shown = None if args.quiet else lambda step: print("\n".join(step_lines(count.append(1) or len(count), step)), flush=True)

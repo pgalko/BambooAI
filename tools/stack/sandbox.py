@@ -12,7 +12,7 @@ import importlib.util
 import sys
 import types
 
-CANDIDATES = ("pyarrow", "plotly", "termcolor", "IPython", "tiktoken", "anthropic", "openai", "groq", "mistralai",
+CANDIDATES = ("pyarrow", "plotly", "tiktoken", "anthropic", "openai", "groq", "mistralai",
               "ollama", "stripe", "rdflib", "selenium", "newspaper", "pinecone", "sweatstack", "yfinance", "geopandas",
               "fitparse", "jose", "kaleido", "nbformat", "seaborn", "lxml_html_clean", "httpx", "transformers",
               # dotted: a partial `google` namespace package may exist without these
@@ -66,11 +66,4 @@ def install(extra=()):
             missing.append(n)
     if missing:
         sys.meta_path.insert(0, _Finder(missing))
-        if "IPython" in missing:
-            try:
-                import IPython as _ip                       # matplotlib reads its version when switching backends
-                _ip.version_info = (8, 30, 0)
-                _ip.__version__ = "8.30.0"
-            except Exception:                              # noqa: BLE001
-                pass
     return missing

@@ -116,7 +116,6 @@ def init_intervals_integration(app, **dependencies):
     # Additional constants from main app
     intervals_bp.EXPLORATORY = dependencies['EXPLORATORY']
     intervals_bp.SEARCH_TOOL = dependencies['SEARCH_TOOL']
-    intervals_bp.WEBUI = dependencies['WEBUI']
     intervals_bp.utils = dependencies['utils']
     intervals_bp.executor_client = dependencies['executor_client']
     

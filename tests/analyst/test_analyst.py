@@ -406,7 +406,7 @@ check("the loop: an empty REPORT loses its turn and is told the report is the te
       and rem.report.startswith("## Answer\n\nThe answer is +1 [cell 1].") and rem.status == "answered" and len(em_prompts) == 3, (em_prompts[2][-300:], rem.report[:100]))
 
 # ---- the Data tab's page function ----
-import _stubs  # noqa: F401  (the package import pulls the console output manager; the sandbox lacks termcolor)
+import _stubs  # noqa: F401  (the package import pulls the provider SDKs and plotly, which a sandbox may lack)
 from bambooai.utils import page_frame
 import pandas as pd, numpy as np
 pf = pd.DataFrame({"id": [f"s{i:03d}" for i in range(120)], "v": np.arange(120, dtype=float), "cat": pd.Categorical(["a", "b"] * 60),
