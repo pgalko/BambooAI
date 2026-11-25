@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.16 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; 0333, the maps' panel on the right; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards)
+# Branching an analysis — design v0.16 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; 0333, the maps' panel on the right; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards; fixed: 0352, the order of the dataset's rows in a saved state)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -104,7 +104,10 @@ inside a library, or in the environment variables; the tie between an array and 
 - A large buffer (an array, a block of a frame; 64 KB and over) is written once, under the hash of its content, and
   shared by every snapshot that holds it.
 - The dataset as loaded is not written while `df` holds it unchanged: the kernel's first worker takes its
-  fingerprint before the first cell runs.
+  fingerprint before the first cell runs. The fingerprint is of the rows' values and labels in their order, the
+  column labels and the axes' names with their kinds, the dtypes, the attrs and the kind of frame. (0352: its first
+  part was a sum of the rows' hashes, so a `df` a cell had only sorted passed for the dataset as loaded, and a state
+  gone back to held it unsorted.) Two missing values in a text column are one to it, None or NaN.
 - The modules loaded since the worker started are listed beside the snapshot, and the worker that takes over
   imports them before it reads it. A submodule reached through its package (`import a.b`, and `a.b.f()` in a later
   cell) is there again, and so is what an import registered.
@@ -480,3 +483,7 @@ a click that picks a box and goes nowhere, the pointer over another box and gone
 going there changes something; `test_architect.js`: the Pathfinding map's panel and the Workflow map's;
 `test_maps.js` and `test_shell.js`: a chain's box picked and gone to, the drawer's width, the panel's rules in one
 type size; the walk: each map's panel, a box picked and gone to through its button.
+(0352) `test_kernel_snapshots.py`: a `df` that differs from the dataset as loaded only in the order of its rows
+(sorted, sorted in place, shuffled, reversed, two rows exchanged), in its rows' labels, in the kind of its column
+labels, by a name on the column axis or as another kind of frame comes back as the cell left it; rows put back
+in their order are the dataset as loaded again; DS's line on lost columns where the labels are not text.

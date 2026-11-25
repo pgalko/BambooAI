@@ -217,7 +217,7 @@ class _Source:
         lost = [c for c in self.columns if c not in f.columns]
         if lost:
             return (f"(df now has {f.shape[1]} of the dataset's {len(self.columns)} columns and {f.shape[0]:,} of "
-                    f"{self.shape[0]:,} rows - {', '.join(lost[:4])}{'...' if len(lost) > 4 else ''} gone; "
+                    f"{self.shape[0]:,} rows - {', '.join(map(str, lost[:4]))}{'...' if len(lost) > 4 else ''} gone; "
                     f"df = DS.load() restores the dataset)")
         return ""
 
@@ -855,12 +855,18 @@ _failed = {}                # the last save that failed: its error and the names
 
 
 def _df_fingerprint(_df):
-    """A cheap fingerprint of a frame's content. A frame that cannot be hashed gets an object of its own, equal to
-    nothing: it is then saved like any other value."""
+    """A fingerprint of a frame: its values row by row and in their order, its labels with their kinds, the kind of
+    frame it is. Two missing values in a text column count as the same one, None or NaN. A frame that cannot be hashed
+    gets an object of its own, equal to nothing: it is then saved like any other value."""
     try:
-        _h = int(pd.util.hash_pandas_object(_df, index=True).sum())
-        return (_h, _df.shape, tuple(map(str, _df.columns)), tuple(repr(_t) for _t in _df.dtypes),
-                tuple(map(str, _df.index.names)), repr(_df.attrs))
+        # The rows' hashes in their order (0352). They were summed, and a sum does not know the order: a df a cell had
+        # only sorted, shuffled or reversed - every row keeping its label - had the fingerprint of the dataset as
+        # loaded, the snapshot named the dataset in its place, and the state gone back to held df in the order it
+        # was loaded in. A label's kind counts too: the column 1 is not the column '1'.
+        _rows = pd.util.hash_pandas_object(_df, index=True).to_numpy()
+        return (_hashlib.blake2b(_rows, digest_size=16).hexdigest(), _df.shape, tuple(map(repr, _df.columns)),
+                tuple(repr(_t) for _t in _df.dtypes), tuple(map(repr, _df.index.names)), tuple(map(repr, _df.columns.names)),
+                repr(_df.attrs), "%s.%s" % (type(_df).__module__, type(_df).__qualname__))
     except Exception:
         return object()
 

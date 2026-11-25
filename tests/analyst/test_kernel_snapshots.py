@@ -139,12 +139,52 @@ check("while df holds the dataset as loaded a snapshot does not carry it, and a 
       first["saved"] and first["bytes"] < 20000 and first["buffers"] == [] and buffers(k) == [], (first, buffers(k)))
 for change, probe, want in (("df.attrs['note'] = 'kept'", "print(df.attrs)", "{'note': 'kept'}"),
                             ("df.index.name = 'plot_id'", "print(df.index.name)", "plot_id"),
+                            ("df.index = df.index + 100", "print(df.index[0], df.shape)", "100 (30000, 3)"),
                             ("df.loc[0, 'yield_t'] = -5.0", "print(df.loc[0, 'yield_t'], df.shape)", "-5.0 (30000, 3)")):
     out(k, "df = DS.load()\n" + change)
     carried = len(k._steps[k.last_step]["buffers"])
     out(k, "raise ValueError('x')")
     back = out(k, probe)
     check(f"a change to df that leaves its shape alone ({change}): it is no longer the dataset as loaded - the snapshot carries the frame, and it comes back changed", carried >= 1 and back == want, (carried, back))
+# the rows in another order, every value and every label as they were (0352): the fingerprint summed the rows' hashes,
+# so such a df passed for the dataset as loaded and came back in the order it was loaded in - with no word said
+ORDER = "print(list(df.index[:4]), list(df['plot'][:4]), len(df))"
+
+
+def carries(kernel):
+    """Whether the last snapshot carries a frame of the dataset's size: in buffers, or - where its arrays are not in
+    one piece, as a reversed frame's are not - in the snapshot's own file. One that names the dataset is small."""
+    step = kernel._steps[kernel.last_step]
+    return bool(step["buffers"]) or step["bytes"] > 200000
+
+
+loaded = out(k, "df = DS.load()\n" + ORDER)
+for change in ("df = df.sort_values('yield_t', ascending=False)", "df.sort_values('yield_t', ascending=False, inplace=True)",
+               "df = df.sample(frac=1, random_state=3)", "df = df.iloc[::-1]", "df = df.loc[[1, 0] + list(df.index[2:])]"):
+    seen = out(k, "df = DS.load()\n" + change + "\n" + ORDER)
+    carried = carries(k)
+    out(k, "raise ValueError('x')")
+    back = out(k, ORDER)
+    check(f"df with its rows in another order and nothing else changed ({change}): no longer the dataset as loaded - the snapshot carries the frame, and it comes back in that order",
+          carried and seen != loaded and back == seen, (carried, loaded, seen, back))
+out(k, "df = DS.load()\ndf = df.sort_values('yield_t', ascending=False).sort_index()")
+check("... and rows put back in the order they were loaded in are the dataset as loaded again: the snapshot carries no frame",
+      k._steps[k.last_step]["saved"] and k._steps[k.last_step]["buffers"] == [], k._steps[k.last_step])
+KINDS = "print(type(df).__name__, [type(c).__name__ for c in df.columns], df.columns.name, len(df))"
+kk = PersistentKernel(df=pd.DataFrame({1: range(30000), 2: [x * 0.5 for x in range(30000)]}))
+for change, want in (("df.columns = [str(c) for c in df.columns]", "DataFrame ['str', 'str'] None 30000"),
+                     ("df.columns.name = 'regime'", "DataFrame ['int', 'int'] regime 30000"),
+                     ("class Trial(pd.DataFrame):\n    pass\ndf = Trial(df)", "Trial ['int', 'int'] None 30000")):
+    said = out(kk, "df = DS.load()\n" + change)
+    carried = carries(kk)
+    out(kk, "raise ValueError('x')")
+    back = out(kk, KINDS).splitlines()[0]                    # DS's line on lost columns may follow it
+    check(f"df with the same values under labels of another kind, a name on the column axis, or as another kind of frame ({change.splitlines()[-1]}): it comes back as the cell left it",
+          carried and back == want and "Traceback" not in said, (carried, back, said))
+check("... and where the dataset's labels are not text, DS's line on the columns df lost names them: the cell that renamed them is no failed cell",
+      out(kk, "df = DS.load()\ndf.columns = ['a', 'b']\nprint('renamed')").splitlines() == ["renamed", "(df now has 2 of the dataset's 2 columns and 30,000 of 30,000 rows - 1, 2 gone; df = DS.load() restores the dataset)"],
+      out(kk, "print(1)"))
+kk.cleanup()
 out(k, "df = DS.load()\ndf['doubled'] = df['yield_t'] * 2")
 grown = dict(k._steps[k.last_step])
 check("a column added to df in place: the snapshot carries the frame, its large blocks as buffers", grown["saved"] and len(grown["buffers"]) >= 1, grown)
