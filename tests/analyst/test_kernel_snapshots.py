@@ -355,10 +355,17 @@ finally:
         os.environ["PYTHONPATH"] = _path
 
 # ---- a large state saved for less (0354): text in blocks, buffers named in threads and in pieces, the rows hashed in runs
-def trial(rows=60000):
+def trial(rows=60000, objects=True):
+    """A trial's plots, two columns of them text. `objects`: the text as arrays of objects, said outright (0355) - what
+    the executor image's pandas (2.3) makes of text, and what the kernel's blocks are for. Left to itself pandas 3
+    keeps text in a string type of its own, and in Arrow memory where pyarrow is installed: a value there is no
+    object until it is asked for, so nothing can be asked about which object a name is. The suite had left it to
+    pandas, and its check on that failed on the product owner's machine, where the kernel had done nothing wrong."""
     regimes = ["regime A", "regime B", "regime C"]          # more than one character: a one-character str is one object wherever it comes from
-    return pd.DataFrame({"plot": range(rows), "yield_t": [x * 0.5 for x in range(rows)], "regime": [regimes[x % 3] for x in range(rows)],
-                         "soil": [None if x % 7 == 0 else float("nan") if x % 11 == 0 else ("loam", "clay", "sand")[x % 3] for x in range(rows)]})
+    text = {"regime": [regimes[x % 3] for x in range(rows)],
+            "soil": [None if x % 7 == 0 else float("nan") if x % 11 == 0 else ("loam", "clay", "sand")[x % 3] for x in range(rows)]}
+    return pd.DataFrame({"plot": range(rows), "yield_t": [x * 0.5 for x in range(rows)],
+                         **{name: pd.Series(values, dtype=object) if objects else values for name, values in text.items()}})
 
 
 def back(kernel):
@@ -380,7 +387,8 @@ held = buffers(k)
 out(k, "note = 'nothing large changed'")
 check("... and the next snapshot holds the same blocks and adds no file", buffers(k) == held and k._steps[k.last_step]["buffers"] == text["buffers"] and k._steps[k.last_step]["bytes"] < 30000, (held, buffers(k)))
 read = back(k)
-check("the text comes back as it was, read and not made again: every value in its place, None still None and NaN still NaN, the columns still of objects", read and out(k, SIG) == seen and "60000, 5" in seen, (read, seen, out(k, SIG)))
+check("the text comes back as it was, read and not made again: every value in its place, None still None and NaN still NaN, the columns still of objects",
+      read and out(k, SIG) == seen and seen.endswith("8572 13247 object object (60000, 5)"), (read, seen, out(k, SIG)))
 out(k, "other = df.copy()\npart = df[df['plot'] % 2 == 0].copy()")
 read = back(k)
 check("a name is one object in its column again, and two frames that held the same column share its values, as they did; what was shared while the state was read is let go after",
@@ -421,6 +429,13 @@ out(k, "import __main__ as W\nW._SNAP_THREADS = 1\ndel W")
 check("... and a buffer's name does not depend on how many threads hash: with one, the next snapshot holds the same buffers and adds no file", buffers(k) == held, (len(held), len(buffers(k))))
 read = back(k)
 check("... they come back whole", read and out(k, "print(bool((big == np.arange(2_600_000, dtype='float64')).all()), float(near[-1]), float(near[-2]), big.flags.writeable)") == "True -1.0 2599998.0 True", (read, k.last_goto))
+k.cleanup()
+
+k = PersistentKernel(df=trial(objects=False))
+seen = out(k, "df['doubled'] = df['yield_t'] * 2\n" + SIG)
+read = back(k)
+check("the same frame with its text left to pandas - arrays of objects, its own string type, Arrow memory where pyarrow is installed - comes back with every value in its place, read and not made again",
+      read and out(k, SIG) == seen and seen.endswith("(60000, 5)") and len(seen.split()[0]) == 32, (read, seen, out(k, SIG)))
 k.cleanup()
 
 k = PersistentKernel(df=frame(30000))

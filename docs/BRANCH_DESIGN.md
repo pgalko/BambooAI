@@ -505,3 +505,6 @@ layout, three axes); a buffer of several pieces, one that differs in its last va
 of threads; the fingerprint taken in runs; the worker's memory given back. `test_executor_kernel.py`: the main
 process gives back where a frame comes into the cache or leaves it, at the end of the Intervals.icu load, where
 a kernel starts on a frame - and asks nothing where no frame went, or the libc has no such call.
+(0355) `test_kernel_snapshots.py`: the frame of text builds its text columns as arrays of objects, said outright -
+what the image's pandas makes of text; the same frame with its text left to pandas (its own string type, Arrow
+memory where pyarrow is installed) comes back with every value in its place.
