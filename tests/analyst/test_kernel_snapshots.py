@@ -7,6 +7,7 @@ the client the app reaches that service with.
 
     python3 tests/analyst/test_kernel_snapshots.py
 """
+import ctypes
 import importlib.util
 import json
 import logging
@@ -352,6 +353,87 @@ finally:
         del os.environ["PYTHONPATH"]
     else:
         os.environ["PYTHONPATH"] = _path
+
+# ---- a large state saved for less (0354): text in blocks, buffers named in threads and in pieces, the rows hashed in runs
+def trial(rows=60000):
+    regimes = ["regime A", "regime B", "regime C"]          # more than one character: a one-character str is one object wherever it comes from
+    return pd.DataFrame({"plot": range(rows), "yield_t": [x * 0.5 for x in range(rows)], "regime": [regimes[x % 3] for x in range(rows)],
+                         "soil": [None if x % 7 == 0 else float("nan") if x % 11 == 0 else ("loam", "clay", "sand")[x % 3] for x in range(rows)]})
+
+
+def back(kernel):
+    """A cell fails, and the kernel goes back to the state before it. True where it got there by reading that state:
+    a state that cannot be read is reached by running steps again, which would hide a block read wrong."""
+    at = kernel.last_step
+    out(kernel, "raise ValueError('x')")
+    return kernel.last_goto.get("from") == at and not kernel.last_goto.get("replayed")
+
+
+SIG = ("import hashlib\nprint(hashlib.md5(' '.join('None' if v is None else 'nan' if v != v else v for v in df['soil']).encode()).hexdigest(), "
+       "sum(v is None for v in df['soil']), int(df['soil'].isna().sum()), df['soil'].dtype, df['regime'].dtype, df.shape)")
+k = PersistentKernel(df=trial())
+seen = out(k, "df['doubled'] = df['yield_t'] * 2\n" + SIG)
+text = dict(k._steps[k.last_step])
+check("a frame's text columns are saved as blocks among its buffers, each once: the snapshot's own file stays small - the text was written into it, at every step",
+      text["saved"] and text["bytes"] < 30000 and len(text["buffers"]) >= 5 and len(buffers(k)) == len(text["buffers"]), text)
+held = buffers(k)
+out(k, "note = 'nothing large changed'")
+check("... and the next snapshot holds the same blocks and adds no file", buffers(k) == held and k._steps[k.last_step]["buffers"] == text["buffers"] and k._steps[k.last_step]["bytes"] < 30000, (held, buffers(k)))
+read = back(k)
+check("the text comes back as it was, read and not made again: every value in its place, None still None and NaN still NaN, the columns still of objects", read and out(k, SIG) == seen and "60000, 5" in seen, (read, seen, out(k, SIG)))
+out(k, "other = df.copy()\npart = df[df['plot'] % 2 == 0].copy()")
+read = back(k)
+check("a name is one object in its column again, and two frames that held the same column share its values, as they did; what was shared while the state was read is let go after",
+      read and out(k, "import __main__ as W\nprint(df['regime'].iloc[0] is df['regime'].iloc[3], df['regime'].iloc[0] is other['regime'].iloc[0], other.equals(df), part['regime'].iloc[:3].tolist(), len(part), len(W._texts))\ndel W")
+      == "True True True ['regime A', 'regime C', 'regime B'] 30000 0", (read, k.last_goto))
+out(k, "apart = np.array(['plot %d' % (i % 5) for i in range(60000)], dtype=object)\nnums = np.array(['a', 1.5, None, float('nan')] * 15000, dtype=object)\n"
+       "zeros = np.array(['a%d' % (i % 3) for i in range(30000)] + [0.0, -0.0] * 5000, dtype=object)")
+read = back(k)
+check("a column whose every value is an object of its own that says the same as others - made with astype(str), with a format - is written as one object for each thing said, and comes back so; "
+      "numbers among the text stay the numbers they were, and with 0.0 and -0.0 about nothing is taken for the same",
+      read and out(k, "import math\nprint(apart[:6].tolist(), apart[0] is apart[5], len(apart), nums[:3].tolist(), type(nums[1]).__name__, nums[3] != nums[3], [math.copysign(1, v) for v in zeros[-4:]], zeros[1], len(zeros))")
+      == "['plot 0', 'plot 1', 'plot 2', 'plot 3', 'plot 4', 'plot 0'] True 60000 ['a', 1.5, None] float True [1.0, -1.0, 1.0, -1.0] a1 40000", (read, k.last_goto))
+out(k, "class Label(str):\n    pass\nshared = [1, 2]\n"
+       "odd = {'label': np.array([Label('a%d' % (i % 5)) for i in range(9000)], dtype=object), 'mixed': np.array([i if i % 2 else 'x' for i in range(9000)], dtype=object),\n"
+       "       'lists': np.array([shared] * 9000 + [None], dtype=object)[:9000], 'na': np.array(['s', pd.NA, None, np.float64('nan')] * 2250, dtype=object),\n"
+       "       'days': np.array([pd.Timestamp('2026-05-01')] * 9000, dtype=object),\n"
+       "       'cross': np.array([1, 1.0, True] * 3000 + ['plot %d' % (i % 3) for i in range(30000)], dtype=object),\n"
+       "       'kinds': np.array([np.str_('plot %d' % (i % 3)) if i % 2 else 'plot %d' % (i % 3) for i in range(30000)], dtype=object)}\n"
+       "turned = np.array([['a', 'b'], ['c', None]] * 6000, dtype=object).T\ncube = np.array([[['x', 'y']] * 3000] * 2, dtype=object)")
+unplain = dict(k._steps[k.last_step])
+out(k, "both = np.array([['loam'] * 60000, [pd.Timestamp('2026-05-01')] * 60000, ['clay', None] * 30000], dtype=object)")
+rows = [b for b in k._steps[k.last_step]["buffers"] if b not in unplain["buffers"]]
+read = back(k)
+check("an array that is not text all through is saved value by value, as before, and comes back as it was: a str of a class a cell defined, whole numbers among the text, a list held twice, pd.NA, "
+      "a NaN of numpy's kind, a date, 1, 1.0 and True side by side, a str of numpy's kind beside the plain one that says the same",
+      read and unplain["saved"] and out(k, "print(type(odd['label'][7]).__name__, odd['label'][7], odd['mixed'][:3].tolist(), odd['lists'][0] is odd['lists'][1] is shared, odd['na'][1] is pd.NA, odd['na'][2] is None, "
+                                   "type(odd['na'][3]).__name__, type(odd['days'][0]).__name__, [type(v).__name__ for v in odd['cross'][:3]], odd['cross'][-1], [type(v).__name__ for v in odd['kinds'][:4]], odd['kinds'][3])")
+      == "Label a2 ['x', 1, 'x'] True True True float64 Timestamp ['int', 'float', 'bool'] plot 2 ['str', 'str_', 'str', 'str_'] plot 0", (read, k.last_goto, unplain))
+check("... a row of text beside a row that is not, in one array: the two rows of text are two blocks, the other is saved as before, and each comes back; so does an array laid out column after column, laid out so still, and one of three axes",
+      len(rows) == 2 and
+      out(k, "print(both.shape, both[0, :2].tolist(), type(both[1, 0]).__name__, both[2, :4].tolist(), turned.shape, turned.flags.f_contiguous, turned[0, :3].tolist(), turned[1, :4].tolist(), cube.shape, cube[1, 2999].tolist())")
+      == "(3, 60000) ['loam', 'loam'] Timestamp ['clay', None, 'clay', None] (2, 12000) True ['a', 'c', 'a'] ['b', None, 'b', None] (2, 3000, 2) ['x', 'y']", rows)
+out(k, "big = np.arange(2_600_000, dtype='float64')\nnear = big.copy()\nnear[-1] = -1.0")
+large = [b for b in k._steps[k.last_step]["buffers"] if b[1] == 20_800_000]
+check("a buffer larger than one piece is hashed in pieces, every one of them: two that differ in their last value alone are two buffers", len(large) == 2 and large[0][0] != large[1][0], large)
+held = buffers(k)
+out(k, "import __main__ as W\nW._SNAP_THREADS = 1\ndel W")
+check("... and a buffer's name does not depend on how many threads hash: with one, the next snapshot holds the same buffers and adds no file", buffers(k) == held, (len(held), len(buffers(k))))
+read = back(k)
+check("... they come back whole", read and out(k, "print(bool((big == np.arange(2_600_000, dtype='float64')).all()), float(near[-1]), float(near[-2]), big.flags.writeable)") == "True -1.0 2599998.0 True", (read, k.last_goto))
+k.cleanup()
+
+k = PersistentKernel(df=frame(30000))
+fresh = out(k, "import __main__ as W\nW._SNAP_ROWS = 1000\nprint(W._GAVE_BACK)\ndel W")
+check("the rows of a large frame are hashed in runs, and the hashes are the ones the whole frame gives: df as loaded, its fingerprint taken whole and now taken in thirty runs, is still named and not written",
+      k._steps[k.last_step]["saved"] and k._steps[k.last_step]["buffers"] == [] and k._steps[k.last_step]["bytes"] < 20000, k._steps[k.last_step])
+out(k, "df.loc[29500, 'yield_t'] = -5.0")
+check("... and a change in a later run is seen: the snapshot carries the frame", len(k._steps[k.last_step]["buffers"]) >= 1, k._steps[k.last_step])
+out(k, "raise ValueError('x')")
+gave = out(k, "import __main__ as W\nprint(W._GAVE_BACK, df.loc[29500, 'yield_t'])\ndel W")
+check("a worker that read a state gives back to the system what the reading took and let go (glibc's malloc_trim; where the libc has no such call, nothing is asked); a worker that read none asks nothing",
+      fresh == "None" and gave.split() == [gave.split()[0], "-5.0"] and gave.split()[0] in (("0", "1") if hasattr(ctypes.CDLL(None), "malloc_trim") else ("None",)), (fresh, gave))
+k.cleanup()
 
 # ---- through the executor's kernel service, and through the client the app reaches it with
 os.chdir(tempfile.mkdtemp(prefix="bamboo_exec_snapshots_"))

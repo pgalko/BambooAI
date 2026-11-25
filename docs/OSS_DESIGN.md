@@ -316,6 +316,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-25: after 2.9.2, not yet released (patch 0354; executor image v78).** The kernel saves a large
+  state for less: a frame's text columns as blocks kept once, the buffers named in threads, the dataset's fingerprint
+  taken in runs of rows; the executor's main process and the kernel's worker give freed memory back to the system
+  after a load (docs/BRANCH_DESIGN.md section 3). The hosted tiers' memory was measured on a year of second-by-second
+  rides and left as it is (the handover, 0354).
 - **Status 2026-11-25: 2.9.2 (patches 0352-0353; executor image v77).** A state the kernel goes back to holds the
   dataset's rows in the order a cell gave them: a `df` a cell had only sorted, shuffled or reversed passed for the
   dataset as loaded, and came back in the order it was loaded in - after a failed cell, on a branch, on a follow-up

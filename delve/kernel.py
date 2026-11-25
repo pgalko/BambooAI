@@ -88,6 +88,7 @@ _INTERNAL_NAMES = {
 _WORKER_SCRIPT = r'''
 import ast, inspect, io, json, os, re, sys, traceback, warnings
 import pickle as _pickle, types as _types, hashlib as _hashlib, random as _random, importlib as _importlib
+from concurrent.futures import ThreadPoolExecutor as _Threads
 try:
     import cloudpickle as _cloudpickle      # saves the functions and classes a cell defines; without it no state is saved
 except Exception:
@@ -842,8 +843,8 @@ _INTERNAL = {
 # G, RESULT, its hooks, the process environment - is named in the snapshot and
 # linked on restore, never copied; DS and RESULT are the kernel's own at every
 # worker start, whatever a cell bound those names to. A large buffer (an array, a block of a frame) is written once,
-# under the hash of its content, and shared by every snapshot that holds it.
-# The dataset as loaded is not written at all while `df` holds it unchanged.
+# under the hash of its content, and shared by every snapshot that holds it; a column of text is such a buffer too
+# (0354: see _text_block). The dataset as loaded is not written at all while `df` holds it unchanged.
 #
 # A state is saved whole or not at all: one object that cannot be saved (an
 # open file, a generator) leaves the step without a snapshot, and the parent
@@ -851,6 +852,12 @@ _INTERNAL = {
 _OWN = globals()
 _NOT_SAVED = {_n for _n in _INTERNAL if _n.startswith("_")} | {"DS", "RESULT", "__builtins__"}
 _SNAP_INLINE = 1 << 16      # a buffer under this many bytes stays in the snapshot's own file
+_SNAP_PIECE = 1 << 24       # a buffer is hashed in pieces of this many bytes, the pieces in threads
+_SNAP_ROWS = 1 << 19        # and a frame's rows in runs of this many
+try:
+    _SNAP_THREADS = max(1, min(4, len(os.sched_getaffinity(0))))
+except AttributeError:      # macOS has no such call: the kernel of an app run without the executor image
+    _SNAP_THREADS = max(1, min(4, os.cpu_count() or 1))
 _failed = {}                # the last save that failed: its error and the names that stood in the way
 
 
@@ -863,7 +870,14 @@ def _df_fingerprint(_df):
         # only sorted, shuffled or reversed - every row keeping its label - had the fingerprint of the dataset as
         # loaded, the snapshot named the dataset in its place, and the state gone back to held df in the order it
         # was loaded in. A label's kind counts too: the column 1 is not the column '1'.
-        _rows = pd.util.hash_pandas_object(_df, index=True).to_numpy()
+        # A large frame's rows are hashed in runs, the runs in threads (0354): a row's hash is its own, so the hashes
+        # are the ones pandas gives for the whole frame in one thread, in half the time and less.
+        _runs = [_df.iloc[_a:_a + _SNAP_ROWS] for _a in range(0, len(_df), _SNAP_ROWS)]
+        if len(_runs) < 2:
+            _rows = pd.util.hash_pandas_object(_df, index=True).to_numpy()
+        else:
+            with _Threads(max_workers=_SNAP_THREADS) as _pool:
+                _rows = np.concatenate(list(_pool.map(lambda _run: pd.util.hash_pandas_object(_run, index=True).to_numpy(), _runs)))
         return (_hashlib.blake2b(_rows, digest_size=16).hexdigest(), _df.shape, tuple(map(repr, _df.columns)),
                 tuple(repr(_t) for _t in _df.dtypes), tuple(map(repr, _df.index.names)), tuple(map(repr, _df.columns.names)),
                 repr(_df.attrs), "%s.%s" % (type(_df).__module__, type(_df).__qualname__))
@@ -912,6 +926,62 @@ def _owned():
     return _out
 
 
+# A text column's values, saved as one block (0354). An array of objects is pickled value by value, and the saver is
+# asked about each of them (persistent_id): a call into Python for every one of a frame's millions of names, at every
+# step, and what came of it was written into the snapshot's own file - at every step again. Where every value of a
+# row of the array - a column of the frame - is a str, None or a float, and of no class but these, the plain pickler
+# writes them, with no call for any, into one block; the block is a buffer like an array's, kept once under the hash
+# of its content. A row holding a value of any other kind - a list, a date, a str of a class a cell defined - is
+# saved value by value, as before.
+_TEXT = {str, type(None), float}
+
+
+def _text_block(_vals):
+    """The values of a row as one block of bytes; None where they are not text all through."""
+    try:
+        _list = _vals.tolist()
+        if not set(map(type, _list)) <= _TEXT:
+            return None
+        _few = _list[::len(_list) // 4096 + 1]
+        if len(set(map(id, _few))) > 2 * len(set(_few)):
+            # Most values are objects of their own that say the same - a column a cell made with astype(str) or
+            # strftime: each would be written out. One object is written for each thing said, and comes back.
+            _one = {}
+            _said = list(map(_one.setdefault, _list, _list))
+            if 0.0 not in _one:             # 0.0 and -0.0 are equal and not the same: with either about, as it is
+                _list = _said
+        return _pickle.dumps(_list, protocol=5)
+    except Exception:
+        return None
+
+
+def _text_parts(_arr):
+    """An array of objects row by row: a row of text as its block, another as it is. None where no row is text."""
+    if not _arr.flags.c_contiguous or not _arr.size:
+        return None
+    _rows = _arr.reshape(_arr.shape[0] if _arr.ndim > 1 else 1, -1)
+    _blocks = [_text_block(_row) for _row in _rows]
+    if all(_b is None for _b in _blocks):
+        return None
+    return [_row if _b is None else _pickle.PickleBuffer(_b) for _row, _b in zip(_rows, _blocks)]
+
+
+_texts = {}                 # while a snapshot is read: a block -> its values. Two rows saved from one block share them
+
+
+def _text_array(_shape, _parts):
+    """An array of objects back from its rows."""
+    _out = np.empty(_shape, dtype=object)
+    for _row, _part in zip(_out.reshape(len(_parts), -1), _parts):
+        if not isinstance(_part, np.ndarray):
+            _key = bytes(_part)
+            if _key not in _texts:
+                _texts[_key] = np.array(_pickle.loads(_key), dtype=object)
+            _part = _texts[_key]
+        _row[:] = _part
+    return _out
+
+
 if _cloudpickle is not None:
     class _Saver(_cloudpickle.Pickler):
         def __init__(self, _file, _ids, _keep):
@@ -921,6 +991,13 @@ if _cloudpickle is not None:
 
         def persistent_id(self, _obj):
             return self._ids.get(id(_obj))
+
+        def reducer_override(self, _obj):
+            if type(_obj) is np.ndarray and _obj.dtype == object and _obj.nbytes >= _SNAP_INLINE:
+                _parts = _text_parts(_obj)
+                if _parts is not None:
+                    return _text_array, (_obj.shape, _parts)
+            return super().reducer_override(_obj)
 
 
 class _Loader(_pickle.Unpickler):
@@ -995,6 +1072,20 @@ def _state_set(_s):
         pass
 
 
+def _named(_raws):
+    """The name each buffer is kept under: a hash of its content. Where the state is large the hashing is most of a
+    save, so it is done in threads, a large buffer in pieces: hashlib lets the other threads run while it reads."""
+    _cuts = [[_raw[_i:_i + _SNAP_PIECE] for _i in range(0, _raw.nbytes, _SNAP_PIECE)] for _raw in _raws]
+    _pieces = [_piece for _cut in _cuts for _piece in _cut]
+    with _Threads(max_workers=_SNAP_THREADS) as _pool:
+        _hashes = iter(list(_pool.map(lambda _piece: _hashlib.blake2b(_piece, digest_size=16).digest(), _pieces)))
+    _out = []
+    for _cut in _cuts:
+        _own = [next(_hashes) for _ in _cut]
+        _out.append((_own[0] if len(_own) == 1 else _hashlib.blake2b(b"".join(_own), digest_size=16).digest()).hex())
+    return _out
+
+
 def _snapshot_save(_path):
     """Save the state to `_path`: its large buffers under the buffers folder, its list of them and of the modules
     loaded beside it. Returns {"ok", "skipped", "bytes", "buffers"}: ok only when every name was saved, skipped the
@@ -1003,25 +1094,26 @@ def _snapshot_save(_path):
     if _cloudpickle is None:
         return {"ok": False, "skipped": ["<cloudpickle is not installed>"]}
     _names = {_k: _v for _k, _v in G.items() if _k not in _NOT_SAVED}
-    _ids, _bufs, _new = _owned(), [], []
+    _ids, _raws, _bufs, _new = _owned(), [], [], []
 
     def _keep(_buf):
         _raw = _buf.raw()
         if _raw.nbytes < _SNAP_INLINE:
             return True
-        _h = _hashlib.blake2b(_raw, digest_size=16).hexdigest()
-        _p = os.path.join(_snap_bufs, _h)
-        if not os.path.exists(_p):
-            _new.append(_p)
-            with open(_p + ".tmp", "wb") as _bf:
-                _bf.write(_raw)
-            os.replace(_p + ".tmp", _p)
-        _bufs.append([_h, _raw.nbytes])
+        _raws.append(_raw)                  # named and written once the state is pickled
         return False
 
     try:
         with open(_path + ".tmp", "wb") as _sf:
             _Saver(_sf, _ids, _keep).dump({"names": _names, "state": _state()})
+        for _raw, _h in zip(_raws, _named(_raws) if _raws else []):
+            _p = os.path.join(_snap_bufs, _h)
+            if not os.path.exists(_p):
+                _new.append(_p)
+                with open(_p + ".tmp", "wb") as _bf:
+                    _bf.write(_raw)
+                os.replace(_p + ".tmp", _p)
+            _bufs.append([_h, _raw.nbytes])
         with open(_path + ".json", "w", encoding="utf-8") as _mf:
             json.dump({"buffers": _bufs, "modules": sorted(set(sys.modules) - _MODS0)}, _mf)
         _size = os.path.getsize(_path + ".tmp")
@@ -1061,6 +1153,7 @@ def _snapshot_load(_path):
     _own = {_k: G[_k] for _k in _NOT_SAVED if _k in G}
     with open(_path, "rb") as _sf:
         _snap = _Loader(_sf, buffers=_buffers).load()
+    _texts.clear()
     for _k in [_k for _k in G if _k not in _NOT_SAVED and _k not in _snap["names"]]:
         del G[_k]                   # a name the state did not have: `df` after a cell deleted it
     G.update(_snap["names"])
@@ -1210,11 +1303,19 @@ def _df_columns():
 # ends the worker before it says it is ready: the parent starts from an
 # earlier one, never from half a state.
 _PD0, _MPL0, _MODS0 = _pd_options(), dict(matplotlib.rcParams), set(sys.modules)
+_GAVE_BACK = None           # what malloc_trim answered after a state was read: 1 where memory went back to the system
 if _snap_from:
     try:
         _snapshot_load(_snap_from)
     except Exception:
         sys.exit(3)
+    try:
+        # What the reading needed and let go stays with the allocator, counted against the container, until it is
+        # asked for (0354): glibc's malloc_trim asks. Another libc has no such call, and nothing is done.
+        import ctypes as _ctypes
+        _GAVE_BACK = _ctypes.CDLL(None).malloc_trim(0)
+    except Exception:
+        pass
 
 # ---- Signal ready, then serve steps ---------------------------------------
 sys.stdout.write(_READY + "\n")

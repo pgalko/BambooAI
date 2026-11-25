@@ -1,4 +1,4 @@
-# Branching an analysis — design v0.16 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; 0333, the maps' panel on the right; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards; fixed: 0352, the order of the dataset's rows in a saved state)
+# Branching an analysis — design v0.16 (2026-11-22; released as 2.9.0, 0326; 0327, the maps in one place; 0328, the names; 0329, the drawer over the page and the branches' arrows; 0330, the kept turns folded and the maps' foot whole; 0331, a branch's drafts; 0332, the maps' foot from the first; 0333, the maps' panel on the right; built: 0318, the kernel's states; 0319, the engine; 0320, the page; 0321, save, memory, usage; 0322, the code map of a branch; 0323, the button on a turn's card; 0324, the maps' names and their one head; 0325, the button on the Architect's cards; fixed: 0352, the order of the dataset's rows in a saved state; 0354, a large state saved for less)
 
 An analysis is a line of turns. The person goes back to any turn, gives the Analyst a hint, and the analysis goes
 on from there another way. The first way stays. A map shows every turn of every branch and takes the person to
@@ -92,7 +92,8 @@ seed, or took a minute, holds what it held.
 modules the cells loaded. The random generators (numpy's, Python's). numpy's print options, the pandas options and
 matplotlib settings a cell changed, the working directory. **Not:** the files a cell wrote; what a cell changed
 inside a library, or in the environment variables; the tie between an array and a view of it - `x = a[:, 0]` and
-`a` come back as two arrays with the same values, so a later change of one in place no longer shows in the other.
+`a` come back as two arrays with the same values, so a later change of one in place no longer shows in the other;
+whether two equal pieces of text in a column are one object (0354).
 
 **How** (`delve/kernel.py`; the executor image's copy differs by one import line).
 
@@ -102,12 +103,20 @@ inside a library, or in the environment variables; the tie between an array and 
   and linked on restore, never copied. `DS` and `RESULT` are the kernel's own at every worker start, whatever a
   cell bound those names to.
 - A large buffer (an array, a block of a frame; 64 KB and over) is written once, under the hash of its content, and
-  shared by every snapshot that holds it.
+  shared by every snapshot that holds it. The buffers are named once the state is pickled, in up to four threads,
+  a large one in pieces of 16 MB (0354).
+- A column of text is such a buffer too (0354): a row of an array of objects whose every value is a str, None or a
+  float is written by the plain pickler into one block. Value by value, the saver was asked about each of a frame's
+  millions of names at every step, and the result was written into the snapshot's own file at every step. Where
+  most values are objects of their own that say the same, one object is written for each thing said. A row holding
+  anything else is saved value by value, as before.
 - The dataset as loaded is not written while `df` holds it unchanged: the kernel's first worker takes its
   fingerprint before the first cell runs. The fingerprint is of the rows' values and labels in their order, the
   column labels and the axes' names with their kinds, the dtypes, the attrs and the kind of frame. (0352: its first
   part was a sum of the rows' hashes, so a `df` a cell had only sorted passed for the dataset as loaded, and a state
-  gone back to held it unsorted.) Two missing values in a text column are one to it, None or NaN.
+  gone back to held it unsorted.) Two missing values in a text column are one to it, None or NaN. A large frame's
+  rows are hashed in runs, the runs in threads; the hashes are the whole frame's (0354).
+- A worker that read a state gives back to the system the memory the reading took and let go (0354).
 - The modules loaded since the worker started are listed beside the snapshot, and the worker that takes over
   imports them before it reads it. A submodule reached through its package (`import a.b`, and `a.b.f()` in a later
   cell) is there again, and so is what an import registered.
@@ -487,3 +496,12 @@ type size; the walk: each map's panel, a box picked and gone to through its butt
 (sorted, sorted in place, shuffled, reversed, two rows exchanged), in its rows' labels, in the kind of its column
 labels, by a name on the column axis or as another kind of frame comes back as the cell left it; rows put back
 in their order are the dataset as loaded again; DS's line on lost columns where the labels are not text.
+(0354) `test_kernel_snapshots.py`: a frame's text columns as blocks among its buffers, written once; what comes
+back - every value in its place, None and NaN apart, a name one object in its column, two frames sharing a
+column's values - read and not made again; one object for each thing said where the values were objects of
+their own, numbers among the text, 0.0 beside -0.0; what is not text saved as before (a str of a cell's class,
+whole numbers, a list held twice, pd.NA, numpy's NaN, a date, a row of text beside one that is not, another
+layout, three axes); a buffer of several pieces, one that differs in its last value, a name whatever the number
+of threads; the fingerprint taken in runs; the worker's memory given back. `test_executor_kernel.py`: the main
+process gives back where a frame comes into the cache or leaves it, at the end of the Intervals.icu load, where
+a kernel starts on a frame - and asks nothing where no frame went, or the libc has no such call.

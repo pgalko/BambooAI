@@ -8,6 +8,7 @@ import json
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import base64
+import ctypes
 from contextlib import redirect_stdout
 import pyarrow as pa
 import pyarrow.parquet as pq
@@ -43,7 +44,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-11-25 v77 (a state gone back to holds the rows of the dataset in the order a cell gave them; a RESULT names what its bounds are - interval="range" - where they are no confidence interval, since v76; since v75 the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-11-25 v78 (the kernel saves a large state in half the time and less - text columns in blocks, hashing in threads - and freed memory goes back to the system after a load; a state gone back to holds the rows of the dataset in the order a cell gave them, since v77; a RESULT names what its bounds are - interval="range" - where they are no confidence interval, since v76; since v75 the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -90,6 +91,17 @@ def get_container_ram_gb():
     
     # Fallback if can't read cgroup
     return 16
+
+
+def release_freed_memory():
+    """Give the memory this process has freed back to the system (0354). Assembling a window takes three times what
+    its frame does, and what was let go stayed with the allocator - counted against the container - until something
+    asked for it: after a year of second-by-second rides the process held 1.4 GB over a frame of 0.4 GB. glibc's
+    malloc_trim asks, in milliseconds. Another libc has no such call, and nothing is done."""
+    try:
+        ctypes.CDLL(None).malloc_trim(0)
+    except Exception:
+        pass
 
 #### DATAFRAME CACHE ####
 
@@ -148,6 +160,7 @@ class DataFrameCache:
             
             self.cache[df_id] = entry
             log_info(f"Stored DataFrame in cache: ID={df_id}, Size={entry['memory_mb']:.2f} MB")
+        release_freed_memory()              # a frame came in - loaded, or written back by a run - and what making it took is let go
     
     def get_all_metadata(self):
         """Return metadata for all cached DataFrames"""
@@ -193,7 +206,7 @@ try:
         with df_cache.lock:
             return df_cache.cache.pop(df_id, None)
 
-    init_kernel_service(get_df=df_cache.get, evict_df=_evict_df)
+    init_kernel_service(get_df=df_cache.get, evict_df=_evict_df, release=release_freed_memory)
     app.register_blueprint(kernel_bp)
     KERNEL_SERVICE = {"available": True, "error": None}
     log_info("Persistent kernel service registered at /kernel")
@@ -726,6 +739,7 @@ def remove_primary_from_cache():
     with df_cache.lock:
         if df_id in df_cache.cache:
             df_cache.cache.pop(df_id)
+            release_freed_memory()
             log_info(f"Removed DataFrame {df_id} from cache")
             return jsonify({'message': 'DataFrame removed from cache'}), 200
         else:
@@ -756,6 +770,8 @@ def forget_from_cache():
                 if str(meta.get('folder') or meta.get('key_mark') or '') == folder:
                     df_cache.cache.pop(df_id)
                     dropped.append(df_id)
+    if dropped:
+        release_freed_memory()
     log_info(f"forgotten: {folder} {feed or '(whole)'} -> {out.get('removed')}; frames dropped: {dropped}")
     return jsonify(dict(out, folder=folder, frames_dropped=dropped)), 200
 
@@ -2036,6 +2052,8 @@ def fetch_intervals_background(data, job_id):
         log_info(f"Error in job {job_id}: {str(e)}")
         intervals_jobs[job_id]['status'] = 'error'
         intervals_jobs[job_id]['error'] = f'Failed to fetch data: {str(e)}'
+    finally:
+        release_freed_memory()              # the files parsed, the window assembled, the datasets written: what they took
 
 
 def download_and_parse_fits_with_progress(session, base_url, activities, job_id, store):

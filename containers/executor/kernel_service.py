@@ -60,13 +60,15 @@ REAP_INTERVAL = int(os.getenv("KERNEL_REAP_INTERVAL", "60"))  # seconds between 
 # code_executor_api (which imports plenty and would be circular).
 _get_df = None
 _evict_df = None
+_release = None
 
 
-def init_kernel_service(get_df=None, evict_df=None):
+def init_kernel_service(get_df=None, evict_df=None, release=None):
     """Supply the DataFrame cache accessors. `get_df(df_id)` returns a DataFrame
-    or None; `evict_df(df_id)` drops it from the Flask process's cache."""
-    global _get_df, _evict_df
-    _get_df, _evict_df = get_df, evict_df
+    or None; `evict_df(df_id)` drops it from the Flask process's cache; `release()`
+    gives the memory this process has freed back to the system (0354)."""
+    global _get_df, _evict_df, _release
+    _get_df, _evict_df, _release = get_df, evict_df, release
 
 
 def log(msg):
@@ -283,6 +285,8 @@ def start():
             log(f"cache eviction failed for {df_id}: {exc}")
 
     shape = None if df is None else list(df.shape)
+    if _release is not None:
+        _release()                  # the frame was written out for the worker: what that took and let go (0354)
     log(f"started session {session_id} (df_id={df_id}, shape={shape})")
     return jsonify({"session_id": session_id, "reused": False,
                     "shape": shape, "schema": schema,

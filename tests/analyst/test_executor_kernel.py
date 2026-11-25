@@ -292,6 +292,52 @@ try:
 finally:
     c.post("/kernel/stop", json={"session_id": _box.get("session_id")})
 
+# ---- the executor's main process gives back the memory it freed where a frame comes into its cache or leaves it (0354)
+class _Libc:
+    asked = []
+
+    def malloc_trim(self, pad):
+        _Libc.asked.append(pad)
+        return 1
+
+
+def asked_after(act):
+    """How often the process asked its libc to give memory back while `act` ran."""
+    _Libc.asked = []
+    act()
+    return len(_Libc.asked)
+
+
+_cdll = E.ctypes.CDLL
+try:
+    E.ctypes.CDLL = lambda name: _Libc()
+    check("executor: release_freed_memory asks glibc's malloc_trim, once", asked_after(E.release_freed_memory) == 1 and _Libc.asked == [0], _Libc.asked)
+    _plots = pd.DataFrame({"plot": range(10), "yield_t": [x * 0.5 for x in range(10)]})
+    check("executor: a frame put into the cache - a load, a run's frame written back - and the memory freed goes back", asked_after(lambda: E.df_cache.put("m1", _plots)) == 1)
+    E.df_cache.put("m2", _plots, {"folder": "intervals/a1"})
+    os.makedirs(os.path.join("datasets", "u", "intervals", "a1", "store"), exist_ok=True)
+    _started = {}
+    _start = asked_after(lambda: _started.update(c.post("/kernel/start", json={"df_id": "m2", "force": True}).get_json() or {}))
+    c.post("/kernel/stop", json={"session_id": _started.get("session_id")})
+    check("executor: a kernel started on a cached frame - the frame is written out for its worker - and what that took goes back", _start == 1 and _started.get("shape") == [10, 2], (_start, _started))
+    _gone = asked_after(lambda: c.post("/cache/remove_primary", json={"df_id": "m1"}))
+    _none = asked_after(lambda: c.post("/cache/remove_primary", json={"df_id": "m1"}))
+    _feed = asked_after(lambda: c.post("/cache/forget", json={"user_id": "u", "folder": "intervals/a1", "feed": "wellness"}))
+    _kept = E.df_cache.get("m2") is not None
+    _forgot = asked_after(lambda: c.post("/cache/forget", json={"user_id": "u", "folder": "intervals/a1"}))
+    check("executor: a frame taken out of the cache - removed, or forgotten with its athlete's store - and it goes back; where no frame went - none under that name, a dataset forgotten that is no frame's - nothing is asked",
+          (_gone, _none, _feed, _kept, _forgot) == (1, 0, 0, True, 1) and E.df_cache.get("m2") is None, (_gone, _none, _feed, _kept, _forgot))
+    E.intervals_jobs["m-job"] = {}
+    _job = asked_after(lambda: E.fetch_intervals_background({"from_store": True, "folder": "intervals/nobody", "user_id": "u", "df_id": "m3"}, "m-job"))
+    check("executor: the Intervals.icu load gives back at its end, however it ended - here on an athlete the store does not hold", _job == 1 and E.intervals_jobs["m-job"].get("status") == "error", (_job, E.intervals_jobs["m-job"]))
+
+    class _Other:
+        """A libc with no such call."""
+    E.ctypes.CDLL = lambda name: _Other()
+    check("executor: with a libc that has no such call nothing is raised, and the frame is cached all the same", E.release_freed_memory() is None and asked_after(lambda: E.df_cache.put("m4", _plots)) == 0 and E.df_cache.get("m4") is not None)
+finally:
+    E.ctypes.CDLL = _cdll
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)
