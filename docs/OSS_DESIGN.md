@@ -316,6 +316,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-25: 2.9.2 (patches 0352-0353; executor image v77).** A state the kernel goes back to holds the
+  dataset's rows in the order a cell gave them: a `df` a cell had only sorted, shuffled or reversed passed for the
+  dataset as loaded, and came back in the order it was loaded in - after a failed cell, on a branch, on a follow-up
+  (0352; docs/BRANCH_DESIGN.md section 3). 2.9.0 and 2.9.1 carry the fault. The hosted editions rebuild the executor
+  image as v77 and restart the orchestrator; no migration.
 - **Status 2026-11-25: 2.9.1 (patches 0335-0351; executor image v76).** Web search is a seat, Web Search, on
   OpenRouter as it ships - DeepSeek V4.1 Flash with OpenRouter's web search tool, Perplexity its engine and Parallel
   the alternative - so one OpenRouter key runs the search as it runs every other seat; a seat put on a Gemini model
