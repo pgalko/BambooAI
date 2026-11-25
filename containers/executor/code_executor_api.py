@@ -16,7 +16,7 @@ import zlib
 import threading
 import queue
 from threading import Lock
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from datetime import datetime
 import pandas as pd
 import numpy as np
@@ -44,7 +44,7 @@ pa.set_cpu_count(3)
 
 intervals_jobs = {}
 
-EXECUTOR_BUILD = '2026-11-25 v78 (the kernel saves a large state in half the time and less - text columns in blocks, hashing in threads - and freed memory goes back to the system after a load; a state gone back to holds the rows of the dataset in the order a cell gave them, since v77; a RESULT names what its bounds are - interval="range" - where they are no confidence interval, since v76; since v75 the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
+EXECUTOR_BUILD = '2026-11-25 v79 (the size the cache gives a frame is its arrays and each object once, from a sample of its rows - no row by row count at every put; the kernel saves a large state in half the time and less - text columns in blocks, hashing in threads - and freed memory goes back to the system after a load, since v78; a state gone back to holds the rows of the dataset in the order a cell gave them, since v77; a RESULT names what its bounds are - interval="range" - where they are no confidence interval, since v76; since v75 the kernel keeps its whole state after every cell - data, functions, classes, the random generators - and goes back to any of them, /kernel/goto; cloudpickle in the image; a load asked for one athlete under another athlete\'s key is refused since v74; the window each dataset covered on the record since v73, so a load to today reads as ending today; the Dataset cache dialog redesigned in v72: one line per dataset with its columns, a load of one dataset alone (with_frame off), earlier loads deleted at start; a load from the store alone since v71; the feeds in the store since v68, datasets by subject since v67)'   # bumped with every image-bearing ship; reported by /health
 
 app = Flask(__name__)
 
@@ -103,6 +103,44 @@ def release_freed_memory():
     except Exception:
         pass
 
+
+SIZE_SAMPLE = 1 << 14       # the rows of an index or a column of objects that are looked at for its size
+
+
+def objects_bytes(values):
+    """The bytes of the Python objects an index or a column holds, each object once however many rows hold it (0356);
+    0 where it holds none - numbers, dates, text kept in Arrow memory: their arrays are the whole of them. Up to
+    SIZE_SAMPLE rows every object is looked at and the count is exact. Past that the rows looked at are picked at
+    random, the same ones each time, and the objects they did not meet are estimated from those met once and twice
+    (after Chao and Lin 2012, for a sample drawn without putting back) at the size of those met once: exact where
+    every row holds an object of its own and where a few objects are shared by all the rows, near in between."""
+    if values.dtype != object and getattr(values.dtype, 'storage', None) != 'python':
+        return 0
+    held = values.to_numpy(dtype=object)
+    rows = len(held)
+    if rows > SIZE_SAMPLE:
+        held = held[np.random.default_rng(0).choice(rows, SIZE_SAMPLE, replace=False)]
+    held = held.tolist()
+    met = Counter(map(id, held))
+    size = dict(zip(map(id, held), map(sys.getsizeof, held)))
+    total = sum(size.values())
+    once = [size[one] for one, times in met.items() if times == 1]
+    if once and rows > len(held):
+        twice = sum(times == 2 for times in met.values())
+        unmet = len(once) ** 2 / (2 * twice + len(once) * len(held) / (rows - len(held)))
+        total += unmet * sum(once) / len(once)
+    return total
+
+
+def frame_mb(df):
+    """What a frame holds in memory, in MB (0356): its arrays as they are, and the objects of its index and of its
+    columns once each (objects_bytes). `memory_usage(deep=True)` stood here. It asks every row of every column of
+    objects for its size - 1.2 s for a year of second-by-second rides, at every put - and counts a text again for
+    every row that holds it: 911 MB for a frame that takes 412."""
+    index = df.index.levels if isinstance(df.index, pd.MultiIndex) else [df.index]
+    held = df.memory_usage(deep=False).sum() + sum(map(objects_bytes, (*index, *(column for _, column in df.items()))))
+    return held / (1024 * 1024)
+
 #### DATAFRAME CACHE ####
 
 class DataFrameCache:
@@ -141,7 +179,7 @@ class DataFrameCache:
                 'cached_at': datetime.now(),
                 'last_accessed': datetime.now(),
                 'access_count': 0,
-                'memory_mb': df.memory_usage(deep=True).sum() / (1024 * 1024)
+                'memory_mb': frame_mb(df)
             }
             
             if df_id in self.cache:
@@ -700,9 +738,7 @@ def upload_dataset():
         # Clean up temp file
         os.remove(temp_path)
 
-        # Log the memory usage before caching
-        memory_mb = df.memory_usage(deep=True).sum() / (1024 * 1024)
-        log_info(f"Loaded file {file.filename}: Shape={df.shape}, Memory={memory_mb:.2f} MB")
+        log_info(f"Loaded file {file.filename}: Shape={df.shape}")     # its size is on the cache's line, where the frame goes in
 
         # Add descriptive metadata when caching
         metadata = {

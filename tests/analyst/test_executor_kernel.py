@@ -338,6 +338,110 @@ try:
 finally:
     E.ctypes.CDLL = _cdll
 
+# ---- the size the cache gives a frame (0356): its arrays as they are, and each object of its index and columns once
+MB = 1024 * 1024
+REGIMES = ["regime A", "regime B", "regime C"]
+SOILS = ("loam", "clay", "sand")
+MANY = 60000                # rows past SIZE_SAMPLE: the objects are looked at in a sample
+
+
+def plots(rows, **text):
+    """A trial's plots with their yields, and columns of text as arrays of objects, said outright: what the executor
+    image's pandas (2.3) makes of text. Left to itself pandas 3 keeps text otherwise (0355)."""
+    return pd.DataFrame({"plot": range(rows), "yield_t": [x * 0.5 for x in range(rows)], **{name: pd.Series(values, dtype=object) for name, values in text.items()}})
+
+
+def arrays(frame):
+    return int(frame.memory_usage(deep=False).sum())
+
+
+def every_row(frame):
+    """The count that stood before: every row of a column of objects asked for its size."""
+    return int(frame.memory_usage(deep=True).sum())
+
+
+def once_each(*held):
+    """The bytes of the objects that columns or indexes hold, each object once."""
+    return sum(sum(map(sys.getsizeof, {id(one): one for one in column.tolist()}.values())) for column in held)
+
+
+def size(frame):
+    return E.frame_mb(frame) * MB
+
+
+_bare = plots(500).assign(sown=pd.date_range("2024-03-01", periods=500, freq="D"))
+check("size: a frame of numbers and dates is its arrays, to the byte", size(_bare) == arrays(_bare) == every_row(_bare), (size(_bare), arrays(_bare)))
+_shared = plots(500, regime=[REGIMES[x % 3] for x in range(500)], soil=[None if x % 7 == 0 else SOILS[x % 3] for x in range(500)])
+_want = arrays(_shared) + sum(map(sys.getsizeof, REGIMES)) + sum(map(sys.getsizeof, SOILS)) + sys.getsizeof(None)
+check("size: a text that many rows hold is counted once - three regimes and three soils over 500 plots, None among them; the count that stood before took each again for every row",
+      size(_shared) == _want == arrays(_shared) + once_each(_shared["regime"], _shared["soil"]) and _want + 500 * 40 < every_row(_shared), (size(_shared), _want, every_row(_shared)))
+_own = plots(500, regime=["".join(("regime ", "ABC"[x % 3])) for x in range(500)])
+check("size: equal text in an object of its own in every row - as astype(str) and strftime leave it - is counted for every row: that is what it takes",
+      size(_own) == every_row(_own) == arrays(_own) + 500 * sys.getsizeof("regime A"), (size(_own), every_row(_own)))
+_named = plots(500).set_index(pd.Index(["plot %03d" % x for x in range(500)], dtype=object))
+_by = plots(300).set_index(pd.MultiIndex(levels=[pd.Index(REGIMES, dtype=object), range(100)], codes=[[x // 100 for x in range(300)], [x % 100 for x in range(300)]]))
+check("size: the objects of the index count as a column's do; of an index of several levels the objects its levels hold - three regimes, not a tuple for every row",
+      size(_named) == arrays(_named) + once_each(_named.index) > arrays(_named) + 500 * 40 and size(_by) == arrays(_by) + sum(map(sys.getsizeof, REGIMES)),
+      (size(_named), arrays(_named), size(_by), arrays(_by)))
+_typed = pd.DataFrame({"plot": range(500), "regime": pd.Series([REGIMES[x % 3] for x in range(500)], dtype=pd.StringDtype("python"))})
+_left = pd.DataFrame({"plot": range(500), "regime": [REGIMES[x % 3] for x in range(500)]})
+
+
+class _Elsewhere:
+    """A column whose text is kept outside Python's objects, as pandas keeps it in Arrow memory: asked for its
+    objects it would make one for every row."""
+    class dtype:
+        storage = "pyarrow"
+
+    def to_numpy(self, dtype=None):
+        raise AssertionError("asked for its objects")
+
+
+check("size: text in pandas' string type over objects is counted as objects are; text kept in Arrow memory is not asked for objects - its arrays are the whole of it; "
+      "with the text left to pandas, whichever way it keeps it, no less than the arrays and no more than every row's text",
+      arrays(_typed) < size(_typed) <= every_row(_typed) and E.objects_bytes(_Elsewhere()) == 0 and arrays(_left) <= size(_left) <= every_row(_left),
+      (arrays(_typed), size(_typed), every_row(_typed), arrays(_left), size(_left), every_row(_left)))
+
+_many = plots(MANY, regime=[REGIMES[x % 3] for x in range(MANY)])
+check("size: past SIZE_SAMPLE rows, a few texts shared by all the rows are still counted to the byte", MANY > E.SIZE_SAMPLE and size(_many) == arrays(_many) + sum(map(sys.getsizeof, REGIMES)), (size(_many), arrays(_many)))
+_each = plots(MANY, note=["plot %05d" % x for x in range(MANY)])
+check("size: past SIZE_SAMPLE rows, a text of its own in every row comes to every row's text - the rows not looked at are taken at the size of those that were",
+      abs(size(_each) - every_row(_each)) < 1, (size(_each), every_row(_each)))
+_names = ["pair %05d" % x for x in range(MANY // 2)]
+_pairs = plots(MANY, pair=[_names[x // 2] for x in range(MANY)])
+_text = once_each(_pairs["pair"])
+check("size: 30,000 texts, each held by two rows: the estimate is within a tenth of what they take - and half of what every row's text came to",
+      _text == MANY // 2 * sys.getsizeof("pair 00000") and abs(size(_pairs) - arrays(_pairs) - _text) < _text / 10, (size(_pairs) - arrays(_pairs), _text))
+_groups = ["group %04d" % g for g in range(1000)]
+_mixed = plots(MANY, note=["a note on plot %05d: %s" % (x, "x" * 200) if x % 12 == 0 else _groups[x % 1000] for x in range(MANY)])
+_text = once_each(_mixed["note"])
+check("size: one row in twelve with a long text of its own among 1,000 short ones shared by the rest: within a tenth - the texts not met are taken at the size of those met once, the long ones; "
+      "and the same frame comes to the same size each time",
+      abs(size(_mixed) - arrays(_mixed) - _text) < _text / 10 and size(_mixed) == size(_mixed), (size(_mixed) - arrays(_mixed), _text))
+
+
+class _Note:
+    """An object that counts how often it was asked for its size."""
+    asked = 0
+
+    def __sizeof__(self):
+        _Note.asked += 1
+        return 100
+
+
+_one = sys.getsizeof(_Note())
+_notes = pd.Series([_Note() for _ in range(MANY)], dtype=object)
+_Note.asked = 0
+_few = E.objects_bytes(_notes.iloc[:500])
+_asked_few, _Note.asked = _Note.asked, 0
+_all = E.objects_bytes(_notes)
+check("size: up to SIZE_SAMPLE rows every object is asked for its size, once; past that SIZE_SAMPLE of them are, however many the rows - and 60,000 notes, each its own object, come to all 60,000",
+      (_asked_few, _few) == (500, 500 * _one) and _Note.asked == E.SIZE_SAMPLE and abs(_all - MANY * _one) < 1, (_asked_few, _few, _Note.asked, _all, MANY * _one))
+check("size: a frame with no rows, text columns among them, is its arrays", size(_shared.iloc[:0]) == arrays(_shared.iloc[:0]), (size(_shared.iloc[:0]), arrays(_shared.iloc[:0])))
+E.df_cache.put("s1", _shared, {"source": "csv"})
+_line = next(m for m in E.df_cache.get_all_metadata() if m["df_id"] == "s1")
+check("size: the cache gives a frame this size - the one the Dataset cache dialog shows for an upload", _line["memory_mb"] * MB == _want and _line["source"] == "csv", _line)
+
 n_fail = sum(1 for _, ok in results if not ok)
 print(f"\n{len(results) - n_fail} passed, {n_fail} failed")
 sys.exit(1 if n_fail else 0)
