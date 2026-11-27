@@ -1518,30 +1518,37 @@ except Exception as exc:                                     # noqa: BLE001
     check("effort law: the checks ran", False, repr(exc))
 
 # ---- the account-credit checkout and its webhook (web_app/subscription_routes.py) on a test app, Stripe faked
-# (2026-10-13, patch 0140; PR #63 took payment_method_types out of the create call - Stripe API 2026-09-30)
+# (2026-10-13, patch 0140; PR #63 took payment_method_types out of the create call - Stripe API 2026-09-30).
+# The fake is the signature check and no more (2026-11-27): until then it handed the route the event as plain dicts,
+# where the real library hands objects that are not dicts since 15.0 - the route's .get passed here and answered 500
+# to Stripe. The route reads the JSON itself now; test_stripe_webhook.py runs it against the real library.
 try:
     import types as _ty, json as _json
     _fs2 = sys.modules.get("auth.supabase_client") or _ty.ModuleType("auth.supabase_client")
     _credits = []
     for _n in ("set_user_subscription", "get_user_subscription", "get_balance", "get_user_llm_config", "get_monthly_usage", "get_tier_limits"):
         setattr(_fs2, _n, lambda *a, **k: {"ok": True})
-    _fs2.add_funds = lambda **kw: (_credits.append(kw), {"ok": True})[1]
+    _credit_answer = {"ok": True}
+    _fs2.add_funds = lambda **kw: (_credits.append(kw), dict(_credit_answer))[1]
     sys.modules["auth.supabase_client"] = _fs2
     _fa2 = sys.modules.get("auth") or _ty.ModuleType("auth"); _fa2.requires_auth = lambda f: f; _fa2.get_current_user_id = lambda: "auth0|u1"; sys.modules["auth"] = _fa2
     _lcb = _ty.ModuleType("llm_config_builder"); _lcb.build_user_config = lambda *a, **k: {}; sys.modules["llm_config_builder"] = _lcb
     _st = _ty.ModuleType("stripe")
     class _SigErr(Exception): pass
     _st.SignatureVerificationError = _SigErr; _st.api_key = None
-    class _Webhook:
+    _tolerances = []
+    class _WebhookSignature:
         @staticmethod
-        def construct_event(payload, sig, secret):
-            if sig == "bad": raise _SigErr("bad signature")
-            return _json.loads(payload)
+        def verify_header(payload, header, secret, tolerance=None):
+            _tolerances.append(tolerance)
+            if header == "bad": raise _SigErr("bad signature")
+            return True
     _created = []
     class _CheckoutSession:
         @staticmethod
         def create(**kw): _created.append(kw); return _ty.SimpleNamespace(url="https://checkout.test/cs_1")
-    _st.Webhook = _Webhook; _st.checkout = _ty.SimpleNamespace(Session=_CheckoutSession)
+    _st.WebhookSignature = _WebhookSignature; _st.Webhook = _ty.SimpleNamespace(DEFAULT_TOLERANCE=300)
+    _st.checkout = _ty.SimpleNamespace(Session=_CheckoutSession)
     sys.modules["stripe"] = _st
     sys.modules.pop("subscription_routes", None)
     if not hasattr(sys.modules.get("flask"), "Flask"):      # the dataframe_routes section above left a stand-in in its place
@@ -1571,6 +1578,16 @@ try:
     check("webhook: a bad signature is a 400 and credits nothing (stripe.SignatureVerificationError, the spelling every 7.x+ SDK has)", _w.status_code == 400 and len(_credits) == 2, (_w.status_code, _w.get_json()))
     _w = _sc.post("/api/stripe-webhook", data=_json.dumps({"type": "payment_intent.created", "data": {"object": {}}}), headers={"Stripe-Signature": "ok"})
     check("webhook: another event type is acknowledged and ignored", _w.status_code == 200 and len(_credits) == 2)
+    check("webhook: the library checks every call's signature with its five minutes, so a call older than that is refused", set(_tolerances) == {300}, _tolerances)
+    _w = _sc.post("/api/stripe-webhook", data="not json", headers={"Stripe-Signature": "ok"})
+    check("webhook: signed text that is not JSON is a 400", _w.status_code == 400 and _w.get_json() == {"error": "Invalid payload"} and len(_credits) == 2, (_w.status_code, _w.get_json()))
+    _credit_answer.update(ok=False, error="database away")
+    _w = _sc.post("/api/stripe-webhook", data=_event("checkout.session.completed", "paid", sid="cs_3", pi="pi_3"), headers={"Stripe-Signature": "ok"})
+    _credit_answer.clear(); _credit_answer.update(ok=True)
+    _w2 = _sc.post("/api/stripe-webhook", data=_event("checkout.session.completed", "paid", sid="cs_3", pi="pi_3"), headers={"Stripe-Signature": "ok"})
+    check("webhook: a credit the database refuses is answered 500 with the reason, so Stripe shows it failed and sends the event again (it was acknowledged, and the paid session left uncredited); the next delivery credits, under the same key",
+          _w.status_code == 500 and _w.get_json() == {"error": "Not credited: database away"} and _w2.status_code == 200 and _w2.get_json() == {"received": True}
+          and [c["idempotency_key"] for c in _credits[2:]] == ["pi_3", "pi_3"], (_w.status_code, _w.get_json(), _w2.status_code, _credits[2:]))
 except Exception as exc:                                     # noqa: BLE001
     check("subscription routes: the checks ran", False, repr(exc))
 

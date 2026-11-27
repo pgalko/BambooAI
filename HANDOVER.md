@@ -1699,9 +1699,10 @@
   since 0354, and v79 adds the size alone; no migration. The Local edition builds its image for the new version at
   the next `bambooai serve`. Tests: the battery 2,875; the walk 250, 243 of 247 in the local edition; the package
   test 39, the package built as 2.9.3.
-- **After 2.9.3: the end of a load in the three load dialogs; the four Dependabot alerts, postponed**
-  (`web_app/static/js/core.js`, `integrations/intervals.js`, `endura.js`, `sweatstack.js`, `dataset-manager.js`,
-  `index.html`, `dialogs.css`; docs/DATASETS_DESIGN.md section 19; no image change; not released).
+- **After 2.9.3: the end of a load in the three load dialogs; the Stripe webhook credits a paid session again; the
+  four Dependabot alerts, postponed** (`web_app/static/js/core.js`, `integrations/intervals.js`, `endura.js`,
+  `sweatstack.js`, `dataset-manager.js`, `index.html`, `dialogs.css`, `web_app/subscription_routes.py`;
+  docs/DATASETS_DESIGN.md section 19; no image change; not released).
   **0358 (2026-11-27), the end of a load in the three load dialogs.** The product owner, on the foot of the
   Intervals.icu, Endura and SweatStack dialogs: the green text after a load is confusing and too long - reduce it to
   the essentials; the spinning plane in the button is toyish - a greyed icon while loading is fine; the Load button
@@ -1749,6 +1750,44 @@
   page); the integrations walk's words, and its second load opens the dialog again; the date-inputs suite cuts the
   dialog's code by its new comment, and a cut whose end is missing fails; the battery 2,886; the walk 250, 243 of 247
   in the local edition; the package test 39; 44 deliberate breaks, each caught by a test.
+  **0359 (2026-11-27), the Stripe webhook credits a paid session again.** The product owner: a person on the hosted
+  service paid for account credit and the credit did not show; in Stripe the `checkout.session.completed` event had
+  failed at every delivery with HTTP 500 and Flask's plain error page, and was still pending. The cause was the paid
+  check of patch 0140, `session.get('payment_status')`, called on the object `stripe.Webhook.construct_event`
+  returns. Since stripe-python 15.0.0 (2026-03; API 2026-03-25.dahlia) a `StripeObject` is not a dict: `.get`,
+  `.keys`, `.items` are gone, while brackets, attributes and `in` remain. The same patch pinned the library to 16.x.
+  So the signature passed, the check raised AttributeError (16.x says: 'get' is a dict method, but a Session is not a
+  dict), the route answered 500 and nothing was credited: every paid session, from the day a box had both the patch
+  and a library of 15.0 or later. The app-path suite did not see it because its fake of Stripe handed the route the
+  event as plain dicts, where `.get` works. Reproduced with the route on a test app and checkouts of the real
+  library, an event of invented data signed as Stripe signs it: 500 under 15.0.0, 16.0.0, 16.1.0 and 17.1.0, credited
+  under 12.0.0 and 14.4.2. Fixed: the route asks the library for the signature check alone
+  (`stripe.WebhookSignature.verify_header`, with `stripe.Webhook.DEFAULT_TOLERANCE` - the five minutes that
+  `construct_event` applies by default, so a recorded call cannot be played again later) and reads the event as the
+  JSON Stripe sent; nothing in the route depends on the library's objects any more. With it: a credit that fails
+  (`add_funds` not ok: the database away, an amount it refuses) is answered 500 with the reason, where it was logged
+  and acknowledged with 200. Stripe then shows the delivery as failed and sends the event again for three days;
+  acknowledged, a paid session stayed uncredited with nothing in Stripe to show it. Nothing was lost in the incident:
+  Stripe keeps an undelivered event and retries it for three days in live mode, and Resend on the event's page works
+  for 15 days after the event. The credit is keyed by the payment intent (`p_idempotency_key`), so a second delivery
+  asks under the same key; that the database function credits once per key is the word of its Python wrapper's
+  docstring - the function is in the hosted database, not in this repository, and was not read. Tests:
+  `tests/analyst/test_stripe_webhook.py`, new (12), runs the route against the real library wherever it is installed:
+  a paid session credited once (the person, the amount, the session as reference, the payment as key); a second
+  delivery under the same key; an unpaid session acknowledged and not credited, the later `async_payment_succeeded`
+  credited; another event type ignored; a name with a letter beyond ASCII (the signature is over the bytes as they
+  came); another secret, a body changed after signing, no signature, a signature ten minutes old, each a 400; signed
+  text that is not JSON a 400; a refused credit a 500 and the next delivery credited. It skips with one line where
+  the library is absent (the self-hosted edition has no billing). Where the patches are made it ran against checkouts
+  of 12.0.0, 14.4.2, 15.0.0, 16.0.0, 16.1.0 and 17.1.0, 12 of 12 under each; on the route as it was, 7 of the 12 fail
+  under 15.0.0 and later. The public CI installs the library as `requirements.txt` pins it (one step in `ci.yml`), so
+  the suite runs there on every push and has its say when the pin moves. `test_app_path.py` 319 (+3): its fake is now
+  the signature check and nothing of the library's objects; the five minutes are passed; signed text that is not
+  JSON; a refused credit. The battery 2,889 where the library is absent, 2,901 with it; 13 deliberate breaks of the
+  route, each caught by both suites. Found and left: the page's custom amount has no upper limit and `add_funds`
+  refuses more than $1,000, so a session paid above that cannot be credited (it now fails in Stripe's view, where it
+  was acknowledged); on the return from Stripe the page says 'Payment successful! Your funds have been added.'
+  whether or not the credit happened.
   **Postponed (2026-11-25), the four Dependabot alerts on the public repository.** All four are pins in
   `containers/executor/requirements.txt`, and none reaches the product as it uses the packages: geopandas 1.1.1 (SQL
   injection in `to_postgis()`, never called; fixed in 1.1.2), pyarrow 21.0.0 (the IPC file reader with pre-buffering,

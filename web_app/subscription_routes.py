@@ -2,6 +2,7 @@
 
 from flask import Blueprint, request, jsonify, redirect
 from auth import requires_auth, get_current_user_id
+import json
 import logging
 try:
     import stripe
@@ -275,12 +276,14 @@ def stripe_webhook():
     """Handle Stripe webhook events"""
     payload = request.get_data(as_text=True)
     sig_header = request.headers.get('Stripe-Signature')
-    
+
+    # Stripe's library checks that the call is Stripe's and recent. The event is then read as the JSON Stripe sent,
+    # not as the library's objects: those are not dicts since 15.0 (no .get), and the paid check below called .get
+    # on one, so every paid session answered 500 and was not credited (2026-11-27; the check came with patch 0140).
     try:
-        # Verify webhook signature
-        event = stripe.Webhook.construct_event(
-            payload, sig_header, STRIPE_WEBHOOK_SECRET
-        )
+        stripe.WebhookSignature.verify_header(payload, sig_header, STRIPE_WEBHOOK_SECRET,
+                                              stripe.Webhook.DEFAULT_TOLERANCE)
+        event = json.loads(payload)
     except ValueError:
         logging.error("Invalid payload")
         return jsonify({'error': 'Invalid payload'}), 400
@@ -294,9 +297,9 @@ def stripe_webhook():
     # since payment_method_types left the create call (Stripe API 2026-09-30; PR #63), so the check is here.
     if event['type'] in ('checkout.session.completed', 'checkout.session.async_payment_succeeded'):
         session = event['data']['object']
-        if session.get('payment_status') != 'paid':
-            logging.info(f"Checkout session {session.get('id')} {event['type']} with payment_status "
-                         f"{session.get('payment_status')}: not credited until it is paid")
+        if session['payment_status'] != 'paid':
+            logging.info(f"Checkout session {session['id']} {event['type']} with payment_status "
+                         f"{session['payment_status']}: not credited until it is paid")
             return jsonify({'received': True}), 200
 
         # Get metadata
@@ -313,9 +316,11 @@ def stripe_webhook():
             skip_validation=True  # Skip validation for webhooks
         )
         
-        if result.get('ok'):
-            logging.info(f"Successfully credited ${amount} to user {auth0_id}")
-        else:
+        if not result.get('ok'):
+            # An error answer makes Stripe show the delivery as failed and send the event again, for three days.
+            # An acknowledged one (before 2026-11-27) left a paid session uncredited with only this log to say so.
             logging.error(f"Failed to credit funds: {result.get('error')}")
-    
+            return jsonify({'error': f"Not credited: {result.get('error')}"}), 500
+        logging.info(f"Successfully credited ${amount} to user {auth0_id}")
+
     return jsonify({'received': True}), 200
