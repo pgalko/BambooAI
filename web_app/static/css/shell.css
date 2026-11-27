@@ -137,6 +137,21 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 .left-panel .icon-row .br-chip svg { width: 13px; height: 13px; }
 .left-panel .icon-row .br-chip button { width: 18px; height: 18px; padding: 0; border: none; border-radius: 4px; background: none; color: inherit; font: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
 .left-panel .icon-row .br-chip button:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+/* ---- asking about a selection (2026-11-27; selection.js): the bar beside selected text, the quote on the query box ---- */
+.selection-bar { position: fixed; z-index: 1001; display: none; align-items: center; gap: 2px; padding: 3px; border: 1px solid var(--border-secondary); border-radius: var(--r-2); background: var(--bg-secondary); box-shadow: var(--shadow-medium); user-select: none; }
+.selection-bar.on { display: inline-flex; }
+.selection-bar button { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 8px; border: none; border-radius: var(--r-1); background: none; color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-meta); cursor: pointer; }
+.selection-bar button:hover { background: var(--bg-tertiary); }
+.selection-bar button.ask { color: var(--c-model); }
+.selection-bar button svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.selection-bar .sep { width: 1px; height: 14px; margin: 0 1px; background: var(--border-color); }
+body.composer-locked .selection-bar button.ask { opacity: .4; pointer-events: none; }      /* nothing can be asked while the query box is held */
+.left-panel .query-quote { display: none; align-items: center; gap: 7px; margin: 8px 8px 0; padding: 5px 4px 5px 8px; border-left: 2px solid var(--c-model); border-radius: 0 var(--r-1) var(--r-1) 0; background: var(--bg-tertiary); color: var(--text-secondary); font-size: var(--fs-meta); }
+.left-panel .query-quote.on { display: flex; }
+.left-panel .query-quote svg { width: 13px; height: 13px; flex-shrink: 0; stroke: var(--c-model); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.left-panel .query-quote .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.left-panel .query-quote button { width: 18px; height: 18px; padding: 0; border: none; border-radius: var(--r-1); background: none; color: var(--text-quaternary); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
+.left-panel .query-quote button:hover { background: var(--bg-quaternary); color: var(--text-primary); }
 /* the send / stop button */
 .left-panel #submitQuery { position: absolute; right: 8px; bottom: 8px; top: auto; left: auto; width: 24px; height: 24px; margin: 0; padding: 0; border-radius: 6px; border: none; background: var(--c-model); color: var(--bg-primary); display: grid; place-items: center; cursor: pointer; transition: none; box-shadow: none; }
 .left-panel #submitQuery:hover { background: var(--accent-hover); color: var(--bg-primary); transform: none; }

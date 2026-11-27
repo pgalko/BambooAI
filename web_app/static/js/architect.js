@@ -751,8 +751,7 @@
                             tabContent: '', contentOutput: '', streamOutput: '', taskContents: {}, technicalAnswer: null, reportHead: null, framing: d.framing };
             responses.push(entry);
             currentResponseIndex = responses.length - 1;
-            const input = byId('queryInput');
-            if (input) { input.value = ''; input.style.height = 'auto'; }
+            emptyComposer();
             loadResponseContent(entry);
             if (typeof updateNavigationButtons === 'function') updateNavigationButtons();
             return entry;
@@ -854,8 +853,7 @@
         if (typeof queryRunning !== 'undefined' && queryRunning) { say(WORDS.busyRun); return Promise.resolve(false); }
         return (root ? keep(root) : Promise.resolve({})).then(out => {
             if (!out) return false;
-            const input = byId('queryInput');
-            if (input) { input.value = ''; input.style.height = 'auto'; }
+            emptyComposer();
             return exchange(entry, text);
         });
     }

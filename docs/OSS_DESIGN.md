@@ -316,6 +316,11 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-27: after 2.9.4, not yet released (patch 0361; executor image v79 stands).** Asking about a
+  selection: text selected in the content pane gets a small bar - Ask, Copy - that takes no focus, so the selection
+  stays and copies as on any page; Ask puts it on the query box as a quote, and the question typed there is sent with
+  the passage under it. The popup that opened at every mouse-up, and dropped the selection, is gone
+  (`web_app/static/js/selection.js`).
 - **Status 2026-11-27: 2.9.4 (patches 0358-0360; executor image v79 stands).** The three load dialogs end a load as
   one: the Load button grey and still while it runs, *Loaded* with the counts once the data is in, the dialog closing
   itself 1.5 s later; something not loaded keeps it open with the note (docs/DATASETS_DESIGN.md section 19). The

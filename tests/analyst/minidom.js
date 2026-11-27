@@ -51,6 +51,7 @@ class Element extends Node {
   get elements() { return this.children.filter(c => c.nodeType === 1); }
   querySelector(sel) { return this.querySelectorAll(sel)[0] || null; }
   querySelectorAll(sel) {
+    if (sel.includes(',')) return sel.split(',').reduce((all, one) => all.concat(this.querySelectorAll(one).filter(e => !all.includes(e))), []);      // a list: what any of its selectors finds
     const parts = sel.trim().replace(/^:scope\s*>\s*/, '@>').split(/\s+(?!>)/);
     let scopeChild = false; if (parts[0].startsWith('@>')) { scopeChild = true; parts[0] = parts[0].slice(2); }
     const match = (el, simple) => {

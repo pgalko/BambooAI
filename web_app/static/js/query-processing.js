@@ -42,7 +42,9 @@ function handleQuerySubmit(options = {}) {
     const { synthesis, image, typed, framed, next, step } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
-    const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());
+    // what the composer's own send asks: the words typed, with the passage quoted on the box under them (selection.js)
+    const said = queryInput.value.trim(), asked = typed && window.SelectionUI ? window.SelectionUI.quoted(said) : said;
+    const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : asked);
     
     // If normal query is running, clicking submit = stop
     if (queryRunning && !autoExploreRunning) {
@@ -119,10 +121,7 @@ function handleQuerySubmit(options = {}) {
     if (next) window.NextQuestionsUI.started(next);
 
     // Clear and reset input (not for a synthesis, nor for a next question: neither was typed there)
-    if (!synthesis && !next) {
-        queryInput.value = '';
-        queryInput.style.height = 'auto';
-    }
+    if (!synthesis && !next) emptyComposer();
 
     // Prepare request
     const requestBody = {

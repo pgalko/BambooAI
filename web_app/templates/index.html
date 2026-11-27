@@ -195,6 +195,12 @@
             <div class="input-area">
                 <div class="input-row">
                     <div class="textarea-container">
+                        <!-- the passage a question is asked about: put here by Ask on a selection (selection.js) -->
+                        <div id="queryQuote" class="query-quote">
+                            <svg viewBox="0 0 24 24"><path d="M10 11H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v6c0 2-1 4-4 5"/><path d="M19 11h-4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v6c0 2-1 4-4 5"/></svg>
+                            <span class="t"></span>
+                            <button type="button" title="Remove" aria-label="Remove">×</button>
+                        </div>
                         <textarea
                             id="queryInput"
                             placeholder="Enter your query here"
@@ -681,6 +687,7 @@
     <script src="{{ url_for('static', filename='js/next-questions.js') }}"></script>
     <script src="{{ url_for('static', filename='js/branch.js') }}"></script>
     <script src="{{ url_for('static', filename='js/maps.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/selection.js') }}"></script>
 
     <!-- Other modules - Load after core modules -->
     <script src="{{ url_for('static', filename='js/integrations/sweatstack.js') }}"></script>

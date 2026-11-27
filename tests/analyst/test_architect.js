@@ -51,6 +51,9 @@ const submitted = []; global.handleQuerySubmit = o => submitted.push(o);
 const tabs = []; global.createOrUpdateTab = (type, html) => tabs.push([type, html]);
 const rows = []; global.paneAppend = html => rows.push(html);
 const reverted = []; global.revertLiveChain = e => { reverted.push(e); e.status = 'framing'; };
+// the query box is emptied by the page's own function (core.js), which takes the quote off it too (selection.js): counted here
+let unquoted = 0; window.SelectionUI = { unquote: () => { unquoted += 1; } };
+global.emptyComposer = new Function(fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8').match(/function emptyComposer\(\) \{[\s\S]*?\n\}\n/)[0] + '; return emptyComposer;')();
 
 require(path.join(__dirname, '..', '..', 'tools', 'fixtures', 'dagre_stub.js')); global.dagre = window.dagre;      // window.dagre: the harness's layered stand-in
 require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'workflowGraph.js'));
@@ -754,10 +757,10 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
   held();
   A.open('Is B above A?'); await tick();
   const entry = responses[1];
-  check('a question typed with the switch on: the server is asked to open its brief with the question and the chain on screen; the brief is a chain of its own, where the question was asked, and the page moves to it',
+  check('a question typed with the switch on: the server is asked to open its brief with the question and the chain on screen; the brief is a chain of its own, where the question was asked, and the page moves to it - the query box emptied, a passage quoted on it gone with the question',
     same(calls[0], ['/architect/open', { question: 'Is B above A?', thread_id: 7, chain_id: 70 }]) && responses.length === 2 && currentResponseIndex === 1
     && entry.status === 'framing' && entry.chain_id === 71 && entry.thread_id === 7 && entry.parentChainId === 70 && entry.queryText === 'Is B above A?' && same(entry.framing, F1)
-    && currentData.chain_id === 71 && $('queryInput').value === '', [calls[0], entry]);
+    && currentData.chain_id === 71 && $('queryInput').value === '' && unquoted === 1, [calls[0], entry, unquoted]);
   doc.dispatch('click', $('contentOutput').querySelector('[data-ar="more"]'));
   check('the Pathfinder takes its first turn at once: asked with the brief\'s thread and chain, no words of the coach\'s, and the step in use - every request names it (0316); while it replies the pane says it is reading, the composer is held and says why, and the brief takes no change',
     same(calls[1], ['/architect/say', { thread_id: 7, chain_id: 71, text: null, step: 1 }]) && same(pane(), ['you|YouIs B above A?', 'arch wait|Pathfinderreading…'])
@@ -777,7 +780,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
   A.open('Another question'); await tick();
   answers['/architect/open'] = 'down';
   A.open('Another question'); await tick();
-  check('a brief the server did not open: the reason is said, no chain is made', responses.length === 2 && toasts.slice(-2).join('|') === 'The brief could not be opened: disk|The brief could not be opened: the server could not be reached.', toasts);
+  check('a brief the server did not open: the reason is said, no chain is made, and the query box keeps what it held',
+    responses.length === 2 && toasts.slice(-2).join('|') === 'The brief could not be opened: disk|The brief could not be opened: the server could not be reached.' && unquoted === 1, [toasts, unquoted]);
 
   // a line is changed where it stands
   const brief = () => $('contentOutput').querySelector('.ar-brief');
@@ -1019,11 +1023,11 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
   serve();
   addPart('fixed.period').querySelector('.ar-input').value = 'this season';
   $('queryInput').value = 'B above A by 3';
-  held(); n = calls.length;
+  held(); n = calls.length; const quotes = unquoted;
   A.tell('  B above A by 3 '); await tick();
-  check('an answer typed in the composer while a line of the brief is being typed: the line is kept first, as a version of the coach\'s; then the answer is said, the composer emptied',
+  check('an answer typed in the composer while a line of the brief is being typed: the line is kept first, as a version of the coach\'s; then the answer is said, the composer emptied - a passage quoted on it with it',
     calls.length === n + 2 && calls[n][0] === '/architect/brief' && calls[n][1].brief.fixed.period === 'this season' && same(calls[n + 1], ['/architect/say', { thread_id: 7, chain_id: 71, text: 'B above A by 3', step: entry.framing.versions.length }])
-    && $('queryInput').value === '' && latest().by === 'person' && h3s(brief()).indexOf('Period') >= 0 && pane()[pane().length - 2] === 'you|YouB above A by 3', calls.slice(n));
+    && $('queryInput').value === '' && unquoted === quotes + 1 && latest().by === 'person' && h3s(brief()).indexOf('Period') >= 0 && pane()[pane().length - 2] === 'you|YouB above A by 3', calls.slice(n));
   const stood = JSON.stringify(entry.framing);
   reply([200, stream({ error: 'The Pathfinder\'s reply could not be read (it holds no JSON object).' })]); await tick();
   check('a reply that could not be kept: the reason is said, the brief and the conversation stand as they did, and what was typed is back in the composer',

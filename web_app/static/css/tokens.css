@@ -194,6 +194,7 @@
     --chip-lookup-bg: rgba(30, 144, 255, 0.07);
     --chip-fail-bg: rgba(255, 107, 107, 0.05);
     --row-select-bg: rgba(255, 255, 255, 0.04);          /* a selected row or box */
+    --selection-bg: rgba(140, 231, 182, 0.3);            /* selected text, in both themes */
     --edge-color: rgba(255, 255, 255, 0.3);              /* a diagram's arrows */
     --scrim-heavy: rgba(0, 0, 0, 0.82);                  /* the working window dimmed under the code trace */
     /* the series colours of the Usage dialog's charts (2026-10-31, docs/USAGE_DESIGN.md §4): seven slots in rank order

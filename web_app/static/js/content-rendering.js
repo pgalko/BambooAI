@@ -4,179 +4,10 @@
 
 function initializeContentRendering() {
     console.log('Initializing content rendering...');
-    
-    initializeSelectionPopup();
-    initializeTextSelection();
+
     initializePlotFullscreenModal();
-    
+
     console.log('Content rendering initialized');
-}
-
-//--------------------
-//  SELECTION POPUP SYSTEM
-//--------------------
-
-function initializeSelectionPopup() {
-    // Create and inject the popup HTML
-    const popupHtml = `
-    <div id="selectionPopup" class="selection-popup" style="display: none;">
-        <form id="selectionForm">
-        <input type="text" id="selectionQuery" placeholder="Enter your query">
-        <button type="submit" id="selectionRunButton" aria-label="Run query">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-            </svg>
-        </button>
-        </form>
-        <div id="selectedTextDisplay" class="selected-text-display" style="display: none;"></div>
-    </div>
-    `;
-
-    document.body.insertAdjacentHTML('beforeend', popupHtml);
-
-    // Get references to popup elements
-    const selectionPopup = document.getElementById('selectionPopup');
-    const selectionQuery = document.getElementById('selectionQuery');
-    const selectionForm = document.getElementById('selectionForm');
-
-    // Handle form submission
-    if (selectionForm) {
-        selectionForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            handleQuerySubmission(e);
-        });
-    }
-    
-    // Handle Enter key
-    if (selectionQuery) {
-        selectionQuery.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleQuerySubmission(e);
-            }
-        });
-    }
-
-    // Handle click outside popup
-    document.addEventListener('mousedown', handleClickOutside);
-}
-
-function initializeTextSelection() {
-    const contentOutput = document.getElementById('contentOutput');
-    
-    if (contentOutput) {
-        contentOutput.addEventListener('mouseup', (e) => {
-            // Check if the click is within a plot tab
-            const plotTab = e.target.closest('#content-plot');
-            if (!plotTab) {
-                handleTextSelection(e);
-            }
-        });
-    }
-
-    // Update highlights on scroll
-    window.addEventListener('scroll', handleScroll);
-}
-
-//--------------------
-//  TEXT SELECTION HANDLERS
-//--------------------
-
-function handleTextSelection(e) {
-    const selection = window.getSelection();
-    selectedText = selection.toString().trim();
-    
-    if (selectedText) {
-        currentRange = selection.getRangeAt(0).cloneRange();
-        console.log('New selection made:', selectedText);
-        
-        showPopupAtPosition(e.clientX, e.clientY);
-        const selectionQuery = document.getElementById('selectionQuery');
-        if (selectionQuery) {
-            selectionQuery.value = '';
-            selectionQuery.focus();
-        }
-    }
-}
-
-function handleClickOutside(e) {
-    if (e.target.closest('#content-plot')) return;
-    
-    if (e.target.closest('#selectionForm') || 
-        e.target.closest('#selectionRunButton') || 
-        e.target.closest('#selectionQuery')) return;
-    
-    const selectionPopup = document.getElementById('selectionPopup');
-    if (!selectionPopup.contains(e.target) && e.target !== selectionPopup) {
-        selectionPopup.style.display = 'none';
-        removeHighlights(); // This will clear the selection
-        currentRange = null;
-        selectedText = '';
-    }
-}
-
-function removeHighlights() {
-    // Clear the browser selection
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    highlightElements = [];
-}
-
-function showPopupAtPosition(x, y) {
-    const selectionPopup = document.getElementById('selectionPopup');
-    const selectedTextDisplay = document.getElementById('selectedTextDisplay');
-    
-    selectionPopup.style.display = 'block';
-    
-    // Display the selected text below the input
-    if (selectedText && selectedTextDisplay) {
-        selectedTextDisplay.style.display = 'block';
-        selectedTextDisplay.innerHTML = `<strong>Selected:</strong> "${selectedText.length > 1000 ? selectedText.substring(0, 1000) + '...' : selectedText}"`;
-    }
-    
-    // Position popup (after content is set so size calculations are accurate)
-    setTimeout(() => {
-        const popupX = x + 10;
-        const popupY = y + 10;
-        
-        const viewportWidth = window.innerWidth;
-        const viewportHeight = window.innerHeight;
-        const popupWidth = selectionPopup.offsetWidth;
-        const popupHeight = selectionPopup.offsetHeight;
-        
-        const finalX = Math.min(popupX, viewportWidth - popupWidth - 10);
-        const finalY = Math.min(popupY, viewportHeight - popupHeight - 10);
-        
-        selectionPopup.style.left = finalX + 'px';
-        selectionPopup.style.top = finalY + 'px';
-    }, 0);
-}
-
-function handleScroll() {
-}
-
-async function handleQuerySubmission(e) {
-    if (e) e.preventDefault();
-
-    const selectionQuery = document.getElementById('selectionQuery');
-    const query = selectionQuery.value.trim();
-
-    if (!query || !selectedText) return;
-
-    const queryWithContext = `${query}\n**Task Context:**\n${selectedText}`;
-
-    // Dismiss popup before submitting
-    document.getElementById('selectionPopup').style.display = 'none';
-    removeHighlights();
-
-    // Delegate to main handler
-    const queryInput = document.getElementById('queryInput');
-    queryInput.value = queryWithContext;
-    handleQuerySubmit();
-
-    // Clean up selection state after
-    currentSelection = null;
-    selectedText = '';
 }
 
 //--------------------
@@ -324,8 +155,6 @@ async function updateTabContent(type, data, id = null, format = null) {
             }
         
             tabContent.querySelectorAll('pre code').forEach(hljs.highlightElement);
-            tabContent.removeEventListener('scroll', handleScroll);
-            tabContent.addEventListener('scroll', handleScroll);
             return;
         }
         case 'review':
@@ -441,10 +270,6 @@ async function updateTabContent(type, data, id = null, format = null) {
             hljs.highlightBlock(block);
         });
     }
-    // Add listener to update highlights on scroll
-    tabContent.removeEventListener('scroll', handleScroll);
-    tabContent.addEventListener('scroll', handleScroll);
-    console.log('Scroll listener added for', type, 'tab');
 }
 
 //--------------------

@@ -12,6 +12,9 @@ ARCHITECT = open(os.path.join(HERE, 'fixtures', 'architect.js')).read()       # 
 DAGRE = open(os.path.join(HERE, 'fixtures', 'dagre_stub.js')).read()             # the maps' layout library, as the harness has it: here the library's address is not reached (2026-11-19, the map of a brief's conversation)
 PLOTLY = open(os.path.join(HERE, 'stack', 'browser', 'libs_stub_plotly.js')).read()      # the stack's stand-in for Plotly: here the library's address is not reached (2026-11-18, the drafts of the figures)
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
+# a passage of the answer selected as the mouse selects it: pressed in the content pane, with the first paragraph marked
+SELECT = ("activateTab('answer'); if (!document.querySelector('.selection-bar')) SelectionUI.initialize(); const p = document.querySelector('#content-answer p'), r = document.createRange(), b = p.getBoundingClientRect(); r.selectNodeContents(p); "
+          "p.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); getSelection().removeAllRanges(); getSelection().addRange(r); ")
 STATES = {
     'page_answer': "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a);",
     'page_data': "activateTab('dataframe');",
@@ -19,6 +22,9 @@ STATES = {
     'composer_adaptive': "setMode('adaptive'); document.getElementById('queryInput').value='How does the warming trend compare?';",
     'composer_running': "setMode('deep'); document.getElementById('submitQuery').classList.add('query-running'); document.getElementById('saveButton').style.display='block';",
     'collapsed': "document.getElementById('collapseButton').click();",
+    # asking about a selection (selection.js, 2026-11-27): the bar beside selected text, then the quote Ask puts on the query box
+    'select_bar': SELECT + "p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: b.left + 120, clientY: b.top + 6 }));",
+    'composer_quote': SELECT + "p.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: b.left + 120, clientY: b.top + 6 })); setTimeout(() => document.querySelector('.selection-bar .ask').click(), 100);",
     'dlg_account': "showSubscriptionModal(false);",
     'dlg_usage': "UsageUI.open();",                      # the dialog over tools/fixtures/usage.json (2026-10-31)
     'dlg_usage_analyses': "UsageUI.open(); setTimeout(()=>{ document.querySelector('.us-tabs [data-tab=analyses]').click(); setTimeout(()=>{ const it=document.querySelector('.us-list .it'); it && it.click(); }, 200); }, 300);",

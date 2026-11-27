@@ -382,10 +382,10 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     && html.indexOf('js/next-questions.js') < html.indexOf('js/workflowGraph.js') && js('core.js').includes('window.NextQuestionsUI.initialize();'));
   check('the send: a next question is the query as it stands - not typed, so the Pathfinder\'s switch does not apply; nothing starts while a set is being written; the run\'s pane is told what started it; '
     + 'the composer is neither cleared nor refilled; the server is told the set and the question; the stream\'s id line marks the card',
-    qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());")
+    qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : asked);")
     && qp.includes('if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;') && qp.indexOf('window.NextQuestionsUI.holds()') < qp.indexOf('window.ArchitectUI.framingInView()')
     && qp.indexOf('window.NextQuestionsUI.holds()') > qp.indexOf('stopAutoExplore();') && qp.includes('if (next) window.NextQuestionsUI.started(next);')
-    && qp.indexOf('if (next) window.NextQuestionsUI.started(next);') > qp.indexOf('beginLiveChain(framed);') && qp.includes('if (!synthesis && !next) {') && qp.includes('if (!framed && !next) queryInput.value = query;')
+    && qp.indexOf('if (next) window.NextQuestionsUI.started(next);') > qp.indexOf('beginLiveChain(framed);') && qp.includes('if (!synthesis && !next) emptyComposer();') && qp.includes('if (!framed && !next) queryInput.value = query;')
     && qp.includes('if (next) requestBody.next = { set: next.set, k: next.k };') && qp.includes('if (window.NextQuestionsUI) window.NextQuestionsUI.ran(data.chain_id);')
     && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') > qp.indexOf("if (data.type === \"id\")") && qp.indexOf('window.NextQuestionsUI.ran(data.chain_id)') < qp.indexOf('data.type === "pane_run_start"'));
   check('the pane and the map: a finished analysis is dressed when its closing card is made and when its chain is shown again; the map asks the Pathfinder\'s module for the mark, which asks this one',

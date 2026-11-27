@@ -14,10 +14,6 @@ let buffer = '';
 let currentDatasetName = null;
 let taskContents = {};
 let popupTimeout;
-let currentSelection = null;
-let currentRange = null;
-let highlightElements = [];
-let selectedText = '';
 let autoScroll = true;
 let initialScrollTop = 0;
 let previewElement = null;
@@ -78,6 +74,13 @@ function loadDialogOpened(modal) {
 function closeLoadDialogSoon(modal, hide) {
     const opening = modal ? modal.dataset.opening : undefined;
     setTimeout(() => { if (modal && modal.dataset.opening === opening) hide(); }, LOAD_DONE_MS);
+}
+// The query box emptied: what was typed has gone to an analysis or to the Pathfinder, and with it the passage it was asked
+// about (selection.js). The one place that empties it (2026-11-27; three places each did, in their own lines).
+function emptyComposer() {
+    const input = document.getElementById('queryInput');
+    if (input) { input.value = ''; input.style.height = 'auto'; }
+    if (window.SelectionUI) window.SelectionUI.unquote();
 }
 let limitMessageTimeout = null;
 
@@ -360,6 +363,11 @@ function continueAppInitialization() {
     // Branches (docs/BRANCH_DESIGN.md §5): the buttons on an analysis's turns, the composer as a hint's
     if (typeof window.BranchUI !== 'undefined' && typeof window.BranchUI.initialize === 'function') {
         window.BranchUI.initialize();
+    }
+
+    // Asking about a selection (selection.js): the bar beside selected text, the quote on the query box
+    if (typeof window.SelectionUI !== 'undefined' && typeof window.SelectionUI.initialize === 'function') {
+        window.SelectionUI.initialize();
     }
 
     // Next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on a finished analysis' closing card, the cards under it

@@ -3,7 +3,7 @@
 body, html { margin: 0; padding: 0; height: 100%; font-family: var(--font-ui); background-color: var(--bg-primary); color: var(--text-primary); -webkit-font-smoothing: antialiased; transition: background-color .3s, color .3s; }
 code, pre, kbd, samp { font-family: var(--font-mono); }
 a { color: var(--c-model); }
-::selection { background: var(--accent-bg-hover); color: var(--text-primary); }
+::selection { background: var(--selection-bg); color: inherit; }
 :focus-visible { outline: 1px solid var(--text-tertiary); outline-offset: 1px; }
 /* scrollbars: thin, quiet, the page's own colours */
 * { scrollbar-width: thin; scrollbar-color: var(--bg-quaternary) transparent; }
