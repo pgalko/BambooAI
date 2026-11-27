@@ -2098,7 +2098,7 @@ try:
     _n35, _charged35 = len(state["calls"]), list(_charged)
     _st35, _ln35 = _explain({**_ask30, "chain_id": "999999"})
     _st36, _ln36 = _explain({**_ask30, "chain_id": _c6})
-    _r37 = [_wec.post("/explain", json=p) for p in ({k: v for k, v in _ask30.items() if k != "thread_id"}, {k: v for k, v in _ask30.items() if k != "chain_id"}, {**_ask30, "tab": "plot"},
+    _r37 = [_wec.post("/explain", json=p) for p in ({k: v for k, v in _ask30.items() if k != "thread_id"}, {k: v for k, v in _ask30.items() if k != "chain_id"}, {**_ask30, "tab": "brief"},
                                                     {**_ask30, "view": ""}, {**_ask30, "at": "0"}, {**_ask30, "passage": "x" * 8001}, {**_ask30, "question": "  "})]
     _auth["counted"], _auth["refuse"] = [], ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
     _r38 = _wec.post("/explain", json=_ask30)
@@ -2127,6 +2127,61 @@ try:
           "from explain_routes import explain_bp" in _app_ex and "app.register_blueprint(explain_bp)" in _app_ex and _routes_ex.count("@requires_auth") == _routes_ex.count("@explain_bp.route(") == 2
           and _insp30.getsource(B.BambooAI.next_questions).count("self._beside(") == 1 == _insp30.getsource(B.BambooAI.explain).count("self._beside(")
           and "charge_for_completed_query" not in _insp30.getsource(B.BambooAI.next_questions) + _insp30.getsource(B.BambooAI.explain), None)
+    # ---- a plot asked about (0363): the plot's picture comes with the request and goes with the call, on a seat whose model reads pictures - the Pathfinder's, else the
+    # ---- analyst's; where neither does, or no picture came, the call is the Pathfinder's without it and the exchange says so. Here the Pathfinder has a seat and a model of its own
+    _models40, _reads40 = {"Pathfinder": "fake/small"}, {"fake/model": "false", "fake/small": "false"}
+    _name40, _props40 = FakeModels.get_model_name, FakeModels.get_model_properties
+    FakeModels.get_model_name = lambda self, agent: (_models40.get(agent, "fake/model"), "fake")
+    FakeModels.get_model_properties = lambda self: {m: {"capability": "reasoning", "multimodal": flag, "prompt_tokens": 0.001, "completion_tokens": 0.002} for m, flag in _reads40.items()}
+    FakeModels.config["agent_configs"].append({"agent": "Pathfinder", "details": {"model": "fake/small", "provider": "fake", "reasoning_effort": "low"}})
+    _plot40 = {"thread_id": "1077", "chain_id": _c2, "tab": "plot", "passage": "Plot 1", "at": 0, "question": "What does it show?", "image": _png}
+    def _plot_asked(payload, small, big):
+        """A question about a plot sent, where the Pathfinder's model (`small`) and the analyst's (`big`) read pictures or not: the status, whether the stream ended on everything
+        asked with the new exchange last, the seat and the name of the call, which of the calls carried a picture, the prompt, the call's chain, the exchange as kept."""
+        _reads40.update({"fake/small": small, "fake/model": big})
+        state["explain"], state["images"] = ["It shows the gap."], []
+        st, ln = _explain(payload)
+        seat, kw, on, _, user = state["explain_seen"][-1]
+        return st, ln[-1] == {"explain": {"asked": _ran2.explained}}, seat, kw.get("label"), list(state["images"]), user, on, dict(_ran2.explained[-1])
+    _n40 = len(_ran2.explained)
+    _b40 = _plot_asked(_plot40, "false", "false")
+    check("/explain, a plot, where no model reads pictures: the call is the Pathfinder's, without the picture - its prompt says that the plot is not attached - and the exchange is kept as answered "
+          "blind, at the plot's place: the Plots tab and the plot's name, which is also the words quoted",
+          _b40[:5] == (200, True, "Pathfinder", "Explainer", [False]) and "\n\nWHERE: in the Plots tab\n\nPASSAGE:\nPlot 1\n\nPICTURE: not attached: you do not see the plot." in _b40[5]
+          and _b40[5].endswith("\n\nASKED:\nWhat does it show?") and len(_ran2.explained) == _n40 + 1
+          and {k: v for k, v in _b40[7].items() if k not in ("when", "cost")} == {"tab": "plot", "view": "", "passage": "Plot 1", "at": 0, "quote": "Plot 1", "question": "What does it show?",
+                                                                                 "answer": "It shows the gap.", "chain": _b40[6], "blind": True}, (_b40[:5], _b40[5][-300:], _b40[7]))
+    _s41 = _plot_asked({**_plot40, "quote": "the gap", "question": "Which gap?"}, "true", "true")
+    _log41 = json.dumps(json.load(open(_runlog))[-1].get("messages"))
+    check("... where the Pathfinder's model reads pictures: the picture rides with its call as an image part, and the prompt says it is attached - here on a follow-up at the plot, said by its number. "
+          "The exchange is not blind. The picture is kept nowhere: not with the run, and the run log holds a placeholder for it",
+          _s41[:5] == (200, True, "Pathfinder", "Explainer", [True])
+          and _s41[5].endswith(f"\n\nWHERE: at the passage of [{_n40 + 1}] again\n\nPASSAGE:\nthe gap\n\nPICTURE: attached: the plot as the person has it on screen.\n\nASKED:\nWhich gap?")
+          and "blind" not in _s41[7] and _s41[7]["quote"] == "the gap" and _png not in json.dumps(_thread_file()) and _png not in _log41 and "<image, " in _log41, (_s41[:5], _s41[5][-300:], _log41[-200:]))
+    _a42 = _plot_asked(_plot40, "false", "true")
+    check("... where the Pathfinder's model does not and the analyst's does: the call is made on the analyst's seat, with the picture - logged as the Explainer's all the same, under a chain of its "
+          "own, and charged; not blind",
+          _a42[:5] == (200, True, "Investigator", "Explainer", [True]) and "PICTURE: attached" in _a42[5] and "blind" not in _a42[7] and _logged(_a42[6]) == ["Explainer"] and _charged[-1] == _a42[6]
+          and _a42[6] not in (_b40[6], _s41[6]), _a42[:5])
+    _none43 = [_plot_asked({**_plot40, "image": bad}, "true", "true") for bad in (None, "", "/9j/4AAQSkZJRgABAQ", 7)] + [_plot_asked({k: v for k, v in _plot40.items() if k != "image"}, "true", "true")]
+    check("... no picture came with the request, or what came is none - nothing, another kind of image, no text: the call is the Pathfinder's without one, though both models read pictures, and the "
+          "exchange is blind",
+          all(r[:5] == (200, True, "Pathfinder", "Explainer", [False]) and "PICTURE: not attached" in r[5] and r[7].get("blind") is True for r in _none43) and len(_none43) == 5, [r[:5] for r in _none43])
+    _reads40.update({"fake/small": "false", "fake/model": "true"})
+    state["explain"], state["images"] = ["By the gap."], []
+    _st44, _ln44 = _explain({**_ask30, "question": "With a picture?", "image": _png})
+    check("a passage asked about with a picture in the request: the picture goes nowhere - no image part, no word of one in the prompt, and the call stays on the Pathfinder's seat though only the "
+          "analyst's model reads pictures - and the exchange is not blind",
+          _st44 == 200 and state["images"] == [False] and "PICTURE" not in state["explain_seen"][-1][4] and "blind" not in _ran2.explained[-1] and state["explain_seen"][-1][0] == "Pathfinder"
+          and _ran2.explained[-1]["question"] == "With a picture?", (_st44, state["images"]))
+    _g45 = _wec.get(f"/explain/1077/{_c2}").get_json()["asked"]
+    _query45 = _app_ex[_app_ex.index("@app.route('/query', methods=['POST'])"):_app_ex.index("    def generate():", _app_ex.index("@app.route('/query', methods=['POST'])"))]
+    check("what the page is given to draw holds the plot's exchanges with the passages', the blind ones saying so. An analysis takes no picture from the page any more - a plot's question is an "
+          "explanation: the query route reads none and passes none on; the instance still takes one from whoever calls it with one",
+          _g45 == _ran2.explained and [x.get("blind") for x in _g45 if x["tab"] == "plot"] == [True, None, None] + [True] * 5 and len(_query45) > 2000 and "image" not in _query45
+          and "image=None" in _insp30.getsource(B.BambooAI.pd_agent_converse).split('"""')[0] and "seat=seat" in _insp30.getsource(B.BambooAI.explain), [x.get("blind") for x in _g45 if x["tab"] == "plot"])
+    FakeModels.get_model_name, FakeModels.get_model_properties = _name40, _props40
+    FakeModels.config["agent_configs"] = [a_ for a_ in FakeModels.config["agent_configs"] if a_["agent"] != "Pathfinder"]
     _charged28 = list(_charged)
     BAMBOO.cleanup()
     check("a brief the Pathfinder talked in and no analysis followed: its calls are charged when the instance is torn down, once",

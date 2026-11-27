@@ -146,10 +146,13 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 .selection-bar button svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .selection-bar .sep { width: 1px; height: 14px; margin: 0 1px; background: var(--border-color); }
 .selection-bar.copies .ask, .selection-bar.copies .sep { display: none; }                 /* a selection that cannot be explained is copied (explain.js) */
-body.composer-locked .selection-bar button.ask { opacity: .4; pointer-events: none; }      /* nothing can be asked while the query box is held */
+body.composer-locked .selection-bar button.ask, body.composer-locked #content-plot .plot-query-btn { opacity: .4; pointer-events: none; }      /* nothing can be asked while the query box is held */
 .left-panel .query-quote { display: none; align-items: center; gap: 7px; margin: 8px 8px 0; padding: 5px 4px 5px 8px; border-left: 2px solid var(--c-model); border-radius: 0 var(--r-1) var(--r-1) 0; background: var(--bg-tertiary); color: var(--text-secondary); font-size: var(--fs-meta); }
 .left-panel .query-quote.on { display: flex; }
 .left-panel .query-quote svg { width: 13px; height: 13px; flex-shrink: 0; stroke: var(--c-model); fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.left-panel .query-quote img { display: none; box-sizing: border-box; width: 46px; height: 20px; flex-shrink: 0; border: 1px solid var(--border-color); border-radius: 3px; object-fit: cover; object-position: left top; }
+.left-panel .query-quote img[src] { display: block; }
+.left-panel .query-quote img[src] + svg { display: none; }      /* a plot quoted: its picture in the quote mark's place */
 .left-panel .query-quote .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .left-panel .query-quote button { width: 18px; height: 18px; padding: 0; border: none; border-radius: var(--r-1); background: none; color: var(--text-quaternary); font: inherit; font-size: 15px; line-height: 1; cursor: pointer; }
 .left-panel .query-quote button:hover { background: var(--bg-quaternary); color: var(--text-primary); }

@@ -1,7 +1,7 @@
 // Asking about a selection (web_app/static/js/selection.js; 2026-11-27, the product owner's pick of three mockups): text
 // selected in the content pane gets a small bar - Ask, Copy - that takes no focus; Ask puts the selection on the query
 // box as a quote, and the question typed there is asked about the passage and explained where it stands (explain.js,
-// tests/analyst/test_explain.js).
+// tests/analyst/test_explain.js). A plot is quoted whole, by its chat button, its picture beside its name.
 // The module is driven here on the mini DOM, with stand-ins for what the mini DOM has not - the browser's selection and
 // the boxes of its lines - and the page's hooks are read from the source. The real thing, in a real browser on the real
 // page, is tests/e2e/test_selection.py.
@@ -30,21 +30,24 @@ let copies = 0, canCopy = true; doc.execCommand = what => (what === 'copy' && ca
 // the page's watch on an element's contents: what is watched, and the callback, for the suite to call as the browser would
 const watched = []; global.MutationObserver = class { constructor(fn) { this.fn = fn; } observe(el, how) { watched.push([el, how, this.fn]); } };
 // explain.js, as far as the module asks it: where a selection can be asked about - here the words it holds -, whether
-// the analysis a place was taken in still stands, and the asking
-const explain = { can: true, stands: true, asked: [] };
-window.ExplainUI = { place: range => (explain.can && range ? { quote: explain.words || picked.text } : null), stands: () => explain.stands, ask: (where, question) => explain.asked.push([where.quote, question]) };
+// the analysis a place was taken in still stands, and the asking; a plot as a place - here by its card's name -, and a
+// place's picture, which the suite hands over when it chooses
+const explain = { can: true, stands: true, asked: [], shots: [] };
+window.ExplainUI = { place: range => (explain.can && range ? { quote: explain.words || picked.text } : null), stands: () => explain.stands, ask: (where, question) => explain.asked.push([where.quote, question]),
+  figure: box => (explain.can ? { quote: box.id, plot: true } : null), picture: where => new Promise(give => explain.shots.push([where, give])) };
+const taken = async (image, k = explain.shots.length - 1) => { explain.shots[k][1](image); await tick(); };      // a place's picture arrives, or none does
 
 // the page, as far as the module reaches: the query box with the quote's own markup from index.html, the two panes
 const host = doc.createElement('div'); doc.body.appendChild(host);
 host.innerHTML = '<div id="leftPanel"><div id="streamOutput"><p id="turn">a turn of the analysis</p></div><div class="textarea-container">' + fragment(html, 'queryQuote') + '<textarea id="queryInput"></textarea></div></div>'
   + '<button id="collapseButton"></button><div id="contentOutput"><div id="content-answer"><p id="passage">on sand the two cannot be told apart</p><input id="note"></div>'
-  + '<div id="content-plot"><p id="caption">Yield by regime</p></div></div>';
+  + '<div id="content-plot"><p id="caption">Yield by regime</p><div class="plot-container" id="Plot 2"></div></div></div>';
 let unfolded = 0; $('collapseButton').click = () => { unfolded += 1; $('leftPanel').classList.remove('collapsed'); };
 
 require(path.join(web, 'static', 'js', 'selection.js'));
 const S = window.SelectionUI;
 S.initialize();
-const bar = doc.querySelector('.selection-bar'), quote = $('queryQuote'), PASSAGE = 'on sand the two cannot be told apart';
+const bar = doc.querySelector('.selection-bar'), quote = $('queryQuote'), shot = quote.querySelector('img'), PASSAGE = 'on sand the two cannot be told apart';
 bar.offsetWidth = 134; bar.offsetHeight = 32;      // the mini DOM lays nothing out: the bar's size as the browser measures it
 const tick = (ms = 5) => new Promise(r => setTimeout(r, ms));
 const press = (el, button = 0) => doc.dispatch('mousedown', el, { button });
@@ -74,7 +77,7 @@ const quoteOn = () => quote.classList.contains('on');
   // ---- when it is offered
   press($('turn')); pick(PASSAGE, $('passage'));
   check('a press that began outside the content pane ends without a bar, whatever is selected there', !(await letGo($('passage'), 973, 175)).on, at());
-  check('a selection on the Plots tab: none', !(await select(900, 175, 'Yield by regime', $('caption'))).on, at());
+  check('a selection on the Plots tab: the bar, as in any tab of the pane', (await select(900, 175, 'Yield by regime', $('caption'))).on, at());
   press($('passage')); pick('a turn ... told apart', host);
   check('a selection that began in the pane and reaches out of it: none', !(await letGo($('turn'), 300, 175)).on, at());
   press($('passage'), 2); pick(PASSAGE, $('passage'));
@@ -153,6 +156,35 @@ const quoteOn = () => quote.classList.contains('on');
   check('the quote is the words of the place - explain.js leaves out what an open note adds to a selection that runs across it -, not the selection as the browser gives it',
     quote.querySelector('.t').textContent === 'the two cannot' && quote.querySelector('.t').title === 'the two cannot' && S.send('Why?') && same(explain.asked[2], ['the two cannot', 'Why?']), quote.outerHTML);
 
+  // ---- a plot quoted
+  quote.querySelector('button').dispatch('click'); $('queryInput').blur(); $('leftPanel').classList.add('collapsed');
+  await select(); const up = at().on, folded = unfolded;
+  S.plot($('Plot 2'));
+  const quoted = [quoteOn(), quote.querySelector('.t').textContent, doc.activeElement === $('queryInput'), unfolded - folded, at().on, shot.hasAttribute('src')];
+  const asksFor = explain.shots[explain.shots.length - 1][0];
+  await taken('PIC');
+  check('a plot\'s chat button: the plot is on the query box - its name the words -, the cursor in the box, the left pane opened where it was folded away, the bar gone. Its picture is asked for and stands beside '
+    + 'the name once it is taken', up && same(quoted, [true, 'Plot 2', true, 1, false, false]) && same(asksFor, { quote: 'Plot 2', plot: true }) && shot.getAttribute('src') === 'data:image/png;base64,PIC', [quoted, asksFor, shot.outerHTML]);
+  const sentPlot = [S.send('What does it show?'), explain.asked[explain.asked.length - 1]];
+  check('a question typed with a plot on the box is asked about the plot', same(sentPlot, [true, ['Plot 2', 'What does it show?']]), sentPlot);
+  await select(); bar.querySelector('.ask').dispatch('click');
+  const swapped = [quote.querySelector('.t').textContent, shot.hasAttribute('src')];
+  await taken(null);
+  check('a passage quoted in the plot\'s place: the picture leaves the box, and a passage has none', same(swapped, [PASSAGE, false]) && !shot.hasAttribute('src'), swapped);
+  S.plot($('Plot 2')); const late = explain.shots.length - 1;
+  await select(); bar.querySelector('.ask').dispatch('click'); await taken(null);
+  await taken('LATE', late);
+  check('a picture that arrives after another quote has taken the plot\'s place is not put beside it', quote.querySelector('.t').textContent === PASSAGE && !shot.hasAttribute('src'), shot.outerHTML);
+  S.plot($('Plot 2')); await taken('PIC');
+  quote.querySelector('button').dispatch('click');
+  const off = [quoteOn(), shot.hasAttribute('src'), S.send('Why?')];
+  S.plot($('Plot 2')); await taken('');
+  const none = [quoteOn(), shot.hasAttribute('src')];
+  explain.can = false; quote.querySelector('button').dispatch('click'); S.plot($('Plot 2')); explain.can = true;
+  check('the quote taken off: the picture with it. A plot whose picture cannot be taken is quoted by its name alone; a plot that cannot be asked about - explain.js says why - is not quoted',
+    same(off, [false, false, false]) && same(none, [true, false]) && !quoteOn() && explain.asked.length === 4, [off, none, quoteOn()]);
+  $('queryInput').blur();
+
   // ---- the query box emptied (core.js): the one function, the quote with what was typed
   const emptyComposer = new Function(js('core.js').match(/function emptyComposer\(\) \{[\s\S]*?\n\}\n/)[0] + '; return emptyComposer;')();
   await select(); bar.querySelector('.ask').dispatch('click');
@@ -171,28 +203,31 @@ const quoteOn = () => quote.classList.contains('on');
   const scripts = under(path.join(web, 'static', 'js')).filter(f => f.endsWith('.js')).map(f => [f, js(f)]);
   const sheets = fs.readdirSync(path.join(web, 'static', 'css')).filter(f => f.endsWith('.css') && f !== '_retired.css').map(f => [f, css(f)]);
   check('the send: with a quote on the box the composer\'s own send is the module\'s - the question is asked about the passage, the box emptied by the one function, and nothing else starts: no analysis, no '
-    + 'brief, no branch. A send with nothing typed is none; a plot\'s question, a next question and a brief\'s analysis are not typed',
+    + 'brief, no branch. A send with nothing typed is none; a next question and a brief\'s analysis are not typed. A plot\'s chat button asks the module to quote the plot',
     qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());")
     && qp.includes('if (typed && window.SelectionUI && window.SelectionUI.send(query)) { emptyComposer(); return; }')
     && qp.indexOf('if (!query && !synthesis) {') < qp.indexOf('window.SelectionUI.send(query)') && qp.indexOf('window.SelectionUI.send(query)') < qp.indexOf('window.BranchUI.hint(query)')
     && qp.indexOf('window.SelectionUI.send(query)') < qp.indexOf('if (window.ArchitectUI && !framed && !branch)')
-    && qp.includes('if (!synthesis && !next) emptyComposer();') && !qp.includes("queryInput.value = '';") && cr.includes('handleQuerySubmit({ image: imageData });'));
+    && qp.includes('if (!synthesis && !next) emptyComposer();') && !qp.includes("queryInput.value = '';") && cr.includes('if (plotContainer && window.SelectionUI) window.SelectionUI.plot(plotContainer);'));
   check('one place empties the query box: the Pathfinder calls it when a brief opens and when it is told something; nowhere else is the box emptied by hand',
     (ar.match(/emptyComposer\(\);/g) || []).length === 2 && scripts.filter(([, s]) => /\.value = '';\s*\w+\.style\.height = 'auto';/.test(s)).map(([f]) => f).join() === 'core.js',
     scripts.filter(([, s]) => /\.value = '';\s*\w+\.style\.height = 'auto';/.test(s)).map(([f]) => f));
   check('the app starts the module; its script is loaded with the page\'s other modules',
     core.includes('window.SelectionUI.initialize();') && html.indexOf('js/selection.js') > html.indexOf('js/maps.js') && html.indexOf('js/selection.js') < html.indexOf('js/integrations/sweatstack.js'));
-  check('index.html: the quote\'s place is in the query box, above the words typed - a mark, the words, a button to take it off',
+  check('index.html: the quote\'s place is in the query box, above the words typed - the place of a plot\'s picture, then a mark, the words, a button to take it off',
     (() => { const box = doc.createElement('div'); box.innerHTML = html.slice(html.indexOf('<div class="textarea-container">'), html.indexOf('<div class="icon-row">'));
-      const q = box.querySelector('.textarea-container #queryQuote.query-quote'); return q && q.nextElementSibling.id === 'queryInput' && q.querySelector('svg') && q.querySelector('.t') && q.querySelector('button[title="Remove"]'); })());
+      const q = box.querySelector('.textarea-container #queryQuote.query-quote'); return q && q.nextElementSibling.id === 'queryInput' && q.firstElementChild.tag === 'img' && !q.firstElementChild.hasAttribute('src')
+        && q.firstElementChild.nextElementSibling.tag === 'svg' && q.querySelector('.t') && q.querySelector('button[title="Remove"]'); })());
   const OLD = ['selectionPopup', 'selection-popup', 'selectionForm', 'selectionQuery', 'selected-text-display', 'handleTextSelection', 'handleQuerySubmission', 'handleScroll', 'highlightElements', 'currentRange'];
   const left = [...scripts, ...sheets, ['index.html', html]].filter(([, s]) => OLD.some(o => s.includes(o))).map(([f]) => f);
   check('the popup this replaces is gone whole: its markup, its handlers, its variables, its scroll hooks, its styles', left.length === 0 && !/let (currentSelection|selectedText)\b/.test(core), left);
   check('a passage is no longer sent to the analyst under a question: its heading is written nowhere on the page', scripts.filter(([, s]) => s.includes('Task Context')).map(([f]) => f).join() === '');
-  check('shell.css: the bar is fixed, shown only while it is on - without Ask where it copies -, and Ask is greyed and takes no press while the query box is held; the quote is shown only while it is on, on one clipped line',
+  check('shell.css: the bar is fixed, shown only while it is on - without Ask where it copies -, and Ask is greyed and takes no press while the query box is held, as a plot\'s chat button is; the quote is shown only while '
+    + 'it is on, on one clipped line, a plot\'s picture - once there is one - in the mark\'s place',
     shell.includes('.selection-bar { position: fixed; z-index: 1001; display: none;') && shell.includes('.selection-bar.on { display: inline-flex; }')
     && shell.includes('.selection-bar.copies .ask, .selection-bar.copies .sep { display: none; }')
-    && shell.includes('body.composer-locked .selection-bar button.ask { opacity: .4; pointer-events: none; }') && shell.includes('.left-panel .query-quote { display: none;')
+    && shell.includes('body.composer-locked .selection-bar button.ask, body.composer-locked #content-plot .plot-query-btn { opacity: .4; pointer-events: none; }') && shell.includes('.left-panel .query-quote { display: none;')
+    && /\.left-panel \.query-quote img \{ display: none; [^}]*\}/.test(shell) && shell.includes('.left-panel .query-quote img[src] { display: block; }') && shell.includes('.left-panel .query-quote img[src] + svg { display: none; }')
     && shell.includes('.left-panel .query-quote.on { display: flex; }') && shell.includes('.left-panel .query-quote .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'));
   const rules = sheets.filter(([, s]) => /::(-moz-)?selection/.test(s)).map(([f, s]) => f + ':' + (s.match(/::(-moz-)?selection/g) || []).length);
   check('selected text is coloured by one rule, base.css\'s, in the colour it had (two rules said it before, the later one winning)',

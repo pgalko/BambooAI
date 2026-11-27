@@ -2156,6 +2156,102 @@ def walk_explain(page, mod, wa, edition, user):
           and len(opened["notes"]) == 1 and [a[0] for a in opened["notes"][0]["asked"]] == ["What does this mean?", "Where exactly?"] and [a[2] for a in opened["notes"][0]["asked"]] == [False, True], (other, away, back, opened))
 
 
+def plots_on_screen(page):
+    """The plot cards on the page: each with its name, whether it is a picture or a figure the library draws, the count its button shows, and what stands under its figure - the questions asked there,
+    each with its answer, whether it is open and whether it says it was answered without the picture."""
+    return page.evaluate("""() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => { const n = c.querySelector(':scope > .xp-note'); return {
+        name: c.querySelector('h3').textContent, png: !!c.querySelector('.plot-image'), live: !!c.querySelector('.js-plotly-plot'), count: c.querySelector('.plot-query-btn').getAttribute('data-n'),
+        row: c.querySelectorAll('.plot-query-form, .plot-query-input').length,
+        asked: n ? [...n.querySelectorAll('details')].map(d => [d.querySelector('summary').textContent, d.querySelector('.a').textContent.trim(), d.open, d.querySelector('.blind') ? d.querySelector('.blind').textContent : '']) : [] }; })""")
+
+
+def plot_answers(page, n, answers):
+    """Back when the n-th plot's note holds `answers` answers and none is still being written."""
+    page.wait_for_function("""([n, k]) => { const c = document.querySelectorAll('#content-plot .plot-container')[n], d = c ? [...c.querySelectorAll(':scope > .xp-note details')] : [];
+        return d.length === k && !d.some(x => x.classList.contains('live')); }""", arg=[n, answers], timeout=90000)
+    page.wait_for_timeout(200)
+
+
+def ask_plot(page, n, question, answers):
+    """The n-th plot's chat button pressed, the question typed and sent. Back when the plot's note holds `answers` answers."""
+    page.locator("#content-plot .plot-container").nth(n).locator(".plot-query-btn").click()
+    page.wait_for_selector("#queryQuote.on", timeout=5000)
+    page.keyboard.type(question)
+    page.click("#submitQuery")
+    plot_answers(page, n, answers)
+
+
+def walk_plots(page, mod, wa, edition, user):
+    """A plot of a finished analysis asked about (0363), on the chain on screen, whose Plots tab holds a picture and a figure the library draws. The plot's chat button puts it on the query box, and
+    the question typed there is answered by one call on the server - the plot's picture with it; no analysis starts. What was asked stands under the plot. A follow-up is asked from words selected
+    there; the figure is asked about with the library's picture of it, and once without one. Everything is kept on the analysis' record; away from the chain and back, the page draws it from there."""
+    tid, cid = page.evaluate("() => [currentData.thread_id, currentData.chain_id]")
+    rows0, month0, kept0 = len(usage_rows(wa, edition, user)), month_queries(page), len(thread_run(wa, user, tid, cid).get("explained") or [])
+    before = page.evaluate("() => ({ chains: responses.length, position: document.getElementById('chainPosition').textContent })")
+    said = lambda words, where, n, seen=True: mod.EXPLAINED.format(passage=words, where=where, before=n) + (mod.EXPLAINED_SEEN if seen else "")
+    # the stack's stand-in for the library takes no picture of a figure; here it gives one, as the library does - the first plot's, for a picture
+    page.evaluate("() => { window.__toImage = Plotly.toImage; Plotly.toImage = () => Promise.resolve(document.querySelector('#content-plot .plot-image').src); }")
+    page.locator("#content-plot .plot-container").nth(0).locator(".plot-query-btn").click()
+    page.wait_for_function("() => document.querySelector('#queryQuote.on img[src]')", timeout=5000)
+    quote = page.evaluate("""() => { const q = document.getElementById('queryQuote'); return { words: q.querySelector('.t').textContent, focus: document.activeElement.id,
+        picture: q.querySelector('img').getAttribute('src') === document.querySelector('#content-plot .plot-image').getAttribute('src') }; }""")
+    page.keyboard.type("What does this plot show?")
+    page.click("#submitQuery")
+    plot_answers(page, 0, 1)
+    first = plots_on_screen(page)
+    after = page.evaluate("""() => ({ chains: responses.length, position: document.getElementById('chainPosition').textContent, running: queryRunning, box: document.getElementById('queryInput').value,
+        quote: document.getElementById('queryQuote').classList.contains('on'), tab: document.querySelector('#contentOutput .tab-content.active').id, marks: document.querySelectorAll('.xp-mark').length })""")
+    check("a plot asked about (0363): its chat button puts it on the query box - its name, its picture beside it - and the question is typed there and sent. No analysis starts - no chain is added, the "
+          "Plots tab stays on screen - and the answer stands under the plot, whose button says one question; nothing is marked. The model was given the plot's name, that it stands in the Plots tab, "
+          "that nothing of this plot was asked before - and its picture",
+          quote == {"words": "Plot 1", "focus": "queryInput", "picture": True} and first[0]["asked"] == [["What does this plot show?", said("Plot 1", "in the Plots tab", kept0), True, ""]]
+          and first[0]["count"] == "1" and first[1]["asked"] == [] and first[1]["count"] is None and [c["row"] for c in first] == [0, 0]
+          and after == {"chains": before["chains"], "position": before["position"], "running": False, "box": "", "quote": False, "tab": "content-plot", "marks": 0}, (quote, first, after, before))
+    select_words(page, "#content-plot .plot-container .xp-note .a", "They stand")
+    page.click(".selection-bar .ask")
+    page.keyboard.type("Where exactly?")
+    page.click("#submitQuery")
+    plot_answers(page, 0, 2)
+    ask_plot(page, 1, "And this figure?", 1)
+    second = plots_on_screen(page)
+    check("a follow-up from words selected under the plot: its answer joins the plot's note - the first question one line - and the model was told the place is the first question's again, with the "
+          "picture again. The figure the library draws is asked about with the library's picture of it; each plot has its own note",
+          second[0]["asked"] == [["What does this plot show?", said("Plot 1", "in the Plots tab", kept0), False, ""], ["Where exactly?", said("They stand", f"at the passage of [{kept0 + 1}] again", kept0 + 1), True, ""]]
+          and second[0]["count"] == "2" and second[1]["asked"] == [["And this figure?", said("Plot 2", "in the Plots tab", kept0 + 2), True, ""]] and second[1]["count"] == "1", second)
+    page.evaluate("() => { Plotly.toImage = window.__toImage; }")      # ... and now none can be taken
+    ask_plot(page, 1, "And without the picture?", 2)
+    third = plots_on_screen(page)
+    rec = (thread_run(wa, user, tid, cid).get("explained") or [])[kept0:]
+    by_chain = {}
+    for r in usage_rows(wa, edition, user)[rows0:]:
+        by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
+    month1 = month_queries(page)
+    check("a figure whose picture cannot be taken is asked about without one: the model's prompt carries none, and the answer says under itself that it was written without the picture. The four "
+          "exchanges are kept with the analysis, on its record, in the order asked - each plot's place its name in the Plots tab; the one answered blind says so; no picture is kept. Each was one call "
+          "under a chain of its own - the Explainer's - and a query of the month's (the self-hosted edition counts none)",
+          third[1]["asked"][1] == ["And without the picture?", said("Plot 2", f"at the passage of [{kept0 + 3}] again", kept0 + 3, seen=False), True, "Answered without the picture."] and third[1]["count"] == "2"
+          and [(x.get("tab"), x.get("view"), x.get("passage"), x.get("at"), x.get("quote"), x.get("question"), x.get("blind")) for x in rec]
+          == [("plot", "", "Plot 1", 0, "Plot 1", "What does this plot show?", None), ("plot", "", "Plot 1", 0, "They stand", "Where exactly?", None),
+              ("plot", "", "Plot 2", 0, "Plot 2", "And this figure?", None), ("plot", "", "Plot 2", 0, "Plot 2", "And without the picture?", True)]
+          and [x.get("answer") for x in rec] == [a[1] for a in third[0]["asked"] + third[1]["asked"]] and "iVBOR" not in json.dumps(rec)
+          and sorted(by_chain) == sorted(str(x.get("chain")) for x in rec) and all(v == ["Explainer"] for v in by_chain.values()) and month1 - month0 == (4 if edition == "hosted" else 0), (third, rec, by_chain, month0, month1))
+    page.click("#nextResponse")
+    page.wait_for_function("(c) => String(currentData.chain_id) !== String(c)", arg=str(cid), timeout=30000)
+    page.wait_for_timeout(800)
+    page.evaluate("activateTab('plot')")
+    away = page.evaluate("() => [document.querySelectorAll('.xp-note').length, document.querySelectorAll('.plot-query-btn.asked').length]")
+    page.click("#prevResponse")
+    page.wait_for_function("(c) => String(currentData.chain_id) === String(c) && document.querySelectorAll('#content-plot .xp-note').length === 2", arg=str(cid), timeout=30000)
+    page.wait_for_timeout(600)
+    page.evaluate("activateTab('plot')")
+    back = plots_on_screen(page)
+    check("away on another chain none of this is drawn; back on the analysis its plots are drawn anew, and the page asks the server for what was asked about them: each plot's note stands under it "
+          "again - the newest question open, the blind one saying so - and the buttons show the counts",
+          away == [0, 0] and [c["name"] for c in back] == ["Plot 1:", "Plot 2:"] and [c["count"] for c in back] == ["2", "2"]
+          and [[(a[0], a[2], a[3]) for a in c["asked"]] for c in back] == [[("What does this plot show?", False, ""), ("Where exactly?", True, "")],
+                                                                              [("And this figure?", False, ""), ("And without the picture?", True, "Answered without the picture.")]], (away, back))
+
+
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')
@@ -3066,8 +3162,8 @@ def main():
             check("a follow-up on chain 1 with the same file uploaded again: its prompt's ledger is plain (no 'other data' mark, the names line present) and CELLS SO FAR lists chain 1's cells; the replay re-runs the whole path",
                   "On other data" not in p6["user"] and "Names left in the kernel" in p6["user"] and "--- cell 1 ---" in p6["user"] and "CELLS SO FAR:\n(no cells yet)" not in p6["user"]
                   and "Replay reproduced" in done6 and "(1 cells," not in done6, (p6["user"][:500], done6[:160]))
-            # Ask AI about a plot (2026-10-13): the Plots tab's chat button sends the picture with the question; the analyst's model
-            # takes images (the stack's harness model is flagged so), the prompt names the figure, and the scripted analyst saw it
+            # a plot asked about (0363, walk_plots): chain 1's Plots tab holds a picture and a figure the library draws; the stack's
+            # harness model is flagged as reading pictures. Until 0363 a plot's chat button started an analysis with the picture
             for _ in range(6):
                 if page.evaluate("() => document.getElementById('prevResponse').disabled"):
                     break
@@ -3078,16 +3174,17 @@ def main():
             plots_now = page.evaluate("() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => ({ id: c.getAttribute('data-plot-id'), png: !!c.querySelector('.plot-image'), plotly: !!c.querySelector('.plotly-plot') }))")
             check("chain 1's Plots tab: plot 1 is the matplotlib PNG, plot 2 the Plotly figure (the executor returns the figures in order; the Plotly files numbered as shown)",
                   [p_["id"] for p_ in plots_now] == ["plot_1", "plot_2"] and plots_now[0]["png"] and plots_now[1]["plotly"], plots_now)
-            page.click("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-btn")
-            page.fill("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-input", "What does the taller bar mean?")
-            page.click("#content-plot .plot-container[data-plot-id='plot_1'] .plot-query-submit")
+            walk_plots(page, mod, os.path.join(workdir, "webapp"), edition, USER)
+            # with no plot on the box a question typed is an analysis of its own, as a change to a plot is asked for: no picture goes with it
+            page.fill("#queryInput", "What does the taller bar mean?")
+            page.click("#submitQuery")
             wait_text(page, "#chainPosition", "chain 7 of 7", 60000)
             wait_run_end(page, 7)
             p7 = prompt_of(1)
             ans7 = page.evaluate("() => { activateTab('answer'); return (document.getElementById('content-answer') || {}).textContent || ''; }")
-            check("Ask AI about plot 1: a new chain with the question, its prompt naming the figure attached, and the analyst's model given the picture (the scripted analyst's report says it was in view)",
-                  "QUESTION:\nWhat does the taller bar mean?" in p7["user"] and "THE FIGURE THE PERSON ASKS ABOUT is attached" in p7["user"] and "[a picture was attached to this message" in p7["user"]
-                  and "The figure attached to the question was in view." in ans7, (p7["user"][:300], ans7[:300]))
+            check("a question typed after the plots were asked about - none of them on the box any more - is an analysis: a new chain with the question, and no picture with it",
+                  "QUESTION:\nWhat does the taller bar mean?" in p7["user"] and "THE FIGURE THE PERSON ASKS ABOUT" not in p7["user"] and "[a picture was attached" not in p7["user"]
+                  and "outside the scripted story" in ans7 and "figure attached" not in ans7, (p7["user"][:300], ans7[:300]))
             # the reach report (2026-10-28): a chain whose first cell the executor refuses (the blacklist) and whose second
             # fetches from the fake integrations service, which the question does not name - the pane's rows, the closing
             # card, the Investigation tab, the code trace and the record

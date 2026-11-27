@@ -141,8 +141,8 @@
 
 /* ---- Code, Results and Plots tabs (2026-09-08): one code block, one plot card ----
    content-rendering.js builds: Code = h3 + .markdown-content > .code-header (label, copy, download) + pre code;
-   Results = h3 + .markdown-content > pre code.language-plaintext; Plots = .plot-container cards with a header,
-   a hidden query form, and the Plotly div. The h3 labels duplicate the tab's own name and are hidden. */
+   Results = h3 + .markdown-content > pre code.language-plaintext; Plots = .plot-container cards with a header
+   and the figure - a picture, or the Plotly div. The h3 labels duplicate the tab's own name and are hidden. */
 #content-code > h3, #content-code_exec_results > h3 { display: none; }
 #content-code .markdown-content, #content-code_exec_results .markdown-content { max-width: none; }
 #content-code .code-header { height: 32px; margin: 0; padding: 0 6px 0 12px; border: 1px solid var(--border-color); border-bottom: none; border-radius: var(--r-2) var(--r-2) 0 0; background: var(--bg-secondary); font-family: var(--font-ui); font-size: var(--fs-small); color: var(--text-tertiary); display: flex; align-items: center; justify-content: space-between; }
@@ -154,7 +154,7 @@
 #content-code .code-header + pre, #content-code_exec_results .markdown-content pre { margin: 0; padding: 0; border: none; background: none; }
 #content-code pre code, #content-code_exec_results pre code { display: block; margin: 0; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 0 0 var(--r-2) var(--r-2); background: var(--code-bg); font-family: var(--font-mono); font-size: 12.5px; line-height: 1.55; color: var(--code-text); white-space: pre; overflow-x: auto; tab-size: 4; }
 #content-code_exec_results pre code { border-radius: var(--r-2); white-space: pre-wrap; word-break: break-word; }
-/* a plot is a card: title and actions on one line, the query row beneath when opened, the figure below */
+/* a plot is a card: title and actions on one line, the figure below, and under the figure what was asked about it */
 #content-plot .plot-container { margin: 0 0 14px; padding: 0; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); overflow: hidden; }
 #content-plot .plot-header { height: 34px; margin: 0; padding: 0 6px 0 12px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 8px; }
 #content-plot .plot-header h3 { flex: 1; margin: 0; font-size: var(--fs-small); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
@@ -162,13 +162,6 @@
 #content-plot .plot-query-btn, #content-plot .plot-expand-btn { width: 26px; height: 26px; border: none; border-radius: 5px; background: none; color: var(--text-tertiary); display: grid; place-items: center; cursor: pointer; padding: 0; transition: none; box-shadow: none; }
 #content-plot .plot-query-btn:hover, #content-plot .plot-expand-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); transform: none; }
 #content-plot .plot-query-btn svg, #content-plot .plot-expand-btn svg { width: 14px; height: 14px; stroke-width: 1.8; }
-#content-plot .plot-query-form { display: none; gap: 6px; align-items: center; margin: 0; padding: 8px 12px; border-bottom: 1px solid var(--border-color); background: var(--bg-primary); }
-#content-plot .plot-query-form[style*="flex"], #content-plot .plot-query-form[style*="block"] { display: flex !important; }
-#content-plot .plot-query-input { flex: 1; height: 30px; margin: 0; padding: 0 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); background: var(--bg-secondary); color: var(--text-primary); font-family: var(--font-ui); font-size: var(--fs-body); }
-#content-plot .plot-query-input:focus { outline: none; border-color: var(--text-tertiary); }
-#content-plot .plot-query-submit { width: 30px; height: 30px; margin: 0; border: 1px solid var(--c-model); border-radius: var(--r-2); background: none; color: var(--c-model); display: grid; place-items: center; cursor: pointer; padding: 0; }
-#content-plot .plot-query-submit:hover { background: var(--accent-bg-hover); transform: none; }
-#content-plot .plot-query-submit svg { width: 14px; height: 14px; }
 #content-plot .plot-content { margin: 0; padding: 8px; background: var(--bg-primary); }
 #content-plot .plotly-plot { min-height: 360px; border-radius: 0; }
 #content-plot .plot-image { border-radius: var(--r-1); }
@@ -193,6 +186,14 @@
 #contentOutput .xp-note .a code { display: inline; margin: 0; padding: 0 3px; border: none; border-radius: 3px; background: var(--bg-tertiary); font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); white-space: pre-wrap; }
 #contentOutput .xp-note .live .a { white-space: pre-wrap; }      /* an answer being written is plain text: its lines as they come */
 #contentOutput .xp-note .live .a::after { content: ''; display: inline-block; width: 7px; height: 13px; margin-left: 2px; vertical-align: -2px; background: var(--accent-color); animation: sp-pulse .9s steps(2) infinite; }
+#contentOutput .xp-note .blind { margin: 5px 0 0 13px; font-size: var(--fs-meta); color: var(--text-tertiary); }      /* a plot's answer written without its picture */
+/* what was asked about a plot (2026-11-28): under the figure, in the plot's card - quiet, as a caption is: no box of its own, no rule
+   between the questions, the open question not in bold. The plot's button says how many questions there are */
+#content-plot .xp-note { position: static; margin: 0; padding: 7px 14px 11px; border: none; border-radius: 0; background: none; }
+#content-plot .xp-note details[open] > summary { font-weight: 500; }
+#content-plot .xp-note details[open] + details, #content-plot .xp-note details + details[open] { margin-top: 3px; padding-top: 0; border-top: none; }
+#content-plot .plot-query-btn.asked { width: auto; padding: 0 7px; display: inline-flex; align-items: center; gap: 5px; color: var(--c-model); font-size: 11.5px; font-weight: 600; }
+#content-plot .plot-query-btn.asked::after { content: attr(data-n); }
 
 /* ---- the answer page reads at 14.5px (2026-09-08); the measure 92ch (2026-10-13: 76 read as half the pane on a wide screen) ---- */
 #content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 92ch; }

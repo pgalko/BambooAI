@@ -1,9 +1,11 @@
 """A passage of a finished analysis explained (analyst/explain.py): the person selects text in the Answer, Code or
-Results tab of an analysis and asks about it. The answer is kept with the analysis, at the passage; no analysis starts.
+Results tab of an analysis and asks about it - or asks about a plot of its Plots tab. The answer is kept with the
+analysis, at the passage or the plot; no analysis starts.
 
-  POST /explain                          {thread_id, chain_id, tab, view, passage, at, quote, question} as a stream: the
-                                         answer as it is written, then {"explain": {"asked": [...]}} - everything
-                                         asked about the analysis so far, the new exchange last - or
+  POST /explain                          {thread_id, chain_id, tab, view, passage, at, quote, question} - and, about
+                                         a plot, {image}: its picture as it is on screen, a PNG in base64 - as a
+                                         stream: the answer as it is written, then {"explain": {"asked": [...]}} -
+                                         everything asked about the analysis so far, the new exchange last - or
                                          {"explain": {"error": ...}} when none was made
   GET  /explain/<thread_id>/<chain_id>   {"asked": [...]}: what the page draws when it shows the analysis again
 
@@ -25,7 +27,7 @@ explain_bp = Blueprint('explain', __name__)
 @explain_bp.route('/explain', methods=['POST'])
 @requires_auth
 def explain_ask():
-    """One question about a passage of a finished analysis, answered and kept with it."""
+    """One question about a passage of a finished analysis, or about one of its plots, answered and kept with it."""
     data = request.json or {}
     if data.get('thread_id') is None or data.get('chain_id') is None:
         return jsonify({'error': 'The thread and the chain are needed.'}), 400
@@ -37,10 +39,11 @@ def explain_ask():
     if refused is not None:
         return refused
     instance = _app().get_bamboo_ai(session['session_id'])
+    image = explain.picture(data.get('image')) if asked['tab'] == explain.PLOT else None
 
     def work():
         try:
-            kept = instance.explain(data['thread_id'], data['chain_id'], asked)
+            kept = instance.explain(data['thread_id'], data['chain_id'], asked, image)
         except Failed as exc:
             return {'explain': {'error': str(exc)}}
         except Exception as exc:                             # noqa: BLE001

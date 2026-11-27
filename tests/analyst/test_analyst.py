@@ -3885,13 +3885,13 @@ check("explain.taken: what the page asks, as it is kept - where the passage stan
       and ex.taken({"tab": "code", "passage": "groupby('regime')", "at": 2, "question": "What?"}) == {"tab": "code", "view": "", "passage": "groupby('regime')", "at": 2, "quote": "groupby('regime')", "question": "What?"}
       and ex.taken({**_eraw, "tab": "code_exec_results", "view": None, "quote": 5})["quote"] == "cannot be told apart" and ex.taken({**_eraw, "view": "simplified"})["view"] == "simplified"
       and len(ex.taken({**_eraw, "question": "x" * 5000})["question"]) == briefs.QUESTION_CHARS == 4000 and ex.place(_etaken) == ("answer", "technical", 0, "cannot be told apart"), _etaken)
-_ebad = [_eno(tab="plot"), _eno(tab=None), _eno(view=""), _eno(view="plain"), _eno(tab="code"), _eno(passage="  "), _eno(passage=None), _eno(at="0"), _eno(at=1.0), _eno(at=True), _eno(at=None), _eno(at=-1)]
+_ebad = [_eno(tab="brief"), _eno(tab=None), _eno(view=""), _eno(view="plain"), _eno(tab="code"), _eno(passage="  "), _eno(passage=None), _eno(at="0"), _eno(at=1.0), _eno(at=True), _eno(at=None), _eno(at=-1)]
 check("explain.taken, what cannot be taken, each said in words for the person: a place that is none - a tab that holds no passages, the Answer tab without its version or with one it has not, another tab "
       "with one, no passage, an occurrence that is no whole number from 0 on -; a passage or a selection longer than a passage may be; no question. A request that is no object has no place",
       _ebad == [ex.NO_PLACE] * 12 and ex.NO_PLACE == "The selection could not be placed: select it again."
       and [_eno(passage="x" * 8001), _eno(quote="x" * 8001), _eno(passage="x" * 8000) is None] == [ex.TOO_LONG, ex.TOO_LONG, True] and ex.TOO_LONG == "The selection is too long to explain: select less."
       and [_eno(question=" \n"), _eno(question=None), _eno(question=7)] == [ex.NO_QUESTION] * 3 and ex.NO_QUESTION == "A question is needed."
-      and [_eno(passage="x" * 8001, question=""), _eno(tab="plot", passage="x" * 8001)] == [ex.TOO_LONG, ex.NO_PLACE]
+      and [_eno(passage="x" * 8001, question=""), _eno(tab="brief", passage="x" * 8001)] == [ex.TOO_LONG, ex.NO_PLACE]
       and _raises_value(ex.taken, None) == ex.NO_PLACE and _raises_value(ex.taken, [1]) == ex.NO_PLACE, _ebad)
 _ex = lambda tab, view, passage, quote, question, answer, at=0: {"tab": tab, "view": view, "passage": passage, "at": at, "quote": quote, "question": question, "answer": answer, "cost": 0.004, "when": 1.0, "chain": 9}
 _e3 = [_ex("answer", "technical", "cannot be told apart", "cannot be told apart", "Why can they not\n  be told apart?", "The gap on sand is within the noise."),
@@ -3994,6 +3994,61 @@ check("the explanation's instructions: what the model does and does not - it exp
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _etexts.items() if _DOMAIN.search(t)}
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", ex.SYSTEM),
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _etexts.items() if _DOMAIN.search(t)}, sorted(_eblocks), len(ex.SYSTEM)))
+
+# ---- a plot asked about (0363): its place is its name in the Plots tab; its picture goes with the call and is not kept; where it does not go, the exchange says so
+_eplot = {"tab": "plot", "view": "", "passage": "Plot 2", "at": 0, "quote": "Plot 2", "question": "What does it show?"}
+_eplots = _e3[:1] + [{**_eplot, "answer": "The gap by soil.", "cost": 0.01, "when": 1.0, "chain": 9}, {**_eplot, "quote": "by soil", "question": "Which soils?", "answer": "Three.", "cost": 0.01, "when": 1.0, "chain": 9}]
+check("explain.taken, a plot: its place is the Plots tab, its name there and which of the tab's plots of that name it is - the name is what is quoted, where no words are -; the tab has one version. "
+      "In the prompt's words it stands in the Plots tab, and a follow-up there at the passage of the first again",
+      ex.taken({"tab": "plot", "passage": " Plot 2 ", "at": 0, "question": "What does it show?", "image": "x"}) == _eplot and ex.taken({**_eplot, "quote": " by soil "})["quote"] == "by soil"
+      and [_eno(tab="plot"), _eno(tab="plot", view="simplified"), _eno(tab="plot", view="", passage="")] == [ex.NO_PLACE] * 3 and ex.taken({**_eraw, "tab": "plot", "view": ""})["tab"] == "plot"
+      and [ex.where(_eplots, k) for k in range(3)] == ["in the Answer tab, the technical report", "in the Plots tab", "at the passage of [2] again"]
+      and "\n[2] Selected in the Plots tab: Plot 2\n    Asked: What does it show?\n    You answered: The gap by soil.\n[3] Selected at the passage of [2] again: by soil\n" in ex.conversation(_eplots)
+      and ex.PLOT == "plot" and ex.TABS["plot"] == "the Plots tab", ([ex.where(_eplots, k) for k in range(3)], ex.conversation(_eplots)[-300:]))
+_epng = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+_ebig_png = "iVBORw0KGgo" + "A" * (ex.PICTURE_CHARS - 11)
+check("explain.picture: a plot's picture as the page sends it - a PNG in base64, the blanks at its ends aside, up to the length a provider takes as one image. Anything else is no picture: another "
+      "kind of image, an address with its head, what is no base64, what is too long, nothing, no text",
+      ex.picture(_epng) == _epng and ex.picture("\n " + _epng + " ") == _epng and ex.picture(_ebig_png) == _ebig_png and ex.picture(_epng.rstrip("=")) == _epng.rstrip("=")
+      and [ex.picture(v) for v in ("/9j/4AAQSkZJRgABAQ", "data:image/png;base64," + _epng, _epng[:40] + " " + _epng[40:], _epng + "!", _epng + "===", _ebig_png + "A", "", "   ", None, 7, [_epng], b"iVBORw0KGgo")] == [None] * 12
+      and ex.PICTURE_CHARS == 5_000_000, [ex.picture(v) is None for v in ("/9j/4AAQSkZJRgABAQ", "data:image/png;base64," + _epng, _epng + "!", _ebig_png + "A")])
+_e1.explained = _eplots[:2]
+_eseen_p, _eblind_p, _eagain_p = ex.prompt(_en, _e1, _eplot, True), ex.prompt(_en, _e1, _eplot), ex.prompt(_en, _e1, {**_eplot, "quote": "by soil", "question": "Which soils?"}, True)
+check("explain.prompt, a plot: after where it stands and its name, whether its picture rides with the message - attached, as the person has it on screen; or not, and then the model is told that it does "
+      "not see the plot and what to answer from. A follow-up at the plot says so too. A passage's prompt says nothing of a picture, whatever it is told",
+      _eseen_p == _eana + "\n\n" + ex.conversation(_eplots[:2]) + "\n\nWHERE: at the passage of [2] again\n\nPASSAGE:\nPlot 2\n\nPICTURE: attached: the plot as the person has it on screen.\n\nASKED:\nWhat does it show?"
+      and _eblind_p == _eseen_p.replace("PICTURE: attached: the plot as the person has it on screen.", "PICTURE: " + ex.UNSEEN) and ex.UNSEEN.startswith("not attached: you do not see the plot. Answer from the code")
+      and _eagain_p.endswith("\n\nPASSAGE:\nby soil\n\nPICTURE: attached: the plot as the person has it on screen.\n\nASKED:\nWhich soils?")
+      and ex.prompt(_en, _e2, _eplot, True).endswith("Nothing else.\n\nWHERE: in the Plots tab\n\nPASSAGE:\nPlot 2\n\nPICTURE: " + ex.SEEN + "\n\nASKED:\nWhat does it show?")
+      and "PICTURE" not in ex.prompt(_en, _e1, _efirst, True) and ex.prompt(_en, _e1, _efirst, True) == ex.prompt(_en, _e1, _efirst), (_eseen_p[-260:], _eblind_p[-400:]))
+_ellm6, _eseen6 = _arch_llm(["It shows the gap."])
+_ekept6 = ex.answer(_ellm6, _en, _e1, _eplot, _epng)
+_ellm7, _eseen7 = _arch_llm(["It draws the gap."])
+_ekept7 = ex.answer(_ellm7, _en, _e1, _eplot)
+_ellm8, _eseen8 = _arch_llm(["  ", "It shows the gap."])
+_ekept8 = ex.answer(_ellm8, _en, _e1, _eplot, _epng)
+_ellm9, _eseen9 = _arch_llm(["It forms groups."])
+_ekept9 = ex.answer(_ellm9, _en, _e1, _efirst, _epng)
+check("explain.answer, a plot: the plot's picture rides with the call - and with the second one, where the first reply was empty - beside the lowered effort, and the prompt says it is attached; the "
+      "exchange is kept without it. With no picture to give, the call goes without one, the prompt says so, and the exchange is kept as answered blind. A passage is answered without a picture, "
+      "whatever is given, and is never blind",
+      _eseen6 == [(ex.SYSTEM, _eseen_p, {"image": _epng, "effort": ("low", "medium")})] and {k: v for k, v in _ekept6.items() if k != "when"} == {**_eplot, "answer": "It shows the gap.", "cost": 0.004}
+      and _eseen7 == [(ex.SYSTEM, _eblind_p, {"effort": ("low", "medium")})] and {k: v for k, v in _ekept7.items() if k != "when"} == {**_eplot, "answer": "It draws the gap.", "cost": 0.004, "blind": True}
+      and [kw for _, _, kw in _eseen8] == [{"image": _epng, "effort": ("low", "medium")}] * 2 and _eseen8[1][1].startswith(_eseen_p + "\n\nYour last reply") and "blind" not in _ekept8
+      and _eseen9 == [(ex.SYSTEM, ex.prompt(_en, _e1, _efirst), {"effort": ("low", "medium")})] and "blind" not in _ekept9 and _epng not in json.dumps([_ekept6, _ekept8, _ekept9])
+      and "blind" not in ex.answer(_arch_llm(["x"])[0], _en, _e1, {**_eplot, "quote": "by soil"}, _epng) and ex.answer(_arch_llm(["x"])[0], _en, _e1, {**_eplot, "quote": "by soil"}, "")["blind"] is True,
+      (_eseen6[0][2], _ekept7, [kw for _, _, kw in _eseen8]))
+_e1.explained = _eplots[:2] + [_ekept7]
+_efile2 = Notebook.from_dict(json.loads(json.dumps(_en.to_dict())))
+_eblocks2 = set(re.findall(r"^([A-Z][A-Z ]*[A-Z])(?: \(|:)", _eseen_p, re.M))
+check("a plot's exchanges are kept with the run as a passage's are, one answered blind saying so. The instructions: a plot may be what is asked about; with its picture the model explains what it "
+      "shows and gives a value read off it as an estimate; without it the model does not describe the plot; a plot drawn another way takes a new analysis. PICTURE is named under what it receives",
+      _efile2.runs[_e1.id].explained == _eplots[:2] + [_ekept7] and _efile2.runs[_e1.id].explained[2]["blind"] is True and "blind" not in _efile2.runs[_e1.id].explained[1]
+      and "its report, its code, what the code printed and its plots. They selected a passage, or picked a plot, and ask about it." in _esys
+      and "9. A plot. Where PICTURE says it is attached, look at it: explain what it shows" in _esys and "A value read off the picture is an estimate" in _esys
+      and "Where PICTURE says it is not attached, you do not see the plot" in _esys and "a plot drawn another way is such a change" in _esys
+      and _eblocks2 == _eblocks | {"PICTURE"} and re.search(r"(^|[ ,])PICTURE[,:]", _esys.split("## What you receive")[1])
+      and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in {"seen": ex.SEEN, "unseen": ex.UNSEEN}.items() if _DOMAIN.search(t)}, (sorted(_eblocks2), _efile2.runs[_e1.id].explained[2]))
 
 # ---- a branch (0319, docs/BRANCH_DESIGN.md): go on from a turn of an analysis, another way, under a hint from the person.
 # ---- The first run: a cell, a cell that fails, a cell, NAMES, a cell, the report - so a branch can go on after each kind.

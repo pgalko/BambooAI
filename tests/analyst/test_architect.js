@@ -1987,7 +1987,7 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     && css('dialogs.css').includes('#savedAnalysisModal { display: none; position: fixed; inset: 0;') && own.includes("modal.id = 'savedAnalysisModal'; modal.className = 'ui-modal-plain';")
     && paneCss.includes('#streamOutput .sp-row .ar-skip {') && tabsCss.includes('#content-brief .ar-open {')
     && !/^def use\(/m.test(engine('brief.py')) && /^def go\(framing: dict, k\) -> dict:/m.test(engine('steps.py')) && engine('brief.py').includes('at = (framing or {}).get("at")') && own.includes('const n = latestN(framing), at = framing && framing.at;')
-    && qp.includes('if (framed && step) requestBody.step = step;') && qp.includes('const { synthesis, image, typed, framed, next, step } = options;')
+    && qp.includes('if (framed && step) requestBody.step = step;') && qp.includes('const { synthesis, typed, framed, next, step } = options;')
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes("step = request.json.get('step')")
     && fs.readFileSync(path.join(root, 'app.py'), 'utf8').includes('step=step if isinstance(step, int) and not isinstance(step, bool) else None,')
     && ["framing = instance.architect_say(data['thread_id'], data['chain_id'], text, step=step)", "got = instance.architect_ready(data['thread_id'], data['chain_id'], step=step)",

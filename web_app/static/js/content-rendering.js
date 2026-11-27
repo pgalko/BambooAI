@@ -440,14 +440,6 @@ function renderPlotTab(data, id, format) {
                         </svg>
                     </button>
                 </div>
-            </div>
-            <div class="plot-query-form" style="display: none;">
-                <input type="text" class="plot-query-input" placeholder="Enter your query about plot ${id ? id.split('_')[1] : ''}">
-                <button type="submit" class="plot-query-submit">
-                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                    </svg>
-                </button>
             </div>`;
     
     if (format === 'html') {
@@ -847,83 +839,13 @@ function attachPlotQueryListeners(element) {
         });
     });
 
-    // Handle query button clicks
+    // The chat button: the plot onto the query box, where the question about it is typed (selection.js) - it is
+    // answered under the plot (explain.js)
     element.querySelectorAll('.plot-query-btn').forEach(button => {
         button.addEventListener('click', (e) => {
             const plotContainer = e.target.closest('.plot-container');
-            if (!plotContainer) return;
-            
-            const queryForm = plotContainer.querySelector('.plot-query-form');
-            if (!queryForm) return;
-
-            queryForm.style.display = queryForm.style.display === 'none' ? 'flex' : 'none';
-            
-            if (queryForm.style.display === 'flex') {
-                const queryInput = queryForm.querySelector('.plot-query-input');
-                if (queryInput) queryInput.focus();
-            }
+            if (plotContainer && window.SelectionUI) window.SelectionUI.plot(plotContainer);
         });
-    });
-
-    // Handle form submissions
-    element.querySelectorAll('.plot-query-form').forEach(form => {
-        const submitQuery = async (e) => {
-            e.preventDefault();
-        
-            const plotContainer = e.target.closest('.plot-container');
-            if (!plotContainer) return;
-        
-            const queryInput = e.target.closest('.plot-query-form').querySelector('.plot-query-input');
-            if (!queryInput || !queryInput.value.trim()) return;
-        
-            let imageData;
-            const plotImage = plotContainer.querySelector('.plot-image');
-            if (plotImage) {
-                imageData = plotImage.src.split(',')[1];
-            } else {
-                const plotlyDiv = plotContainer.querySelector('.plotly-plot div');
-                if (plotlyDiv) {
-                    try {
-                        const imgSrc = await Plotly.toImage(plotlyDiv, {format: 'png'});
-                        imageData = imgSrc.split(',')[1];
-                    } catch (err) {
-                        console.error('Error converting Plotly plot to image:', err);
-                        return;
-                    }
-                }
-            }
-        
-            if (!imageData) return;
-        
-            // Set query into main input and delegate
-            const mainInput = document.getElementById('queryInput');
-            mainInput.value = queryInput.value;
-            handleQuerySubmit({ image: imageData });
-        
-            // Clean up plot form
-            form.style.display = 'none';
-            queryInput.value = '';
-        };
-
-        // Add click handler to submit button
-        const submitButton = form.querySelector('.plot-query-submit');
-        if (submitButton) {
-            submitButton.addEventListener('click', submitQuery);
-        }
-
-        // Handle form submit event
-        form.addEventListener('submit', submitQuery);
-
-        // Handle enter key in input
-        const queryInput = form.querySelector('.plot-query-input');
-        if (queryInput) {
-            queryInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    submitQuery(e);
-                }
-            });
-        }
     });
 }
 

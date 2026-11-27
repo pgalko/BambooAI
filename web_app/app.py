@@ -1241,7 +1241,6 @@ def query():
     user_input = request.json['query']
     thread_id = request.json['thread_id']
     chain_id = request.json['chain_id']
-    image = request.json.get('image')
     candidate = request.json.get('next')     # {set, k}: the next question of the chain this one follows that it was started from (architect_routes.py)
     synthesis = request.json.get('synthesis', False)
     run_id = request.json.get('run_id')      # the framing run this analysis continues (architect_routes.py): it runs under that run's brief
@@ -1271,7 +1270,6 @@ def query():
         current_bamboo_ai_instance.pd_agent_converse(
             thread_id=thread_id,
             chain_id=chain_id,
-            image=image if image else None,
             max_investigations=max_investigations,
             synthesis=synthesis,
             mode=mode,

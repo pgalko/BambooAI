@@ -1,9 +1,13 @@
-"""Explanations: what a reader asks about a passage of a finished analysis.
+"""Explanations: what a reader asks about a passage of a finished analysis, or about one of its plots.
 
 The person reads an analysis - its report in the Answer tab, its script in the Code tab, what the script printed in
 the Results tab - selects a passage and asks about it. One model call - the Pathfinder's seat - answers in a few plain
 sentences, from what the analysis holds and from what is generally known. Nothing is computed and no analysis
 starts: a question that takes one is told so.
+
+A plot of the Plots tab is asked about whole: its place is its name there, and its picture - as the person has it on
+screen - goes with the question where the model reads pictures (picture(), answer()). Where it does not go, the
+question is answered from the code and the exchange says so (`blind`).
 
 Everything asked about one analysis is one conversation, in the order asked, whichever passages it is about: every
 call is given all of it (conversation()), so a question builds on the answers before it. An exchange is kept with
@@ -16,7 +20,8 @@ from __future__ import annotations
 import os
 import re
 import time
-from typing import Callable
+from functools import partial
+from typing import Callable, Optional
 
 from analyst import architect
 from analyst import brief as briefs
@@ -25,8 +30,10 @@ from analyst.notebook import Notebook, Run
 with open(os.path.join(os.path.dirname(__file__), "explain.md"), encoding="utf-8") as _fh:
     SYSTEM = _fh.read().strip()
 
-# the tabs a passage can stand in, as the page names them, and what the prompt calls each
-TABS = {"answer": "the Answer tab", "code": "the Code tab", "code_exec_results": "the Results tab"}
+# the tabs a passage can stand in, as the page names them, and what the prompt calls each; in the Plots tab the
+# passage is a plot, by its name there
+TABS = {"answer": "the Answer tab", "code": "the Code tab", "code_exec_results": "the Results tab", "plot": "the Plots tab"}
+PLOT = "plot"
 # the two versions of the Answer tab: a passage stands in one of them
 VIEWS = {"technical": "the technical report", "simplified": "the report in plain language"}
 EFFORT = ("low", "medium")       # a short answer over what is in view: the seat's effort is lowered for it
@@ -37,6 +44,11 @@ TEXT_CHARS = 40_000              # the report, its plain version and the code, e
 CELL_CHARS = 3000                # what one cell printed, as the prompt carries it
 CONVERSATION_CHARS = 24_000      # the answers of the conversation ride whole, the newest first, while together they fit this
 OPENING_CHARS, LINE_CHARS = 200, 300      # an older answer cut to its opening; a passage and a question on one line
+PICTURE_CHARS = 5_000_000        # a plot's picture in base64, at most: what the providers take as one image
+PNG = "iVBORw0KGgo"              # how a PNG begins, in base64
+SEEN = "attached: the plot as the person has it on screen."
+UNSEEN = ("not attached: you do not see the plot. Answer from the code that draws the plots and from what the cells printed, "
+          "describe nothing that only the picture would show, and say so where the question needs the picture.")
 NO_PLACE = "The selection could not be placed: select it again."
 TOO_LONG = "The selection is too long to explain: select less."
 NO_QUESTION = "A question is needed."
@@ -70,6 +82,13 @@ def taken(data: dict) -> dict:
     if not question:
         raise ValueError(NO_QUESTION)
     return {"tab": tab, "view": view, "passage": passage, "at": at, "quote": quote or passage, "question": question[:briefs.QUESTION_CHARS]}
+
+
+def picture(value) -> Optional[str]:
+    """A plot's picture as the page sends it - a PNG in base64, no longer than PICTURE_CHARS - or None where what came
+    is none: the question is then answered without it."""
+    text = value.strip() if isinstance(value, str) else ""
+    return text if text.startswith(PNG) and len(text) <= PICTURE_CHARS and re.fullmatch(r"[A-Za-z0-9+/]+={0,2}", text) else None
 
 
 def where(asked: list, k: int) -> str:
@@ -106,12 +125,14 @@ def analysis(nb: Notebook, run: Run) -> str:
     return "\n\n".join(f"{name}:\n{text}" for name, text in parts if text)
 
 
-def prompt(nb: Notebook, run: Run, asked: dict) -> str:
-    """What the model reads for one exchange. What does not change from one question to the next comes first."""
+def prompt(nb: Notebook, run: Run, asked: dict, seen: bool = False) -> str:
+    """What the model reads for one exchange. What does not change from one question to the next comes first. A
+    question about a plot says whether the plot's picture rides with it (`seen`)."""
     before, now = conversation(run.explained), run.explained + [asked]
     parts = [analysis(nb, run)] + ([before] if before else [])
-    parts += [f"WHERE: {where(now, len(now) - 1)}", f"PASSAGE:\n{asked['quote']}", f"ASKED:\n{asked['question']}"]
-    return "\n\n".join(parts)
+    parts += [f"WHERE: {where(now, len(now) - 1)}", f"PASSAGE:\n{asked['quote']}"]
+    parts += [f"PICTURE: {SEEN if seen else UNSEEN}"] if asked["tab"] == PLOT else []
+    return "\n\n".join(parts + [f"ASKED:\n{asked['question']}"])
 
 
 def read(reply: str) -> str:
@@ -122,11 +143,14 @@ def read(reply: str) -> str:
     return text
 
 
-def answer(llm: Callable, nb: Notebook, run: Run, asked: dict) -> dict:
+def answer(llm: Callable, nb: Notebook, run: Run, asked: dict, image: Optional[str] = None) -> dict:
     """One exchange about a finished analysis: `asked` as taken() returns it, answered by one model call - asked once
-    more where the reply is empty. Returns the exchange as it is kept with the run - `asked` with "answer", "cost" and
-    "when"; raises architect.Failed with the reason, in words for the person."""
+    more where the reply is empty. `image`: the picture of the plot asked about (picture()), for a model that reads
+    pictures; it rides with the call and is not kept. Returns the exchange as it is kept with the run - `asked` with
+    "answer", "cost" and "when", and "blind" where a plot was asked about and its picture did not ride; raises
+    architect.Failed with the reason, in words for the person."""
     if len(run.explained) >= EXCHANGES:
         raise architect.Failed(SPENT)
-    text, _, cost = architect.ask(llm, SYSTEM, prompt(nb, run, asked), read, EFFORT, AGAIN, UNREAD)
-    return {**asked, "answer": text, "cost": round(cost, 4), "when": time.time()}
+    seen = asked["tab"] == PLOT and bool(image)
+    text, _, cost = architect.ask(partial(llm, image=image) if seen else llm, SYSTEM, prompt(nb, run, asked, seen), read, EFFORT, AGAIN, UNREAD)
+    return {**asked, "answer": text, "cost": round(cost, 4), "when": time.time(), **({"blind": True} if asked["tab"] == PLOT and not seen else {})}

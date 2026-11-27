@@ -49,8 +49,8 @@ def init(api_keys=None):
 
 
 def _text(content):
-    """A message's text: a string, or the text parts of a list of parts; an image part (the plot the person asks about,
-    2026-10-13) becomes a marker line the scenario can see."""
+    """A message's text: a string, or the text parts of a list of parts; an image part (the plot the person asks about)
+    becomes a marker line the scenario can see."""
     if isinstance(content, list):
         out = []
         for p in content:

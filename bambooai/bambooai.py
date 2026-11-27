@@ -151,8 +151,8 @@ class BambooAI:
         return str(flag).strip().lower() == "true"
 
     def _figure_for_analyst(self, image):
-        """The plot the person asks about (the Plots tab's Ask AI, a PNG in base64): for the analyst when its model takes
-        images; otherwise the question goes without it and the pane says so."""
+        """A figure given with the question (pd_agent_converse's `image`, a PNG in base64): for the analyst when its
+        model takes images; otherwise the question goes without it and the pane says so."""
         seat = self._seat()
         if self._multimodal(seat):
             return image
@@ -220,8 +220,8 @@ class BambooAI:
         carries them. `seat` names the seat outright (the routines' promoter).
         `image` (a PNG, base64) rides with the user message as an image part in
         the OpenAI form - the OpenAI-compatible adapters pass it through, the
-        Anthropic and Gemini adapters convert it (2026-10-13: the plot's Ask AI
-        had sent the picture since v1 and the analyst never received it).
+        Anthropic and Gemini adapters convert it (a figure given with an
+        analysis; the plot an explanation is asked about).
         `effort` lowers the seat's effort for this call - a word, or words in
         order of preference, the first the model accepts (the analyst's report
         turn and its second attempts, 2026-10-18); the usage says the effort the
@@ -1564,19 +1564,19 @@ class BambooAI:
             except Exception:                                  # noqa: BLE001
                 pass
 
-    def _beside(self, thread_id, run_id, label, ask):
+    def _beside(self, thread_id, run_id, label, ask, seat=None):
         """One model call made beside a finished analysis - a set of next questions, a passage explained: on the
-        Pathfinder's seat, logged under `label` and a chain of its own - the analysis' chain is settled - and charged
-        when it ends, as Save as routine's proposal is. `ask(llm, run)` makes the call and returns what is kept with the
-        run. Returns (the run, that with the call's chain), or (None, None) when the run is not a finished analysis on
-        the record; what `ask` raises is raised, the calls it made charged all the same."""
+        Pathfinder's seat, or on `seat`, logged under `label` and a chain of its own - the analysis' chain is settled -
+        and charged when it ends, as Save as routine's proposal is. `ask(llm, run)` makes the call and returns what is
+        kept with the run. Returns (the run, that with the call's chain), or (None, None) when the run is not a
+        finished analysis on the record; what `ask` raises is raised, the calls it made charged all the same."""
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
         self._on_thread(thread_id)
         run = self.notebook.runs.get(str(run_id))
         if run is None or run.status != "answered":
             return None, None
-        seat, chain = self._architect_seat(), utils.next_chain_id()
+        seat, chain = seat or self._architect_seat(), utils.next_chain_id()
         try:
             made = ask(lambda system, user, **kw: self._llm(system, user, seat=seat, label=label, chain=chain, **kw), run)
         finally:
@@ -1601,13 +1601,17 @@ class BambooAI:
         self.store.save(self.notebook)
         return {"set": run.next_questions[-1], "at": len(run.next_questions) - 1}
 
-    def explain(self, thread_id, run_id, asked):
-        """A question about a passage of a finished analysis, answered (analyst/explain.py): one call beside the
-        analysis (_beside), logged as the Explainer's. `asked`: the exchange as explain.taken() returns it. It is kept
-        with the run. Returns everything asked about the run so far, the new exchange last, or None when the run is not
-        a finished analysis on the record; raises architect.Failed with the reason to show."""
+    def explain(self, thread_id, run_id, asked, image=None):
+        """A question about a passage of a finished analysis, or about one of its plots, answered (analyst/explain.py):
+        one call beside the analysis (_beside), logged as the Explainer's. `asked`: the exchange as explain.taken()
+        returns it. `image`: the picture of the plot asked about (explain.picture()); it goes with the call on a seat
+        whose model reads pictures - the Pathfinder's, else the analyst's - and where neither does, the call is the
+        Pathfinder's without it. The exchange is kept with the run. Returns everything asked about the run so far,
+        the new exchange last, or None when the run is not a finished analysis on the record; raises
+        architect.Failed with the reason to show."""
         from analyst import explain
-        run, said = self._beside(thread_id, run_id, "Explainer", lambda llm, run: explain.answer(llm, self.notebook, run, asked))
+        seat = next((s for s in (self._architect_seat(), self._seat()) if self._multimodal(s)), None) if image else None
+        run, said = self._beside(thread_id, run_id, "Explainer", lambda llm, run: explain.answer(llm, self.notebook, run, asked, image if seat else None), seat=seat)
         if run is None:
             return None
         run.explained.append(said)

@@ -195,10 +195,11 @@ class Run:
                                                   # [{code, keys: the figures whose draft is this cell's}]; the plots are files beside the record
     next_questions: List[dict] = field(default_factory=list)   # the sets of questions proposed to follow this run, as they were asked for (analyst/next_questions.py):
                                                   # [{level, questions: [{title, text, from: [{kind, text}], ran: the chain it started}], cost, at, chain}]
-    explained: List[dict] = field(default_factory=list)   # what was asked about passages of this run's tabs, in the order asked (analyst/explain.py):
-                                                  # [{tab, view, passage, at: where the passage stands; quote: the words selected; question, answer, cost, when, chain}]
+    explained: List[dict] = field(default_factory=list)   # what was asked about passages of this run's tabs and about its plots, in the order asked (analyst/explain.py):
+                                                  # [{tab, view, passage, at: where the passage stands - of a plot, its name; quote: the words selected; question, answer,
+                                                  #   cost, when, chain; blind: a plot's picture did not go with the question}]
     budget: dict = field(default_factory=dict)    # the limits the run was given (session.Budget's fields; 2.9): a branch of it runs under them
-    figure_asked: bool = False                    # asked about a figure (the Plots tab's Ask AI): the picture rode with every prompt and is not on
+    figure_asked: bool = False                    # asked with a figure (pd_agent_converse's `image`): the picture rode with every prompt and is not on
                                                   # the record, so no branch can be given it
     branch: dict = field(default_factory=dict)    # a branch (docs/BRANCH_DESIGN.md): {of: the chain whose turn it went on from, turn: that turn}
     hints: List[dict] = field(default_factory=list)   # what the person said when they went on from a turn, in order: [{turn, text}] - this

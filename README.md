@@ -249,14 +249,15 @@ the dataset changes, BambooAI starts a fresh kernel and keeps earlier chains as 
 other data. Replay and routines then use only calculations made on the current dataset. Data continuity
 is determined from file and dataset metadata, not a byte-for-byte file comparison.
 
-Use the chat button on a figure to ask about it. The image is included only when the Analyst supports
-images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
-without the image, and the app indicates that limitation.
-
 To ask what a passage means, select it in the **Answer**, **Code** or **Results** tab of a finished
 analysis and press **Ask**. The question you type is answered in a few plain sentences, in a note under
 the passage, which stays marked. No analysis starts: it is one short model call on the Pathfinder's
 seat. To follow up, select words in the note or in the marked passage and press **Ask** again.
+
+A plot is asked about the same way: its chat button puts the plot on the query box, and the answer
+stands under the plot. The plot's picture goes with the question when the Pathfinder's model, or else
+the Analyst's, has `"multimodal": "true"` in `model_properties`; otherwise the answer is written from
+the code and says so. To change a plot, ask for the change in the query box: that takes a new analysis.
 
 ### The Pathfinder
 
@@ -447,8 +448,8 @@ Seat fields are `model`, `provider`, `reasoning_effort`, `max_tokens` and `tempe
 names (`none`, `low`, `medium`, `high`, `xhigh`, or model-specific levels) are mapped to each provider's
 interface. Every configured model must appear in `model_properties`, including pricing per 1,000 tokens
 (cached tokens have separate rates), formatting (`xml` or `text`) and reasoning metadata. The template
-uses the key `templ_formating` as written. Set `multimodal` to `"true"` for image-capable Analyst models
-when using *Ask about a plot*.
+uses the key `templ_formating` as written. Set `multimodal` to `"true"` for models that read images: a
+question about a plot is sent with the plot's picture.
 
 For short code or JSON replies, a lower reasoning effort may leave more of `max_tokens` available for
 the actual answer. In particular, keep `Figures` at a low effort and give `Promoter` enough output
@@ -773,7 +774,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - `analyst/architect.py`, `analyst/brief.py`, `analyst/steps.py`, `analyst/lookup.py`, `analyst/draft.py`,
   `analyst/cold.py` and `analyst/next_questions.py` implement the Pathfinder; `analyst/memory.py` and `analyst/reader.py` the memory
   made of saved analyses.
-- `analyst/explain.py` answers a question about a selected passage of a finished analysis.
+- `analyst/explain.py` answers a question about a selected passage of a finished analysis, or about one of its plots.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.
 

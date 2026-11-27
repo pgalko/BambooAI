@@ -7,10 +7,11 @@
 // Ask puts the selection on the query box as a quote and the cursor there - one place to type. The question typed in
 // the box is asked about the quoted passage and explained where the passage stands (explain.js): no analysis starts.
 // So Ask is on the bar only where a selection can be explained - in the text of a finished analysis' Answer, Code or
-// Results tab; elsewhere the bar copies. The quote goes when the box is emptied (core.js emptyComposer), by its ×, and
-// with the analysis it was taken from.
+// Results tab, and in what was asked there or about a plot; elsewhere the bar copies. A plot is quoted whole, by its
+// chat button (content-rendering.js): its name on the box, its picture beside it. The quote goes when the box is
+// emptied (core.js emptyComposer), by its ×, and with the analysis it was taken from.
 //
-// window.SelectionUI = { initialize, send, unquote }
+// window.SelectionUI = { initialize, send, unquote, plot }
 
 (function () {
     'use strict';
@@ -62,13 +63,12 @@
 
     // The end of a press that began in the content pane, once the browser has settled what is selected (a click inside a
     // selection clears it only after the mouse-up): the bar for a selection that lies in the pane, wherever the pointer
-    // was let go. None on the Plots tab, whose figures have their own question row, and none for text selected in a
-    // field being typed in
+    // was let go. None for text selected in a field being typed in
     function offer(e) {
         const range = selected() ? window.getSelection().getRangeAt(0) : null, held = range && range.commonAncestorContainer;
         const where = held && (held.nodeType === 1 ? held : held.parentElement);
         const typing = document.activeElement.matches('input, textarea, [contenteditable]');
-        if (where && !typing && byId('contentOutput').contains(where) && !where.closest('#content-plot')) show(range, e.clientX, e.clientY);
+        if (where && !typing && byId('contentOutput').contains(where)) show(range, e.clientX, e.clientY);
         else hide();
     }
 
@@ -79,9 +79,10 @@
         later = setTimeout(hide, COPIED_MS);
     }
 
-    // Ask: the selection onto the query box, the cursor there - the left pane opened first where it is folded away
-    function ask() {
-        const at = selected() ? window.ExplainUI.place(window.getSelection().getRangeAt(0)) : null, pane = byId('leftPanel');
+    // Ask: a place onto the query box - the selection's, a plot's -, the cursor there; the left pane opened first where
+    // it is folded away. No place: nothing can be asked there
+    function quote(at) {
+        const pane = byId('leftPanel');
         hide();
         if (!at) return;
         setQuote(at);
@@ -89,13 +90,16 @@
         byId('queryInput').focus();
     }
 
-    // The quote on the query box - of a place, or none: its first words on one line, the passage whole under the pointer
+    // The quote on the query box - of a place, or none: its first words on one line, the passage whole under the pointer;
+    // where the place is a plot's, the plot's picture beside them, once it is taken
     function setQuote(at) {
-        const chip = byId('queryQuote'), words = chip.querySelector('.t'), text = at ? at.quote : '';
+        const chip = byId('queryQuote'), words = chip.querySelector('.t'), shot = chip.querySelector('img'), text = at ? at.quote : '';
         place = at;
         chip.classList.toggle('on', !!at);
         words.textContent = text.replace(/\s+/g, ' ');
         words.title = text;
+        shot.removeAttribute('src');
+        if (at) window.ExplainUI.picture(at).then(image => { if (image && place === at) shot.setAttribute('src', 'data:image/png;base64,' + image); });
     }
 
     function initialize() {
@@ -105,7 +109,7 @@
             '<button type="button" class="copy">' + ICON.copy + '<span>' + WORDS.copy + '</span></button>';
         document.body.appendChild(bar);
         bar.addEventListener('mousedown', e => e.preventDefault());      // a press on the bar is not a click elsewhere: the selection stays
-        bar.querySelector('.ask').addEventListener('click', ask);
+        bar.querySelector('.ask').addEventListener('click', () => quote(selected() ? window.ExplainUI.place(window.getSelection().getRangeAt(0)) : null));
         bar.querySelector('.copy').addEventListener('click', copy);
         // a press anywhere but on the bar takes the bar away; one with the main button that begins in the content pane may
         // end as a selection there (the other buttons are the browser's: its own menu, its scrolling)
@@ -126,5 +130,7 @@
         // a typed question with a passage quoted on the box: asked about the passage and explained there; says whether it was
         send: question => { if (place) window.ExplainUI.ask(place, question); return !!place; },
         unquote: () => setQuote(null),
+        // a plot's chat button: the plot onto the query box, where it can be asked about
+        plot: box => quote(window.ExplainUI.figure(box)),
     };
 })();

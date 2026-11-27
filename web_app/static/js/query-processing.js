@@ -39,7 +39,7 @@ function initializeMainQuerySubmission() {
 // options.next: the next question the analysis is started from (next-questions.js) - run as it stands, with no brief.
 // With a turn gone back to (branch.js) what is typed is a hint: the analysis on screen goes on from that turn, another way
 function handleQuerySubmit(options = {}) {
-    const { synthesis, image, typed, framed, next, step } = options;
+    const { synthesis, typed, framed, next, step } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
     const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());
@@ -138,7 +138,6 @@ function handleQuerySubmit(options = {}) {
 
     if (next) requestBody.next = { set: next.set, k: next.k };      // the server marks it as run on the analysis it follows
     if (synthesis) requestBody.synthesis = true;
-    if (image) requestBody.image = image;
     if (framed) requestBody.run_id = framed.chain_id;   // the analysis continues the run its brief was written in
     if (framed && step) requestBody.step = step;               // ... from the step of its conversation on screen
     if (branch) requestBody.branch = { turn: branch.turn };    // the chain on screen goes on from that turn; the query is the hint

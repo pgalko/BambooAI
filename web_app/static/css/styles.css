@@ -1246,52 +1246,6 @@
     stroke-width: 3;
 }
 
-.plot-query-form {
-    display: flex;
-    gap: 8px;
-    margin: 10px 0;
-    padding: 10px;
-    background: var(--bg-tertiary);
-    border-radius: 4px;
-}
-
-.plot-query-input {
-    flex: 1;
-    padding: 8px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    font-size: 14px;
-    background-color: var(--bg-primary);
-    color: var(--text-primary);
-}
-
-.plot-query-submit {
-    background-color: transparent;
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    cursor: pointer;
-    transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
-    color: var(--accent-color);
-}
-
-.plot-query-submit svg {
-    width: 18px;
-    height: 18px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-}
-
-.plot-query-submit:hover {
-    background-color: var(--highlight-bg);
-}
-
 .plot-content {
     width: 100%;
     margin-top: 10px;

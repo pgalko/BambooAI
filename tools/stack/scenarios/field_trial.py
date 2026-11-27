@@ -398,6 +398,7 @@ SEARCH_REPLY = {
 # kinds (analyst/next_questions.py SAID) - a title, and the question around the line's own words
 NEXT_MISFIT = "The gap is not the same on every soil"        # the misfit the briefed report plants, from the gap by soil its cell printed
 EXPLAINED = "The words selected: {passage}. They stand {where}. Questions before this one: {before}."      # an explanation says back what its prompt gave it
+EXPLAINED_SEEN = " The plot's picture was in view."                                                         # ... and, of a plot, that its picture came with the prompt
 NEXT_FROM = {"Did not fit": ("What did not fit", "What lies behind this: {t}?"),
              "Rests on": ("What it rests on", "Does the answer change without this: {t}?"),
              "Would change their mind": ("The other result", "How close did the result come to this: {t}?"),
@@ -459,10 +460,12 @@ class Scenario:
     # ------------------------------------------------------------ a passage explained (analyst/explain.py)
     def explain(self, user):
         """An explanation, read off its prompt: it says back the words the person selected, where the prompt says they
-        stand, and how many questions the conversation holds - so a walk can tell that each of them reached the model."""
+        stand, and how many questions the conversation holds - so a walk can tell that each of them reached the model;
+        and, where a picture rode with the prompt - a plot's -, that it did."""
         where = (re.search(r"^WHERE: (.*)$", user, re.M) or [None, ""])[1]
-        passage = (re.search(r"^PASSAGE:\n(.*?)\n\nASKED:\n", user, re.S | re.M) or [None, ""])[1]
-        return EXPLAINED.format(passage=" ".join(passage.split()), where=where, before=len(re.findall(r"^\[\d+\] Selected ", user, re.M)))
+        passage = (re.search(r"^PASSAGE:\n(.*?)\n\n(?:PICTURE: |ASKED:\n)", user, re.S | re.M) or [None, ""])[1]
+        said = EXPLAINED.format(passage=" ".join(passage.split()), where=where, before=len(re.findall(r"^\[\d+\] Selected ", user, re.M)))
+        return said + (EXPLAINED_SEEN if "[IMAGE ATTACHED]" in user else "")
 
     # ------------------------------------------------------------ the question's check (docs/ARCHITECT_DESIGN.md §2.22)
     def cold(self, user):
@@ -1082,8 +1085,6 @@ Cell 4 reused the plot means and the adjusted-difference function from the earli
         body = ("This question is outside the scripted story of the local stack, so the answer is a placeholder: the "
                 f"data was described in [cell {cell}] and nothing further was computed. Ask one of the scenario's questions "
                 "to see a full analysis.")
-        if "[IMAGE ATTACHED]" in user:               # the plot the person asked about rode along as a picture (2026-10-13)
-            body += " The figure attached to the question was in view."
         return _report("Nothing scripted for this question; report the placeholder.", _note(q, plan="report"), body)
 
     def t_cell_c(self, q):

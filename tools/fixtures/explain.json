@@ -8,7 +8,7 @@
     "at": 0,
     "quote": "has barely moved over 38 winters",
     "question": "How little is barely?",
-    "answer": "About +0.006 °C per decade. Over the 38 winters that adds up to some two hundredths of a degree, far less than the swing from one winter to the next.",
+    "answer": "About +0.006 \u00b0C per decade. Over the 38 winters that adds up to some two hundredths of a degree, far less than the swing from one winter to the next.",
     "cost": 0.004,
     "when": 1,
     "chain": 901
@@ -20,7 +20,7 @@
     "at": 0,
     "quote": "the swing from one winter to the next",
     "question": "How large is that swing?",
-    "answer": "The report does not give it as a number. It gives the interval of the slope instead, from −0.212 to +0.224 °C per decade: a range that wide comes from winters that differ a lot.",
+    "answer": "The report does not give it as a number. It gives the interval of the slope instead, from \u22120.212 to +0.224 \u00b0C per decade: a range that wide comes from winters that differ a lot.",
     "cost": 0.004,
     "when": 2,
     "chain": 902
@@ -36,6 +36,30 @@
     "cost": 0.003,
     "when": 3,
     "chain": 903
+   },
+   {
+    "tab": "plot",
+    "view": "",
+    "passage": "Plot 1",
+    "at": 0,
+    "quote": "Plot 1",
+    "question": "What does the line show?",
+    "answer": "The mean temperature of each winter, one point a year, joined into a line. It goes up and down from one winter to the next and shows no steady rise.",
+    "cost": 0.006,
+    "when": 4,
+    "chain": 904
+   },
+   {
+    "tab": "plot",
+    "view": "",
+    "passage": "Plot 1",
+    "at": 0,
+    "quote": "no steady rise",
+    "question": "Is there no rise at all?",
+    "answer": "A very small one: the report gives about +0.006 \u00b0C per decade, which the swings from winter to winter hide in the picture.",
+    "cost": 0.006,
+    "when": 5,
+    "chain": 905
    }
   ]
  }

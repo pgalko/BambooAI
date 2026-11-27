@@ -997,7 +997,7 @@ class Session:
         if data:
             run.data = dict(data)                     # what this run runs on, on the record from the start: the computation
                                                       # path (notebook.computed_cells) is drawn from it during the run (2026-10-12)
-        self._image = image or None                   # a figure the person asks about (the Plots tab's Ask AI): with every turn
+        self._image = image or None                   # a figure given with the question (pd_agent_converse's `image`): with every turn
                                                       # of the analysis, as a picture beside the prompt (2026-10-13)
         self._save()
         return self._loop(run, budget)

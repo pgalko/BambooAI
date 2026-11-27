@@ -46,7 +46,7 @@ _NOW = {"Architect": "Pathfinder", "Google Search Executor": "Web Search"}
 # the calls of a reading of the saved analyses made for a brief; a reading asked from the command line has a chain
 # of its own
 _OTHER = {"Promoter": ("routine", "Save as routine: the proposal"), "Coder": ("context", "The context coded"), "Reader": ("reading", "A document read"),
-          "Pathfinder": ("next", "Next questions"), "Explainer": ("explain", "A passage explained"),
+          "Pathfinder": ("next", "Next questions"), "Explainer": ("explain", "A passage or a plot explained"),
           "Memory Reader": ("memory", "Saved analyses read"), "Memory Pieces": ("memory", "Saved analyses read"),
           "Knowledge Distiller": ("memory", "Memory: the distillation"), "Embedder": ("memory", "Memory: the embeddings")}
 

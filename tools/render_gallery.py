@@ -19,8 +19,16 @@ SELECT = ("activateTab('answer'); " + FINISHED + "const p = document.querySelect
           "p.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); getSelection().removeAllRanges(); getSelection().addRange(r); ")
 # what was asked about the analysis, as the server keeps it (tools/fixtures/explain.json): its passages marked, then a click on one.
 # The answers are Markdown: the stand-in for the library that renders it, whose address is not reached here
-ASKED = (open(os.path.join(HERE, 'fixtures', 'marked_stub.js')).read() + "activateTab('%s'); " + FINISHED
+MARKED = open(os.path.join(HERE, 'fixtures', 'marked_stub.js')).read()
+ASKED = (MARKED + "activateTab('%s'); " + FINISHED
          + "ExplainUI.restore(responses[currentResponseIndex]); setTimeout(() => document.querySelector('#content-%s .xp-mark').click(), 400);")
+# a plot of the analysis, drawn by the page's own function - a figure the library's stand-in draws - with what was asked about it
+WINTERS = [1.24, 1.47, 0.66, 0.62, 1.31, 1.02, 0.83, 1.62, 1.55, 0.82, 1.13, 1.29, 0.55, 0.74, 1.48, 1.14, 0.99, 1.67, 1.39,
+           0.65, 1.05, 1.2, 0.58, 0.95, 1.66, 1.2, 1.03, 1.6, 1.16, 0.51, 1.05, 1.23, 0.7, 1.19, 1.77, 1.14, 0.97, 1.46]
+FIGURE = json.dumps({"data": [{"type": "scatter", "mode": "lines", "name": "winter mean, \u00b0C", "x": list(range(1987, 2025)), "y": WINTERS}],
+                     "layout": {"title": {"text": "Winter mean temperature, 38 winters"}}})
+PLOT = (PLOTLY + MARKED + "createOrUpdateTab('plot', %s, 'plot_1', 'json'); activateTab('plot'); " % json.dumps(FIGURE) + FINISHED
+        + "setTimeout(() => ExplainUI.restore(responses[currentResponseIndex]), 300);")
 STATES = {
     'page_answer': "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a);",
     'page_data': "activateTab('dataframe');",
@@ -34,6 +42,7 @@ STATES = {
     # a passage explained (explain.js, 2026-11-27): the passage marked, its note under it - an earlier question one line, the newest open; and a note in the code
     'explain_note': ASKED % ('answer', 'answer'),
     'explain_code': ASKED % ('code', 'code'),
+    'explain_plot': PLOT,                                # a plot asked about (2026-11-28): the questions under its figure, in its card; the count on its button
     'dlg_account': "showSubscriptionModal(false);",
     'dlg_usage': "UsageUI.open();",                      # the dialog over tools/fixtures/usage.json (2026-10-31)
     'dlg_usage_analyses': "UsageUI.open(); setTimeout(()=>{ document.querySelector('.us-tabs [data-tab=analyses]').click(); setTimeout(()=>{ const it=document.querySelector('.us-list .it'); it && it.click(); }, 200); }, 300);",

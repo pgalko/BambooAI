@@ -1,5 +1,5 @@
 // explain.js - a passage of a finished analysis explained, where it stands (2026-11-27, the product owner's pick of
-// the mockups: the note under the text).
+// the mockups: the note under the text) - and a plot, under its picture (2026-11-28).
 //
 // Ask on a selection (selection.js) puts the selection on the query box, and the question typed there is answered in
 // a few plain sentences by one model call (POST /explain, a stream; analyst/explain.py). No analysis starts. The
@@ -12,6 +12,11 @@
 // answer joins that note. Everything asked about one analysis is one conversation on the server, whichever passages
 // it is about, so a question builds on the answers before it.
 //
+// A plot is asked about whole. Its chat button puts it on the query box (selection.js), and the question is answered
+// the same way - with the plot's picture as it is on screen, so that the model sees what the person sees. What was
+// asked about a plot stands under its picture, in its card: each plot's own, always there, every question a fold, and
+// the plot's button says how many there are. A follow-up is the button again, or words selected in what stands there.
+//
 // What was asked is kept with the analysis on the server's record and nowhere else: the page asks for it when it
 // shows a chain (GET /explain/<thread>/<chain>). A passage is found again by its text and by which of its occurrences
 // in the tab it is, white space counting as one space; so its mark comes back whenever its tab is drawn again - a
@@ -19,14 +24,17 @@
 // longer has keeps its note at the tab's foot. Marks and notes are drawn into a tab and never kept in a chain's
 // markup: the page's copy of a chain is taken when its run ends, before anything can be asked about it.
 //
-// window.ExplainUI = { initialize, place, stands, ask, holds, restore, plain, build }
+// window.ExplainUI = { initialize, place, figure, picture, stands, ask, holds, restore, plain, build }
 
 (function () {
     'use strict';
 
-    const WORDS = { wait: 'An explanation is being written. Wait for it.', none: 'No explanation was written', unreachable: 'the server could not be reached' };
+    const WORDS = { wait: 'An explanation is being written. Wait for it.', none: 'No explanation was written', unreachable: 'the server could not be reached',
+                    later: 'A plot can be asked about once its analysis has finished.', blind: 'Answered without the picture.' };
     const TABS = ['answer', 'code', 'code_exec_results'];      // the tabs a passage can be asked about, as their contents are named (content-rendering.js)
+    const PLOT = 'plot';                                       // the Plots tab: a plot is asked about whole
     const OURS = '.xp-note, .xp-lost';                         // what is drawn into a tab here: no part of the tab's own text
+    const NOTE = '.markdown-content .xp-note';                 // the open note of a passage: in its tab's text
     const NO_MATH = 'pre, code, .answer-sources';              // where no formula is set (content-rendering.js renderLatex)
 
     let kept = {};         // chain id -> what was asked about that analysis, in order, as the server keeps it
@@ -51,6 +59,13 @@
     // the text of a tab: what the report, the code or the output is drawn into
     function body(tab) { const root = byId('content-' + tab); return root ? root.querySelector('.markdown-content') : null; }
     function marksOf(k) { return Array.from(document.querySelectorAll('.xp-mark[data-k="' + k + '"]')); }
+    // the plots of the tab on screen, in order; and a plot's name, as its card says it
+    function plots() { return Array.from(document.querySelectorAll('#content-' + PLOT + ' .plot-container')); }
+    function named(box) { const head = box.querySelector('.plot-header h3'); return head ? head.textContent.trim().replace(/:$/, '') : ''; }
+    // where a plot stands, as a passage does: by its name, and which of the tab's plots of that name it is
+    function spot(box) { const name = named(box); return { tab: PLOT, view: '', passage: name, at: plots().filter(b => named(b) === name).indexOf(box) }; }
+    // the plot a place names, or none
+    function plotAt(where) { return plots().filter(b => named(b) === where.passage)[where.at] || null; }
 
     // ------------------------------------------------------------ what was asked, as notes
     // where an exchange's passage stands, as one value: exchanges with the same place are one note
@@ -72,10 +87,10 @@
     // ------------------------------------------------------------ builders (pure: return HTML)
     const build = {
         // one question and its answer, a fold: the question is its line. An answer still being written is shown as far
-        // as it has come, as plain text
+        // as it has come, as plain text; one about a plot that was written without the plot's picture says so
         asked(x, newest) {
             return '<details' + (newest ? ' open' : '') + (x.live ? ' class="live"' : '') + '><summary>' + esc(x.question) + '</summary><div class="a">' +
-                (x.live ? esc(x.answer.trim()) : markdownToHtml(x.answer)) + '</div></details>';
+                (x.live ? esc(x.answer.trim()) : markdownToHtml(x.answer)) + '</div>' + (x.blind ? '<p class="blind">' + WORDS.blind + '</p>' : '') + '</details>';
         },
         // what a note holds: every question asked at its passage, the newest open
         note(n) { return n.asked.map((x, i) => build.asked(x, i === n.asked.length - 1)).join(''); },
@@ -198,11 +213,26 @@
         try { renderLatex(note); } catch (e) { /* the formulas stay as they were written */ }
     }
 
+    // ------------------------------------------------------------ the plots
+    // What was asked about the plots of the tab on screen: each plot's under its picture, in its card, drawn from what
+    // was asked there, and on the plot's button how many questions that is. A plot nothing was asked about has neither
+    function captions(all) {
+        plots().forEach(box => {
+            const k = all.findIndex(n => n.key === key(spot(box))), button = box.querySelector('.plot-query-btn');
+            let note = box.querySelector(':scope > .xp-note');
+            if (k < 0 && note) note.remove();
+            if (k >= 0 && !note) { note = document.createElement('div'); note.className = 'xp-note'; box.append(note); }
+            if (k >= 0) { note.dataset.k = k; if (note.dataset.n !== sign(all[k])) fill(note, all[k]); }
+            button.classList.toggle('asked', k >= 0);
+            if (k >= 0) button.setAttribute('data-n', all[k].asked.length); else button.removeAttribute('data-n');
+        });
+    }
+
     // ------------------------------------------------------------ the page
-    // The marks and the open note of the analysis on screen, put where they belong - after anything that draws a tab
-    // again, and after every change to what was asked. In each tab: a mark that is no note's any more goes; a passage
-    // that is not marked where the text has it now is marked afresh, each on the text as the mark before left it. Then
-    // the open note: under its passage, drawn from what was asked there
+    // The marks, the open note and the plots' notes of the analysis on screen, put where they belong - after anything
+    // that draws a tab again, and after every change to what was asked. In each tab: a mark that is no note's any more
+    // goes; a passage that is not marked where the text has it now is marked afresh, each on the text as the mark
+    // before left it. Then the open note: under its passage, drawn from what was asked there. Then the plots
     function dress() {
         const all = notes(), moved = [];
         TABS.forEach(tab => {
@@ -217,7 +247,7 @@
             moved.push(...astray);
         });
         const k = all.findIndex(n => n.key === open), marks = k < 0 ? [] : marksOf(k);
-        let note = document.querySelector('.xp-note');
+        let note = document.querySelector(NOTE);
         if (note && (!marks.length || note.dataset.k !== String(k) || moved.includes(k))) { shut(note); note = null; }
         if (!marks.length) open = '';
         else if (!note) {
@@ -227,6 +257,7 @@
             put(note, marks[marks.length - 1]);
             fill(note, all[k]);
         } else if (note.dataset.n !== sign(all[k])) fill(note, all[k]);
+        captions(all);
         drawn();
     }
     // what was drawn here is no change of the tabs' own: the observer is not told of it
@@ -236,7 +267,11 @@
         const live = document.querySelector('.xp-note .live .a');
         if (live) { live.textContent = asking.answer.trim(); drawn(); }
     }
-    function show() { const note = document.querySelector('.xp-note'); if (note && note.scrollIntoView) note.scrollIntoView({ block: 'nearest' }); }
+    // the note of a place brought into view, where it is drawn
+    function show(at) {
+        const note = document.querySelector('.xp-note[data-k="' + notes().findIndex(n => n.key === at) + '"]');
+        if (note && note.scrollIntoView) note.scrollIntoView({ block: 'nearest' });
+    }
 
     // a click on a marked passage: its note opens, or shuts - not where the press ended as a selection, which is the bar's
     function toggle(mark) {
@@ -244,13 +279,13 @@
         if (!n || String(window.getSelection()).trim()) return;
         open = open === n.key ? '' : n.key;
         dress();
-        show();
+        show(n.key);
     }
 
     // The words a selection holds, as the person sees them. An open note the selection is not in is hidden while they
     // are read: a selection that runs across it holds none of its words
     function quote(inside) {
-        const note = inside ? null : document.querySelector('.xp-note');
+        const note = inside ? null : document.querySelector(NOTE);
         if (note) note.hidden = true;
         const said = String(window.getSelection()).trim();
         if (note) note.hidden = false;
@@ -258,13 +293,14 @@
     }
     // Where a selection can be asked about, and the words it holds: {chain, thread, tab, view, passage, at, quote}. A
     // selection in the text of the Answer, Code or Results tab: the passage, and which of its occurrences. A selection in
-    // a note, or one that touches a marked passage: that note's own place - the question is a follow-up. Nothing where
-    // no finished analysis is on screen, an analysis is running, or the selection lies elsewhere
+    // a note - a passage's or a plot's -, or one that touches a marked passage: that note's own place - the question is
+    // a follow-up. Nothing where no finished analysis is on screen, an analysis is running, or the selection lies elsewhere
     function place(range) {
         const entry = finished(), node = range.commonAncestorContainer, el = node.nodeType === 1 ? node : node.parentElement;
         const root = el.closest('.tab-content'), tab = root ? root.id.slice('content-'.length) : '', text = TABS.includes(tab) ? root.querySelector('.markdown-content') : null;
-        if (!entry || running() || !text) return null;
-        const note = el.closest('.xp-note'), mark = note || Array.from(text.querySelectorAll('.xp-mark')).find(m => range.intersectsNode(m));
+        const note = el.closest('.xp-note');
+        if (!entry || running() || !(text || note)) return null;
+        const mark = note || Array.from(text.querySelectorAll('.xp-mark')).find(m => range.intersectsNode(m));
         const where = { chain: entry.chain_id, thread: entry.thread_id, quote: quote(note) };
         if (mark) {
             const n = notes()[mark.dataset.k];
@@ -275,25 +311,42 @@
         const passage = map.text.slice(span[0], span[1] + 1);
         return Object.assign(where, { tab, view: view(tab), passage, at: count(map.text, passage, span[0]) });
     }
+    // A plot as a place to ask about, its name the words quoted - or nothing, and the reason said, where no finished
+    // analysis is on screen or one is running
+    function figure(box) {
+        const entry = finished();
+        if (!entry || running()) { say(WORDS.later); return null; }
+        const where = spot(box);
+        return Object.assign({ chain: entry.chain_id, thread: entry.thread_id, quote: where.passage }, where);
+    }
+    // The picture of the plot a place names, as the model is given it: the PNG the plot is, or the interactive plot as it
+    // is on screen now. Its base64, promised - nothing where the place is no plot's, or no picture can be taken
+    function picture(where) {
+        const box = where.tab === PLOT ? plotAt(where) : null, still = box && box.querySelector('.plot-image'), live = box && box.querySelector('.js-plotly-plot');
+        const bare = src => String(src || '').split(',')[1] || null;
+        if (still) return Promise.resolve(bare(still.getAttribute('src')));
+        return live ? Promise.resolve().then(() => window.Plotly.toImage(live, { format: 'png' })).then(bare, () => null) : Promise.resolve(null);
+    }
     // whether the analysis a place was taken in is still the finished one on screen
     function stands(where) {
         const entry = finished();
         return !!entry && !running() && String(entry.chain_id) === String(where.chain);
     }
 
-    // A question about a place (place()), answered: the passage is marked and its note opens at once, on the question;
-    // the answer is shown as it is written, and what the server then keeps is what the page draws from. Where no answer
-    // was made, the reason is said and the question goes - with its mark, where it was the first at its passage
+    // A question about a place (place(), figure()), answered: the passage is marked and its note opens at once, on the
+    // question - a plot's stands under its picture -; the answer is shown as it is written, and what the server then
+    // keeps is what the page draws from. A plot's picture is taken as the question is sent, and goes with it. Where no
+    // answer was made, the reason is said and the question goes - with its mark, where it was the first at its passage
     function ask(where, question) {
         if (asking) return;
         const mine = asking = Object.assign({}, where, { question, answer: '', live: true });
         let out = {};
-        open = key(mine);
+        if (mine.tab !== PLOT) open = key(mine);
         dress();
-        show();
-        window.authService.fetch('/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                               body: JSON.stringify({ thread_id: mine.thread, chain_id: mine.chain, tab: mine.tab, view: mine.view, passage: mine.passage,
-                                                                      at: mine.at, quote: mine.quote, question }) })
+        show(key(mine));
+        const send = image => window.authService.fetch('/explain', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ thread_id: mine.thread, chain_id: mine.chain, tab: mine.tab, view: mine.view, passage: mine.passage, at: mine.at, quote: mine.quote, question, image }) });
+        (mine.tab === PLOT ? picture(mine).then(send) : send())
             .then(r => window.ArchitectUI.readStream(r, d => {
                 if (d.explain) out = d.explain;
                 else if (d.message || d.error || d.routine_error) out = { error: d.message || d.error || d.routine_error };      // a refusal: the balance, the month's queries
@@ -304,7 +357,7 @@
                 asking = null;
                 if (Array.isArray(out.asked)) kept[mine.chain] = out.asked; else say(out.error || WORDS.none + '.');
                 dress();
-                show();
+                show(key(mine));
             });
     }
     // an analysis may not start while an explanation is being written: the two would share the instance's stream
@@ -336,7 +389,8 @@
         // a press may end as a selection: what is selected is known only once the browser has settled it (selection.js)
         document.addEventListener('click', e => { const mark = e.target.closest ? e.target.closest('.xp-mark') : null; if (mark) setTimeout(() => toggle(mark), 0); });
         // a tab drawn again - or drawn on: the code highlighted, the formulas set - has lost its marks: they are put
-        // back when the browser says what changed. A change in a tab that holds no passages is none of this module's
+        // back when the browser says what changed. A change in a tab that holds no passages is none of this module's:
+        // an interactive plot draws inside itself over and over, and the plots of a finished analysis stay as drawn
         watch = new MutationObserver(records => {
             const ours = r => { const tab = r.target.closest('.tab-content'); return !tab || TABS.includes(tab.id.slice('content-'.length)); };
             if (records.some(ours)) dress();
@@ -344,5 +398,5 @@
         watch.observe(byId('contentOutput'), { childList: true, subtree: true });
     }
 
-    window.ExplainUI = { initialize, place, stands, ask, holds, restore, plain, build };
+    window.ExplainUI = { initialize, place, figure, picture, stands, ask, holds, restore, plain, build };
 })();

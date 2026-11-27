@@ -1,6 +1,7 @@
 // A passage explained where it stands (web_app/static/js/explain.js; 2026-11-27, the product owner's pick of the
 // mockups: the note under the text): a question about a selection is answered by one call, the passage stays marked,
-// and what was asked about it stands in a note under it.
+// and what was asked about it stands in a note under it. A plot is asked about whole (2026-11-28): what was asked
+// stands under its picture, in its card, and the picture goes with the question.
 // The module's pure parts, and the module driven on the mini DOM with a scripted server and stand-ins for what the
 // mini DOM has not - the browser's selection as a range over the page's texts, the watch on the tabs. Then the
 // page's hooks, read from the source. The real thing, in a real browser on the real page, is tests/e2e/test_selection.py.
@@ -391,6 +392,126 @@ async function asked(where, question, answer) {
     && !text('answer').querySelector('.xp-lost'), [waiting, marks()]);
   responses.pop(); currentResponseIndex = 0;
 
+  // ------------------------------------------------------------ plots
+  {
+    const CARD = (name, figure) => '<div class="plot-container"><div class="plot-header"><h3>' + name + ':</h3><div class="plot-header-actions"><button class="plot-query-btn"></button>'
+      + '<button class="plot-expand-btn"></button></div></div><div class="plot-content">' + figure + '</div></div>';
+    const STILL = src => '<img src="data:image/png;base64,' + src + '" class="plot-image">', LIVE = '<div class="plotly-plot"><div class="js-plotly-plot"><p>drawn by the library</p></div></div>';
+    const PLOTS = CARD('Plot 1', STILL('ONE')) + CARD('Plot 2', LIVE) + CARD('Plot 2', STILL('TWIN')), wasPlots = $('content-plot').innerHTML;
+    const mine = responses.push({ chain_id: 11, thread_id: 3 }) - 1; currentResponseIndex = mine;
+    text('answer').innerHTML = REPORT; $('content-plot').innerHTML = PLOTS;
+    server = () => whole(200, { asked: [] }); E.restore(responses[mine]); await tick();
+    const cards = () => $('content-plot').querySelectorAll('.plot-container'), caption = i => cards()[i].querySelector(':scope > .xp-note');
+    const lines = i => (caption(i) ? caption(i).querySelectorAll('details').map(d => [d.querySelector('summary').textContent, d.hasAttribute('open'), d.classList.contains('live'), d.querySelector('.a').innerHTML]) : null);
+    const count = i => { const button = cards()[i].querySelector('.plot-query-btn'); return [button.classList.contains('asked'), button.getAttribute('data-n')]; };
+    const passageNote = () => doc.querySelector('.markdown-content .xp-note');
+    // a question about this analysis answered: the exchange as the server keeps it, with everything asked before
+    const here = [];
+    const reply = async (where, question, answer, more) => {
+      const s = stream(); server = () => Promise.resolve(s.response);
+      E.ask(where, question); await tick();
+      here.push(Object.assign({ tab: where.tab, view: where.view, passage: where.passage, at: where.at, quote: where.quote, question, answer, cost: 0.004, when: 1, chain: 950 + here.length }, more || {}));
+      s.line({ explain: { asked: here.slice() } }); s.end(); await tick();
+    };
+
+    said.length = 0;
+    const spots = cards().map(c => E.figure(c)), AT = { chain: 11, thread: 3 };
+    check('a plot is a place to ask about: the analysis on screen, the Plots tab, the plot\'s name as its card says it - which is what is quoted - and which of the tab\'s plots of that name it is',
+      same(spots, [Object.assign({}, AT, { quote: 'Plot 1', tab: 'plot', view: '', passage: 'Plot 1', at: 0 }), Object.assign({}, AT, { quote: 'Plot 2', tab: 'plot', view: '', passage: 'Plot 2', at: 0 }),
+                   Object.assign({}, AT, { quote: 'Plot 2', tab: 'plot', view: '', passage: 'Plot 2', at: 1 })]) && !said.length && E.stands(spots[0]), spots);
+    const not = [];
+    queryRunning = true; not.push(E.figure(cards()[0])); queryRunning = false;
+    responses[mine].status = 'running'; not.push(E.figure(cards()[0])); delete responses[mine].status;
+    window.RoutinesUI = { inRunView: () => true }; not.push(E.figure(cards()[0])); window.RoutinesUI = { inRunView: () => false };
+    check('no plot can be asked about while an analysis runs, on a chain that has not ended, or in a routine\'s run: the page says so each time, in words',
+      same(not, [null, null, null]) && same(said, Array(3).fill('A plot can be asked about once its analysis has finished.')), [not, said.slice()]);
+
+    const shots = [], snap = (el, how) => { shots.push([el, how]); return Promise.resolve('data:image/png;base64,LIVE'); };
+    let camera = snap;
+    window.Plotly = { toImage: (el, how) => camera(el, how) };
+    const pics = [await E.picture(spots[0]), await E.picture(spots[1]), await E.picture(spots[2])], taken = shots.slice();
+    camera = () => Promise.reject(new Error('no canvas')); pics.push(await E.picture(spots[1]));
+    camera = () => { throw new Error('not drawn yet'); }; pics.push(await E.picture(spots[1]));
+    camera = () => Promise.resolve(''); pics.push(await E.picture(spots[1]));
+    delete window.Plotly; pics.push(await E.picture(spots[1]));
+    pics.push(await E.picture(Object.assign({}, spots[0], { passage: 'Plot 9' })), await E.picture(Object.assign({}, spots[2], { at: 2 })), await E.picture(first), await E.picture(Object.assign({}, first, { passage: 'Plot 1' })));
+    camera = snap; window.Plotly = { toImage: (el, how) => camera(el, how) };
+    check('a plot\'s picture, as the model is given it: of a picture the picture itself; of an interactive plot what the library takes of it as it is now - asked of the plot\'s own element, as a PNG. Its '
+      + 'base64 alone. Nothing where the library fails, throws, gives nothing or is not loaded; where the tab has no such plot; for a passage - also one whose words are a plot\'s name',
+      same(pics, ['ONE', 'LIVE', 'TWIN', null, null, null, null, null, null, null, null]) && taken.length === 1 && taken[0][0] === cards()[1].querySelector('.js-plotly-plot') && same(taken[0][1], { format: 'png' }), [pics, taken.length]);
+
+    await reply(E.place(pick(text('answer'), 'cannot be told apart')), 'Why not?', 'Too few plots.');
+    calls.length = 0;
+    const s = stream(); server = () => Promise.resolve(s.response);
+    E.ask(spots[0], 'What does it show?');
+    const atOnce = [marks(), !!passageNote(), lines(0), cards()[0].children[cards()[0].children.length - 1] === caption(0), count(0), calls.length];
+    await tick();
+    const sent = calls.slice();
+    s.line({ text: ' The lead ', chain_id: 951 }); await tick();
+    const live = [lines(0), E.holds()];
+    here.push({ tab: 'plot', view: '', passage: 'Plot 1', at: 0, quote: 'Plot 1', question: 'What does it show?', answer: 'The **lead** of regime B.', cost: 0.01, when: 1, chain: 951 });
+    s.line({ explain: { asked: here.slice() } }); s.end(); await tick();
+    check('a plot asked about: at once the question stands under its picture, in its card - the last thing in it - and the plot\'s button says one question. Nothing is marked for it, and a passage\'s open note '
+      + 'stays open. The picture is taken first; then the server is asked - the plot\'s place, the question, the picture',
+      same(atOnce, [['0:cannot be told', '0: apart'], true, [['What does it show?', true, true, '']], true, [true, '1'], 0])
+      && same(sent, [['/explain', { thread_id: 3, chain_id: 11, tab: 'plot', view: '', passage: 'Plot 1', at: 0, quote: 'Plot 1', question: 'What does it show?', image: 'ONE' }]]), [atOnce, sent]);
+    check('the answer is written into the plot\'s note as it comes - nothing else starts meanwhile - and is then drawn from what the server keeps, as Markdown',
+      same(live, [[['What does it show?', true, true, 'The lead']], true]) && same(lines(0), [['What does it show?', true, false, '<p>The <strong>lead</strong> of regime B.</p>']]) && same(count(0), [true, '1'])
+      && !E.holds() && !!passageNote() && same(marks(), ['0:cannot be told', '0: apart']), [live, lines(0)]);
+
+    const inPlot = E.place(pick(caption(0), 'lead of regime'));
+    check('words selected in a plot\'s note are a follow-up about the plot: the plot\'s place, the words quoted', same(inPlot, Object.assign({}, AT, { quote: 'lead of regime', tab: 'plot', view: '', passage: 'Plot 1', at: 0 })), inPlot);
+    const beside = [E.place(pick(cards()[0].querySelector('h3'), 'Plot 1')), E.place(pick($('content-plot'), 'Plot 1:' + caption(0).textContent.slice(0, 9)))];
+    check('... a selection elsewhere in the Plots tab - a plot\'s name, or from it into the note - is none to ask about', same(beside, [null, null]), beside);
+    calls.length = 0;
+    await reply(inPlot, 'Lead in what?', 'In yield.', { blind: true });
+    const blind = caption(0).querySelectorAll('details').map(d => d.querySelectorAll('.blind').map(p => p.textContent));
+    check('... its answer joins the plot\'s note - the earlier question one line - and the button says two; the picture went with the question again. An answer written without the picture says so, under it',
+      same(lines(0).map(l => l.slice(0, 3)), [['What does it show?', false, false], ['Lead in what?', true, false]]) && same(count(0), [true, '2']) && calls[0][1].image === 'ONE' && calls[0][1].quote === 'lead of regime'
+      && same(blind, [[], ['Answered without the picture.']]) && b.asked({ question: 'Q?', answer: 'A.', blind: true }, true).endsWith('<div class="a"><p>A.</p></div><p class="blind">Answered without the picture.</p></details>'), [lines(0), blind]);
+
+    calls.length = 0; shots.length = 0;
+    await reply(spots[2], 'And this one?', 'The same, by soil.');
+    await reply(spots[1], 'Which is drawn live?', 'This one.');
+    const each = [lines(0).length, lines(1).map(l => l[0]), lines(2).map(l => l[0]), count(1), count(2), calls.map(c => c[1].image), shots.length, $('content-plot').querySelectorAll('.xp-note').length, !!passageNote()];
+    check('each plot has its own note, all of them there at once, beside the open note of a passage; two plots of one name are told apart by which of them each is; an interactive plot\'s picture is taken as its question is sent',
+      same(each, [2, ['Which is drawn live?'], ['And this one?'], [true, '1'], [true, '1'], ['TWIN', 'LIVE'], 1, 3, true]), each);
+
+    picked = null; await click(text('answer').querySelector('.xp-mark'));
+    caption(0).querySelectorAll('details')[1].removeAttribute('open');
+    const was = caption(0), takes = watch.taken, shutNow = !passageNote();
+    await drawn(cards()[1].querySelector('.js-plotly-plot'), cards()[1], $('content-plot'));
+    const inside = watch.taken - takes;
+    await drawn(text('answer'));
+    check('what is drawn in the Plots tab - by a plot inside itself, into a card, into the tab - is none of the module\'s: nothing is done. When the page is looked over for another reason, a plot\'s note that '
+      + 'stands as it should is left as it is - a question the person shut stays shut -, also where no passage\'s note is open', shutNow && inside === 0 && watch.taken - takes === 1 && caption(0) === was
+      && same(lines(0).map(l => l[1]), [false, false]) && $('content-plot').querySelectorAll('.xp-note').length === 3, [shutNow, inside, watch.taken - takes, lines(0)]);
+    $('content-plot').innerHTML = PLOTS;
+    const bare = [$('content-plot').querySelectorAll('.xp-note').length, count(0)];
+    server = () => whole(200, { asked: here.slice() }); E.restore(responses[mine]); await tick();
+    check('the chain shown again - its plots drawn anew, without notes or counts: both are put back from what the server keeps, each note\'s newest question open',
+      same(bare, [0, [false, null]]) && same([lines(0).map(l => l.slice(0, 2)), lines(1).length, lines(2).length, count(0), count(1), count(2)], [[['What does it show?', false], ['Lead in what?', true]], 1, 1, [true, '2'], [true, '1'], [true, '1']]),
+      [bare, lines(0)]);
+
+    $('content-plot').insertAdjacentHTML('beforeend', CARD('Plot 3', STILL('NEW')));
+    server = () => whole(403, { message: 'No.' }); said.length = 0;
+    E.ask(E.figure(cards()[3]), 'And this?');
+    const had = [!!caption(3), count(3)];
+    await tick();
+    check('no answer to a plot\'s first question: the reason is said, and the plot has neither note nor count again', same(had, [true, [true, '1']]) && same(said, ['No.']) && !caption(3) && same(count(3), [false, null]) && !E.holds(), [had, said.slice()]);
+
+    currentResponseIndex = 0; await drawn(text('answer'));
+    const away = [$('content-plot').querySelectorAll('.xp-note').length, cards().map((c, i) => count(i))];
+    currentResponseIndex = mine; await drawn(text('answer'));
+    check('another chain on screen: none of these notes and no count - the plots there are that chain\'s own; back on the analysis they stand again',
+      same(away, [0, Array(4).fill([false, null])]) && $('content-plot').querySelectorAll('.xp-note').length === 3 && same(count(0), [true, '2']) && same(count(3), [false, null]), away);
+    const copy = doc.createElement('div'); copy.innerHTML = $('content-plot').innerHTML;
+    check('the export\'s way of taking a tab without what is drawn into it takes the plots\' notes out too', E.plain(copy).querySelectorAll('.xp-note').length === 0 && copy.querySelectorAll('.plot-container').length === 4);
+
+    $('content-plot').innerHTML = wasPlots; text('answer').innerHTML = REPORT; responses.pop(); currentResponseIndex = 0; delete window.Plotly;
+    await drawn($('contentOutput'));
+  }
+
   // ------------------------------------------------------------ the page's hooks, from the source
   const qp = js('query-processing.js'), core = js('core.js'), wm = js('workflow-management.js'), nq = js('next-questions.js'), pdf = js('pdf-export.js'), tabsCss = css('tabs.css');
   check('index.html loads the module after selection.js, which asks it; the app starts it', html.indexOf('js/explain.js') > html.indexOf('js/selection.js') && html.indexOf('js/explain.js') < html.indexOf('js/integrations/sweatstack.js')
@@ -413,6 +534,15 @@ async function asked(where, question, answer) {
     /#contentOutput \.xp-mark \{[^}]*border-bottom: 1px dashed var\(--c-model\);[^}]*background: var\(--accent-bg-hover\);[^}]*cursor: pointer; \}/.test(tabsCss)
     && /#contentOutput \.xp-note \{[^}]*border-left: 2px solid var\(--c-model\);[^}]*font-family: var\(--font-ui\);[^}]*white-space: normal;[^}]*\}/.test(tabsCss)
     && tabsCss.includes('#contentOutput .xp-lost {') && tabsCss.includes('#contentOutput .xp-note .live .a { white-space: pre-wrap; }') && tabsCss.includes('#contentOutput .xp-note .live .a::after {'), '');
+  const send = qp.slice(qp.indexOf('function handleQuerySubmit('), qp.indexOf("window.authService.fetch('/query'"));
+  check('a plot\'s chat button puts the plot on the query box: its own question row is gone - markup, handlers, styles - and with it the page\'s way of sending a picture with an analysis',
+    cr.includes('if (plotContainer && window.SelectionUI) window.SelectionUI.plot(plotContainer);') && !cr.includes('handleQuerySubmit(') && send.length > 2000 && !/\bimage\b/.test(send)
+    && [cr, tabsCss, css('styles.css')].every(s => !/plot-query-(form|input|submit)/.test(s)) && (cr.match(/plot-query-btn/g) || []).length === 2, '');
+  check('tabs.css: what was asked about a plot is quiet, as a caption is - no box of its own, no rule between its questions, the open one not in bold -, by rules that come after the note\'s own; the plot\'s button shows '
+    + 'the count of its questions; an answer written without the picture says so in small letters',
+    /\n#content-plot \.xp-note \{ position: static; [^}]*border: none; [^}]*background: none; \}/.test(tabsCss) && tabsCss.includes('\n#content-plot .xp-note details[open] > summary { font-weight: 500; }') && tabsCss.indexOf('\n#content-plot .xp-note {') > tabsCss.indexOf('#contentOutput .xp-note .live .a::after {')
+    && /\n#content-plot \.xp-note details\[open\] \+ details, #content-plot \.xp-note details \+ details\[open\] \{[^}]*border-top: none; \}/.test(tabsCss)
+    && tabsCss.includes('#content-plot .plot-query-btn.asked::after { content: attr(data-n); }') && /#contentOutput \.xp-note \.blind \{[^}]*font-size: var\(--fs-meta\);/.test(tabsCss), '');
 
   let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (typeof d === 'string' ? d : JSON.stringify(d)))); if (!ok) fails++; }
   console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

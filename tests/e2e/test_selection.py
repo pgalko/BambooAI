@@ -3,7 +3,8 @@ mockups; web_app/static/js/selection.js, explain.js). Text selected in the conte
 Ask, Copy - which takes no focus, so the selection stays and copies as on any page. Ask puts the selection on the query
 box as a quote; the question typed there is answered in a few sentences, in a note under the passage, and the passage
 stays marked. No analysis starts. A follow-up is asked the same way: words selected in the note or in the marked
-passage, then Ask.
+passage, then Ask. A plot is asked about whole (2026-11-28): its chat button puts it on the query box, its picture
+goes with the question, and what was asked stands under the plot.
 
 Before, a query popup opened at every mouse-up and took the cursor, which dropped the selection: nothing could be
 copied out of a tab, and the popup lay on the text.
@@ -52,6 +53,11 @@ CODE = ('import pandas as pd\n\ndf = DS.load()\nmeans = df.groupby("regime")["yi
         'gap = means["B"] - means["A"]\nprint(means, gap)\n')
 OUTPUT = "regime B +0.42 t/ha over A  CI [0.18, 0.66]  n=96\nregime C -0.09 t/ha over A  CI [-0.33, 0.15]  n=96\n"
 THREAD, CHAIN = 3, 7
+FIGURE = '{"data": [{"type": "bar", "name": "yield, t/ha", "x": ["regime A", "regime B", "regime C"], "y": [6.1, 6.5, 6.0]}], "layout": {"title": {"text": "Mean yield by regime"}}}'
+# a picture drawn in the page, as a PNG's base64: three bars of the given height
+DRAW = """(tall) => { const c = document.createElement('canvas'); c.width = 600; c.height = 220; const g = c.getContext('2d'); g.fillStyle = '#161616'; g.fillRect(0, 0, 600, 220);
+  [0.7, 0.9, 0.6].forEach((v, i) => { g.fillStyle = ['#6aa0e8', '#7fd6a8', '#e0a860'][i]; g.fillRect(90 + i * 150, 200 - v * tall, 110, v * tall); }); return c.toDataURL('image/png').split(',')[1]; }"""
+PLOTLY = open(os.path.join(ROOT, "tools", "stack", "browser", "libs_stub_plotly.js"), encoding="utf-8").read()      # the stack's stand-in for the library: its address is not reached here
 
 
 def route(r):
@@ -109,6 +115,18 @@ window.T = {
                  html: d.querySelector('.a').innerHTML, cursor: getComputedStyle(d.querySelector('.a'), '::after').content !== 'none' })) })),
              said: document.getElementById('summaryPopup').style.display === 'block' ? document.getElementById('summaryContent').textContent : '' }; },
   at(sel, dx) { const r = document.querySelector(sel).getBoundingClientRect(); return [r.x + (dx || 6), r.y + r.height / 2]; },
+  plots() {            // the plot cards: each with its name, its chat button and what the button says, and what stands under its figure
+    const box = e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
+    return [...document.querySelectorAll('#content-plot .plot-container')].map(c => { const b = c.querySelector('.plot-query-btn'), n = c.querySelector(':scope > .xp-note'), look = n && getComputedStyle(n);
+      return { name: c.querySelector('h3').textContent, button: [box(b).x + box(b).w / 2, box(b).y + box(b).h / 2], count: getComputedStyle(b, '::after').content, look: [getComputedStyle(b).opacity, getComputedStyle(b).pointerEvents],
+        row: c.querySelectorAll('.plot-query-form, .plot-query-input, .plot-query-submit').length,
+        note: n && { k: n.dataset.k, last: c.lastElementChild === n, after: n.previousElementSibling.className, box: box(n), lines: [look.borderTopWidth, look.borderLeftWidth, look.backgroundColor, look.fontSize],
+          asked: [...n.querySelectorAll('details')].map(d => ({ open: d.open, live: d.classList.contains('live'), q: d.querySelector('summary').textContent, a: d.querySelector('.a').textContent,
+            rule: getComputedStyle(d).borderTopWidth, blind: d.querySelector('.blind') ? [d.querySelector('.blind').textContent, getComputedStyle(d.querySelector('.blind')).fontSize] : null })) } }; }); },
+  chip() {             // the quote on the query box: its words, its picture where one is shown, whether the quote mark is
+    const q = document.getElementById('queryQuote'), shot = q.querySelector('img'), b = shot.getBoundingClientRect();
+    return { on: getComputedStyle(q).display !== 'none', words: q.querySelector('.t').textContent, picture: getComputedStyle(shot).display !== 'none' ? shot.getAttribute('src') : '', size: [b.width, b.height],
+             mark: getComputedStyle(q.querySelector('svg')).display !== 'none', focus: document.activeElement.id || document.activeElement.nodeName }; },
   scroller() {         // what scrolls the tab on screen
     let e = document.querySelector('#contentOutput .tab-content.active') || document.getElementById('contentOutput');
     while (e && !(e.scrollHeight > e.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(e).overflowY))) e = e.parentElement;
@@ -123,6 +141,15 @@ Object.defineProperty(navigator, 'clipboard', { value: { writeText: t => { windo
 # it - the answer in pieces, then everything asked about the analysis so far - or as the suite says (window.__explain);
 # what was asked about a chain is given when the page asks for it. No other call is answered, so nothing arrives later
 # to draw the page again under the test (the executor's status check, answered, clears the tabs and opens the Data tab)
+def trim(value):
+    """A value as a check's detail shows it: a picture's base64 cut short."""
+    if isinstance(value, dict):
+        return {k: trim(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [trim(v) for v in value]
+    return value[:48] + "..." if isinstance(value, str) and len(value) > 400 and " " not in value else value
+
+
 SERVER = """window.__sent = []; window.__kept = {}; window.__explain = null; window.__reply = ''; window.__ms = 0;
 window.authService = Object.assign(window.authService || {}, { fetch: (url, opts) => {
   const body = opts && opts.body ? JSON.parse(opts.body) : null; window.__sent.push([url, body]);
@@ -132,7 +159,8 @@ window.authService = Object.assign(window.authService || {}, { fetch: (url, opts
 window.__stream = body => { const key = String(body.chain_id), enc = new TextEncoder(), text = window.__reply, ms = window.__ms, pieces = text.match(/\\S+\\s*/g) || [];
   return Promise.resolve(new Response(new ReadableStream({ start(c) { let i = 0; const step = () => {
     if (i < pieces.length) { c.enqueue(enc.encode(JSON.stringify({ text: pieces[i++], chain_id: 99 }) + '\\n')); setTimeout(step, ms); return; }
-    const kept = (window.__kept[key] = (window.__kept[key] || []).concat([{ tab: body.tab, view: body.view, passage: body.passage, at: body.at, quote: body.quote, question: body.question, answer: text, cost: 0.003, when: 1, chain: 99 }]));
+    const kept = (window.__kept[key] = (window.__kept[key] || []).concat([Object.assign({ tab: body.tab, view: body.view, passage: body.passage, at: body.at, quote: body.quote, question: body.question, answer: text,
+      cost: 0.003, when: 1, chain: 99 }, body.tab === 'plot' && !body.image ? { blind: true } : {})]));      // a plot asked about without its picture: answered blind, as the server keeps it
     c.enqueue(enc.encode(JSON.stringify({ explain: { asked: kept } }) + '\\n')); c.close(); }; step(); } }))); };"""
 # a finished analysis: its tabs drawn by the page's own functions, and the chain kept as the page keeps one when its run ends
 FILL = """([answer, plain, code, output, thread, chain]) => {
@@ -152,11 +180,11 @@ KEEP = """() => { responses.push({ chain_id: currentData.chain_id, thread_id: cu
 class Page:
     """The app's page, started, with a finished analysis on it; the mouse as a person moves it."""
 
-    def __init__(self, browser, finished=True):
+    def __init__(self, browser, finished=True, plots=False):
         self.errors = []
         self.page = browser.new_page(viewport={"width": 1440, "height": 900})
         self.page.on("pageerror", lambda e: self.errors.append(str(e)))
-        self.page.add_init_script(LIBRARIES)
+        self.page.add_init_script(LIBRARIES + (PLOTLY if plots else ""))
         self.page.route("**/*", route)
         self.page.goto("http://app.local/")
         self.page.wait_for_timeout(600)
@@ -168,6 +196,11 @@ class Page:
         self.page.evaluate(FILL, [ANSWER, PLAIN, CODE, OUTPUT, THREAD, CHAIN])
         self.page.wait_for_timeout(400)
         self.page.evaluate(PLAIN_READY)
+        if plots:                                          # two plots, drawn by the page's own function: a picture, and a figure the library draws
+            self.pictures = [self.page.evaluate(DRAW, tall) for tall in (200, 120)]
+            self.page.evaluate("([png, figure]) => { document.getElementById('content-plot').innerHTML = ''; createOrUpdateTab('plot', png, 'plot_1', 'png'); createOrUpdateTab('plot', figure, 'plot_2', 'json'); }",
+                               [self.pictures[0], FIGURE])
+            self.page.wait_for_timeout(300)
         if finished:
             self.page.evaluate(KEEP)
         self.offline = len(self.errors)                    # the libraries that are not reached here have said so by now
@@ -221,6 +254,21 @@ class Page:
 
     def asked(self):
         return [body for url, body in self.page.evaluate("window.__sent") if url == "/explain"]
+
+    def plots(self):
+        return self.page.evaluate("T.plots()")
+
+    def chip(self):
+        return self.page.evaluate("T.chip()")
+
+    def ask_plot(self, n, question, reply=REPLY, ms=0, wait=500):
+        """The n-th plot's chat button pressed, the question typed and sent; the server will answer with `reply`."""
+        self.page.evaluate("([reply, ms]) => { window.__reply = reply; window.__ms = ms; }", [reply, ms])
+        self.click(self.plots()[n]["button"])
+        self.page.wait_for_timeout(150)
+        self.page.keyboard.type(question)
+        self.page.click("#submitQuery")
+        self.page.wait_for_timeout(wait)
 
     def close(self):
         self.page.close()
@@ -356,7 +404,7 @@ with sync_playwright() as pw:
     p.elsewhere()
     p.tab("plot")
     s = p.select("Yield by regime")
-    check("the Plots tab, whose figures have their own question row: no bar", not s["on"] and s["selected"] == "Yield by regime", s)
+    check("words selected on the Plots tab that are no part of what was asked there: the bar copies only", s["on"] and not s["asks"] and s["selected"] == "Yield by regime", s)
     p.elsewhere()
     p.tab("brief")
     s = p.select("which regime to keep")
@@ -623,11 +671,138 @@ with sync_playwright() as pw:
     p.page.wait_for_timeout(300)
     s = p.state()
     check("a quote with no question typed is not sent, and stays on the box", p.sent() == [] and p.asked() == [] and s["quote"]["on"] and p.notes()["marks"] == [], (p.sent(), s))
-    p.page.evaluate("document.getElementById('queryInput').value = 'What does the plot show?'; handleQuerySubmit({ image: 'AAAA' });")
+    p.page.evaluate("document.getElementById('queryInput').value = 'What does the plot show?'; handleQuerySubmit({});")
     p.page.wait_for_timeout(300)
     s = p.state()
-    check("a plot's own question takes the box as it always did - an analysis, without the passage - and the quote leaves: an analysis has begun, and the passage was another one's",
-          [(x["query"], x.get("image")) for x in p.sent()] == [("What does the plot show?", "AAAA")] and p.asked() == [] and s["box_text"] == "" and not s["quote"]["on"], (p.sent(), s))
+    check("a send that is not the composer's own takes the box as it always did - an analysis, without the passage - and the quote leaves: an analysis has begun, and the passage was another one's",
+          [x["query"] for x in p.sent()] == ["What does the plot show?"] and p.asked() == [] and s["box_text"] == "" and not s["quote"]["on"], (p.sent(), s))
+    p.close()
+
+    # ---- a plot asked about: its chat button puts it on the query box, the question goes with its picture, the answer stands under the plot
+    p = Page(browser, plots=True)
+    p.tab("plot")
+    cards = p.plots()
+    check("the Plots tab: each plot is a card with its chat button; the question row a card had is gone, and nothing was asked yet",
+          [c["name"] for c in cards] == ["Plot 1:", "Plot 2:"] and all(c["row"] == 0 and c["note"] is None and c["count"] == "none" and c["look"][1] == "auto" for c in cards)
+          and p.page.evaluate("!!document.querySelector('#content-plot .plot-container:nth-child(2) .js-plotly-plot svg')"), cards)
+    s = p.click(cards[0]["button"])
+    p.page.wait_for_timeout(200)
+    chip = p.chip()
+    check("a plot's chat button: the plot is on the query box - its name, and its picture in the quote mark's place -, the cursor in the box; nothing is sent, no bar comes up",
+          chip == {"on": True, "words": "Plot 1", "picture": "data:image/png;base64," + p.pictures[0], "size": [46, 20], "mark": False, "focus": "queryInput"} and not s["on"] and p.asked() == [] and p.sent() == [], trim((chip, s["on"])))
+    if SHOTS:
+        p.page.screenshot(path=os.path.join(SHOTS, "plot_quote.png"), clip={"x": 47, "y": 740, "width": 634, "height": 160})
+    p.page.evaluate("([reply, ms]) => { window.__reply = reply; window.__ms = ms; }", ["The bars are the mean yield of each regime. Regime `B` is the tallest.", 150])
+    p.page.keyboard.type("What do the bars show?")
+    p.page.click("#submitQuery")
+    p.page.wait_for_timeout(450)
+    live, chip = p.plots()[0], p.chip()
+    p.page.wait_for_timeout(2600)
+    card, other, n = p.plots()[0], p.plots()[1], p.notes()
+    check("the question sent: it is asked about the plot - its place, its name, and its picture as it is on screen - and no analysis starts; the quote leaves the box. The answer is written under the "
+          "plot's figure as it comes",
+          p.asked() == [{"thread_id": THREAD, "chain_id": CHAIN, "tab": "plot", "view": "", "passage": "Plot 1", "at": 0, "quote": "Plot 1", "question": "What do the bars show?", "image": p.pictures[0]}]
+          and p.sent() == [] and chip["on"] is False and chip["picture"] == "" and p.state()["box_text"] == ""
+          and live["note"] and [(a["q"], a["open"], a["live"]) for a in live["note"]["asked"]] == [("What do the bars show?", True, True)] and 0 < len(live["note"]["asked"][0]["a"]) < 60, trim((p.asked(), chip, live)))
+    check("... and stands there when it is done: in the plot's card, after the figure and the last thing in it; quiet - no box of its own, no ground; in view. The plot's button says one "
+          "question; nothing is marked, and the other plot has nothing",
+          card["note"]["last"] and card["note"]["after"] == "plot-content" and card["note"]["lines"] == ["0px", "0px", "rgba(0, 0, 0, 0)", "13px"] and card["note"]["box"]["y"] + card["note"]["box"]["h"] <= 900
+          and [(a["q"], a["open"], a["live"], a["a"], a["blind"]) for a in card["note"]["asked"]] == [("What do the bars show?", True, False, "The bars are the mean yield of each regime. Regime B is the tallest.", None)]
+          and card["count"] == '"1"' and n["marks"] == [] and other["note"] is None and other["count"] == "none", (card, other, n["marks"]))
+    if SHOTS:
+        p.page.mouse.move(1300, 60)
+        p.page.screenshot(path=os.path.join(SHOTS, "plot_note.png"), clip={"x": 681, "y": 82, "width": 759, "height": 420})
+    s = p.select("the mean yield")
+    asks = s["asks"]
+    p.click(s["ask"])
+    p.page.wait_for_timeout(200)
+    chip = p.chip()
+    p.page.evaluate("window.__reply = 'Of the plots under each regime, in t/ha.'; window.__ms = 0;")
+    p.page.keyboard.type("The mean of what?")
+    p.page.click("#submitQuery")
+    p.page.wait_for_timeout(500)
+    card = p.plots()[0]
+    check("words selected in what stands under a plot: the bar has Ask; they go on the query box with the plot's picture, and the question is a follow-up about the plot - sent with the picture again. "
+          "Its answer joins the plot's note, the earlier question one line with no rule between the two, and the button says two",
+          asks and chip["words"] == "the mean yield" and chip["picture"] == "data:image/png;base64," + p.pictures[0] and chip["mark"] is False
+          and {k: v for k, v in p.asked()[1].items() if k != "question"} == {"thread_id": THREAD, "chain_id": CHAIN, "tab": "plot", "view": "", "passage": "Plot 1", "at": 0, "quote": "the mean yield", "image": p.pictures[0]}
+          and [(a["q"], a["open"], a["rule"]) for a in card["note"]["asked"]] == [("What do the bars show?", False, "0px"), ("The mean of what?", True, "0px")] and card["count"] == '"2"', trim((asks, chip, p.asked()[1:], card)))
+    p.page.click("#content-plot .plot-container .xp-note details[open] summary")
+    p.page.evaluate("() => { document.querySelector('#content-answer .markdown-content').appendChild(document.createElement('i')); }")
+    p.page.wait_for_timeout(200)
+    shut = [a["open"] for a in p.plots()[0]["note"]["asked"]]
+    check("a click on a question shuts it, and it stays shut when the page is looked over again - here because the Answer tab was drawn on", shut == [False, False], shut)
+
+    # the figure the library draws: its picture is the library's, taken as the question is sent
+    p.page.evaluate("(png) => { window.__shots = []; Plotly.toImage = (el, how) => { window.__shots.push([el.id, el.classList.contains('js-plotly-plot'), how]); return Promise.resolve('data:image/png;base64,' + png); }; }", p.pictures[1])
+    p.click(p.plots()[1]["button"])
+    p.page.wait_for_timeout(250)
+    chip, before = p.chip(), len(p.page.evaluate("window.__shots"))
+    p.page.evaluate("window.__reply = 'The same means, drawn by the library.'; window.__ms = 0;")
+    p.page.keyboard.type("And this one?")
+    p.page.click("#submitQuery")
+    p.page.wait_for_timeout(500)
+    cards, shots = p.plots(), p.page.evaluate("window.__shots")
+    check("a figure the library draws: its picture is what the library takes of the figure - of the plot's own element, as a PNG - for the quote, and again as the question is sent; each plot has its own "
+          "note, both there, and the one just asked about is brought into view",
+          chip["words"] == "Plot 2" and chip["picture"] == "data:image/png;base64," + p.pictures[1] and before == 1 and shots == [["plotly-container-plot_2", True, {"format": "png"}]] * 2
+          and p.asked()[2] == {"thread_id": THREAD, "chain_id": CHAIN, "tab": "plot", "view": "", "passage": "Plot 2", "at": 0, "quote": "Plot 2", "question": "And this one?", "image": p.pictures[1]}
+          and [a["q"] for a in cards[1]["note"]["asked"]] == ["And this one?"] and cards[1]["count"] == '"1"' and len(cards[0]["note"]["asked"]) == 2 and cards[0]["count"] == '"2"'
+          and 82 <= cards[1]["note"]["box"]["y"] and cards[1]["note"]["box"]["y"] + cards[1]["note"]["box"]["h"] <= 900, trim((chip, shots, p.asked()[2:], cards)))
+    p.page.evaluate("() => { Plotly.toImage = () => Promise.reject(new Error('no canvas')); }")
+    p.click(p.plots()[1]["button"])
+    p.page.wait_for_timeout(250)
+    chip = p.chip()
+    p.page.evaluate("window.__reply = 'From the code: one bar for each regime.'; window.__ms = 0;")
+    p.page.keyboard.type("How many bars?")
+    p.page.click("#submitQuery")
+    p.page.wait_for_timeout(500)
+    last = p.plots()[1]["note"]["asked"][-1]
+    check("a plot whose picture cannot be taken is quoted by its name alone, beside the quote mark, and asked about without a picture; the answer written without it says so under itself, in small letters",
+          chip["words"] == "Plot 2" and chip["picture"] == "" and chip["mark"] is True and p.asked()[3]["image"] is None and p.asked()[3]["passage"] == "Plot 2"
+          and (last["q"], last["a"], last["blind"]) == ("How many bars?", "From the code: one bar for each regime.", ["Answered without the picture.", "12px"]) and p.plots()[1]["count"] == '"2"', trim((chip, p.asked()[3], last)))
+
+    # the chain shown again: the plots are drawn anew from the chain's copy, and what was asked about them is the server's
+    p.page.evaluate("loadResponseContent(responses[0]); activateTab('plot');")
+    p.page.wait_for_timeout(900)
+    again = p.plots()
+    p.click(again[0]["button"])
+    p.page.wait_for_timeout(200)
+    chip = p.chip()
+    p.click(p.state()["quote"]["remove"])
+    off = p.chip()
+    check("the chain shown again: its plots are drawn anew and what was asked about each stands under it again, the newest question open, the counts on the buttons; a button still quotes its plot. "
+          "The quote's × takes the plot off the box, its picture with it",
+          [c["name"] for c in again] == ["Plot 1:", "Plot 2:"] and [[(a["q"], a["open"]) for a in c["note"]["asked"]] for c in again]
+          == [[("What do the bars show?", False), ("The mean of what?", True)], [("And this one?", False), ("How many bars?", True)]] and [c["count"] for c in again] == ['"2"', '"2"']
+          and again[1]["note"]["asked"][1]["blind"] == ["Answered without the picture.", "12px"] and chip["words"] == "Plot 1" and chip["picture"].endswith(p.pictures[0])
+          and (off["on"], off["picture"], off["focus"]) == (False, "", "queryInput"), trim((again, chip, off)))
+    p.page.keyboard.type("Draw the bars side by side")
+    p.page.click("#submitQuery")
+    p.page.wait_for_timeout(300)
+    check("with the plot off the box, a question typed is one for an analysis - to change a plot, say - and goes alone: no picture rides with an analysis",
+          [sorted(x) for x in p.sent()] == [["chain_id", "max_investigations", "mode", "query", "thread_id"]] and p.sent()[0]["query"] == "Draw the bars side by side" and len(p.asked()) == 4, p.sent())
+    check("nothing went wrong on the page with the plots", p.errors[p.offline:] == [], p.errors[p.offline:])
+    p.close()
+
+    p = Page(browser, plots=True)
+    p.tab("plot")
+    p.page.evaluate("queryRunning = true")
+    s = p.click(p.plots()[0]["button"])
+    p.page.wait_for_timeout(200)
+    busy = (p.chip()["on"], p.notes()["said"])
+    p.page.evaluate("queryRunning = false; document.body.classList.add('composer-locked')")
+    look = p.plots()[0]["look"]
+    p.click(p.plots()[0]["button"])
+    p.page.wait_for_timeout(200)
+    held = p.chip()["on"]
+    p.page.evaluate("document.body.classList.remove('composer-locked')")
+    p.click(p.plots()[0]["button"])
+    p.page.wait_for_timeout(200)
+    check("while an analysis runs a plot is not quoted, and the page says why; while the query box is held - a routine's run on screen, the Pathfinder replying - a plot's button is greyed and takes no "
+          "press; otherwise it quotes its plot",
+          busy == (False, "System MessageA plot can be asked about once its analysis has finished.") and look == ["0.4", "none"] and held is False and p.chip()["words"] == "Plot 1" and p.asked() == [], trim((busy, look, held, p.chip())))
+    check("nothing went wrong on this page", p.errors[p.offline:] == [], p.errors[p.offline:])
     p.close()
 
     p = Page(browser)

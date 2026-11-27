@@ -79,7 +79,7 @@ the step; going back to turn 5 keeps the step and has it corrected. It is one mo
     they are drawn in -; one panel for the three maps, in one type size; a click picks a box, the panel's button or
     a double click goes there.
 
-Not in the first version: a routine's run; an analysis started from *Ask AI about this plot*; branching while the
+Not in the first version: a routine's run; an analysis that was given a picture (until 0363 a plot's chat button started one); branching while the
 analysis runs (a stopped analysis can be gone on from). The data the analysis ran on must be loaded.
 
 ## 3. The kernel's states (0318, built)
