@@ -583,6 +583,7 @@ async function handlePDFExport(event) {
         
         // Clone and add content; the body's own title line comes off - the head carries it (2026-10-17)
         const contentClone = answerContent.cloneNode(true);
+        if (window.ExplainUI) window.ExplainUI.plain(contentClone);      // what was asked about a passage is the page's, not the report's
         dropBodyTitle(contentClone, headModel.title);
         
         // Remove buttons and interactive elements

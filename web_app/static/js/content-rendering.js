@@ -177,23 +177,16 @@ async function updateTabContent(type, data, id = null, format = null) {
             // heading mid-page. The Synthesis label stays as it was.
             content = answerTabSynthesis ? '<h3>Synthesis:</h3>' : '<h3 class="answer-tab-anchor"></h3>';
             
-            // First protect LaTeX content
-            const { text: protectedContent, placeholders } = protectLatexDelimiters(data);
-            
-            // Parse markdown
-            let parsedContent = marked.parse(protectedContent);
-            
-            // Transform chain ID references to clickable links (for synthesis)
-            parsedContent = transformChainIdReferences(parsedContent);
-            
+            // The markdown as HTML, its chain ids as links (for a synthesis); then the citation chips - [cell 7], [fig 7],
+            // [D1.17] - as part of the HTML itself, so the stored technical answer carries them through toggles and
+            // re-renders (stream-pane.js, 2026-10-03)
+            let finalContent = markdownToHtml(data, transformChainIdReferences);
+
             // Reset synthesis flag after processing
             if (answerTabSynthesis) {
                 answerTabSynthesis = false;
             }
-            
-            // Restore LaTeX content; then the citation chips - [cell 7], [fig 7], [D1.17] - as part of the HTML itself, so
-            // the stored technical answer carries them through toggles and re-renders (stream-pane.js, 2026-10-03)
-            let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+
             // the report's sources (0340): the host sends them with the report's head, as data - the chips in the text and the list
             // under it are drawn from them
             const sources = (currentData.reportHead && currentData.reportHead.sources) || [];
@@ -648,6 +641,14 @@ function restoreLatexDelimiters(text, placeholders) {
     return restoredText;
 }
 
+// Markdown as the page's HTML, its formulas left for KaTeX: what stands between LaTeX delimiters is kept from the
+// markdown parser. `then`: what is done to the HTML before the formulas are put back
+function markdownToHtml(text, then) {
+    const { text: guarded, placeholders } = protectLatexDelimiters(text);
+    const html = marked.parse(guarded);
+    return restoreLatexDelimiters(typeof then === 'function' ? then(html) : html, placeholders);
+}
+
 function renderLatex(element) {
     if (!element) return;
     
@@ -682,11 +683,12 @@ function initializeCodeTab() {
     const copyButton = header.querySelector('.copy-button');
     const downloadButton = header.querySelector('.download-button');
     const codeElement = header.nextElementSibling.querySelector('code');
+    const source = codeElement.textContent;      // the script as it was drawn: a note opened in it later (explain.js) is no part of it
 
     hljs.highlightElement(codeElement);
 
     copyButton.addEventListener('click', () => {
-        navigator.clipboard.writeText(codeElement.textContent)
+        navigator.clipboard.writeText(source)
             .then(() => {
                 const copyIcon = copyButton.querySelector('.copy-icon');
                 const checkIcon = copyButton.querySelector('.check-icon');
@@ -704,7 +706,7 @@ function initializeCodeTab() {
         // the script as a file, named after the chain (the question's first words) when there is one
         const words = ((typeof currentData !== 'undefined' && currentData && currentData.queryText) || '').toLowerCase()
             .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').split('_').filter(Boolean).slice(0, 5).join('_');
-        const url = URL.createObjectURL(new Blob([codeElement.textContent], { type: 'text/x-python' }));
+        const url = URL.createObjectURL(new Blob([source], { type: 'text/x-python' }));
         const a = document.createElement('a');
         a.href = url;
         a.download = (words || 'analysis') + '.py';
@@ -784,9 +786,7 @@ function handleSimplifiedSummaryToggle() {
         // Switch to simplified
         if (currentData.simplifiedAnswer) {
             // Format and display simplified content
-            const { text: protectedContent, placeholders } = protectLatexDelimiters(currentData.simplifiedAnswer);
-            let parsedContent = marked.parse(protectedContent);
-            let finalContent = restoreLatexDelimiters(parsedContent, placeholders);
+            let finalContent = markdownToHtml(currentData.simplifiedAnswer);
             // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
             const sources = (currentData.reportHead && currentData.reportHead.sources) || [];      // the report's, under both versions (0340)
             if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent, sources);

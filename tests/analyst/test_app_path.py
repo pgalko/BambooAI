@@ -34,6 +34,8 @@ class FakeModels:
         user = raw if isinstance(raw, str) else "\n".join(str(p.get("text") or "") for p in raw if isinstance(p, dict) and p.get("type") == "text")
         if messages[0]["content"].startswith("You are given a task as an analyst will be given it") and state.get("cold") and isinstance(state["cold"][0], Exception):
             raise state["cold"].pop(0)                  # the provider fails: the model layer logs a call that came back, so nothing is logged or counted
+        if messages[0]["content"].startswith("You explain") and state.get("explain") and isinstance(state["explain"][0], Exception):
+            raise state["explain"].pop(0)               # ... and so for an explanation
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
@@ -47,6 +49,11 @@ class FakeModels:
             from bambooai.models import prompt_cache
             prompt_cache.reset()
             return state["next"].pop(0)
+        if messages[0]["content"].startswith("You explain"):
+            state.setdefault("explain_seen", []).append((agent, kw, chain_id, messages[0]["content"], user))
+            from bambooai.models import prompt_cache
+            prompt_cache.reset()
+            return state["explain"].pop(0)
         if messages[0]["content"].startswith(("You look things up in a person's saved analyses", "You read saved analyses for another model")):
             state.setdefault("memory_seen", []).append((agent, kw.get("label"), chain_id, messages[0]["content"], user))
             state.setdefault("memory_effort", []).append(kw.get("reasoning_effort"))
@@ -2031,6 +2038,95 @@ try:
           _cand.parent == str(_c2) and _cand.status == "answered" and _cand.question == "Is B above A in each half?" and _cand.brief == {} and _cand.framing == {}
           and _marks27 == [[None, _cand.id], [None]] and _thread_file()[str(_c2)]["next_questions"][0]["questions"][1]["ran"] == _cand.id
           and [[qn.get("ran") for qn in s["questions"]] for s in _ran2.next_questions] == _marks27 and BAMBOO.notebook.runs[str(BAMBOO.chain_id)].status == "answered", (_cand.parent, _marks27, _cand.brief))
+    # ---- a passage explained (0362): a question about a passage of a finished analysis is one call on the Pathfinder's seat, under a chain of its own, and is kept with the run
+    import explain_routes as ER
+    import time as _time30, inspect as _insp30
+    from analyst import explain as _ex
+    sys.modules["app"].user_path = lambda kind: os.path.join(work, kind, "u1")
+    _we = Flask("te"); _we.secret_key = "t"; _we.register_blueprint(ER.explain_bp); _wec = _we.test_client()
+    with _wec.session_transaction() as _sess: _sess["session_id"] = "s1"
+    def _explain(payload):
+        r = _wec.post("/explain", json=payload)
+        return r.status_code, [json.loads(ln) for ln in r.get_data(as_text=True).splitlines() if ln.strip()]
+    _ask30 = {"thread_id": "1077", "chain_id": _c2, "tab": "answer", "view": "technical", "passage": "B is above A", "at": 0, "quote": " above A ", "question": "Above by how much?", "more": 1}
+    _place30 = {"tab": "answer", "view": "technical", "passage": "B is above A", "at": 0}
+    state["explain"], state["explain_seen"] = ["  By the gap the report states.\n"], []
+    _p30, _log30 = _ex.prompt(BAMBOO.notebook, _ran2, _ex.taken(_ask30)), _logged(_c2)
+    BAMBOO.kill_signal = True; BAMBOO._stop_event.set()                       # a run stopped earlier left the signal set
+    _n30, _chain30, _charged30, _runs30, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, list(_charged), len(BAMBOO.notebook.runs), []
+    _st30, _ln30 = _explain(_ask30)
+    _seat30, _kw30, _on30, _sys30, _user30 = state["explain_seen"][-1]
+    _x30 = _ran2.explained[0] if _ran2.explained else {}
+    check("/explain: a stream that ends on everything asked about the analysis. One model call - the explanation's instructions and its prompt, on the analyst's seat at a lowered effort, logged as the "
+          "Explainer's under a chain of its own, which is no run of the thread - and that chain is charged at once; the query is counted",
+          _st30 == 200 and _ln30[-1] == {"explain": {"asked": [_x30]}} and len(state["calls"]) == _n30 + 1 and _seat30 == "Investigator" and _kw30.get("label") == "Explainer"
+          and _kw30.get("reasoning_effort") == ("low", "medium") and _sys30 == _ex.SYSTEM and _user30 == _p30 and _user30.endswith("\n\nWHERE: in the Answer tab, the technical report\n\nPASSAGE:\nabove A\n\nASKED:\nAbove by how much?")
+          and "CONVERSATION" not in _user30 and _on30 not in (int(_c2), _chain30) and str(_on30) not in BAMBOO.notebook.runs and len(BAMBOO.notebook.runs) == _runs30 and _logged(_on30) == ["Explainer"]
+          and _logged(_c2) == _log30 and _charged == _charged30 + [_on30] and _auth["counted"] == [True], (_st30, _ln30[-1], _seat30, _kw30, _on30, _charged[len(_charged30):], _auth["counted"], _user30[-300:]))
+    _cost30 = float((BAMBOO.log_and_call_manager.token_summary.get(_on30) or {}).get("total_cost") or 0)
+    check("the exchange is kept with the analysis, on the record: where the passage stands, the words selected, the question and the answer - nothing else of the request -, what its call cost and the "
+          "chain the call was logged under. The instance is where it was - its own chain, no stop signal left",
+          {k: v for k, v in _x30.items() if k not in ("when", "cost")} == {**_place30, "quote": "above A", "question": "Above by how much?", "answer": "By the gap the report states.", "chain": _on30}
+          and _cost30 > 0 and _x30["cost"] == round(_cost30, 4) != round(BAMBOO._chain_cost(), 4) and abs(_x30["when"] - _time30.time()) < 60 and _thread_file()[str(_c2)]["explained"] == [_x30]
+          and BAMBOO.chain_id == _chain30 and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set(), (_x30, BAMBOO.chain_id, _chain30))
+    state["explain"] = ["The one between the two means.", "The means by arm."]
+    _st31, _ln31 = _explain({**_ask30, "chain_id": str(_c2), "quote": "the gap", "question": "Which gap?"})
+    _on31, _user31 = state["explain_seen"][-1][2], state["explain_seen"][-1][4]
+    _st32, _ln32 = _explain({"thread_id": "1077", "chain_id": _c2, "tab": "code", "passage": "m['B']", "at": 1, "question": "What is m?"})
+    _on32, _user32 = state["explain_seen"][-1][2], state["explain_seen"][-1][4]
+    check("more questions about the same analysis are one conversation: each call is given everything asked before - a follow-up at a passage asked about before says so, by its number - and has a "
+          "chain of its own, charged in its turn; a passage of the code has no version, and the words selected are the passage where none are given. The stream ends on all of it, in the order asked",
+          _st31 == _st32 == 200 and _ln31[-1]["explain"]["asked"] == _ran2.explained[:2] and _ln32[-1]["explain"]["asked"] == _ran2.explained and len(_ran2.explained) == 3
+          and _user31.endswith("CONVERSATION (what the person asked about this analysis before, oldest first):\n[1] Selected in the Answer tab, the technical report: above A\n    Asked: Above by how much?\n"
+                               "    You answered: By the gap the report states.\n\nWHERE: at the passage of [1] again\n\nPASSAGE:\nthe gap\n\nASKED:\nWhich gap?")
+          and _user32.endswith("\n[2] Selected at the passage of [1] again: the gap\n    Asked: Which gap?\n    You answered: The one between the two means.\n\nWHERE: in the Code tab\n\nPASSAGE:\nm['B']\n\nASKED:\nWhat is m?")
+          and {k: v for k, v in _ran2.explained[2].items() if k not in ("when", "cost")} == {"tab": "code", "view": "", "passage": "m['B']", "at": 1, "quote": "m['B']", "question": "What is m?",
+                                                                                               "answer": "The means by arm.", "chain": _on32}
+          and len({_on30, _on31, _on32}) == 3 and _charged == _charged30 + [_on30, _on31, _on32] and _thread_file()[str(_c2)]["explained"] == _ran2.explained and _user31.startswith(_user30.split("\n\nWHERE: ")[0]),
+          (_ln32[-1], _user31[-300:], _user32[-300:]))
+    _n33, _auth["counted"] = len(state["calls"]), []
+    _g33 = [_wec.get(u) for u in (f"/explain/1077/{_c2}", "/explain/1077/999999", f"/explain/1077/{_c6}", f"/explain/31337/{_c2}")]
+    check("GET /explain/<thread>/<chain>: what was asked about an analysis, as the thread's record has it - the page draws it when it shows the chain again. Nothing for a chain the thread's record "
+          "does not hold, nor for the same chain asked of another thread. It is read from the record: no model is called, no query counted, and the instance is not moved",
+          [g.status_code for g in _g33] == [200] * 4 and [g.get_json() for g in _g33] == [{"asked": _ran2.explained}, {"asked": []}, {"asked": []}, {"asked": []}] and len(_ran2.explained) == 3
+          and len(state["calls"]) == _n33 and _auth["counted"] == [] and BAMBOO.notebook.thread_id == "1077" and not os.path.exists(os.path.join(work, "storage", "u1", "threads", "31337.json")),
+          [g.get_json() for g in _g33][1:])
+    state["explain"] = ["", "  \n"]
+    _n34 = len(state["calls"])
+    _st34, _ln34 = _explain({**_ask30, "question": "And again?"})
+    _on34 = state["explain_seen"][-1][2]
+    _n35, _charged35 = len(state["calls"]), list(_charged)
+    _st35, _ln35 = _explain({**_ask30, "chain_id": "999999"})
+    _st36, _ln36 = _explain({**_ask30, "chain_id": _c6})
+    _r37 = [_wec.post("/explain", json=p) for p in ({k: v for k, v in _ask30.items() if k != "thread_id"}, {k: v for k, v in _ask30.items() if k != "chain_id"}, {**_ask30, "tab": "plot"},
+                                                    {**_ask30, "view": ""}, {**_ask30, "at": "0"}, {**_ask30, "passage": "x" * 8001}, {**_ask30, "question": "  "})]
+    _auth["counted"], _auth["refuse"] = [], ({"error": "authorization_failed", "message": "You need $0.010 per query but your balance is $0.00. Please add funds to continue."}, 403)
+    _r38 = _wec.post("/explain", json=_ask30)
+    _auth["refuse"] = None
+    state["explain"] = [RuntimeError("the provider is away")]
+    _st39, _ln39 = _explain({**_ask30, "question": "And now?"})
+    _kept39, _ran2.explained = list(_ran2.explained), [_ran2.explained[0]] * _ex.EXCHANGES
+    _n40, _charged40 = len(state["calls"]), list(_charged)
+    _st40, _ln40 = _explain({**_ask30, "question": "Once more?"})
+    _ran2.explained = _kept39
+    check("/explain, no answer made: a reply empty twice ends on the reason, its two calls logged under their chain and charged, and nothing is kept; a chain that is not on the record, or is a brief "
+          "not yet run, ends on that in words, with no call and no charge; a request without its thread or chain, with a place that is none, a selection too long or no question is refused outright, "
+          "the reason in words; a refusal of the account's is passed on, with no call; a failure of the call is said, and nothing was logged to charge; an analysis asked about as often as one may "
+          "be is asked about no more - no call, no charge",
+          _st34 == 200 and _ln34[-1] == {"explain": {"error": "No explanation was written: the model's reply could not be used (it is empty)."}} and _n35 == _n34 + 2 and _logged(_on34) == ["Explainer"] * 2
+          and _charged35 == _charged30 + [_on30, _on31, _on32, _on34] and len(_kept39) == 3
+          and _ln35[-1] == _ln36[-1] == {"explain": {"error": "This analysis is no longer on record: nothing can be asked about it."}}
+          and [r.status_code for r in _r37] == [400] * 7 and [r.get_json()["error"] for r in _r37] == ["The thread and the chain are needed."] * 2 + [_ex.NO_PLACE] * 3 + [_ex.TOO_LONG, _ex.NO_QUESTION]
+          and _r38.status_code == 403 and _r38.get_json()["message"].startswith("You need $0.010") and _auth["counted"] == [True, True, True]
+          and _ln39[-1] == {"explain": {"error": "No explanation was written: the provider is away"}} and _ln40[-1] == {"explain": {"error": "This analysis was asked about 100 times, and that is the most."}}
+          and len(state["calls"]) == _n40 and _charged40 == _charged35 == _charged and _thread_file()[str(_c2)]["explained"] == _kept39,
+          (_ln34[-1], _ln35[-1], _ln36[-1], [r.get_json() for r in _r37], _r38.status_code, _auth["counted"], _ln39[-1], _ln40[-1], len(state["calls"]) - _n35, _charged[len(_charged30):]))
+    _routes_ex = open(os.path.join(ROOT, "web_app", "explain_routes.py"), encoding="utf-8").read()
+    _app_ex = open(os.path.join(ROOT, "web_app", "app.py"), encoding="utf-8").read()
+    check("the app serves the two routes, each behind the sign-in; the instance makes a call beside a finished analysis in one place, for a set of next questions and for an explanation alike",
+          "from explain_routes import explain_bp" in _app_ex and "app.register_blueprint(explain_bp)" in _app_ex and _routes_ex.count("@requires_auth") == _routes_ex.count("@explain_bp.route(") == 2
+          and _insp30.getsource(B.BambooAI.next_questions).count("self._beside(") == 1 == _insp30.getsource(B.BambooAI.explain).count("self._beside(")
+          and "charge_for_completed_query" not in _insp30.getsource(B.BambooAI.next_questions) + _insp30.getsource(B.BambooAI.explain), None)
     _charged28 = list(_charged)
     BAMBOO.cleanup()
     check("a brief the Pathfinder talked in and no analysis followed: its calls are charged when the instance is torn down, once",

@@ -397,6 +397,7 @@ SEARCH_REPLY = {
 # next questions (docs/ARCHITECT_DESIGN.md §2.7): what the scripted Pathfinder asks from a line of each kind, as the prompt names the
 # kinds (analyst/next_questions.py SAID) - a title, and the question around the line's own words
 NEXT_MISFIT = "The gap is not the same on every soil"        # the misfit the briefed report plants, from the gap by soil its cell printed
+EXPLAINED = "The words selected: {passage}. They stand {where}. Questions before this one: {before}."      # an explanation says back what its prompt gave it
 NEXT_FROM = {"Did not fit": ("What did not fit", "What lies behind this: {t}?"),
              "Rests on": ("What it rests on", "Does the answer change without this: {t}?"),
              "Would change their mind": ("The other result", "How close did the result come to this: {t}?"),
@@ -437,6 +438,8 @@ class Scenario:
             return "", self.architect(user)
         if system.startswith("You propose the questions to analyse next"):
             return "", self.next_questions(user)
+        if system.startswith("You explain"):
+            return "", self.explain(user)
         if system.startswith("You are drawing the figures"):
             return "", self.figures(user)
         if system.startswith("You draw a draft of the figures"):
@@ -452,6 +455,14 @@ class Scenario:
         if system.startswith("You are preparing an analysis so that it can be run again"):
             return "", self.promoter(user, system)
         return "", "OK"
+
+    # ------------------------------------------------------------ a passage explained (analyst/explain.py)
+    def explain(self, user):
+        """An explanation, read off its prompt: it says back the words the person selected, where the prompt says they
+        stand, and how many questions the conversation holds - so a walk can tell that each of them reached the model."""
+        where = (re.search(r"^WHERE: (.*)$", user, re.M) or [None, ""])[1]
+        passage = (re.search(r"^PASSAGE:\n(.*?)\n\nASKED:\n", user, re.S | re.M) or [None, ""])[1]
+        return EXPLAINED.format(passage=" ".join(passage.split()), where=where, before=len(re.findall(r"^\[\d+\] Selected ", user, re.M)))
 
     # ------------------------------------------------------------ the question's check (docs/ARCHITECT_DESIGN.md §2.22)
     def cold(self, user):

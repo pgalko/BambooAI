@@ -382,7 +382,7 @@ check('dress: the closing card of a finished analysis - the one with a row of wh
     && html.indexOf('js/next-questions.js') < html.indexOf('js/workflowGraph.js') && js('core.js').includes('window.NextQuestionsUI.initialize();'));
   check('the send: a next question is the query as it stands - not typed, so the Pathfinder\'s switch does not apply; nothing starts while a set is being written; the run\'s pane is told what started it; '
     + 'the composer is neither cleared nor refilled; the server is told the set and the question; the stream\'s id line marks the card',
-    qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : asked);")
+    qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());")
     && qp.includes('if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;') && qp.indexOf('window.NextQuestionsUI.holds()') < qp.indexOf('window.ArchitectUI.framingInView()')
     && qp.indexOf('window.NextQuestionsUI.holds()') > qp.indexOf('stopAutoExplore();') && qp.includes('if (next) window.NextQuestionsUI.started(next);')
     && qp.indexOf('if (next) window.NextQuestionsUI.started(next);') > qp.indexOf('beginLiveChain(framed);') && qp.includes('if (!synthesis && !next) emptyComposer();') && qp.includes('if (!framed && !next) queryInput.value = query;')

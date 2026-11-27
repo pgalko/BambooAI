@@ -253,6 +253,11 @@ Use the chat button on a figure to ask about it. The image is included only when
 images and its `model_properties` entry sets `"multimodal": "true"`; otherwise the question is sent
 without the image, and the app indicates that limitation.
 
+To ask what a passage means, select it in the **Answer**, **Code** or **Results** tab of a finished
+analysis and press **Ask**. The question you type is answered in a few plain sentences, in a note under
+the passage, which stays marked. No analysis starts: it is one short model call on the Pathfinder's
+seat. To follow up, select words in the note or in the marked passage and press **Ask** again.
+
 ### The Pathfinder
 
 Switch **Pathfinder** on beside the mode control and type a question. Nothing runs yet. The Pathfinder talks it
@@ -768,6 +773,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
 - `analyst/architect.py`, `analyst/brief.py`, `analyst/steps.py`, `analyst/lookup.py`, `analyst/draft.py`,
   `analyst/cold.py` and `analyst/next_questions.py` implement the Pathfinder; `analyst/memory.py` and `analyst/reader.py` the memory
   made of saved analyses.
+- `analyst/explain.py` answers a question about a selected passage of a finished analysis.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.
 

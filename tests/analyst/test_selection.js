@@ -1,6 +1,7 @@
 // Asking about a selection (web_app/static/js/selection.js; 2026-11-27, the product owner's pick of three mockups): text
 // selected in the content pane gets a small bar - Ask, Copy - that takes no focus; Ask puts the selection on the query
-// box as a quote, and the question typed there is sent with the passage under it.
+// box as a quote, and the question typed there is asked about the passage and explained where it stands (explain.js,
+// tests/analyst/test_explain.js).
 // The module is driven here on the mini DOM, with stand-ins for what the mini DOM has not - the browser's selection and
 // the boxes of its lines - and the page's hooks are read from the source. The real thing, in a real browser on the real
 // page, is tests/e2e/test_selection.py.
@@ -28,6 +29,10 @@ global.window = { innerWidth: 1440, innerHeight: 900, getSelection: () => select
 let copies = 0, canCopy = true; doc.execCommand = what => (what === 'copy' && canCopy ? (copies += 1, true) : false);
 // the page's watch on an element's contents: what is watched, and the callback, for the suite to call as the browser would
 const watched = []; global.MutationObserver = class { constructor(fn) { this.fn = fn; } observe(el, how) { watched.push([el, how, this.fn]); } };
+// explain.js, as far as the module asks it: where a selection can be asked about - here the words it holds -, whether
+// the analysis a place was taken in still stands, and the asking
+const explain = { can: true, stands: true, asked: [] };
+window.ExplainUI = { place: range => (explain.can && range ? { quote: explain.words || picked.text } : null), stands: () => explain.stands, ask: (where, question) => explain.asked.push([where.quote, question]) };
 
 // the page, as far as the module reaches: the query box with the quote's own markup from index.html, the two panes
 const host = doc.createElement('div'); doc.body.appendChild(host);
@@ -51,8 +56,8 @@ const words = () => [bar.querySelector('.ask').textContent, bar.querySelector('.
 const quoteOn = () => quote.classList.contains('on');
 
 (async () => {
-  check('started: one bar on the page with Ask and Copy, not shown; no quote on the query box',
-    doc.querySelectorAll('.selection-bar').length === 1 && bar.parent === doc.body && same(words(), ['Ask', 'Copy']) && !at().on && !quoteOn() && S.quoted('Why?') === 'Why?');
+  check('started: one bar on the page with Ask and Copy, not shown; no quote on the query box, so a question typed there is not the module\'s to send',
+    doc.querySelectorAll('.selection-bar').length === 1 && bar.parent === doc.body && same(words(), ['Ask', 'Copy']) && !at().on && !quoteOn() && S.send('Why?') === false && !explain.asked.length);
 
   // ---- where the bar stands
   check('a selection of one line: the bar over it - its own height and the gap above the line - centred on where the pointer let go', same(await select(), { on: true, left: 906, top: 125 }), at());
@@ -61,6 +66,10 @@ const quoteOn = () => quote.classList.contains('on');
   check('no room under a selection at the foot of the window: over its first line instead', same(await select(900, 880, PASSAGE, $('passage'), 700, 10), { on: true, left: 833, top: 660 }), at());
   check('no room at either end of a selection taller than the window: at the window\'s edge on the pointer\'s side', same(await select(900, 880, PASSAGE, $('passage'), -400, 80), { on: true, left: 833, top: 860 }), at());
   check('the bar is kept inside the window sideways', (await select(1436)).left === 1440 - 134 - 8 && (await select(3)).left === 8, at());
+  explain.can = false; await select();
+  const copyOnly = [bar.classList.contains('copies'), at().on];
+  explain.can = true; await select();
+  check('Ask is on the bar only where the selection can be asked about - explain.js says where: elsewhere the bar copies', same(copyOnly, [true, true]) && !bar.classList.contains('copies') && at().on, copyOnly);
 
   // ---- when it is offered
   press($('turn')); pick(PASSAGE, $('passage'));
@@ -112,18 +121,37 @@ const quoteOn = () => quote.classList.contains('on');
   bar.querySelector('.ask').dispatch('click');
   check('Ask: the selection is on the query box - its words, and whole under the pointer -, the cursor in the box, the bar gone; the left pane was open and is left alone',
     quoteOn() && quote.querySelector('.t').textContent === PASSAGE && quote.querySelector('.t').title === PASSAGE && doc.activeElement === $('queryInput') && !at().on && unfolded === 0, quote.outerHTML);
-  check('a question as it is sent: the passage under it, as the analyst has always been given the two; nothing typed, nothing to send', S.quoted('Why?') === 'Why?\n**Task Context:**\n' + PASSAGE && S.quoted('') === '');
+  const sent = [S.send('Why?'), quoteOn(), explain.asked.slice()];
+  check('a question typed with the quote on the box is the module\'s to send: it is asked about the place the quote was taken at, and the module says that it was - the one who sends empties the box',
+    same(sent, [true, true, [[PASSAGE, 'Why?']]]), sent);
   $('queryInput').blur(); $('leftPanel').classList.add('collapsed');
   await select(900, 215, 'Plot 1: on clay\n\nPlot 2:   on sand', $('passage'), 165, 3);
   bar.querySelector('.ask').dispatch('click');
-  check('another Ask takes the quote\'s place, the left pane opened by its own button where it was folded away; a passage of several lines is one line on the box and goes as it was selected',
+  check('another Ask takes the quote\'s place, the left pane opened by its own button where it was folded away; a passage of several lines is one line on the box, and it is the place now asked about',
     quote.querySelector('.t').textContent === 'Plot 1: on clay Plot 2: on sand' && quote.querySelector('.t').title === 'Plot 1: on clay\n\nPlot 2:   on sand' && unfolded === 1
-    && !$('leftPanel').classList.contains('collapsed') && doc.activeElement === $('queryInput') && S.quoted('Which?') === 'Which?\n**Task Context:**\nPlot 1: on clay\n\nPlot 2:   on sand', quote.outerHTML);
+    && !$('leftPanel').classList.contains('collapsed') && doc.activeElement === $('queryInput') && S.send('Which?') && same(explain.asked[1], ['Plot 1: on clay\n\nPlot 2:   on sand', 'Which?']), quote.outerHTML);
   $('queryInput').blur();
   quote.querySelector('button').dispatch('click');
-  check('the quote\'s ×: the quote is off, a question goes alone, the cursor is in the box', !quoteOn() && S.quoted('Why?') === 'Why?' && quote.querySelector('.t').textContent === '' && doc.activeElement === $('queryInput'), quote.outerHTML);
+  check('the quote\'s ×: the quote is off, a question typed is the page\'s own again, the cursor is in the box',
+    !quoteOn() && S.send('Why?') === false && explain.asked.length === 2 && quote.querySelector('.t').textContent === '' && doc.activeElement === $('queryInput'), quote.outerHTML);
   picked = null; bar.querySelector('.ask').dispatch('click');
-  check('Ask with nothing selected any more: no quote', !quoteOn() && S.quoted('Why?') === 'Why?');
+  check('Ask with nothing selected any more: no quote', !quoteOn() && S.send('Why?') === false);
+  await select(); explain.can = false; bar.querySelector('.ask').dispatch('click'); explain.can = true;
+  check('Ask on a selection that can no longer be asked about - its analysis went since the bar came: no quote, and the bar goes', !quoteOn() && !at().on && S.send('Why?') === false);
+
+  // ---- the quote goes with the analysis it was taken from
+  await select(); bar.querySelector('.ask').dispatch('click');
+  doc.dispatch('selectionchange'); watched[0][2]();
+  const stood = quoteOn();
+  explain.stands = false; doc.dispatch('selectionchange');
+  const went = quoteOn();
+  explain.stands = true; await select(); bar.querySelector('.ask').dispatch('click'); explain.stands = false; watched[0][2]();
+  check('the quote goes with the analysis it was taken from - another chain on screen, an analysis begun - as soon as the selection or the content pane changes; while that analysis stands, it stays',
+    stood && !went && !quoteOn() && S.send('Why?') === false && explain.asked.length === 2, [stood, went, quoteOn()]);
+  explain.stands = true;
+  explain.words = 'the two cannot'; await select(); bar.querySelector('.ask').dispatch('click'); explain.words = null;
+  check('the quote is the words of the place - explain.js leaves out what an open note adds to a selection that runs across it -, not the selection as the browser gives it',
+    quote.querySelector('.t').textContent === 'the two cannot' && quote.querySelector('.t').title === 'the two cannot' && S.send('Why?') && same(explain.asked[2], ['the two cannot', 'Why?']), quote.outerHTML);
 
   // ---- the query box emptied (core.js): the one function, the quote with what was typed
   const emptyComposer = new Function(js('core.js').match(/function emptyComposer\(\) \{[\s\S]*?\n\}\n/)[0] + '; return emptyComposer;')();
@@ -131,7 +159,7 @@ const quoteOn = () => quote.classList.contains('on');
   $('queryInput').value = 'Why?'; $('queryInput').style.height = '120px';
   const before = quoteOn();
   emptyComposer();
-  check('the query box emptied: its words, its height, and the quote', before && $('queryInput').value === '' && $('queryInput').style.height === 'auto' && !quoteOn() && S.quoted('Why?') === 'Why?', quote.outerHTML);
+  check('the query box emptied: its words, its height, and the quote', before && $('queryInput').value === '' && $('queryInput').style.height === 'auto' && !quoteOn() && S.send('Why?') === false, quote.outerHTML);
   window.SelectionUI = undefined; $('queryInput').value = 'Why?';
   emptyComposer();
   window.SelectionUI = S;
@@ -142,9 +170,12 @@ const quoteOn = () => quote.classList.contains('on');
   const under = (dir, sub = '') => fs.readdirSync(path.join(dir, sub), { withFileTypes: true }).flatMap(e => (e.isDirectory() ? under(dir, path.join(sub, e.name)) : [path.join(sub, e.name)]));
   const scripts = under(path.join(web, 'static', 'js')).filter(f => f.endsWith('.js')).map(f => [f, js(f)]);
   const sheets = fs.readdirSync(path.join(web, 'static', 'css')).filter(f => f.endsWith('.css') && f !== '_retired.css').map(f => [f, css(f)]);
-  check('the send: the composer\'s own send takes the quoted passage with what is typed - a plot\'s question, a next question and a brief\'s analysis do not; the box is emptied by the one function',
-    qp.includes("const said = queryInput.value.trim(), asked = typed && window.SelectionUI ? window.SelectionUI.quoted(said) : said;")
-    && qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : asked);")
+  check('the send: with a quote on the box the composer\'s own send is the module\'s - the question is asked about the passage, the box emptied by the one function, and nothing else starts: no analysis, no '
+    + 'brief, no branch. A send with nothing typed is none; a plot\'s question, a next question and a brief\'s analysis are not typed',
+    qp.includes("const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());")
+    && qp.includes('if (typed && window.SelectionUI && window.SelectionUI.send(query)) { emptyComposer(); return; }')
+    && qp.indexOf('if (!query && !synthesis) {') < qp.indexOf('window.SelectionUI.send(query)') && qp.indexOf('window.SelectionUI.send(query)') < qp.indexOf('window.BranchUI.hint(query)')
+    && qp.indexOf('window.SelectionUI.send(query)') < qp.indexOf('if (window.ArchitectUI && !framed && !branch)')
     && qp.includes('if (!synthesis && !next) emptyComposer();') && !qp.includes("queryInput.value = '';") && cr.includes('handleQuerySubmit({ image: imageData });'));
   check('one place empties the query box: the Pathfinder calls it when a brief opens and when it is told something; nowhere else is the box emptied by hand',
     (ar.match(/emptyComposer\(\);/g) || []).length === 2 && scripts.filter(([, s]) => /\.value = '';\s*\w+\.style\.height = 'auto';/.test(s)).map(([f]) => f).join() === 'core.js',
@@ -157,9 +188,10 @@ const quoteOn = () => quote.classList.contains('on');
   const OLD = ['selectionPopup', 'selection-popup', 'selectionForm', 'selectionQuery', 'selected-text-display', 'handleTextSelection', 'handleQuerySubmission', 'handleScroll', 'highlightElements', 'currentRange'];
   const left = [...scripts, ...sheets, ['index.html', html]].filter(([, s]) => OLD.some(o => s.includes(o))).map(([f]) => f);
   check('the popup this replaces is gone whole: its markup, its handlers, its variables, its scroll hooks, its styles', left.length === 0 && !/let (currentSelection|selectedText)\b/.test(core), left);
-  check('the passage\'s heading under a question is written in one place', scripts.filter(([, s]) => s.includes('Task Context')).map(([f]) => f).join() === 'selection.js');
-  check('shell.css: the bar is fixed, shown only while it is on, and Ask is greyed and takes no press while the query box is held; the quote is shown only while it is on, on one clipped line',
+  check('a passage is no longer sent to the analyst under a question: its heading is written nowhere on the page', scripts.filter(([, s]) => s.includes('Task Context')).map(([f]) => f).join() === '');
+  check('shell.css: the bar is fixed, shown only while it is on - without Ask where it copies -, and Ask is greyed and takes no press while the query box is held; the quote is shown only while it is on, on one clipped line',
     shell.includes('.selection-bar { position: fixed; z-index: 1001; display: none;') && shell.includes('.selection-bar.on { display: inline-flex; }')
+    && shell.includes('.selection-bar.copies .ask, .selection-bar.copies .sep { display: none; }')
     && shell.includes('body.composer-locked .selection-bar button.ask { opacity: .4; pointer-events: none; }') && shell.includes('.left-panel .query-quote { display: none;')
     && shell.includes('.left-panel .query-quote.on { display: flex; }') && shell.includes('.left-panel .query-quote .t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'));
   const rules = sheets.filter(([, s]) => /::(-moz-)?selection/.test(s)).map(([f, s]) => f + ':' + (s.match(/::(-moz-)?selection/g) || []).length);

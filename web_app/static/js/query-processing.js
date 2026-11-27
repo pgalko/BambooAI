@@ -42,9 +42,7 @@ function handleQuerySubmit(options = {}) {
     const { synthesis, image, typed, framed, next, step } = options;
     const queryInput = document.getElementById('queryInput');
     const submitButton = document.getElementById('submitQuery');
-    // what the composer's own send asks: the words typed, with the passage quoted on the box under them (selection.js)
-    const said = queryInput.value.trim(), asked = typed && window.SelectionUI ? window.SelectionUI.quoted(said) : said;
-    const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : asked);
+    const query = framed ? String(framed.queryText || '').trim() : (next ? String(next.text || '').trim() : queryInput.value.trim());
     
     // If normal query is running, clicking submit = stop
     if (queryRunning && !autoExploreRunning) {
@@ -62,6 +60,10 @@ function handleQuerySubmit(options = {}) {
         return;
     }
     if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;      // a set of next questions is being written: nothing starts beside it
+    if (window.ExplainUI && window.ExplainUI.holds()) return;                  // ... nor beside an explanation
+    // the composer's own send with a passage quoted on the box: the question is asked about the passage and explained
+    // where it stands - no analysis, no brief (selection.js, explain.js)
+    if (typed && window.SelectionUI && window.SelectionUI.send(query)) { emptyComposer(); return; }
 
     // a turn gone back to: the branch the hint starts - in the mode, under the limits and the brief of the analysis it
     // goes on from, so the Pathfinder is not asked

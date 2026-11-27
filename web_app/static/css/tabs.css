@@ -173,6 +173,27 @@
 #content-plot .plotly-plot { min-height: 360px; border-radius: 0; }
 #content-plot .plot-image { border-radius: var(--r-1); }
 
+/* ---- a passage asked about, and its note (explain.js, 2026-11-27): the passage stays marked in its tab, and what was asked about
+   it stands under it - under the paragraph, or under the line of code, where the note stays in view when the code is scrolled
+   sideways. A note's newest answer is open; each earlier question is one line. A passage the tab no longer has stands at its foot. ---- */
+#contentOutput .xp-mark { border-bottom: 1px dashed var(--c-model); border-radius: 2px; background: var(--accent-bg-hover); color: inherit; cursor: pointer; }
+#contentOutput .xp-lost { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin: 18px 0 0; }
+#contentOutput .xp-mark.lost { max-width: 100%; padding: 1px 6px; font-size: var(--fs-meta); color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#contentOutput .xp-note { position: sticky; left: 0; box-sizing: border-box; margin: 2px 0 14px; padding: 8px 12px 9px; border: 1px solid var(--border-color); border-left: 2px solid var(--c-model); border-radius: 0 var(--r-2) var(--r-2) 0; background: var(--bg-secondary); font-family: var(--font-ui); font-size: var(--fs-body); font-weight: 400; line-height: 1.55; color: var(--text-secondary); white-space: normal; word-break: normal; text-align: left; cursor: auto; }
+#contentOutput pre .xp-note { margin: 4px 0 6px; }
+#contentOutput .xp-note summary { display: flex; align-items: baseline; gap: 8px; padding: 1px 0; list-style: none; color: var(--text-tertiary); cursor: pointer; }
+#contentOutput .xp-note summary::-webkit-details-marker { display: none; }
+#contentOutput .xp-note summary::before { content: ''; flex-shrink: 0; position: relative; top: -1px; width: 0; height: 0; border-left: 5px solid var(--text-quaternary); border-top: 4px solid transparent; border-bottom: 4px solid transparent; }
+#contentOutput .xp-note details[open] > summary { font-weight: 600; color: var(--text-primary); }
+#contentOutput .xp-note details[open] > summary::before { transform: rotate(90deg); }
+#contentOutput .xp-note details[open] + details, #contentOutput .xp-note details + details[open] { margin-top: 6px; padding-top: 7px; border-top: 1px solid var(--border-color); }
+#contentOutput .xp-note .a { margin: 2px 0 0 13px; }
+#contentOutput .xp-note .a p { margin: 0 0 6px; font-size: inherit; line-height: inherit; }
+#contentOutput .xp-note .a > :last-child { margin-bottom: 0; }
+#contentOutput .xp-note .a code { display: inline; margin: 0; padding: 0 3px; border: none; border-radius: 3px; background: var(--bg-tertiary); font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); white-space: pre-wrap; }
+#contentOutput .xp-note .live .a { white-space: pre-wrap; }      /* an answer being written is plain text: its lines as they come */
+#contentOutput .xp-note .live .a::after { content: ''; display: inline-block; width: 7px; height: 13px; margin-left: 2px; vertical-align: -2px; background: var(--accent-color); animation: sp-pulse .9s steps(2) infinite; }
+
 /* ---- the answer page reads at 14.5px (2026-09-08); the measure 92ch (2026-10-13: 76 read as half the pane on a wide screen) ---- */
 #content-answer .markdown-content { font-size: 14.5px; line-height: 1.65; max-width: 92ch; }
 #content-answer .markdown-content h1 { font-size: 20px; }

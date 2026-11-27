@@ -247,6 +247,7 @@
     function ask(entry, level) {
         if (asking) { say(WORDS.wait); return Promise.resolve(false); }
         if (running()) { say(WORDS.busyRun); return Promise.resolve(false); }
+        if (window.ExplainUI && window.ExplainUI.holds()) return Promise.resolve(false);      // an explanation is being written: the two would share the instance's stream
         asking = { entry, level };
         const live = () => (responses[currentResponseIndex] === entry ? panelOf(byId('streamOutput')) : null);
         if (live()) { draw(live(), level); inView(live()); }

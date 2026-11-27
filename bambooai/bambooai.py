@@ -1564,31 +1564,55 @@ class BambooAI:
             except Exception:                                  # noqa: BLE001
                 pass
 
-    def next_questions(self, thread_id, run_id, level):
-        """One set of next questions for a finished analysis, at a level (analyst/next_questions.py): one model call on
-        the Pathfinder's seat, logged as the Pathfinder's under a chain of its own - the analysis' chain is settled - and
-        charged when it ends, as Save as routine's proposal is. The set is kept with the run. Returns {"set", "at": its
-        place among the run's sets}, or None when the run is not a finished analysis on the record; raises
-        architect.Failed with the reason to show."""
-        from analyst import next_questions
+    def _beside(self, thread_id, run_id, label, ask):
+        """One model call made beside a finished analysis - a set of next questions, a passage explained: on the
+        Pathfinder's seat, logged under `label` and a chain of its own - the analysis' chain is settled - and charged
+        when it ends, as Save as routine's proposal is. `ask(llm, run)` makes the call and returns what is kept with the
+        run. Returns (the run, that with the call's chain), or (None, None) when the run is not a finished analysis on
+        the record; what `ask` raises is raised, the calls it made charged all the same."""
         self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
         self._stop_event.clear()
         self._on_thread(thread_id)
         run = self.notebook.runs.get(str(run_id))
         if run is None or run.status != "answered":
-            return None
+            return None, None
         seat, chain = self._architect_seat(), utils.next_chain_id()
         try:
-            asked = next_questions.propose(lambda system, user, **kw: self._llm(system, user, seat=seat, label="Pathfinder", chain=chain, **kw),
-                                           self.notebook, run, level, data=self._data_description())
+            made = ask(lambda system, user, **kw: self._llm(system, user, seat=seat, label=label, chain=chain, **kw), run)
         finally:
-            try:
-                self.log_and_call_manager.charge_for_completed_query(chain)
-            except Exception:                                  # noqa: BLE001
-                logger.warning("The next questions' call was not charged", exc_info=True)
-        run.next_questions.append({**asked, "chain": chain})
+            if chain in self.log_and_call_manager.token_summary:      # a chain no call was logged under has nothing to charge
+                try:
+                    self.log_and_call_manager.charge_for_completed_query(chain)
+                except Exception:                              # noqa: BLE001
+                    logger.warning("A call made beside an analysis (%s) was not charged", label, exc_info=True)
+        return run, {**made, "chain": chain}
+
+    def next_questions(self, thread_id, run_id, level):
+        """One set of next questions for a finished analysis, at a level (analyst/next_questions.py): one call of the
+        Pathfinder's, beside the analysis (_beside). The set is kept with the run. Returns {"set", "at": its place
+        among the run's sets}, or None when the run is not a finished analysis on the record; raises architect.Failed
+        with the reason to show."""
+        from analyst import next_questions
+        run, asked = self._beside(thread_id, run_id, "Pathfinder",
+                                  lambda llm, run: next_questions.propose(llm, self.notebook, run, level, data=self._data_description()))
+        if run is None:
+            return None
+        run.next_questions.append(asked)
         self.store.save(self.notebook)
         return {"set": run.next_questions[-1], "at": len(run.next_questions) - 1}
+
+    def explain(self, thread_id, run_id, asked):
+        """A question about a passage of a finished analysis, answered (analyst/explain.py): one call beside the
+        analysis (_beside), logged as the Explainer's. `asked`: the exchange as explain.taken() returns it. It is kept
+        with the run. Returns everything asked about the run so far, the new exchange last, or None when the run is not
+        a finished analysis on the record; raises architect.Failed with the reason to show."""
+        from analyst import explain
+        run, said = self._beside(thread_id, run_id, "Explainer", lambda llm, run: explain.answer(llm, self.notebook, run, asked))
+        if run is None:
+            return None
+        run.explained.append(said)
+        self.store.save(self.notebook)
+        return run.explained
 
     def _architect_look(self, lookups):
         """A round of the Pathfinder's lookups (analyst/lookup.py), answered where the analysis' cells run: one

@@ -1809,9 +1809,9 @@
   first run with the step that installs the Stripe library, where the webhook suite runs against the real one. Tests:
   the battery 2,889 where the Stripe library is absent, 2,901 with it; the walk 250, 243 of 247 in the local edition;
   the package test 39, the package built as 2.9.4.
-- **After 2.9.4: asking about a selection** (`web_app/static/js/selection.js`, `core.js`, `query-processing.js`,
-  `architect.js`, `content-rendering.js`, `index.html`, `shell.css`, `base.css`, `tokens.css`, `styles.css`; no image
-  change; not released).
+- **After 2.9.4: asking about a selection** (`web_app/static/js/selection.js`, `explain.js`, `core.js`,
+  `query-processing.js`, `architect.js`, `content-rendering.js`, `index.html`, the stylesheets; `analyst/explain.py`,
+  `bambooai/bambooai.py`, `web_app/explain_routes.py`; no image change, no migration; not released).
   **0361 (2026-11-27), asking about a selection.** The product owner: the highlight feature - a person marks a
   passage of code or text and asks the model about it at once - is on every tab and is in the way when the text is
   wanted for copying; it is useful, but not well designed or styled, and a few users had said so. In the code,
@@ -1863,6 +1863,91 @@
   selectors. The gallery draws the bar and the quote (`select_bar`, `composer_quote`); its 33 other states are the
   same pixel for pixel before and after. The battery 2,922 (+33, the module's suite); the walk 250, 243 of 247 in the
   local edition; the package test 39; 60 deliberate breaks, each caught by a suite.
+  **0362 (2026-11-27), a passage explained where it stands.** The product owner, with 0361 running: it works, but 'a
+  relatively simple question triggers the whole investigation wher perhaps the user is only interested in the quick
+  answer'. His run log showed it: a question about a selected passage ran as an analysis in the mode set on the query
+  box - turns of computing, then the figures, the plain version and the replay - where a few sentences were wanted;
+  the analyst's contract has it assert nothing a cell did not print, so it computes even to explain. Three ways were
+  put to him; a quick answer beside the report was the one to draw. The first drawings - a card with buttons to
+  explain or to start an analysis - he turned down: 'No this is messy. I do not want any more buttons. Nor Start
+  analysis or Explain. We will be confusing the reader ... Lets limit it to quick explanation only', and asked for an
+  answer that stays within the tab, linked to the text that was selected. Four places were drawn - under the text, in
+  the margin, over the text, in the left pane; he took the note under the text. For a long conversation: a note shows
+  its newest answer and each earlier question as one line; everything asked about one analysis is one conversation,
+  whichever passages it is about. The quote leaves the query box when the question is sent ('I prefer if quote
+  leaves. it is cleaner'), and so that nobody follows up by accident a click on a marked passage only opens or shuts
+  its note: 'User needs to highlight again to ask a follow up, and that puts the quote back in the query box. Lets
+  build'. The server. `analyst/explain.py` with its instructions in `explain.md`: one model call answers a question
+  about a passage. It is given the analysis as its reader has it - the data in a few words, the question, the report
+  and the report in plain language, the script the Code tab shows, what each committed cell printed, a long part
+  without its middle -, then everything asked about the analysis before, oldest first, the newest answers whole while
+  they fit and the older ones cut to their opening, then where the passage stands, the words selected and the
+  question. It answers in a few plain sentences, about eighty words, gives no number the analysis does not hold, and
+  tells a question that takes computing to be asked in the query box with nothing selected. An exchange is kept with
+  the run (`Run.explained`): where the passage stands - the tab, for the Answer tab which of its two versions, the
+  passage and which of its occurrences -, the words selected, the question, the answer, its cost and the chain its
+  call was logged under. A passage is at most 8,000 characters; an analysis is asked about 100 times at most.
+  `bambooai.py` `_beside()` is now the one place a call is made beside a finished analysis - a set of next questions,
+  an explanation: on the Pathfinder's seat at a lowered effort, under a chain of its own, charged when it ends; a
+  chain no call was logged under is no longer sent to be charged. `architect.ask()` takes the caller's words for a
+  second attempt and for a failure - its own ask for a JSON object and name the Pathfinder, and the explainer's first
+  draft would have been asked for a JSON object - and `architect.fit()` is public and takes a length.
+  `web_app/explain_routes.py`: `POST /explain` streams the answer as it is written and ends on everything asked about
+  the analysis, or on the reason none was made; `GET /explain/<thread>/<chain>` reads the same from the thread's
+  record. An explanation is a query for the account, as a set of next questions is: authorised, counted towards the
+  month's free queries and charged; the Usage dialog lists it as 'A passage explained', its seat as Explainer. The
+  page. `explain.js` (`window.ExplainUI`) keeps nothing of its own: what was asked is the server's record, asked for
+  when a chain is shown, and the marks and the open note are drawn from it into the tab - never into the copy of a
+  chain the page keeps, which is taken when the run ends. A passage is found again by its text, white space counting
+  as one space, and by which of its occurrences in the tab it is; so its mark comes back whenever its tab is drawn
+  again - a chain shown again, the Answer's two versions switched, the code highlighted, the formulas set - which the
+  module learns by watching the tabs. A tab nothing was asked in is not read: a running analysis draws its tabs many
+  times a second. The note stands under the text its passage ends in: after the paragraph, the heading or the table,
+  at the end of a list's item, and in the code after the line, the text cut behind the line's end. One note is open
+  at a time; a click on a marked passage opens or shuts its note and touches nothing else. Words selected in a note,
+  or a selection that touches a marked passage, are a follow-up to that note. A selection that runs across an open
+  note holds none of its words. The answer is shown as it is written, as plain text ending on a cursor, and then
+  drawn as the report's text is. A passage the tab no longer has keeps its mark at the tab's foot, as the words first
+  selected. A text that still holds a formula's source is left whole until the formula is set: a mark in the source
+  would keep the renderer from it. While an answer is written nothing else starts, and the page says so.
+  `selection.js`: Ask is on the bar only where the selection can be asked about - the text of a finished analysis'
+  Answer, Code or Results tab, and not while an analysis runs; elsewhere the bar copies. The quote goes when the
+  question is sent, by its x, and with the analysis it was taken from. `query-processing.js`: a typed question with a
+  quote on the box is asked about the passage and nothing else starts - no analysis, no brief though the Pathfinder's
+  switch is on, no branch; the passage is no longer sent to the analyst under a question, and '**Task Context:**' is
+  written nowhere on the page. `content-rendering.js`: Markdown with formulas is turned into the page's HTML in one
+  function (`markdownToHtml`), where the Answer and its plain version each did it in lines of their own; the Code tab
+  copies and downloads the script as it was drawn, not what the tab holds now. The PDF takes its copy of the Answer
+  without marks and notes. Decided here, and his to change: Ask is offered on three tabs - the Investigation, Data
+  and Brief tabs copy only; an explanation counts as a query (`query_refusal(count=False)` in the route would stop
+  the counting); the notes live on the thread's record alone, so those of a thread that is not saved go with it at
+  the next sign-in; an answer being written cannot be stopped. A routine's run shown in the pane is no chain: the
+  chain behind it is not taken for the analysis on screen - its passages would have been marked in the run's tabs, or
+  listed at their foot. The deliberate breaks found six pieces of code that no test needed and nothing depended on -
+  a list of the blocks a note may stand under, a second check that a selection lies in the tab's text, one for a
+  selection of blanks, an early return, a special case for the blanks inside code, a timer before the marks are put
+  back - and they are gone; where a note is put is three cases now. For nine more a check was missing and was
+  written: the same words in both versions of the Answer; an answer being written while another chain is on screen;
+  formulas that cannot be set; a note that was open staying shut when its version comes back; a note moving when its
+  lost passage is found; the quote as the place's words; a click inside a selection on a marked passage, which
+  Chromium reports as still selected at the click itself; a selection across an open note, in the browser; answers
+  that fill the conversation's room to the last character. The rule that no prompt holds a word of the tasks the
+  agent was tested on caught one in the instructions' first draft. Tests: `tests/analyst/test_explain.js`, new (56):
+  the module on the mini DOM - which learned to cut and move text - with a scripted server and the browser's
+  selection as a range over the page's texts. `tests/e2e/test_selection.py` (60, was 37), Chromium on the page whole
+  with a finished analysis drawn by the page's own functions and stand-ins for the highlighter and the formulas'
+  renderer: the bar with and without Ask, the note as it is written and whole, the held send, the click, the
+  follow-ups, a second passage, the code, a string of several lines, the output, the two versions, a chain shown
+  again, a lost passage, a refusal, the Pathfinder on, another chain on screen. `test_selection.js` (37, was 33)
+  follows the send. `test_analyst.py`, the module: what is taken and refused, the prompt and its cuts, the answer and
+  its failures, the instructions under the standing rules. `test_app_path.py`, the routes and the instance: the
+  stream, the call's seat, effort, label, chain and charge, the record, the refusals, the limit; `test_usage.py`, the
+  name in the Usage dialog. The walk asks about a passage of the report, follows up in the note and asks about a word
+  of the code on the real server - whose scripted model says back the words, the place and how many questions came
+  before - then leaves the chain and comes back. The gallery draws a note in the report and one in the code
+  (`explain_note`, `explain_code`); its 35 other states are the same pixel for pixel before and after. The battery
+  3,001 (the module's suite, and the new checks of four more); the walk 254, 247 of 251 in the local edition; the
+  package test 39; 164 deliberate breaks, each caught by a suite.
 - **Published.** 2.9.4 (2026-11-27): the three load dialogs end a load as one - the Load button grey and still while it runs, 'Loaded' with the counts once the data is in, the dialog closing itself 1.5 s later, a note keeping it open when something was not loaded (0358); the hosted edition's Stripe webhook credits a paid session again - it read the event through the library's objects, which are not dicts since stripe-python 15.0, and reads the JSON itself now, with a suite that runs it against the real library (0359); the release (0360; the tag sits on it). No image change (v79 stands): the hosted editions pull and restart the web app; no migration. 2.9.3 (2026-11-25): for large datasets - the kernel saves a large state for less, text columns as blocks kept once and the hashing in threads, and freed memory goes back to the system after a load (0354; executor image v78; the snapshot suite's frame of text, 0355); the size the cache gives a frame is its arrays and each object once, with no count row by row at every put (0356; executor image v79); the release (0357; the tag sits on it). The hosted editions rebuild the executor image as v79 and restart the orchestrator; no migration. 2.9.2 (2026-11-25): a state gone back to holds the dataset's rows in the order a cell gave them - a df only sorted, shuffled or reversed had passed for the dataset as loaded and came back unsorted after a failed cell, on a branch, on a follow-up, since 2.9.0; DS's line on lost columns where the labels are not text (0352; executor image v77); the release (0353; the tag sits on it). The hosted editions rebuild the executor image as v77 and restart the orchestrator; no migration. 2.9.1 (2026-11-25): web search on OpenRouter - the Web Search seat, DeepSeek V4.1 Flash with OpenRouter's web search and Perplexity its engine, a search charged at its engine's price (0335); the sources are the pages the answer links, a quotation whole (0336); a page one number along a thread, a run's findings in view to its report, the report's citations links (0337); one list of sources under a report (0338); a search on its turn's card (0339); a report's sources as data (0340); a run's searches by mode - Quick 2, Deep 4, Adaptive 6 - and counted in what it has spent (0341); a result's bounds named where they are no confidence interval, the newest lines in the results so far (0342; executor image v76); the clean-up of what nothing used - after the search work, the adapters' old tool loops, the prompt names and the output managers, the mode outside the page, the arguments, routes, functions and imports nothing read or called (0343-0347); the integrations' routes held by a suite that needs no browser (0348); a session without its dataset still gets its instance, a file from the dataset cache reaches it (0349); the release, PyYAML, requests and psutil named in `requirements.txt` (0350); the Mistral adapter loads with its SDK from 2.0 on (0351; the tag sits on it). The hosted editions rebuild the executor image as v76 with the app and restart the orchestrator; no migration. 2.9.0 (2026-11-22): branching an analysis - the kernel keeps its state after every cell and goes back to any (0318; executor image v75, `cloudpickle`); a branch in the engine, a turn and a hint (0319); the page - the Analysis map, going back, the hint (0320); save, memory, usage (0321); the code map and the Investigation tab of a branch, a hint over the brief (0322); a branch button on each turn's card (0323); the maps' names and their one head (0324); a branch button on the Architect's cards (0325); a correction marks the line it replaced, and the release's version (0326); the maps in one place - one button, one drawer, a switch (0327); the names - the Architect is the Pathfinder, the Code map the Code trace (0328); the drawer over the dimmed page, the map steady under the pointer, the branches' arrows in the Investigation tab, the trace's name where an eye stood (0329); a branch's kept turns in one fold over its hint's card, the maps' foot whole, no Code trace on a chain's box (0330); a framed analysis's branch shows the drafts of its brief (0331); the maps' foot says from the first what the box in use is (0332); the maps' panel on the right of the map, one for the three maps, a click picking a box and its button going there (0333); inkling-2-mini, served by vLLM, in the template (0334; the tag sits on it). The hosted editions rebuild the executor image as v75 and restart the orchestrator; no migration. 2.8.1 (2026-11-20): the conversation with the Architect in steps, with a map of them - go back to any step, with the arrows or on the map, and go on from it: another way, of which the Architect reads the conversation up to that step and nothing after; the way that was left stays, to go back to; both panes show the step on screen, an analysis starts from it, and the run and memory keep the way that ran (0316); the OpenAI adapter reporting an API error without a JSON body as that error (the public pull request 65, taken between the two releases); the release (0317; the tag sits on it). Image v74 stands; no migration. 2.8.0 (2026-11-16, tagged 2026-11-19): the Architect and memory from saved analyses - the old memory retired and Save as favourite in one click (0294); the brief in the engine (0295) and on the page (0296); the Architect talks (0297), checks what the brief rests on (0298) and proposes other explanations (0299); next questions, the Explore tab and the ideas path gone (0300); the memory view (0301), its reader (0302), memory in the Architect (0303); the Analyst opens what the brief names, the brief in memory, the three seats, the README (0304); the release (0305); the Architect as a tutor, the question said back, the conversation in memory (0306); what the product owner's live tests brought - the question the coach takes and what the Analyst gets (0307), one question that changes as the talk goes and the brief without empty parts (0308), the figures of the brief and their drafts (0309-0311), what the report says against the brief on the Brief tab and out of the Answer (0312), the question read as the Analyst will read it and the closing card (0313), Next questions as a panel in the card (0314), the README cut back (0315; the tag sits on it). Image v74 stands; no migration; the library's `memory_path` is gone; the hosted editions take the template with the three new seats on restart. 2.7.4 (2026-11-14): routines across athletes and without data - athletes side by side: All athletes in the Summary, one period a row per athlete, the run offered where there is none, the position counting the athlete's runs and the name as a switch (0291); a routine without data: a chain that used no dataset saved verified and run without one, the promoter's brief for it, rows of numbers as one input, a run's inputs on the page, the runs of a routine without result lines in the Summary (0292); the release (0293; the tag sits on it). Image v74 stands; no migration. 2.7.3 (2026-11-14): routines rebuilt - a run a statement at a time, a step that stops costing its own lines and not the run, blank rows and the mark, the trials at Save; the condensing pass, the consolidation and the Condenser seat gone (0288); before it custom instructions for the promoter (0281), two rows that ran past their edge (0282), the promoter reading the chain without its exploration (0283, 0286), two checks that read the real clock (0285), the public PR #64, the athlete named from the first run (0287); Fix it in the analysis came and went inside the series (0284, removed by 0288); the README rewritten (0289); the release (0290; the tag sits on it). Image v74 stands; no migration; the hosted editions take the template without the Condenser seat on restart. 2.7.2 (2026-11-08): routines by the calendar - the interval and the fill, the Summary by interval, the enlarged chart's key, the lines a run compares and their names, the Summary during a fill, the Run dialog slimmed, the save's checklist, the promoter's brief and identifiers (0264-0271); the condensing pass and the consolidation, the Condenser seat in the template (0272-0275); the promoter's pick steadied (0276); the Summary as one column (0277); the reach and the window by tier (0278); custom runs - Open, Delete, another run to compare with (0279); the release (0280; the tag sits on it). Image v74 stands; no migration; the hosted editions take the new template on restart. 2.7.1 (2026-10-31): the Usage dialog rebuilt - the usage records (0255; **the hosted table takes docs/sql/usage_cache_fields.sql once, before the app starts**), the route and the page (0256), the usage ledger, the walk and the notes (0257), the release (0258; the tag sits on it); image v74 stands. 2.7.0 (2026-10-30) carries patches 0237-0254 (the tag sits on 0254). The public repository carries 2.0 since 2026-09-16 (1.x kept as the `v1` branch and the
   `v1-final` tag). PyPI: 2.7.1 (2026-10-31: the Usage dialog rebuilt - patches 0255-0257, the release 0258; no image change), 2.7.0 (2026-10-30: datasets by athlete - the store per athlete and the Dataset cache as a tree, Load from the store
   alone and to today, the dialog redesigned, one athlete at a time on the Data tab, a load under another athlete's key refused; keys per

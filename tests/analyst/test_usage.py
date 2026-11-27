@@ -265,6 +265,12 @@ check("_ledger(): the Pathfinder's calls in a brief's own chain are that analysi
       (_aled["f1"]["kind"], _aled["f1"]["question"], _aled["f1"]["outcome"], _aled["f1"]["calls"]) == ("analysis", "Is the second half heavier?", "not run", 2)
       and (_aled["n1"]["kind"], _aled["n1"]["question"], _aled["n1"]["calls"], _aled["n1"]["cells"], _aled["n1"]["thread"]) == ("next", "Next questions", 1, None, "t9")
       and UR.mode_label(_aled["n1"]) == "Other" and _aled["n1"]["seats"] == {"Pathfinder": 0.01}, _aled)
+_xrow = UR._call({"id": 11, "timestamp": "2026-10-25 01:11:00", "agent": "Explainer", "model": "m-big", "chain_id": "x1", "prompt_tokens": 3000, "completion_tokens": 200, "elapsed_time": 3.0, "cost": 0.01})
+_xled = {e["chain"]: e for e in UR._ledger([_xrow, _arow("n1", 3)], {"x1": "t9", "n1": "t9"}, STORAGE)}
+check("a passage explained (0362): its one call has a chain of its own that the record does not know - named for what it was, grouped with the other chains that are not analyses, apart from a set "
+      "of next questions",
+      (_xled["x1"]["kind"], _xled["x1"]["question"], _xled["x1"]["calls"], _xled["x1"]["cells"], _xled["x1"]["thread"]) == ("explain", "A passage explained", 1, None, "t9")
+      and UR.mode_label(_xled["x1"]) == "Other" and _xled["x1"]["seats"] == {"Explainer": 0.01} and _xled["n1"]["question"] == "Next questions", _xled)
 _old = UR._call({"id": 9, "timestamp": "2026-10-25 01:09:00", "agent": "Architect", "model": "m-big", "chain_id": "n0", "prompt_tokens": 3000, "completion_tokens": 200, "elapsed_time": 3.0, "cost": 0.02})
 _oled = {e["chain"]: e for e in UR._ledger([_old, _arow("n0", 10)], {"n0": "t9"}, STORAGE)}
 check("the Pathfinder was the Architect until 2.9 (0328): a call recorded under that name is read as the Pathfinder's - one seat on the page for both - and a chain of such calls that the "

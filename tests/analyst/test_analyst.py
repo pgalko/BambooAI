@@ -3124,9 +3124,9 @@ check("architect._part: what a reply may open, by what the person reads it as - 
       == [("", "there is no cell 9: the cells are 1 to 5"), ("", "a cell is opened by its number: the cells are 1 to 5"), ("", "there is no analysis 5: EARLIER lists 2"), ("", "there is no analysis 0: EARLIER lists 2"),
           ("", "what can be opened is a report, a conversation or a cell"), ("", "what can be opened is a report, a conversation or a cell"), ("", "analysis 2 has no conversation")]
       and arch._part(_on, _o1.id, "report", None, None) == ("", "the question follows no analysis") and arch._part(_tn, _tr.id, "cell", None, 1) == ("", "the question follows no analysis")
-      and arch._fit("short") == "short" and arch._fit("x" * arch.OPEN_CHARS) == "x" * arch.OPEN_CHARS == "x" * 16000
-      and len(arch._fit(_long)) < 16100 and arch._fit(_long).startswith("line 0\nline 1\n") and arch._fit(_long).endswith("line 3999\n") and re.search(r"\n\.\.\. \(([\d,]+) characters left out here\) \.\.\.\n", arch._fit(_long)) is not None
-      and int(re.search(r"\(([\d,]+) characters left out", arch._fit(_long)).group(1).replace(",", "")) == len(_long) - len(arch._fit(_long).split("\n... (")[0]) - len(arch._fit(_long).split(") ...\n")[1]),
+      and arch.fit("short") == "short" and arch.fit("x" * arch.OPEN_CHARS) == "x" * arch.OPEN_CHARS == "x" * 16000
+      and len(arch.fit(_long)) < 16100 and arch.fit(_long).startswith("line 0\nline 1\n") and arch.fit(_long).endswith("line 3999\n") and re.search(r"\n\.\.\. \(([\d,]+) characters left out here\) \.\.\.\n", arch.fit(_long)) is not None
+      and int(re.search(r"\(([\d,]+) characters left out", arch.fit(_long)).group(1).replace(",", "")) == len(_long) - len(arch.fit(_long).split("\n... (")[0]) - len(arch.fit(_long).split(") ...\n")[1]),
       [arch._part(_on, _o3.id, w, k, n) for w, k, n in (("cell", None, 9), ("report", 5, None), ("plot", None, None), ("conversation", None, None))])
 _llm9, _seen9 = _arch_llm([json.dumps({"say": "I am opening the cell that drew it.", "open": {"what": "cell", "n": "5"}, "brief": {"decision": "a cleaner figure"}}),
                            json.dumps({"say": "And the report.", "open": {"what": "report"}}), json.dumps({"say": "And what we said then.", "open": {"what": "conversation", "run": 1}}),
@@ -3183,8 +3183,8 @@ check("architect, opening, the edges: a reply that asks all the same after it wa
       "long the part is",
       [t["who"] for t in _ins["turns"]] == ["opened"] * 3 + ["architect"] and _ins["calls"] == 2 and [t["who"] for t in _ins2["turns"]] == ["check"] * 2 + ["architect"] and _ins2["calls"] == 2 and _looked4 == []
       and arch._part(_pn, _p2.id, "report", None, None) == ("the report", _long.strip()) and arch._part(_pn, _p2.id, "conversation", None, None) == ("the conversation", "Person: Only a plain version\nPerson: yes")
-      and _pt == {"who": "opened", "what": "report", "run": 1, "label": "the report", "chars": len(arch._fit(_long.strip()))} and _pt["chars"] < len(_long) - 20000
-      and arch.opened(_pn, _p2.id, [_pt]) == "OPENED (in view until the person next speaks):\n--- the report ---\n" + arch._fit(_long.strip()) and "characters left out here" in arch.opened(_pn, _p2.id, [_pt]),
+      and _pt == {"who": "opened", "what": "report", "run": 1, "label": "the report", "chars": len(arch.fit(_long.strip()))} and _pt["chars"] < len(_long) - 20000
+      and arch.opened(_pn, _p2.id, [_pt]) == "OPENED (in view until the person next speaks):\n--- the report ---\n" + arch.fit(_long.strip()) and "characters left out here" in arch.opened(_pn, _p2.id, [_pt]),
       ([t["who"] for t in _ins["turns"]], [t["who"] for t in _ins2["turns"]], _pt))
 del _asked_of[:]
 _atexts = {"the Pathfinder's instructions": arch.SYSTEM}
@@ -3859,6 +3859,141 @@ check("the instructions for next questions: what the model does and does not, th
       and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ntexts.items() if _DOMAIN.search(t)}
       and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", nq.SYSTEM),
       ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _ntexts.items() if _DOMAIN.search(t)}, len(nq.SYSTEM)))
+
+# ---- explanations (0362): a passage of a finished analysis asked about - in its report, its code or what the code printed. One call
+# ---- answers in a few plain sentences; the exchange is kept with the run, at the passage; everything asked about one analysis is one conversation
+from analyst import explain as ex
+_en = Notebook("e")
+_e1 = _en.new_run("Which regime yields most?"); _e1.status = "answered"; _e1.data = {"df_id": "d1", "name": "plots.csv", "rows": 96}
+_e1.report = "# Regime B yields most\n\n## Answer\nRegime B is 0.42 t/ha above regime A [cell 2]. On sand the two cannot be told apart."
+_e1.rewrite = "Regime B did best. On sand nobody can say."
+_e1.turns = [Turn(kind="cell", code="means = df.groupby('regime')['yield'].mean()\nprint(means)\n", stdout="A 6.12\nB 6.54\n", cell_no=1),
+             Turn(kind="cell", code="failed = 1 / 0", error="ZeroDivisionError"),
+             Turn(kind="cell", code="gap = means['B'] - means['A']", stdout="  ", cell_no=2), Turn(kind="report", text=_e1.report)]
+_eraw = {"tab": "answer", "view": "technical", "passage": "  cannot be told apart ", "at": 0, "quote": " told\napart ", "question": " Why? ", "chain_id": 7, "more": 1}
+_etaken = ex.taken(_eraw)
+def _raises_value(fn, arg):
+    try:
+        fn(arg)
+    except ValueError as exc:
+        return str(exc)
+_eno = lambda **change: _raises_value(ex.taken, {**_eraw, **change})
+check("explain.taken: what the page asks, as it is kept - where the passage stands (the tab; for the Answer tab which of its two versions; the passage and which of its occurrences), the words selected "
+      "and the question, each without the blanks at its ends, and nothing else of the request. The Code and the Results tab have one version; words selected that are not given are the passage; a "
+      "question is kept up to the length of a question",
+      _etaken == {"tab": "answer", "view": "technical", "passage": "cannot be told apart", "at": 0, "quote": "told\napart", "question": "Why?"}
+      and ex.taken({"tab": "code", "passage": "groupby('regime')", "at": 2, "question": "What?"}) == {"tab": "code", "view": "", "passage": "groupby('regime')", "at": 2, "quote": "groupby('regime')", "question": "What?"}
+      and ex.taken({**_eraw, "tab": "code_exec_results", "view": None, "quote": 5})["quote"] == "cannot be told apart" and ex.taken({**_eraw, "view": "simplified"})["view"] == "simplified"
+      and len(ex.taken({**_eraw, "question": "x" * 5000})["question"]) == briefs.QUESTION_CHARS == 4000 and ex.place(_etaken) == ("answer", "technical", 0, "cannot be told apart"), _etaken)
+_ebad = [_eno(tab="plot"), _eno(tab=None), _eno(view=""), _eno(view="plain"), _eno(tab="code"), _eno(passage="  "), _eno(passage=None), _eno(at="0"), _eno(at=1.0), _eno(at=True), _eno(at=None), _eno(at=-1)]
+check("explain.taken, what cannot be taken, each said in words for the person: a place that is none - a tab that holds no passages, the Answer tab without its version or with one it has not, another tab "
+      "with one, no passage, an occurrence that is no whole number from 0 on -; a passage or a selection longer than a passage may be; no question. A request that is no object has no place",
+      _ebad == [ex.NO_PLACE] * 12 and ex.NO_PLACE == "The selection could not be placed: select it again."
+      and [_eno(passage="x" * 8001), _eno(quote="x" * 8001), _eno(passage="x" * 8000) is None] == [ex.TOO_LONG, ex.TOO_LONG, True] and ex.TOO_LONG == "The selection is too long to explain: select less."
+      and [_eno(question=" \n"), _eno(question=None), _eno(question=7)] == [ex.NO_QUESTION] * 3 and ex.NO_QUESTION == "A question is needed."
+      and [_eno(passage="x" * 8001, question=""), _eno(tab="plot", passage="x" * 8001)] == [ex.TOO_LONG, ex.NO_PLACE]
+      and _raises_value(ex.taken, None) == ex.NO_PLACE and _raises_value(ex.taken, [1]) == ex.NO_PLACE, _ebad)
+_ex = lambda tab, view, passage, quote, question, answer, at=0: {"tab": tab, "view": view, "passage": passage, "at": at, "quote": quote, "question": question, "answer": answer, "cost": 0.004, "when": 1.0, "chain": 9}
+_e3 = [_ex("answer", "technical", "cannot be told apart", "cannot be told apart", "Why can they not\n  be told apart?", "The gap on sand is within the noise."),
+       _ex("answer", "technical", "cannot be told apart", "the\nnoise", "What is noise here?", "How much plots of one regime differ.\n\nIt is the spread."),
+       _ex("code", "", "groupby('regime')", "groupby('regime')", "What does this do?", "It forms one group of rows per regime."),
+       _ex("answer", "simplified", "nobody can say", "nobody can say", "Why not?", "The two are too close."), _ex("code_exec_results", "", "B 6.54", "6.54", "In which unit?", "In t/ha."),
+       _ex("answer", "technical", "cannot be told apart", "cannot", "Still?", "Yes.", at=1)]
+check("explain.where: where an exchange's passage stands, in the prompt's words - its tab, for the Answer tab with its version; an exchange at a place asked about before is said to be at that one's "
+      "passage again, by its number. The same words at another occurrence are another place",
+      [ex.where(_e3, k) for k in range(6)] == ["in the Answer tab, the technical report", "at the passage of [1] again", "in the Code tab", "in the Answer tab, the report in plain language",
+                                               "in the Results tab", "in the Answer tab, the technical report"], [ex.where(_e3, k) for k in range(6)])
+_econv = ("CONVERSATION (what the person asked about this analysis before, oldest first):\n"
+          "[1] Selected in the Answer tab, the technical report: cannot be told apart\n    Asked: Why can they not be told apart?\n    You answered: The gap on sand is within the noise.\n"
+          "[2] Selected at the passage of [1] again: the noise\n    Asked: What is noise here?\n    You answered: How much plots of one regime differ.\n\nIt is the spread.\n"
+          "[3] Selected in the Code tab: groupby('regime')\n    Asked: What does this do?\n    You answered: It forms one group of rows per regime.")
+_elong = [_ex("code", "", f"line {k}", "q " * 400, "why " * 200, (f"Answer {k} opens here. " + "x" * 9979)) for k in range(4)]
+_eshort = [_ex("code", "", "first", "first", "What?", "A short\n  answer.")] + _elong[1:]
+_ecut, _ecut2 = ex.conversation(_elong), ex.conversation(_eshort)
+_efit = ex.conversation([_ex("code", "", f"line {k}", "q", "why", "y" * 8000) for k in range(3)])
+check("explain.conversation: what was asked before, oldest first, each under its number - where its passage stands, the words selected and the question on one line each, and the answer. Nothing asked: "
+      "nothing. The newest answers ride whole while together they fit; from the first that does not, the older ones are cut to their opening - an exchange is never left out; a long selection or "
+      "question is cut and says so. Answers that fill the room to the last character all ride whole",
+      ex.conversation(_e3[:3]) == _econv and ex.conversation([]) == "" and _efit.count("y" * 8000) == 3
+      and [("x" * 9979) in line for line in _ecut.split("\n[")[1:]] == [False, False, True, True] and _ecut.count("You answered: Answer") == 4
+      and "\n    You answered: Answer 1 opens here. " + "x" * (200 - len("Answer 1 opens here. ")) + " ...\n[3] " in _ecut and len(_ecut) < ex.CONVERSATION_CHARS + 4 * 1000
+      and "[1] Selected in the Code tab: first\n    Asked: What?\n    You answered: A short answer.\n[2] " in _ecut2 and [("x" * 9979) in line for line in _ecut2.split("\n[")[1:]] == [False, False, True, True]
+      and "Selected in the Code tab: " + ("q " * 150).rstrip() + " ...\n    Asked: " + ("why " * 75).rstrip() + " ...\n" in _ecut
+      and (ex.CONVERSATION_CHARS, ex.OPENING_CHARS, ex.LINE_CHARS) == (24_000, 200, 300), (ex.conversation(_e3[:3]), _ecut[:900]))
+_eana = ("DATA:\nplots.csv, 96 rows\n\nQUESTION:\nWhich regime yields most?\n\nREPORT:\n" + _e1.report + "\n\nREPORT IN PLAIN LANGUAGE:\nRegime B did best. On sand nobody can say.\n\n"
+         "CODE:\nmeans = df.groupby('regime')['yield'].mean()\nprint(means)\n\ngap = means['B'] - means['A']\n\nWHAT THE CELLS PRINTED:\n--- cell 1 ---\nA 6.12\nB 6.54\n--- cell 2 ---\n(nothing)")
+_e2 = _en.new_run("And what else?"); _e2.status = "answered"; _e2.report = "Nothing else."
+_enb = Notebook("eb"); _ebig = _enb.new_run("Long?"); _ebig.report = "r" * 50_000; _ebig.replay_script = "print('the script as the Code tab shows it')\n"
+_ebig.turns = [Turn(kind="cell", code="print('a cell')", stdout="o" * 4000, cell_no=1)]
+_ebig_text = ex.analysis(_enb, _ebig)
+check("explain.analysis: the analysis as its reader has it - what it ran on, its question, its report and the report in plain language, the code and what each committed cell printed, a cell that "
+      "printed nothing saying so. The code is the script the Code tab shows, and the cells' own code where no script was kept. A part the run has not is left out. A long report, and what a cell "
+      "printed at length, are carried without their middle, the cut said",
+      ex.analysis(_en, _e1) == _eana and ex.analysis(_en, _e2) == "QUESTION:\nAnd what else?\n\nREPORT:\nNothing else."
+      and "\n\nCODE:\nprint('the script as the Code tab shows it')" in _ebig_text and "a cell" not in _ebig_text
+      and "r" * 26_666 + "\n... (10,001 characters left out here) ...\n" + "r" * 13_333 + "\n\nCODE:" in _ebig_text
+      and _ebig_text.endswith("--- cell 1 ---\n" + "o" * 2000 + "\n... (1,000 characters left out here) ...\n" + "o" * 1000) and (ex.TEXT_CHARS, ex.CELL_CHARS) == (40_000, 3000),
+      (ex.analysis(_en, _e1), ex.analysis(_en, _e2), len(_ebig_text)))
+_e1.explained = _e3[:1]
+_efollow = {"tab": "answer", "view": "technical", "passage": "cannot be told apart", "at": 0, "quote": "the noise", "question": "What is noise here?"}
+_efirst = {"tab": "code", "view": "", "passage": "groupby('regime')", "at": 0, "quote": "groupby('regime')", "question": "What does this do?"}
+_eprompt = ex.prompt(_en, _e1, _efollow)
+check("explain.prompt: what the model reads for one question - the analysis, then what was asked before, then where the passage stands, the words selected and the question. What does not change from "
+      "one question to the next comes first; the first question about an analysis has no conversation; a question at a passage asked about before says so",
+      _eprompt == _eana + "\n\n" + ex.conversation(_e3[:1]) + "\n\nWHERE: at the passage of [1] again\n\nPASSAGE:\nthe noise\n\nASKED:\nWhat is noise here?"
+      and ex.prompt(_en, _e1, _efirst) == _eana + "\n\n" + ex.conversation(_e3[:1]) + "\n\nWHERE: in the Code tab\n\nPASSAGE:\ngroupby('regime')\n\nASKED:\nWhat does this do?"
+      and ex.prompt(_en, _e2, _efirst) == "QUESTION:\nAnd what else?\n\nREPORT:\nNothing else.\n\nWHERE: in the Code tab\n\nPASSAGE:\ngroupby('regime')\n\nASKED:\nWhat does this do?", _eprompt[-400:])
+check("explain.read: the answer is the reply's text, without the blanks at its ends, up to the length an answer is kept at; a reply with no text cannot be read",
+      ex.read("  The gap is within the noise.\n") == "The gap is within the noise." and len(ex.read("a" * 7000)) == ex.ANSWER_CHARS == 6000
+      and [_raises_value(ex.read, r) for r in ("", "  \n ", None)] == [ex.EMPTY] * 3 and issubclass(arch.Unreadable, ValueError), None)
+import time as _time_e
+_ellm, _eseen = _arch_llm(["  It forms one group of rows per regime.\n"], {"cost": 0.0123456})
+_ekept = ex.answer(_ellm, _en, _e1, _efirst)
+check("explain.answer: one call - the instructions, the prompt, the lowered effort - and the exchange as it is kept with the run: what was asked, the answer, what the call cost, when. The run itself "
+      "is not touched: the instance keeps it",
+      len(_eseen) == 1 and _eseen[0] == (ex.SYSTEM, ex.prompt(_en, _e1, _efirst), {"effort": ("low", "medium")}) and ex.EFFORT == ("low", "medium")
+      and {k: v for k, v in _ekept.items() if k != "when"} == {**_efirst, "answer": "It forms one group of rows per regime.", "cost": 0.0123} and abs(_ekept["when"] - _time_e.time()) < 60
+      and _e1.explained == _e3[:1], (_ekept, _eseen[0][2]))
+_ellm2, _eseen2 = _arch_llm(["  ", "It forms groups."])
+_ekept2 = ex.answer(_ellm2, _en, _e1, _efirst)
+def _efails(llm, run=_e1):
+    try:
+        ex.answer(llm, _en, run, _efirst)
+    except arch.Failed as exc:
+        return str(exc), exc.calls, round(exc.cost, 4)
+_ellm3, _eseen3 = _arch_llm(["", " \n"])
+_ellm4, _eseen4 = _arch_llm(["x"], {"cost": 0.002, "declined": "cyber"})
+_efull = Notebook("ef").new_run("q"); _efull.explained = [_e3[0]] * ex.EXCHANGES
+_ellm5, _eseen5 = _arch_llm(["never asked"])
+check("explain.answer, no answer to keep: an empty reply is asked for once more - in the explanation's own words, which ask for the answer and for no JSON object - and the second reply's cost is "
+      "counted in; empty twice, or declined by the model, it fails in words for the person, with the calls it made. An analysis asked about as often as one may be is asked about no more, and no call is made",
+      len(_eseen2) == 2 and _eseen2[1][1] == _eseen2[0][1] + "\n\nYour last reply could not be read: it is empty. Reply with the answer and nothing else." and _ekept2["answer"] == "It forms groups."
+      and _ekept2["cost"] == 0.008 and _efails(_ellm3) == ("No explanation was written: the model's reply could not be used (it is empty).", 2, 0.008) and len(_eseen3) == 2
+      and _efails(_ellm4) == (arch.DECLINED.format(category="cyber"), 1, 0.002) and len(_eseen4) == 1
+      and _efails(_ellm5, _efull) == ("This analysis was asked about 100 times, and that is the most.", 0, 0.0) and _eseen5 == [] and ex.EXCHANGES == 100
+      and "JSON" not in ex.AGAIN and "Pathfinder" not in ex.UNREAD and "JSON object" in arch.AGAIN and "Pathfinder" in arch.UNREAD, (_efails(_arch_llm(["", ""])[0]), _eseen2[1][1][-120:]))
+check("architect.fit: a text as a prompt carries it - whole up to a length, else its first two thirds and its last third with the cut said between them; a part the Pathfinder opens is whole up to its own length",
+      arch.fit("abc", 3) == "abc" and arch.fit("a" * 20 + "b" * 10 + "c" * 10, 30) == "a" * 20 + "\n... (10 characters left out here) ...\n" + "c" * 10
+      and arch.fit("x" * arch.OPEN_CHARS) == "x" * arch.OPEN_CHARS and arch.fit("x" * (arch.OPEN_CHARS + 1)) != "x" * (arch.OPEN_CHARS + 1) and not hasattr(arch, "_fit"), arch.fit("a" * 20 + "b" * 10 + "c" * 10, 30))
+_e1.explained = _e3[:2]
+_efile = Notebook.from_dict(json.loads(json.dumps(_en.to_dict())))
+check("what was asked about an analysis is kept with its run in the thread's file, in the order asked; a run from before has none",
+      _efile.runs[_e1.id].explained == _e3[:2] and _efile.runs[_e2.id].explained == [] and Notebook.from_dict({"thread_id": "o", "runs": {"1": {"id": "1", "parent": None, "question": "q"}}}).runs["1"].explained == [], _efile.runs[_e1.id].explained)
+_etexts = {"the explanation's instructions": ex.SYSTEM}
+for _k, _t in enumerate(_authored_strings("analyst/explain.py")):
+    _etexts[f"analyst/explain.py string {_k}"] = _t
+_esys = " ".join(ex.SYSTEM.split())
+_eblocks = set(re.findall(r"^([A-Z][A-Z ]*[A-Z])(?: \(|:)", ex.prompt(_en, _e1, _efollow), re.M))
+check("the explanation's instructions: what the model does and does not - it explains a passage, computes nothing and gives no number the analysis does not hold; a question that takes an analysis is "
+      "told so -, how short the answer is, and every block its prompt can hold named under what it receives. The standing rules hold for its texts: none of the tested tasks' vocabulary, no section "
+      "named for thinking or reasoning - in the instructions and in every string of the module",
+      _esys.startswith("You explain. A person is reading a finished analysis") and "You do not analyse: you compute nothing, and you give no result the analysis does not hold." in _esys
+      and "about eighty words" in _esys and "this takes a new analysis, which the person asks for in the query box with nothing selected" in _esys and _esys.endswith("The answer and nothing else.")
+      and _eblocks == {"DATA", "QUESTION", "REPORT", "REPORT IN PLAIN LANGUAGE", "CODE", "WHAT THE CELLS PRINTED", "CONVERSATION", "WHERE", "PASSAGE", "ASKED"}
+      and all(re.search(r"(^|[ ,])" + re.escape(block) + r"[,:]", _esys.split("## What you receive")[1]) for block in _eblocks) and len(ex.SYSTEM) < 3200
+      and not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _etexts.items() if _DOMAIN.search(t)}
+      and not _re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", ex.SYSTEM),
+      ({n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _etexts.items() if _DOMAIN.search(t)}, sorted(_eblocks), len(ex.SYSTEM)))
 
 # ---- a branch (0319, docs/BRANCH_DESIGN.md): go on from a turn of an analysis, another way, under a hint from the person.
 # ---- The first run: a cell, a cell that fails, a cell, NAMES, a cell, the report - so a branch can go on after each kind.

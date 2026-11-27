@@ -6,8 +6,18 @@ function decode(s) { return s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replac
 function encodeText(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\u00a0/g, '&nbsp;'); }
 function encodeAttr(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
 let active = null;      // the element with the focus, as far as focus() and blur() say
-class Node { constructor() { this.parent = null; } }
-class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data = t; } get textContent() { return this.data; } get outerHTML() { return encodeText(this.data); } }
+class Node { constructor() { this.parent = null; }
+  // a node among its parent's children, read and moved as the browser's DOM does it (0362: explain.js cuts a text and wraps a part of it)
+  get parentNode() { return this.parent || null; } get parentElement() { return this.parent || null; }
+  get nextSibling() { const all = this.parent ? this.parent.children : []; return all[all.indexOf(this) + 1] || null; }
+  get previousSibling() { const all = this.parent ? this.parent.children : []; return all[all.indexOf(this) - 1] || null; }
+  remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
+  _beside(nodes, after) { const parent = this.parent; nodes.forEach((n, i) => { n.remove(); n.parent = parent; parent.children.splice(parent.children.indexOf(this) + (after ? 1 + i : 0), 0, n); }); }
+  before(...nodes) { this._beside(nodes, false); } after(...nodes) { this._beside(nodes, true); }
+  replaceWith(...nodes) { this._beside(nodes, false); this.remove(); }
+}
+class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data = t; } get textContent() { return this.data; } get outerHTML() { return encodeText(this.data); }
+  splitText(at) { const rest = new Text(this.data.slice(at)); this.data = this.data.slice(0, at); this.after(rest); return rest; } }
 class Element extends Node {
   constructor(tag) { super(); this.nodeType = 1; this.tag = tag.toLowerCase(); this.tagName = this.tag.toUpperCase(); this.attrs = {}; this.children = []; const self = this;
     this.classList = { add: c => self._cls(c, true), remove: c => self._cls(c, false), contains: c => self._c().includes(c), toggle: (c, on) => { const to = on === undefined ? !self._c().includes(c) : !!on; self._cls(c, to); return to; } };      // toggle() says, as the browser's does, whether the class is now there
@@ -25,8 +35,16 @@ class Element extends Node {
     if (n.parent) n.parent.children = n.parent.children.filter(c => c !== n);
     n.parent = this; this.children.splice(this.children.indexOf(ref), 0, n); return n;
   }
-  remove() { if (this.parent) this.parent.children = this.parent.children.filter(c => c !== this); this.parent = null; }
-  get parentNode() { return this.parent || null; }        // the browser's name for it
+  append(...nodes) { nodes.forEach(n => this.appendChild(n)); }
+  get childNodes() { return this.children.slice(); }
+  normalize() {      // adjacent texts as one, an empty text gone - here and in every element under it
+    const out = [];
+    for (const c of this.children) {
+      const last = out[out.length - 1];
+      if (c.nodeType !== 3) { c.normalize(); out.push(c); } else if (!c.data) c.parent = null; else if (last && last.nodeType === 3) { last.data += c.data; c.parent = null; } else out.push(c);
+    }
+    this.children = out;
+  }
   get innerHTML() { return this.children.map(c => c.outerHTML).join(''); }
   set innerHTML(html) { this.children = []; parseInto(this, html); }
   get outerHTML() { const a = Object.entries(this.attrs).map(([k, v]) => ` ${k}="${encodeAttr(v)}"`).join(''); return VOID.has(this.tag) ? `<${this.tag}${a}/>` : `<${this.tag}${a}>${this.innerHTML}</${this.tag}>`; }
@@ -91,7 +109,9 @@ function parseInto(parent, html) {
 }
 function makeDocument() {
   const body = new Element('body');
-  const doc = { body, createElement: t => new Element(t), getElementById: id => { const find = n => { for (const c of n.elements) { if (c.id === id) return c; const r = find(c); if (r) return r; } return null; }; return find(body); },   // by id, not by selector: a dotted id (unit-D1.2) is an id, as in the browser
+  const texts = (n, all = []) => { for (const c of n.children) { if (c.nodeType === 3) all.push(c); else texts(c, all); } return all; };
+  const doc = { body, createElement: t => new Element(t), createTreeWalker: root => { const all = texts(root); let i = 0; return { nextNode: () => all[i++] || null }; },   // the texts under an element, in order
+    getElementById: id => { const find = n => { for (const c of n.elements) { if (c.id === id) return c; const r = find(c); if (r) return r; } return null; }; return find(body); },   // by id, not by selector: a dotted id (unit-D1.2) is an id, as in the browser
     querySelector: s => body.querySelector(s), querySelectorAll: s => body.querySelectorAll(s),
     get activeElement() { return active && body.contains(active) ? active : body; },      // the body, where nothing in the page has the focus
     listeners: {}, addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },

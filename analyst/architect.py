@@ -339,12 +339,12 @@ def _unread(recall: Optional[Callable], turns: list) -> str:
     return READ_SINCE if _since(turns, "memory") else ""
 
 
-def _fit(text: str) -> str:
-    """A part opened, as the Pathfinder reads it: whole, or without its middle where it is longer than OPEN_CHARS,
-    the cut said."""
-    if len(text) <= OPEN_CHARS:
+def fit(text: str, chars: int = OPEN_CHARS) -> str:
+    """A text as a prompt carries it: whole, or without its middle where it is longer than `chars`, the cut said. A
+    part the Pathfinder opened is read whole up to OPEN_CHARS."""
+    if len(text) <= chars:
         return text
-    head, tail = text[:OPEN_CHARS * 2 // 3].rstrip(), text[-(OPEN_CHARS // 3):].lstrip()
+    head, tail = text[:chars * 2 // 3].rstrip(), text[-(chars // 3):].lstrip()
     return f"{head}\n... ({len(text) - len(head) - len(tail):,} characters left out here) ...\n{tail}"
 
 
@@ -379,7 +379,7 @@ def _opened(nb: Notebook, run_id: str, request: dict) -> dict:
     label, text = _part(nb, run_id, what, k, n)
     if not label:
         return {"who": "opened", "missing": text}
-    return {"who": "opened", "what": what, **({"n": n} if what == "cell" else {} if k is None else {"run": k}), "label": label, "chars": len(_fit(text))}
+    return {"who": "opened", "what": what, **({"n": n} if what == "cell" else {} if k is None else {"run": k}), "label": label, "chars": len(fit(text))}
 
 
 def opened(nb: Notebook, run_id: str, turns: list) -> str:
@@ -391,7 +391,7 @@ def opened(nb: Notebook, run_id: str, turns: list) -> str:
             break
         if t.get("who") == "opened" and not t.get("missing"):
             label, text = _part(nb, run_id, t.get("what"), t.get("run"), t.get("n"))
-            views.insert(0, f"--- {label} ---\n{_fit(text)}" if label else f"--- {t.get('label', '')} ---\n(no longer on record)")
+            views.insert(0, f"--- {label} ---\n{fit(text)}" if label else f"--- {t.get('label', '')} ---\n(no longer on record)")
     return "OPENED (in view until the person next speaks):\n" + "\n\n".join(views) if views else ""
 
 
@@ -402,12 +402,14 @@ def _grounded(proposal, data: str) -> bool:
     return bool(column) and bool(re.search(r"(?<!\w)" + re.escape(column) + r"(?!\w)", data or ""))
 
 
-def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = EFFORT) -> tuple:
+def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = EFFORT, again: str = AGAIN, unread: str = UNREAD) -> tuple:
     """One reply of the model's, as `read` takes it in, asked at `effort`. A reply that cannot be read is asked for
-    once more. Returns what was read, the calls made and what they cost; raises Failed."""
+    once more, with `again`. Returns what was read, the calls made and what they cost; raises Failed - with `unread`
+    where the second reply cannot be read either. The two texts are the Pathfinder's, for a reply that is a JSON
+    object, unless the caller gives its own."""
     problem, calls, cost = "", 0, 0.0
     for attempt in range(2):
-        reply, usage = llm(system, user if not attempt else user + "\n\n" + AGAIN.format(problem=problem), effort=effort)
+        reply, usage = llm(system, user if not attempt else user + "\n\n" + again.format(problem=problem), effort=effort)
         usage = usage or {}
         calls, cost = calls + 1, cost + float(usage.get("cost") or 0.0)
         if usage.get("declined"):
@@ -416,7 +418,7 @@ def ask(llm: Callable, system: str, user: str, read: Callable, effort: tuple = E
             return read(reply), calls, cost
         except Unreadable as exc:
             problem = CUT if usage.get("truncated") else str(exc)
-    raise Failed(UNREAD.format(problem=problem), calls, cost)
+    raise Failed(unread.format(problem=problem), calls, cost)
 
 
 def exchange(llm: Callable, nb: Notebook, run: Run, text: Optional[str] = None, data: str = "", look: Optional[Callable] = None,

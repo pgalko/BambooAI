@@ -1,0 +1,42 @@
+{
+ "/explain/3/7": {
+  "asked": [
+   {
+    "tab": "answer",
+    "view": "technical",
+    "passage": "has barely moved over 38 winters",
+    "at": 0,
+    "quote": "has barely moved over 38 winters",
+    "question": "How little is barely?",
+    "answer": "About +0.006 °C per decade. Over the 38 winters that adds up to some two hundredths of a degree, far less than the swing from one winter to the next.",
+    "cost": 0.004,
+    "when": 1,
+    "chain": 901
+   },
+   {
+    "tab": "answer",
+    "view": "technical",
+    "passage": "has barely moved over 38 winters",
+    "at": 0,
+    "quote": "the swing from one winter to the next",
+    "question": "How large is that swing?",
+    "answer": "The report does not give it as a number. It gives the interval of the slope instead, from −0.212 to +0.224 °C per decade: a range that wide comes from winters that differ a lot.",
+    "cost": 0.004,
+    "when": 2,
+    "chain": 902
+   },
+   {
+    "tab": "code",
+    "view": "",
+    "passage": "print(1)",
+    "at": 0,
+    "quote": "print(1)",
+    "question": "What does this line do?",
+    "answer": "It prints the number 1. The line stands in for the script here.",
+    "cost": 0.003,
+    "when": 3,
+    "chain": 903
+   }
+  ]
+ }
+}

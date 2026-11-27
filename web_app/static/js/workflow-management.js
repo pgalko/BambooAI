@@ -316,6 +316,7 @@ function loadResponseContent(response) {
     reattachRestoredListeners();
     if (window.ArchitectUI) window.ArchitectUI.restore(response);   // a brief not yet run is drawn from its versions
     if (window.NextQuestionsUI) window.NextQuestionsUI.restore(response);   // a finished analysis has its Next questions button, and the set on its way
+    if (window.ExplainUI) window.ExplainUI.restore(response);               // ... and the passages asked about, marked
 }
 
 

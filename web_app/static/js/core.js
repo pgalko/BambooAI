@@ -75,8 +75,9 @@ function closeLoadDialogSoon(modal, hide) {
     const opening = modal ? modal.dataset.opening : undefined;
     setTimeout(() => { if (modal && modal.dataset.opening === opening) hide(); }, LOAD_DONE_MS);
 }
-// The query box emptied: what was typed has gone to an analysis or to the Pathfinder, and with it the passage it was asked
-// about (selection.js). The one place that empties it (2026-11-27; three places each did, in their own lines).
+// The query box emptied: what was typed has gone - to an analysis, to the Pathfinder, or as a question about the passage
+// quoted on the box - and the quote goes with it (selection.js). The one place that empties it (2026-11-27; three
+// places each did, in their own lines).
 function emptyComposer() {
     const input = document.getElementById('queryInput');
     if (input) { input.value = ''; input.style.height = 'auto'; }
@@ -368,6 +369,11 @@ function continueAppInitialization() {
     // Asking about a selection (selection.js): the bar beside selected text, the quote on the query box
     if (typeof window.SelectionUI !== 'undefined' && typeof window.SelectionUI.initialize === 'function') {
         window.SelectionUI.initialize();
+    }
+
+    // What was asked about a passage (explain.js): its mark in the tab, the note under it
+    if (typeof window.ExplainUI !== 'undefined' && typeof window.ExplainUI.initialize === 'function') {
+        window.ExplainUI.initialize();
     }
 
     // Next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on a finished analysis' closing card, the cards under it

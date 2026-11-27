@@ -145,6 +145,7 @@ body.br-hint .left-panel .icon-row .attach-menu-container, body.br-hint .left-pa
 .selection-bar button.ask { color: var(--c-model); }
 .selection-bar button svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 .selection-bar .sep { width: 1px; height: 14px; margin: 0 1px; background: var(--border-color); }
+.selection-bar.copies .ask, .selection-bar.copies .sep { display: none; }                 /* a selection that cannot be explained is copied (explain.js) */
 body.composer-locked .selection-bar button.ask { opacity: .4; pointer-events: none; }      /* nothing can be asked while the query box is held */
 .left-panel .query-quote { display: none; align-items: center; gap: 7px; margin: 8px 8px 0; padding: 5px 4px 5px 8px; border-left: 2px solid var(--c-model); border-radius: 0 var(--r-1) var(--r-1) 0; background: var(--bg-tertiary); color: var(--text-secondary); font-size: var(--fs-meta); }
 .left-panel .query-quote.on { display: flex; }

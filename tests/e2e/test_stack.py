@@ -2049,6 +2049,113 @@ def walk_draft(page, st, mod, wa, edition, user):
           (ways_in, w_map["switch"], w_map["sub"], w_clicked, w_again["title"], w_again["focus"], p_map["switch"], p_map["sub"], keys, a_map["switch"], a_map["sub"], shut_m, back_m["title"], back_m["focus"]))
 
 
+# ---- a passage explained (0362): the helpers of its section ----
+def notes_on_screen(page):
+    """The marked passages and the notes on the page: each mark with its note's number, its words and its tab; each note with what it stands in, the questions asked there and their answers."""
+    return page.evaluate("""() => ({ marks: [...document.querySelectorAll('.xp-mark')].map(m => [m.dataset.k, m.textContent, m.closest('.tab-content').id.slice(8)]),
+        notes: [...document.querySelectorAll('.xp-note')].map(n => ({ k: n.dataset.k, within: n.parentElement.tagName,
+            asked: [...n.querySelectorAll('details')].map(d => [d.querySelector('summary').textContent, d.querySelector('.a').textContent.trim(), d.open]) })) })""")
+
+
+def select_words(page, root, words):
+    """Words selected with the mouse as a reader selects them - from their first letter to their last - in the first text under `root` that holds them. The selection bar is up after it."""
+    find = """([root, words]) => { const walker = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT); let node;
+        while ((node = walker.nextNode())) { const i = node.textContent.indexOf(words); if (i < 0) continue;
+            const r = document.createRange(); r.setStart(node, i); r.setEnd(node, i + words.length); return r; }
+        return null; }"""
+    page.evaluate(f"(a) => {{ ({find})(a).startContainer.parentElement.scrollIntoView({{ block: 'center' }}); }}", [root, words])
+    page.wait_for_timeout(200)
+    rects = page.evaluate(f"(a) => [...({find})(a).getClientRects()].map(b => [b.x, b.y, b.width, b.height])", [root, words])
+    (x0, y0, _, h0), (x1, y1, w1, h1) = rects[0], rects[-1]
+    page.mouse.move(x0 + 1, y0 + h0 / 2)
+    page.mouse.down()
+    page.mouse.move(x1 + w1 - 1, y1 + h1 / 2, steps=6)
+    page.mouse.up()
+    page.wait_for_selector(".selection-bar.on", timeout=5000)
+
+
+def ask_about(page, question, answers):
+    """Ask on the bar that is up, the question typed and sent. Back when the open note holds `answers` answers and none is still being written."""
+    page.click(".selection-bar .ask")
+    page.keyboard.type(question)
+    page.click("#submitQuery")
+    page.wait_for_function("(n) => { const d = [...document.querySelectorAll('.xp-note details')]; return d.length === n && !d.some(x => x.classList.contains('live')); }", arg=answers, timeout=90000)
+    page.wait_for_timeout(200)
+
+
+def walk_explain(page, mod, wa, edition, user):
+    """A passage of a finished analysis asked about (0362), on the analysis the walk ends on. Words of the report are selected with the mouse; Ask on the bar puts them on the query box, and the
+    question typed there is answered by one call on the server - no analysis starts. The passage stays marked and the answer stands in a note under it. A follow-up is asked from words selected in
+    the note, and a line of the code is asked about: everything asked about the analysis is one conversation, kept on its record. Away from the chain and back, the page draws it from the record."""
+    page.evaluate("MapsUI.shut()")
+    page.evaluate("activateTab('answer')")
+    page.wait_for_selector("#content-answer .markdown-content p", state="visible", timeout=10000)
+    tid, cid, view = page.evaluate("() => [currentData.thread_id, currentData.chain_id, currentData.summaryViewMode || 'technical']")
+    rows0, month0 = len(usage_rows(wa, edition, user)), month_queries(page)
+    before = page.evaluate("() => ({ chains: responses.length, position: document.getElementById('chainPosition').textContent })")
+    said = lambda words, where, n: mod.EXPLAINED.format(passage=words, where=where, before=n)
+    in_answer = "in the Answer tab, " + {"technical": "the technical report", "simplified": "the report in plain language"}[view]
+    # four words of the report that stand in one piece of its text
+    passage = page.evaluate(r"""() => { for (const p of document.querySelectorAll('#content-answer .markdown-content p')) for (const t of p.childNodes) {
+        const m = t.nodeType === 3 && t.textContent.match(/[A-Za-z]+ [A-Za-z]+ [A-Za-z]+ [A-Za-z]+/); if (m) return m[0]; } return ''; }""")
+    select_words(page, "#content-answer .markdown-content", passage)
+    asks = page.evaluate("() => getComputedStyle(document.querySelector('.selection-bar .ask')).display !== 'none'")
+    ask_about(page, "What does this mean?", 1)
+    first = notes_on_screen(page)
+    after = page.evaluate("""() => ({ chains: responses.length, position: document.getElementById('chainPosition').textContent, running: queryRunning, box: document.getElementById('queryInput').value,
+        quote: document.getElementById('queryQuote').classList.contains('on'), tab: document.querySelector('#contentOutput .tab-content.active').id })""")
+    check("a passage of the report asked about (0362): its words selected with the mouse, Ask on the bar, the question typed and sent. No analysis starts - no chain is added, the Answer tab stays on "
+          "screen - and the answer stands in a note under the passage, which is marked. The model was given the words selected and where they stand, and that nothing was asked before",
+          len(passage.split()) == 4 and asks and first["marks"] == [["0", passage, "answer"]] and len(first["notes"]) == 1 and first["notes"][0]["k"] == "0"
+          and first["notes"][0]["asked"] == [["What does this mean?", said(passage, in_answer, 0), True]]
+          and after == {"chains": before["chains"], "position": before["position"], "running": False, "box": "", "quote": False, "tab": "content-answer"}, (passage, asks, first, after, before))
+    select_words(page, ".xp-note .a", "They stand")
+    ask_about(page, "Where exactly?", 2)
+    second = notes_on_screen(page)
+    page.evaluate("activateTab('code')")
+    page.wait_for_selector("#content-code pre code", state="visible", timeout=10000)
+    word = page.evaluate(r"""() => { const walker = document.createTreeWalker(document.querySelector('#content-code pre code'), NodeFilter.SHOW_TEXT); let node;
+        while ((node = walker.nextNode())) { const m = node.textContent.match(/[A-Za-z]{5,}/); if (m) return m[0]; } return ''; }""")
+    select_words(page, "#content-code pre code", word)
+    ask_about(page, "What is this?", 1)
+    third = notes_on_screen(page)
+    check("a follow-up is asked the same way, from words selected in the note: its answer joins the note - the first question one line, the newest open - and the model was told the passage is the "
+          "first one's again, with one question before it. A word of the code asked about: marked in the Code tab, its note in the code, the other note shut; the model was told the tab and the two "
+          "questions before - one conversation for the analysis",
+          second["marks"] == [["0", passage, "answer"]] and second["notes"][0]["asked"] == [["What does this mean?", said(passage, in_answer, 0), False], ["Where exactly?", said("They stand", "at the passage of [1] again", 1), True]]
+          and len(word) >= 5 and ["1", word, "code"] in third["marks"] and ["0", passage, "answer"] in third["marks"] and len(third["notes"]) == 1 and third["notes"][0]["k"] == "1"
+          and third["notes"][0]["within"] == "CODE" and third["notes"][0]["asked"] == [["What is this?", said(word, "in the Code tab", 2), True]], (second, word, third))
+    rec = thread_run(wa, user, tid, cid).get("explained") or []
+    by_chain = {}
+    for r in usage_rows(wa, edition, user)[rows0:]:
+        by_chain.setdefault(str(r["chain_id"]), []).append(r["agent"])
+    month1 = month_queries(page)
+    check("the three exchanges are kept with the analysis, on its record, in the order asked: where each passage stands, the words selected, the question, the answer and the chain its call was "
+          "logged under. Each was one call under a chain of its own - the Explainer's, no run of the thread - and a query of the month's (the self-hosted edition counts none)",
+          [(x.get("tab"), x.get("view"), x.get("passage"), x.get("quote"), x.get("question"), x.get("answer")) for x in rec]
+          == [("answer", view, passage, passage, "What does this mean?", said(passage, in_answer, 0)), ("answer", view, passage, "They stand", "Where exactly?", said("They stand", "at the passage of [1] again", 1)),
+              ("code", "", word, word, "What is this?", said(word, "in the Code tab", 2))]
+          and all(isinstance(x.get("at"), int) and x.get("cost", -1) >= 0 for x in rec) and sorted(by_chain) == sorted(str(x.get("chain")) for x in rec) and all(v == ["Explainer"] for v in by_chain.values())
+          and not any(thread_run(wa, user, tid, x.get("chain")) for x in rec) and month1 - month0 == (3 if edition == "hosted" else 0), (rec, by_chain, month0, month1))
+    other = page.evaluate("(c) => { const r = responses.find(r => !r.status && r.chain_id != null && String(r.chain_id) !== String(c)); return r ? r.chain_id : null; }", cid)
+    page.evaluate("(c) => navigateToChainId(c)", other)
+    page.wait_for_function("(c) => String(currentData.chain_id) === String(c)", arg=str(other), timeout=30000)
+    page.wait_for_timeout(800)
+    away = notes_on_screen(page)
+    page.evaluate("(c) => navigateToChainId(c)", cid)
+    page.wait_for_function("(c) => String(currentData.chain_id) === String(c) && document.querySelectorAll('.xp-mark').length >= 2", arg=str(cid), timeout=30000)
+    page.wait_for_timeout(600)
+    back = notes_on_screen(page)
+    page.evaluate("activateTab('answer')")
+    page.click("#content-answer .xp-mark")
+    page.wait_for_selector("#content-answer .xp-note", timeout=5000)
+    opened = notes_on_screen(page)
+    check("away on another chain none of this is drawn; back on the analysis the page asks the server for what was asked about it and marks both passages again, no note open; a click on the first "
+          "opens its note with both of its questions",
+          other is not None and away == {"marks": [], "notes": []} and sorted(back["marks"]) == sorted([["0", passage, "answer"], ["1", word, "code"]]) and back["notes"] == []
+          and len(opened["notes"]) == 1 and [a[0] for a in opened["notes"][0]["asked"]] == ["What does this mean?", "Where exactly?"] and [a[2] for a in opened["notes"][0]["asked"]] == [False, True], (other, away, back, opened))
+
+
 def turn_prompt(page, turn):
     """The prompt a turn's card received, through its prompt button."""
     page.click(f'.sp-turn[data-turn="{turn}"] .sp-prompt')
@@ -3512,6 +3619,10 @@ def main():
 
             # the figures and their draft (2026-11-18, docs/ARCHITECT_DESIGN.md §2.19, §2.20): on data, in a workflow of its own
             walk_draft(page, st, mod, wa, edition, USER)
+            errs = errs + page.evaluate("window.__stackErrors || []")
+
+            # a passage of a finished analysis asked about (2026-11-27): on the analysis the walk ends on
+            walk_explain(page, mod, wa, edition, USER)
             errs = errs + page.evaluate("window.__stackErrors || []")
             b.close()
 
