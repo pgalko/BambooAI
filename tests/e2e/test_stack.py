@@ -2159,7 +2159,7 @@ def walk_explain(page, mod, wa, edition, user):
 def plots_on_screen(page):
     """The plot cards on the page: each with its name, whether it is a picture or a figure the library draws, the count its button shows, and what stands under its figure - the questions asked there,
     each with its answer, whether it is open and whether it says it was answered without the picture."""
-    return page.evaluate("""() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => { const n = c.querySelector(':scope > .xp-note'); return {
+    return page.evaluate("""() => [...document.querySelectorAll('#content-plot .plot-container[data-plot-id]')].map(c => { const n = c.querySelector(':scope > .xp-note'); return {
         name: c.querySelector('h3').textContent, png: !!c.querySelector('.plot-image'), live: !!c.querySelector('.js-plotly-plot'), count: c.querySelector('.plot-query-btn').getAttribute('data-n'),
         row: c.querySelectorAll('.plot-query-form, .plot-query-input').length,
         asked: n ? [...n.querySelectorAll('details')].map(d => [d.querySelector('summary').textContent, d.querySelector('.a').textContent.trim(), d.open, d.querySelector('.blind') ? d.querySelector('.blind').textContent : '']) : [] }; })""")
@@ -2167,14 +2167,14 @@ def plots_on_screen(page):
 
 def plot_answers(page, n, answers):
     """Back when the n-th plot's note holds `answers` answers and none is still being written."""
-    page.wait_for_function("""([n, k]) => { const c = document.querySelectorAll('#content-plot .plot-container')[n], d = c ? [...c.querySelectorAll(':scope > .xp-note details')] : [];
+    page.wait_for_function("""([n, k]) => { const c = document.querySelectorAll('#content-plot .plot-container[data-plot-id]')[n], d = c ? [...c.querySelectorAll(':scope > .xp-note details')] : [];
         return d.length === k && !d.some(x => x.classList.contains('live')); }""", arg=[n, answers], timeout=90000)
     page.wait_for_timeout(200)
 
 
 def ask_plot(page, n, question, answers):
     """The n-th plot's chat button pressed, the question typed and sent. Back when the plot's note holds `answers` answers."""
-    page.locator("#content-plot .plot-container").nth(n).locator(".plot-query-btn").click()
+    page.locator("#content-plot .plot-container[data-plot-id]").nth(n).locator(".plot-query-btn").click()
     page.wait_for_selector("#queryQuote.on", timeout=5000)
     page.keyboard.type(question)
     page.click("#submitQuery")
@@ -2191,7 +2191,7 @@ def walk_plots(page, mod, wa, edition, user):
     said = lambda words, where, n, seen=True: mod.EXPLAINED.format(passage=words, where=where, before=n) + (mod.EXPLAINED_SEEN if seen else "")
     # the stack's stand-in for the library takes no picture of a figure; here it gives one, as the library does - the first plot's, for a picture
     page.evaluate("() => { window.__toImage = Plotly.toImage; Plotly.toImage = () => Promise.resolve(document.querySelector('#content-plot .plot-image').src); }")
-    page.locator("#content-plot .plot-container").nth(0).locator(".plot-query-btn").click()
+    page.locator("#content-plot .plot-container[data-plot-id]").nth(0).locator(".plot-query-btn").click()
     page.wait_for_function("() => document.querySelector('#queryQuote.on img[src]')", timeout=5000)
     quote = page.evaluate("""() => { const q = document.getElementById('queryQuote'); return { words: q.querySelector('.t').textContent, focus: document.activeElement.id,
         picture: q.querySelector('img').getAttribute('src') === document.querySelector('#content-plot .plot-image').getAttribute('src') }; }""")
@@ -3171,9 +3171,10 @@ def main():
                 page.wait_for_timeout(400)
             page.evaluate("activateTab('plot')")
             page.wait_for_timeout(300)
-            plots_now = page.evaluate("() => [...document.querySelectorAll('#content-plot .plot-container')].map(c => ({ id: c.getAttribute('data-plot-id'), png: !!c.querySelector('.plot-image'), plotly: !!c.querySelector('.plotly-plot') }))")
-            check("chain 1's Plots tab: plot 1 is the matplotlib PNG, plot 2 the Plotly figure (the executor returns the figures in order; the Plotly files numbered as shown)",
-                  [p_["id"] for p_ in plots_now] == ["plot_1", "plot_2"] and plots_now[0]["png"] and plots_now[1]["plotly"], plots_now)
+            plots_now = page.evaluate("() => [...document.querySelectorAll('#content-plot .plot-container[data-plot-id]')].map(c => ({ id: c.getAttribute('data-plot-id'), png: !!c.querySelector('.plot-image'), plotly: !!c.querySelector('.plotly-plot'), inner: c.querySelectorAll('.plot-container.plotly').length }))")
+            check("chain 1's Plots tab: plot 1 is the matplotlib PNG, plot 2 the Plotly figure (the executor returns the figures in order; the Plotly files numbered as shown) - in the library's "
+                  "own box, which carries the class of the page's plot cards",
+                  [p_["id"] for p_ in plots_now] == ["plot_1", "plot_2"] and plots_now[0]["png"] and plots_now[1]["plotly"] and [p_["inner"] for p_ in plots_now] == [0, 1], plots_now)
             walk_plots(page, mod, os.path.join(workdir, "webapp"), edition, USER)
             # with no plot on the box a question typed is an analysis of its own, as a change to a plot is asked for: no picture goes with it
             page.fill("#queryInput", "What does the taller bar mean?")

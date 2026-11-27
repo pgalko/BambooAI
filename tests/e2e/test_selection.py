@@ -117,7 +117,7 @@ window.T = {
   at(sel, dx) { const r = document.querySelector(sel).getBoundingClientRect(); return [r.x + (dx || 6), r.y + r.height / 2]; },
   plots() {            // the plot cards: each with its name, its chat button and what the button says, and what stands under its figure
     const box = e => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; };
-    return [...document.querySelectorAll('#content-plot .plot-container')].map(c => { const b = c.querySelector('.plot-query-btn'), n = c.querySelector(':scope > .xp-note'), look = n && getComputedStyle(n);
+    return [...document.querySelectorAll('#content-plot .plot-container[data-plot-id]')].map(c => { const b = c.querySelector('.plot-query-btn'), n = c.querySelector(':scope > .xp-note'), look = n && getComputedStyle(n);
       return { name: c.querySelector('h3').textContent, button: [box(b).x + box(b).w / 2, box(b).y + box(b).h / 2], count: getComputedStyle(b, '::after').content, look: [getComputedStyle(b).opacity, getComputedStyle(b).pointerEvents],
         row: c.querySelectorAll('.plot-query-form, .plot-query-input, .plot-query-submit').length,
         note: n && { k: n.dataset.k, last: c.lastElementChild === n, after: n.previousElementSibling.className, box: box(n), lines: [look.borderTopWidth, look.borderLeftWidth, look.backgroundColor, look.fontSize],
@@ -682,9 +682,11 @@ with sync_playwright() as pw:
     p = Page(browser, plots=True)
     p.tab("plot")
     cards = p.plots()
-    check("the Plots tab: each plot is a card with its chat button; the question row a card had is gone, and nothing was asked yet",
+    boxes = p.page.evaluate("[...document.querySelectorAll('#content-plot .plot-container')].map(b => [b.getAttribute('data-plot-id'), b.className, b.parentElement.className, !!b.querySelector('.plot-header')])")
+    check("the Plots tab: each plot is a card with its chat button; the question row a card had is gone, and nothing was asked yet. The figure the library draws stands in a box of the library's own, "
+          "which carries the cards' class - as the real library's does - and is no card",
           [c["name"] for c in cards] == ["Plot 1:", "Plot 2:"] and all(c["row"] == 0 and c["note"] is None and c["count"] == "none" and c["look"][1] == "auto" for c in cards)
-          and p.page.evaluate("!!document.querySelector('#content-plot .plot-container:nth-child(2) .js-plotly-plot svg')"), cards)
+          and boxes == [["plot_1", "plot-container", "tab-content active", True], ["plot_2", "plot-container", "tab-content active", True], [None, "plot-container plotly", "js-plotly-plot", False]], (cards, boxes))
     s = p.click(cards[0]["button"])
     p.page.wait_for_timeout(200)
     chip = p.chip()

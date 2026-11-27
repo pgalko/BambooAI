@@ -394,14 +394,17 @@ async function asked(where, question, answer) {
 
   // ------------------------------------------------------------ plots
   {
-    const CARD = (name, figure) => '<div class="plot-container"><div class="plot-header"><h3>' + name + ':</h3><div class="plot-header-actions"><button class="plot-query-btn"></button>'
+    // a plot's card as content-rendering.js builds it; an interactive plot as the library draws it - in a box of its own that carries the cards' class
+    const CARD = (name, figure) => '<div class="plot-container" data-plot-id="' + name + '"><div class="plot-header"><h3>' + name + ':</h3><div class="plot-header-actions"><button class="plot-query-btn"></button>'
       + '<button class="plot-expand-btn"></button></div></div><div class="plot-content">' + figure + '</div></div>';
-    const STILL = src => '<img src="data:image/png;base64,' + src + '" class="plot-image">', LIVE = '<div class="plotly-plot"><div class="js-plotly-plot"><p>drawn by the library</p></div></div>';
+    const STILL = src => '<img src="data:image/png;base64,' + src + '" class="plot-image">';
+    const LIVE = '<div class="plotly-plot"><div class="js-plotly-plot"><div class="plot-container plotly"><div class="svg-container"><p>drawn by the library</p></div></div></div></div>';
     const PLOTS = CARD('Plot 1', STILL('ONE')) + CARD('Plot 2', LIVE) + CARD('Plot 2', STILL('TWIN')), wasPlots = $('content-plot').innerHTML;
     const mine = responses.push({ chain_id: 11, thread_id: 3 }) - 1; currentResponseIndex = mine;
     text('answer').innerHTML = REPORT; $('content-plot').innerHTML = PLOTS;
     server = () => whole(200, { asked: [] }); E.restore(responses[mine]); await tick();
-    const cards = () => $('content-plot').querySelectorAll('.plot-container'), caption = i => cards()[i].querySelector(':scope > .xp-note');
+    const cards = () => $('content-plot').querySelectorAll('.plot-container[data-plot-id]'), caption = i => cards()[i].querySelector(':scope > .xp-note');
+    const inner = () => cards()[1].querySelector('.plot-container');      // the library's own box, inside the second plot
     const lines = i => (caption(i) ? caption(i).querySelectorAll('details').map(d => [d.querySelector('summary').textContent, d.hasAttribute('open'), d.classList.contains('live'), d.querySelector('.a').innerHTML]) : null);
     const count = i => { const button = cards()[i].querySelector('.plot-query-btn'); return [button.classList.contains('asked'), button.getAttribute('data-n')]; };
     const passageNote = () => doc.querySelector('.markdown-content .xp-note');
@@ -476,6 +479,9 @@ async function asked(where, question, answer) {
     const each = [lines(0).length, lines(1).map(l => l[0]), lines(2).map(l => l[0]), count(1), count(2), calls.map(c => c[1].image), shots.length, $('content-plot').querySelectorAll('.xp-note').length, !!passageNote()];
     check('each plot has its own note, all of them there at once, beside the open note of a passage; two plots of one name are told apart by which of them each is; an interactive plot\'s picture is taken as its question is sent',
       same(each, [2, ['Which is drawn live?'], ['And this one?'], [true, '1'], [true, '1'], ['TWIN', 'LIVE'], 1, 3, true]), each);
+    check('the box the library builds inside an interactive plot carries the class of the page\'s plot cards and is none: it is no place to ask about, nothing stands in it, and its plot is the second of the tab\'s three',
+      $('content-plot').querySelectorAll('.plot-container').length === 4 && cards().length === 3 && inner() && inner().classList.contains('plotly') && !inner().querySelector('.xp-note')
+      && inner().innerHTML === '<div class="svg-container"><p>drawn by the library</p></div>' && same(spots.map(s => [s.passage, s.at]), [['Plot 1', 0], ['Plot 2', 0], ['Plot 2', 1]]), inner() && inner().outerHTML);
 
     picked = null; await click(text('answer').querySelector('.xp-mark'));
     caption(0).querySelectorAll('details')[1].removeAttribute('open');
@@ -506,7 +512,7 @@ async function asked(where, question, answer) {
     check('another chain on screen: none of these notes and no count - the plots there are that chain\'s own; back on the analysis they stand again',
       same(away, [0, Array(4).fill([false, null])]) && $('content-plot').querySelectorAll('.xp-note').length === 3 && same(count(0), [true, '2']) && same(count(3), [false, null]), away);
     const copy = doc.createElement('div'); copy.innerHTML = $('content-plot').innerHTML;
-    check('the export\'s way of taking a tab without what is drawn into it takes the plots\' notes out too', E.plain(copy).querySelectorAll('.xp-note').length === 0 && copy.querySelectorAll('.plot-container').length === 4);
+    check('the export\'s way of taking a tab without what is drawn into it takes the plots\' notes out too', E.plain(copy).querySelectorAll('.xp-note').length === 0 && copy.querySelectorAll('.plot-container[data-plot-id]').length === 4);
 
     $('content-plot').innerHTML = wasPlots; text('answer').innerHTML = REPORT; responses.pop(); currentResponseIndex = 0; delete window.Plotly;
     await drawn($('contentOutput'));

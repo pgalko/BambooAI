@@ -59,8 +59,10 @@
     // the text of a tab: what the report, the code or the output is drawn into
     function body(tab) { const root = byId('content-' + tab); return root ? root.querySelector('.markdown-content') : null; }
     function marksOf(k) { return Array.from(document.querySelectorAll('.xp-mark[data-k="' + k + '"]')); }
-    // the plots of the tab on screen, in order; and a plot's name, as its card says it
-    function plots() { return Array.from(document.querySelectorAll('#content-' + PLOT + ' .plot-container')); }
+    // the plots of the tab on screen, in order: the page's own cards, each with its plot's id - the library that draws
+    // an interactive plot builds a box of the cards' class inside it, which is no plot; and a plot's name, as its card
+    // says it
+    function plots() { return Array.from(document.querySelectorAll('#content-' + PLOT + ' .plot-container[data-plot-id]')); }
     function named(box) { const head = box.querySelector('.plot-header h3'); return head ? head.textContent.trim().replace(/:$/, '') : ''; }
     // where a plot stands, as a passage does: by its name, and which of the tab's plots of that name it is
     function spot(box) { const name = named(box); return { tab: PLOT, view: '', passage: name, at: plots().filter(b => named(b) === name).indexOf(box) }; }

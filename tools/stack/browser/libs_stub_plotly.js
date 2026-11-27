@@ -2,6 +2,10 @@
 // box to a box trace - a panel to each pair of axes the traces name - under the figure's title, with the names of its
 // traces and the words a layout puts across it. Enough to see that a figure was drawn and what it holds; nothing of the
 // real library is here (2026-11-18: a JSON figure had been an empty box). PNG figures do not need Plotly.
+// The figure stands in the boxes the library builds for one - div.plot-container.plotly, then div.svg-container: the
+// first carries the class the page gives its own plot cards, and code that looks for the cards meets it (2026-11-28:
+// explain.js took it for a card, and no suite had such a box). The library's rule for its boxes - no margin, no
+// padding - is here too: it outranks a page's rule on the class alone, and yields to one under an id.
 (function () {
     const INK = ['#4c9be8', '#e8a23c', '#5fbf7a', '#d86a6a', '#a98be0', '#58c4c4'];
     const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -40,7 +44,13 @@
         });
         return out;
     }
+    // the library's rule for its boxes, in the page from the first figure on (the stand-in may be loaded before the page has a head)
+    function rule() {
+        if (document.getElementById('plotly-stand-in-rule')) return;
+        document.head.insertAdjacentHTML('beforeend', '<style id="plotly-stand-in-rule">.js-plotly-plot .plotly, .js-plotly-plot .plotly div { margin: 0; padding: 0; }</style>');
+    }
     function draw(el, data, layout) {
+        rule();
         const lay = layout || {}, W = Math.max(280, el.clientWidth || 640), H = Number(lay.height) || 360;
         const traces = (data || []).filter(t => t && (Array.isArray(t.y) || Array.isArray(t.z)));
         const pairs = [], of = traces.map(t => { const id = (t.xaxis || 'x') + '/' + (t.yaxis || 'y') + (Array.isArray(t.z) ? '/z' : ''); if (pairs.indexOf(id) < 0) pairs.push(id); return pairs.indexOf(id); });
@@ -56,7 +66,7 @@
             return '<text x="' + r1(x) + '" y="' + r1(y) + '" text-anchor="middle" fill="' + esc(font.color || '#9ca3af') + '" font-size="' + (Number(font.size) || 12) + '" opacity="' + (a.opacity == null ? 1 : Number(a.opacity)) + '"' +
                 (a.textangle ? ' transform="rotate(' + Number(a.textangle) + ' ' + r1(x) + ' ' + r1(y) + ')"' : '') + '>' + esc(a.text) + '</text>';
         }).join('');
-        el.innerHTML = out + '</svg>';
+        el.innerHTML = '<div class="plot-container plotly"><div class="user-select-none svg-container">' + out + '</svg></div></div>';
         if (el.classList) el.classList.add('js-plotly-plot');
         return Promise.resolve(el);
     }
