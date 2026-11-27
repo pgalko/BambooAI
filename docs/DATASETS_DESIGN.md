@@ -677,3 +677,25 @@ test_dialogs.js (`DateWindow.of`, `bounds`, `line`, `check` across the cases; th
 default, note and Load check; the cache dialog's Load row, picks and Clear, and what is gone), test_routines.js (the
 run dialog's custom pickers bounded with the line, the check at Run), the date-inputs suite (nothing rewrites a typed
 date), the integrations walk (the run dialog's line under the pickers).
+
+## 19. The end of a load (patch 0358, 2026-11-27)
+
+The three load dialogs - Intervals.icu, Endura, SweatStack - end a load the same way, the product owner's pick of
+three mockups (the others closed the dialog at once, or waited for a Done button):
+
+- While the load runs, the Load button is grey and its icon still, and one line says the step: the executor's words,
+  a count as *5 of 14*, no percent.
+- Once the data is in, *Loaded* with a tick stands where the button was - no frame, nothing to press - and the dialog
+  closes itself 1.5 s later. Beside it the Intervals.icu dialog says the counts alone: *14 activities · 2 new*, or
+  *nothing new*, *all new*, *all downloaded again*. Endura and SweatStack say nothing beside it.
+- Something asked for and not loaded keeps the dialog open: the note beside the counts says what and why (*Wellness
+  not loaded: the window has no wellness days.*, *Context: 2 calls failed.*), and the button reads *Close*.
+- A failure is said in red, and Load is back. Every opening starts from Load, unless a load is still running.
+
+The Context's passages and its coding pass are the Context pill's to show; the dialog no longer names them. The
+Dataset cache dialog's Load hears an Intervals.icu load through the poller's report (the step, then the end with its
+counts and note) and says *Loaded · 101 activities · from the store*; a note keeps it open, as before.
+
+Accepted by (patch 0358): test_dialogs.js (the button's looks, the counts, the note, the step, the end in the foot,
+the close for its own opening, the cache dialog's report), the load foot suite (tests/e2e/test_load_foot.py: the
+three dialogs in Chromium with the app's stylesheets), the integrations walk (the first load's end).

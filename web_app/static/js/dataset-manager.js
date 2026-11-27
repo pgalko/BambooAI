@@ -321,10 +321,10 @@ window.DatasetManager = (function() {
         const buttons = document.querySelectorAll('#datasetDetails [data-act]');
         buttons.forEach(b => { b.disabled = true; });
         if (status) { status.style.display = ''; status.className = 'ds-load-status loading'; status.textContent = 'Loading ' + what + ' ' + from + ' → ' + to + (online ? '… days not in the cache are downloaded' : ' from the cache…'); }
-        const done = (ok, text) => {
+        const done = (ok, text, stays) => {
             if (status) { status.className = 'ds-load-status ' + (ok ? 'success' : 'error'); status.textContent = text; }
             buttons.forEach(b => { b.disabled = false; });
-            if (ok && !/Not written/.test(text)) setTimeout(hideModal, 1500);     // a line naming what was not written stays
+            if (ok && !stays) setTimeout(hideModal, 1500);     // a line naming what was not loaded stays
             else if (ok) loadDatasets();
         };
         try {
@@ -335,15 +335,10 @@ window.DatasetManager = (function() {
             if (withFrame) {
                 dropPills(folder, kinds);                     // the pills of the kinds this load replaces go with the frame; the rest stay
                 if (typeof pollIntervalsJob !== 'function') throw new Error('the Intervals.icu module is not on the page');
-                const msg = document.getElementById('intervals-modal-message');
-                if (msg) { msg.textContent = ''; msg.className = msg.className.replace(/\b(success|error|loading)-message\b/g, '').trim(); }      // an earlier load's line must not pass for this one's
-                pollIntervalsJob(data.job_id, { start: from, end: to }, kinds);          // the dialog's own poller: the frame and the pills on completion
-                const mirror = setInterval(() => {
-                    const text = msg ? msg.textContent : '';
-                    if (status) status.textContent = text || 'Loading…';
-                    if (/Data loaded successfully/.test(text)) { clearInterval(mirror); done(true, text); }
-                    else if (/^✗|Failed|timed out|expired/.test(text)) { clearInterval(mirror); done(false, text); }
-                }, 500);
+                pollIntervalsJob(data.job_id, { start: from, end: to }, kinds, {          // the Intervals.icu dialog's poller makes the frame and the pills; how it goes is said here (2026-11-27)
+                    progress: line => { if (status) status.textContent = line; },
+                    end: (ok, line, note) => done(ok, ok ? ['Loaded' + (line ? ' \u00b7 ' + line : ''), note].filter(Boolean).join('. ') : line, !!note)
+                });
             } else {
                 pollDatasetJob(data.job_id, { start_date: from, end_date: to, aux_datasets: kinds, folder: folder }, what, online, status, done);
             }
@@ -385,8 +380,8 @@ window.DatasetManager = (function() {
                 if (typeof createIntervalsAuxiliaryPills === 'function') createIntervalsAuxiliaryPills(files, dataInfo, { coding: !!(coding && coding.status === 'running'), line: (coding && coding.line) || '' });
                 if (coding && coding.status === 'running' && typeof pollContextCoding === 'function') pollContextCoding(jobId, dataInfo);
                 else if (coding && coding.codes_path && typeof contextPillAdd === 'function') contextPillAdd([coding.codes_path], dataInfo, { coding: false, line: coding.line || '' });
-                const warn = (job.result && Array.isArray(job.result.warnings) && job.result.warnings.length) ? ' Not written: ' + job.result.warnings.join('; ') + '.' : '';
-                done(true, 'Loaded ' + what + ' ' + dataInfo.start_date + ' → ' + dataInfo.end_date + (online ? ' through Intervals.icu' : ' from the store, nothing fetched') + (files.length ? ': ' + files.map(f => String(f).split('/').pop()).join(', ') : ': no file written') + '.' + warn);
+                const note = typeof intervalsNotLoaded === 'function' ? intervalsNotLoaded(job.result) : '';      // what was not loaded and why, in the Intervals.icu dialog's words (2026-11-27)
+                done(true, 'Loaded ' + what + ' ' + dataInfo.start_date + ' → ' + dataInfo.end_date + (online ? ' through Intervals.icu' : ' from the store, nothing fetched') + (files.length ? ': ' + files.map(f => String(f).split('/').pop()).join(', ') : ': no file written') + '.' + (note ? ' ' + note : ''), !!note);
             } else if (job && job.status === 'error') { ended = true; done(false, 'Failed: ' + (job.error || 'the load failed')); }
             else if (job && job.status === 'not_found') { ended = true; done(false, 'The load is gone from the executor (restarted?)'); }
             else if (Date.now() - t0 > 300000) { ended = true; done(false, 'The load timed out'); }

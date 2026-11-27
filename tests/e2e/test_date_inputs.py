@@ -33,7 +33,8 @@ def cut(src, start_pat, end_pat):
     m = re.search(start_pat, src, re.M)
     assert m, start_pat
     n = re.search(end_pat, src[m.end():], re.M)
-    return src[m.start():m.end() + (n.start() if n else len(src))]
+    assert n, end_pat
+    return src[m.start():m.end() + n.start()]
 
 
 def read(*p):
@@ -42,7 +43,7 @@ def read(*p):
 
 core, ivl, sws = read("core.js"), read("integrations", "intervals.js"), read("integrations", "sweatstack.js")
 pieces = [cut(core, r"^function localIsoDay\(d\) \{", r"^\}\n") + "}\n",
-          cut(ivl, r"^let intervalsLimitsPromise = null", r"^// The context's report"),
+          cut(ivl, r"^let intervalsLimitsPromise = null", r"^// A step of the load as the foot says it"),
           cut(ivl, r"^function initializeIntervalsDatePickers\(\) \{", r"^\}\n") + "}\n",
           cut(sws, r"^let sweatstackLimitsPromise = null;", r"^//-{10,}"),
           cut(sws, r"^function initializeDatePickers\(\) \{", r"^\}\n") + "}\n"]

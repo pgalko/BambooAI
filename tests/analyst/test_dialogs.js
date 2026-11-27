@@ -93,7 +93,7 @@ const intIds = {sweatstackModal: ['cycling-checkbox', 'running-checkbox', 'users
 const intMissing = [];
 for (const [mid, ids] of Object.entries(intIds)) { const r = doc.createElement('div'); r.innerHTML = fragment(mid); ids.forEach(id => { if (!r.querySelector('#' + id)) intMissing.push(mid + '#' + id); }); if (!r.querySelector('.ui-dlg-h .x.close')) intMissing.push(mid + ' close'); if (!r.querySelector('#' + mid).className.includes('integration-dialog')) intMissing.push(mid + ' class'); }
 check('integration dialogs: every id the three scripts address exists, each in the shell with the shared integration-dialog class', intMissing.length === 0, intMissing.join(','));
-const hookClasses = ['sport-option', 'metric-option', 'intervals-aux-option', 'endura-aux-option', 'circular-button', 'button-label', 'check-icon', 'api-key-status', 'date-input'];
+const hookClasses = ['sport-option', 'metric-option', 'intervals-aux-option', 'endura-aux-option', 'circular-button', 'check-icon', 'api-key-status', 'date-input'];
 check('integration dialogs: the hook classes the scripts query survive', hookClasses.every(c => html.includes('class="' + c) || html.includes(' ' + c + '"') || html.includes(' ' + c + ' ')));
 check('integration dialogs: the SweatStack metrics are still rendered by the template loop', html.includes('{% for metric in sweatstack_metrics %}') && html.includes('{{ metric.value }}-checkbox'));
 check('integration stylesheets are retired (not linked); one ruleset in dialogs.css', !html.includes("css/integrations/sweatstack.css") && !html.includes("css/integrations/intervals.css") && !html.includes("css/integrations/endura.css") && dcss.includes('.integration-dialog .int-options label'));
@@ -135,9 +135,9 @@ check('storeLine: the laps\' account when the laps file was asked (2026-10-29) -
   && storeLine({ window: 5, held: 5, fetched: 0, laps: null }) === 'all 5 activities from the store, nothing downloaded',
   [storeLine({ window: 101, held: 91, fetched: 10, laps: { window: 101, held: 91, fetched: 10 } })]);
 const ij = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'), 'utf8');
-check('a load\'s delayed hide closes only the Intervals.icu dialog it was scheduled for (2026-11-06): the Dataset cache dialog\'s Load polls the same way, and a dialog opened within those seconds used to be closed under the person',
-  ij.includes('let intervalsModalOpens = 0;') && ij.includes("modal.style.display = 'flex';\n        intervalsModalOpens++;") && ij.includes('const opened = intervalsModalOpens;') && ij.includes('setTimeout(() => { if (intervalsModalOpens === opened) hideIntervalsModal(); }, ctxLine ? 6000 : 2000);'));
-check('intervals.js sends the flag with the load, says the store\'s line with the success message and puts the choice back on Only what\'s new after', ij.includes('refresh: refresh') && ij.includes("storeLine(job.result && job.result.store)") && ij.includes('setIntervalsRefresh(false);'));
+check('a load\'s close shuts only the Intervals.icu dialog it was scheduled for (2026-11-06; since 2026-11-27 one counter for the three load dialogs, core.js): every opening is counted, and the close schedules itself for the opening it found',
+  ij.includes("modal.style.display = 'flex';\n        loadDialogOpened(modal);") && ij.includes("if (!note) closeLoadDialogSoon(document.getElementById('intervalsModal'), hideIntervalsModal);") && !ij.includes('intervalsModalOpens'));
+check('intervals.js sends the flag with the load, says the counts when it is in and puts the choice back on Only what\'s new after', ij.includes('refresh: refresh') && ij.includes("say.end(true, intervalsLoadedLine(job.result && job.result.store), note);") && ij.includes('setIntervalsRefresh(false);'));
 // the Download choice driven on the mini DOM: a click on a side sets the hidden box and lights the side; the foot's store line
 const dmx = makeDocument(); global.document = dmx; const dlHost = dmx.createElement('div'); dlHost.innerHTML = fragment("intervalsModal"); dmx.body.appendChild(dlHost);
 const fetched = []; global.window = { authService: { fetch: async u => { fetched.push(u); return { ok: true, json: async () => ({ stores: [{ key_mark: 'abcd', activities: 101, chats: 40, from: '2025-10-18', to: '2026-10-08', size_mb: 12.3 }, { key_mark: 'efgh', activities: 60, from: '2026-07-01', to: '2026-08-30' }] }) }; } } };
@@ -184,7 +184,95 @@ const narrowed = { shown: dmx.querySelectorAll('#intervalsRoster .row').filter(r
 check('a click on a row picks it (the foot line follows: nothing in the store for them yet); the find box narrows the rows by name and says how many of how many', ijm.intervalsAthleteId() === 'i9' && line2 === 'Nothing in the store for Ninth Athlete yet · the first load fills it; later loads fetch only what they lack'
   && narrowed.shown.join() === 'i9' && narrowed.count === '1 of 4 · Enter picks the first', [line2, narrowed]);
 check('the initials: two words give two letters, one word one, none the id\'s first two', ijm.intervalsInitials('First Athlete', 'i0') === 'FA' && ijm.intervalsInitials('Solo', 'i0') === 'S' && ijm.intervalsInitials('', 'i77') === 'I7');
-global.document = doc; finish();
+// ---- the end of a load (2026-11-27, docs/DATASETS_DESIGN.md §19, the product owner's pick of three mockups): one look of the Load
+// button for each moment of a load, the counts and what was not loaded in the foot, the dialog closing itself
+const coreJs = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'core.js'), 'utf8');
+Object.assign(global, new Function(coreJs.match(/const LOAD_DONE_MS = [\s\S]*?\nfunction closeLoadDialogSoon\(modal, hide\) \{[\s\S]*?\n\}\n/)[0] + '; return { LOAD_DONE_MS, setLoadButton, loadDialogOpened, closeLoadDialogSoon };')());
+const lb = dmx.getElementById('connectIntervals');
+const drawnHtml = lb.innerHTML, drawnTitle = lb.getAttribute('title'), drawnLabel = lb.getAttribute('aria-label');
+const look = () => ({ state: lb.dataset.state, cls: lb.className, disabled: !!lb.disabled, text: lb.textContent.trim(), tick: lb.innerHTML.includes('<polyline points="20 6 9 17 4 12"'), drawn: lb.innerHTML === drawnHtml, title: lb.getAttribute('title'), label: lb.getAttribute('aria-label') });
+setLoadButton(lb, 'busy'); const busyL = look();
+setLoadButton(lb, 'done'); const doneL = look();
+setLoadButton(lb, 'close'); const closeL = look();
+setLoadButton(lb, 'idle'); const idleL = look();
+check('the Load button\'s four looks (core.js): busy - its loading class, pressed no more, its own markup (the plane and Load) and title; done - "Loaded" with a tick, no loading class, nothing to press, said so to a reader too; close - "Close", pressable; idle - the page\'s markup, title and label back',
+  LOAD_DONE_MS === 1500 && busyL.state === 'busy' && /\bloading\b/.test(busyL.cls) && busyL.disabled && busyL.drawn && busyL.text === 'Load' && busyL.title === drawnTitle && busyL.label === drawnLabel
+  && doneL.state === 'done' && /\bdone\b/.test(doneL.cls) && !/\bloading\b/.test(doneL.cls) && doneL.disabled && doneL.text === 'Loaded' && doneL.tick && doneL.title === 'Loaded' && doneL.label === 'Loaded'
+  && closeL.state === 'close' && !closeL.disabled && closeL.text === 'Close' && !/\b(done|loading)\b/.test(closeL.cls) && closeL.label === 'Close' && closeL.title === 'Close'
+  && idleL.state === 'idle' && !idleL.disabled && idleL.drawn && idleL.title === drawnTitle && idleL.label === drawnLabel && !/\b(done|loading)\b/.test(idleL.cls), [busyL, doneL, closeL, idleL]);
+const ld = ijm.intervalsLoadedLine;
+check('the counts once a load is in (the product owner: the essentials): how many activities and how many of them were new - nothing new, all new, all downloaded again, one activity, thousands; the cache dialog\'s load from the store alone; nothing without a window',
+  ld({ window: 14, held: 12, fetched: 2 }) === '14 activities · 2 new' && ld({ window: 14, held: 14, fetched: 0 }) === '14 activities · nothing new' && ld({ window: 14, held: 0, fetched: 14 }) === '14 activities · all new'
+  && ld({ window: 14, held: 9, fetched: 14, refresh: true }) === '14 activities · all downloaded again' && ld({ window: 1, held: 0 }) === '1 activity · all new' && ld({ window: 1200, held: 1000 }) === '1,200 activities · 200 new'
+  && ld({ window: 101, held: 101, offline: true }) === '101 activities · from the store' && ld({ window: 101, held: 90, offline: true }) === '90 of 101 activities · from the store' && ld({ window: 0 }) === '' && ld(null) === '',
+  [ld({ window: 14, held: 12 }), ld({ window: 1200, held: 1000 }), ld({ window: 101, held: 90, offline: true })]);
+const nl = ijm.intervalsNotLoaded;
+check('what a load did not bring, and why: a file not written said as its dataset not loaded, any other warning as a sentence of its own, the Context\'s failed calls counted; nothing when everything came',
+  nl({ warnings: ['no wellness file: the window has no wellness days'] }) === 'Wellness not loaded: the window has no wellness days.'
+  && nl({ warnings: ['no activity intervals file: no laps came back for the window', "the subject's record could not be fetched, so there is no rider profile in this load"] }) === "Activity intervals not loaded: no laps came back for the window. The subject's record could not be fetched, so there is no rider profile in this load."
+  && nl({ warnings: ['no activity summary file: the window has no activities'], context: { passages: 212, failed: ['the messages of activity 7 could not be fetched (HTTPError)', 'the calendar entries could not be fetched (HTTPError)'] } }) === 'Activity summary not loaded: the window has no activities. Context: 2 calls failed.'
+  && nl({ context: { failed: ['x'] } }) === 'Context: 1 call failed.' && nl({ warnings: [], context: { passages: 3, failed: [] } }) === '' && nl(null) === '' && nl({}) === '',
+  [nl({ warnings: ['no wellness file: the window has no wellness days'] }), nl({ warnings: ['no activity summary file: the window has no activities'], context: { failed: ['a', 'b'] } })]);
+const pl = ijm.intervalsProgressLine;
+check('a step of the load as the foot says it: a count as "5 of 14", the three dots one character, no percent; nothing said yet is "Loading…"',
+  pl('Downloading activities... (5/14)') === 'Downloading activities · 5 of 14' && pl('Parsing activity data... (3/14)') === 'Parsing activity data · 3 of 14' && pl('Connecting to Intervals.icu...') === 'Connecting to Intervals.icu…'
+  && pl('The store holds all 14 activities of this window; nothing to download') === 'The store holds all 14 activities of this window; nothing to download' && pl('') === 'Loading…' && pl(undefined) === 'Loading…', [pl('Downloading activities... (5/14)'), pl('Connecting to Intervals.icu...')]);
+const ivModal = dmx.getElementById('intervalsModal'), ivMsg = dmx.getElementById('intervals-modal-message');
+const timers = [], realTimeout = global.setTimeout;
+global.setTimeout = (fn, ms) => { timers.push([fn, ms]); return timers.length; };
+ivModal.style.display = 'flex'; loadDialogOpened(ivModal); setLoadButton(lb, 'busy');
+ijm.intervalsLoadEnded(true, '14 activities · 2 new', '');
+const ended = { text: ivMsg.textContent, cls: ivMsg.className, button: look(), timers: timers.map(t => t[1]) };
+timers.splice(0).forEach(([fn]) => fn());
+const closedAfter = ivModal.style.display;
+ivModal.style.display = 'flex'; loadDialogOpened(ivModal); setLoadButton(lb, 'busy');
+ijm.intervalsLoadEnded(true, '14 activities · 2 new', 'Wellness not loaded: the window has no wellness days.');
+const noted = { text: ivMsg.textContent, button: look(), timers: timers.length };
+ijm.intervalsLoadEnded(false, 'Failed: the executor did not answer');
+const failedL = { text: ivMsg.textContent, cls: ivMsg.className, button: look() };
+setLoadButton(lb, 'busy'); ijm.intervalsLoadEnded(true, '14 activities · 2 new', '');
+ivModal.style.display = 'none'; ivModal.style.display = 'flex'; loadDialogOpened(ivModal);         // closed and opened again within the moment
+timers.splice(0).forEach(([fn]) => fn());
+const reopened = ivModal.style.display;
+global.setTimeout = realTimeout;
+check('a load from the dialog ends: the counts in the foot as the done line (no colour of success), "Loaded" where the button was, the dialog closing itself LOAD_DONE_MS later; with a note the note beside the counts and the button closing the dialog, nothing scheduled; a failure in the error line with Load back; a close scheduled for one opening leaves the dialog opened again since',
+  ended.text === '14 activities · 2 new' && /\bdone-message\b/.test(ended.cls) && !/\b(success|error|loading)-message\b/.test(ended.cls) && ended.button.state === 'done' && ended.button.text === 'Loaded' && JSON.stringify(ended.timers) === '[1500]' && closedAfter === 'none'
+  && noted.text === '14 activities · 2 new. Wellness not loaded: the window has no wellness days.' && noted.button.state === 'close' && !noted.button.disabled && noted.timers === 0
+  && failedL.text === '✗ Failed: the executor did not answer' && /\berror-message\b/.test(failedL.cls) && failedL.button.state === 'idle' && !failedL.button.disabled && failedL.button.drawn
+  && reopened === 'flex', [ended, closedAfter, noted, failedL, reopened]);
+setLoadButton(lb, 'busy'); ijm.renderIntervalsAthletePicker(roster); const keptBusy = lb.disabled;
+setLoadButton(lb, 'idle'); lb.disabled = true; ijm.renderIntervalsAthletePicker(roster); const freed = lb.disabled;
+check('the roster drawn again while a load runs keeps the button pressed no more; on an idle dialog it sets the button by the athletes', keptBusy === true && freed === false, [keptBusy, freed]);
+const en = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'endura.js'), 'utf8');
+const body = (src, name) => { const a = src.indexOf('function ' + name + '('), b = src.slice(a + 1).search(/\n\s*(async )?function /); return src.slice(a, b < 0 ? undefined : a + 1 + b); };      // one function's text
+const ss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'sweatstack.js'), 'utf8');
+check('the three dialogs end a load the same way: the button busy while it runs, done once the data is in and the dialog closing itself, back to idle on a failure and at every opening unless a load still runs; no script keeps a button helper of its own, the old success line or a caption to fill',
+  [ij, en, ss].every(s => s.includes(", 'busy');") && s.includes(", 'done')") && s.includes(", 'idle');") && s.includes('closeLoadDialogSoon(') && s.includes('loadDialogOpened(modal);') && s.includes(".dataset.state !== 'busy'") && !s.includes('Data loaded successfully') && !s.includes('button-label'))
+  && !ij.includes('function setIntervalsButtonLoading') && !ss.includes('function setButtonLoading') && ij.includes("if (connectButton.dataset.state === 'close') { hideIntervalsModal(); return; }")
+  && !body(ij, 'showIntervalsMessage').includes("case 'success':") && !body(ss, 'showModalMessage').includes("case 'success':") && !ij.includes('function contextReportLine'));
+check('Endura\'s line keeps the dialog\'s classes as its state changes (2026-11-27: the whole class was replaced and the line lost its look), and a failed load stays in the foot; SweatStack\'s foot says the page\'s own note at every opening (the old one came back after a load as a longer sentence)',
+  en.includes("messageElement.classList.remove('error-message', 'loading-message');") && !body(en, 'showMainMessage').includes('className = ') && en.includes('try { await loadRaceData(raceId, auxDatasets); } catch (e) {')
+  && ss.includes("sweatstackIdleNote = document.getElementById('modal-message')?.innerHTML || '';") && ss.includes('showModalMessage(sweatstackIdleNote);') && !ss.includes('Note: More metrics'));
+check('the foot\'s second caption is gone - from the three load dialogs and the two config dialogs - with its rules; grey and still while a load runs, "Loaded" without a frame once it is in, the counts\' line in its own size and grey',
+  !html.includes('button-label') && !dcss.includes('.integration-dialog .button-label') && dcss.includes('.integration-dialog .circular-button.loading { opacity: 1; border-color: var(--border-tertiary); color: var(--text-quaternary); pointer-events: none; }')
+  && dcss.includes('.integration-dialog .circular-button.loading svg { animation: none; }') && dcss.includes('.integration-dialog .circular-button.done { opacity: 1; border-color: transparent;') && dcss.includes('.integration-dialog .int-message.done-message { font-size: var(--fs-meta); color: var(--text-secondary); }'));
+check('the Dataset cache dialog\'s Load hears how an Intervals.icu load goes through callbacks - the step, the end with its counts and note - and no longer reads the Intervals.icu dialog\'s line; a note keeps the cache dialog open, and its one-dataset loads say what was not loaded in the same words',
+  dm.includes('pollIntervalsJob(data.job_id, { start: from, end: to }, kinds, {') && dm.includes("end: (ok, line, note) => done(ok, ok ? ['Loaded' + (line ? ' \\u00b7 ' + line : ''), note].filter(Boolean).join('. ') : line, !!note)")
+  && !dm.includes("getElementById('intervals-modal-message')") && dm.includes('if (ok && !stays) setTimeout(hideModal, 1500);') && dm.includes("const note = typeof intervalsNotLoaded === 'function' ? intervalsNotLoaded(job.result) : '';") && !dm.includes('Not written'));
+// a load started from the cache dialog: pollIntervalsJob with a report - the step and the end go there; the Intervals.icu dialog's foot is left as it stood
+(async () => {
+  const said = [], ticks = [], realInterval = global.setInterval, realClear = global.clearInterval, realLater = global.setTimeout, realLog = console.log, realWarn = console.warn;
+  global.setInterval = fn => { ticks.push(fn); return ticks.length; }; global.clearInterval = () => {}; global.setTimeout = () => 0; console.log = console.warn = () => {};
+  const steps = [{ status: 'processing', message: 'Downloading activities... (5/14)', percent: 35 },
+                 { status: 'completed', result: { store: { window: 14, held: 12, fetched: 2 }, warnings: ['no wellness file: the window has no wellness days'], shape: [10, 3], columns: [], aux_datasets: [], subject: { folder: 'intervals/i0' } } }];
+  global.window.authService = { fetch: async () => ({ ok: true, json: async () => steps.shift() }) };
+  setLoadButton(lb, 'idle'); ivMsg.textContent = 'the foot as it stood';
+  global.window.Intervals.pollJob('j9', { start: '2026-08-01', end: '2026-10-30' }, [], { progress: line => said.push(['progress', line]), end: (ok, line, note) => said.push(['end', ok, line, note]) });
+  try { await ticks[0](); await ticks[0](); } finally { global.setInterval = realInterval; global.clearInterval = realClear; global.setTimeout = realLater; console.log = realLog; console.warn = realWarn; }
+  check('a load started elsewhere hears how it goes through its report - the step as the foot would say it, then the end with the counts and the note - and the Intervals.icu dialog\'s foot is left as it stood',
+    JSON.stringify(said) === JSON.stringify([['progress', 'Downloading activities · 5 of 14'], ['end', true, '14 activities · 2 new', 'Wellness not loaded: the window has no wellness days.']]) && lb.dataset.state === 'idle' && ivMsg.textContent === 'the foot as it stood', [said, lb.dataset.state, ivMsg.textContent]);
+  global.document = doc; finish();
+})();
 function finish() {
   let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
   console.log(`\n${results.length - fails} passed, ${fails} failed`); process.exit(fails ? 1 : 0);

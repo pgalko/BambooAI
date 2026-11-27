@@ -913,11 +913,12 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 .integration-dialog .int-message.error-message { color: var(--c-fail); }
 .integration-dialog .int-message.success-message { color: var(--c-model); }
 .integration-dialog .int-message.loading-message { color: var(--text-tertiary); }
-.integration-dialog .button-label { display: none; font-size: var(--fs-small); color: var(--text-tertiary); }   /* the old icon button's caption: shown only while the script marks the button loading */
-.integration-dialog .ui-dlg-f:has(.circular-button.loading) .button-label { display: inline; }
+.integration-dialog .int-message.done-message { font-size: var(--fs-meta); color: var(--text-secondary); }   /* what a finished load brought (2026-11-27) */
 .integration-dialog .circular-button { width: auto; height: 30px; min-width: 0; padding: 0 14px; margin: 0; border-radius: var(--r-2); display: inline-flex; align-items: center; justify-content: center; gap: 6px; line-height: 1; font-size: 12.5px; box-shadow: none; transform: none; }
 .integration-dialog .circular-button:hover { transform: none; box-shadow: none; }
-.integration-dialog .circular-button.loading { opacity: .5; pointer-events: none; }
+.integration-dialog .circular-button.loading { opacity: 1; border-color: var(--border-tertiary); color: var(--text-quaternary); pointer-events: none; }   /* the load runs: grey (core.js setLoadButton, 2026-11-27) */
+.integration-dialog .circular-button.loading svg { animation: none; }   /* ...and the icon still: styles.css turns a round button's icon while it loads */
+.integration-dialog .circular-button.done { opacity: 1; border-color: transparent; background: none; color: var(--c-model); padding: 0 6px 0 2px; pointer-events: none; cursor: default; }   /* the data is in: a word with a tick, nothing to press */
 .integration-dialog .circular-button svg { width: 14px; height: 14px; margin: 0; }
 /* the api-key configuration */
 .integration-dialog .api-key-status { display: none; align-items: center; gap: 8px; margin-bottom: 12px; padding: 7px 10px; border: 1px solid var(--border-color); border-radius: var(--r-2); font-size: var(--fs-meta); color: var(--text-secondary); }

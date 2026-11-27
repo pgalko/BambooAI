@@ -797,6 +797,7 @@ python tests/e2e/test_stack.py --edition local --compute direct   # the same aga
 python tests/e2e/test_integrations.py                             # the loaders against the fake Intervals.icu and Endura; a routine run on the next window and the next race
 python tests/e2e/test_local_store.py                              # the store survives a server restart
 python tests/e2e/test_date_inputs.py                              # Chromium over the loaders' date inputs
+python tests/e2e/test_load_foot.py                                # Chromium over the end of a load in the loaders' dialogs
 python tests/e2e/test_pill_strip.py                               # Chromium over the top bar's chip row
 python tests/e2e/test_package.py                                  # the wheel in a fresh virtualenv; serve with a docker stand-in
 python tools/render_gallery.py --out /tmp/gallery                 # every page state, both themes, for visual comparison

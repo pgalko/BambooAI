@@ -103,6 +103,8 @@ function initializeSweatStackModals() {
     initializeSweatStackAuthenticatedModal();
 }
 
+let sweatstackIdleNote = '';         // the foot's line while nothing happens: the page's own words, put back at every opening (2026-11-27)
+
 function initializeSweatStackMainModal() {
     const modal = document.getElementById('sweatstackModal');
     const closeButton = modal?.querySelector('.close');
@@ -117,6 +119,7 @@ function initializeSweatStackMainModal() {
     modal.addEventListener('click', function(e) {
         if (e.target === modal) hideSweatStackModal();
     });
+    sweatstackIdleNote = document.getElementById('modal-message')?.innerHTML || '';
 
     initializeMetricSelection();
     initializeSportSelection();
@@ -148,7 +151,7 @@ function initializeSweatStackMainModal() {
     
         const dateRange = getSelectedDateRange();
     
-        setButtonLoading(true);
+        setLoadButton(connectButton, 'busy');
         showModalMessage('Loading SweatStack data...', 'loading');
     
         window.authService.fetch('/sweatstack/load_data', {
@@ -175,15 +178,6 @@ function initializeSweatStackMainModal() {
         .then(data => {
             if (data) {
                 console.log('SweatStack data loaded successfully:', data.message);
-                
-                setButtonLoading(false);
-                showModalMessage('Data loaded successfully!', 'success');
-    
-                setTimeout(() => {
-                    hideSweatStackModal();
-                    showModalMessage('Note: More metrics and longer time windows may slow down the application due to longer loading and processing times.');
-                }, 2000);
-    
                 const dataInfo = {
                     sports: selectedSports,
                     metrics: selectedMetrics,
@@ -212,11 +206,14 @@ function initializeSweatStackMainModal() {
                         console.error('Error parsing SweatStack dataframe:', error);
                     }
                 }
+                showModalMessage('', 'default');            // the data in: "Loaded" where the button was, and the dialog closes itself (2026-11-27)
+                setLoadButton(connectButton, 'done');
+                closeLoadDialogSoon(modal, hideSweatStackModal);
             }
         })
         .catch(error => {
             console.error('Error loading SweatStack data:', error);
-            setButtonLoading(false);
+            setLoadButton(connectButton, 'idle');
             showModalMessage('Failed to load data. Please try again.', 'error');
         });
     });
@@ -277,6 +274,9 @@ function showSweatStackModal() {
     const modal = document.getElementById('sweatstackModal');
     if (modal) {
         modal.style.display = 'flex';
+        loadDialogOpened(modal);
+        const button = document.getElementById('connectSweatstack');
+        if (!button || button.dataset.state !== 'busy') { setLoadButton(button, 'idle'); showModalMessage(sweatstackIdleNote); }     // a load still running keeps its foot
         initializeDatePickers();  // This now applies limits
         setTimeout(() => {
             initializeMetricSelection();
@@ -537,16 +537,12 @@ function showModalMessage(message, type = 'default') {
     const messageElement = document.getElementById('modal-message');
     if (!messageElement) return;
     
-    messageElement.classList.remove('success-message', 'error-message', 'loading-message');
+    messageElement.classList.remove('error-message', 'loading-message');
     
     switch(type) {
         case 'loading':
             messageElement.classList.add('loading-message');
             messageElement.textContent = message;
-            break;
-        case 'success':
-            messageElement.classList.add('success-message');
-            messageElement.textContent = '✓ ' + message;
             break;
         case 'error':
             messageElement.classList.add('error-message');
@@ -554,23 +550,6 @@ function showModalMessage(message, type = 'default') {
             break;
         default:
             messageElement.innerHTML = message;
-    }
-}
-
-function setButtonLoading(isLoading) {
-    const connectButton = document.getElementById('connectSweatstack');
-    const buttonLabel = connectButton?.parentElement?.querySelector('.button-label');
-    
-    if (!connectButton) return;
-    
-    if (isLoading) {
-        connectButton.classList.add('loading');
-        connectButton.disabled = true;
-        if (buttonLabel) buttonLabel.textContent = 'Loading Data...';
-    } else {
-        connectButton.classList.remove('loading');
-        connectButton.disabled = false;
-        if (buttonLabel) buttonLabel.textContent = 'Load Data';
     }
 }
 

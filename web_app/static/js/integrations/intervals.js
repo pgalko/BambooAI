@@ -126,24 +126,40 @@ async function applyIntervalsDateLimits() {
     if (!endDateInput.value) endDateInput.value = hi;
 }
 
-// The context's report as one line (docs/CONTEXT_DESIGN.md §4 F1): "Context: 212 passages — activity_message 198,
-// day_note 13 …; 1 call failed: …". '' when the load carried no context.
-function contextReportLine(report) {
-    if (!report || typeof report !== 'object') return '';
-    const n = Number(report.passages || 0);
-    const kinds = report.kinds || {};
-    const parts = Object.keys(kinds).sort((a, b) => kinds[b] - kinds[a]).map(k => k + ' ' + kinds[k]);
-    const failed = Array.isArray(report.failed) ? report.failed : [];
-    let line = n ? ('Context: ' + n + ' passage' + (n === 1 ? '' : 's') + (parts.length ? ' — ' + parts.join(', ') : '')) : 'Context: no passages in this window';
-    if (failed.length) line += '; ' + failed.length + ' call' + (failed.length === 1 ? '' : 's') + ' failed: ' + failed.join('; ');
-    // the coding pass (step 3): running behind the load, or what it did, or why it did not run
-    const coding = report.coding;
-    if (n && coding && coding.status === 'running') line += '; coding in the background';
-    else if (n && coding && coding.line) line += '; ' + coding.line;
-    else if (n && report.coding_line) line += '; ' + report.coding_line;
-    return line + '.';
+// A step of the load as the foot says it (2026-11-27): the executor's words, a count as "5 of 14", no percent - it repeated
+// the count, and between the counted steps it stood at 0 or 100
+function intervalsProgressLine(message) {
+    const text = String(message || '').trim();
+    const counted = /^(.*?)\.{3}\s*\((\d+)\/(\d+)\)$/.exec(text);
+    if (counted) return counted[1] + ' \u00b7 ' + counted[2] + ' of ' + counted[3];
+    return text ? text.replace(/\.{3}$/, '\u2026') : 'Loading\u2026';
 }
-if (typeof module !== 'undefined' && module.exports) { module.exports.contextReportLine = contextReportLine; module.exports.DateWindow = DateWindow; }
+// What a finished load says (2026-11-27, the product owner: the essentials): how many activities, and how many of them were
+// new - the rest came from the store. The Context's passages and its coding are the Context pill's to show.
+function intervalsLoadedLine(st) {
+    if (!st || !st.window) return '';
+    const n = st.window, held = st.held || 0;
+    const count = n.toLocaleString() + (n === 1 ? ' activity' : ' activities');
+    if (st.offline) return (held >= n ? count : held.toLocaleString() + ' of ' + count) + ' \u00b7 from the store';     // the Dataset cache dialog's Load from the store alone
+    if (st.refresh) return count + ' \u00b7 all downloaded again';
+    if (!held) return count + ' \u00b7 all new';
+    if (held >= n) return count + ' \u00b7 nothing new';
+    return count + ' \u00b7 ' + (n - held).toLocaleString() + ' new';
+}
+// What a load asked for and did not bring, and why (2026-11-27): the executor's warnings - a file not written said as its
+// dataset not loaded - and the Context's failed calls counted. '' when everything came.
+const INTERVALS_NOT_WRITTEN = { 'no activity summary file': 'Activity summary', 'no activity intervals file': 'Activity intervals', 'no wellness file': 'Wellness' };
+function intervalsNotLoaded(result) {
+    const said = (result && Array.isArray(result.warnings) ? result.warnings : []).map(w => {
+        const file = /^(no [a-z ]+ file): (.+)$/.exec(String(w));
+        const text = file && INTERVALS_NOT_WRITTEN[file[1]] ? INTERVALS_NOT_WRITTEN[file[1]] + ' not loaded: ' + file[2] : String(w);
+        return text.charAt(0).toUpperCase() + text.slice(1);
+    });
+    const failed = result && result.context && Array.isArray(result.context.failed) ? result.context.failed.length : 0;
+    if (failed) said.push('Context: ' + failed + (failed === 1 ? ' call' : ' calls') + ' failed');
+    return said.length ? said.join('. ') + '.' : '';
+}
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsProgressLine, intervalsLoadedLine, intervalsNotLoaded, DateWindow }); }
 
 function createIntervalsPill(dataInfo) {
     // one frame on the page: the pill of an earlier window goes when a new one lands (2026-10-29: a second load from the open dialog
@@ -328,15 +344,12 @@ function pollContextCoding(jobId, dataInfo, onDone) {
         if (running && Date.now() - t0 < 1800000) { setTimeout(tick, 2000); return; }
         contextPillSettle(view);
         const line = view ? (view.line || view.status) : 'the coding pass could not be followed';
-        const msg = document.getElementById('intervals-modal-message');
-        const modal = document.getElementById('intervalsModal');
-        if (msg && modal && modal.style.display !== 'none' && /Data loaded successfully/.test(msg.textContent || '')) showIntervalsMessage(msg.textContent.replace(/\.$/, '') + '; ' + line + '.', 'success');
         console.log('Context coding: ' + line);
         if (typeof onDone === 'function') onDone(view);
     };
     setTimeout(tick, 2000);
 }
-if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete, intervalsRosterOf, renderIntervalsAthletePicker, intervalsAthleteId, intervalsPickAthlete, intervalsFilterRoster, intervalsFactsOf, intervalsInitials }); }
+if (typeof module !== 'undefined' && module.exports) { Object.assign(module.exports, { intervalsAuxDisplayName, pollContextCoding, contextPillAdd, contextPillSettle, contextPillClear, contextPillState, contextPillProposals, contextPillProposalsText, contextCodebookOpen, createIntervalsAuxiliaryPills, contextPreview, contextRemove, contextMenuPlace, setIntervalsRefresh, initializeDownloadChoice, intervalsLoadEnded, showIntervalsStoreLine, intervalsOtherAthletePills, intervalsOneAthlete, intervalsRosterOf, renderIntervalsAthletePicker, intervalsAthleteId, intervalsPickAthlete, intervalsFilterRoster, intervalsFactsOf, intervalsInitials }); }
 
 // One athlete at a time on the Data tab (2026-10-29, the product owner: another athlete's Load everything added its pills to the
 // first's). The file pills of the other athletes and the frame pill when it is another athlete's: `intervalsOtherAthletePills`
@@ -455,6 +468,7 @@ function initializeIntervalsMainModal() {
     });
 
     connectButton.addEventListener('click', function() {
+        if (connectButton.dataset.state === 'close') { hideIntervalsModal(); return; }      // the load is in and its note has been read
         // the dates as typed: both needed, the start before the end (checked here, not while typing - 2026-10-15)
         if (!document.getElementById('intervalsStartDate')?.value || !document.getElementById('intervalsEndDate')?.value) {
             showIntervalsMessage('Please pick both dates.', 'error');
@@ -479,12 +493,12 @@ function initializeIntervalsMainModal() {
             return;
         }
     
-        setIntervalsButtonLoading(true);
+        setLoadButton(connectButton, 'busy');
         
         // The ontology download option retired with the ontology; memory
         // packs attach from the Cache manager modal (see MEMORY_LEDGER.md).
         Promise.resolve().then(() => {
-            showIntervalsMessage('Starting data load...', 'loading');
+            showIntervalsMessage('Starting the load\u2026', 'loading');
             
             // Start the job
             return window.authService.fetch('/intervals/load_data', {
@@ -514,119 +528,123 @@ function initializeIntervalsMainModal() {
         })
         .catch(error => {
             console.error('Error starting Intervals load:', error);
-            setIntervalsButtonLoading(false);
+            setLoadButton(connectButton, 'idle');
             showIntervalsMessage(`Failed to start: ${error.message}`, 'error');
         });
     });
 }
 
-function pollIntervalsJob(jobId, dateRange, auxDatasets) {
+// A load's job, asked after every second until it ends. `report` (2026-11-27): a load started elsewhere - the Dataset cache
+// dialog's Load - hears how it goes there, through report.progress(line) and report.end(ok, line, note); without it the load
+// is this dialog's, and its foot says how it goes. Either way the pills and the Data tab are made here.
+function pollIntervalsJob(jobId, dateRange, auxDatasets, report) {
+    const say = report || { progress: line => showIntervalsMessage(line, 'loading'), end: intervalsLoadEnded };
     let jobCompleted = false;  // Add flag to prevent multiple completions
-    
+
     const pollInterval = setInterval(async () => {
         try {
             const response = await window.authService.fetch(`/intervals/job/${jobId}`);
             const job = await response.json();
-            
+
             if (job.status === 'processing' || job.status === 'starting') {
-                // Update progress message
-                let message = job.message || 'Processing...';
-                if (job.percent !== undefined) {
-                    message += ` (${job.percent}%)`;
-                }
-                showIntervalsMessage(message, 'loading');
-                
+                say.progress(intervalsProgressLine(job.message));
+
             } else if (job.status === 'completed' && !jobCompleted) {  // Check flag
                 jobCompleted = true;  // Set flag immediately
                 clearInterval(pollInterval);  // Clear interval first
-                
+
                 console.log('Intervals ICU data loaded successfully');
-                setIntervalsButtonLoading(false);
-                // the store's line (docs/INCREMENTAL_LOADS_DESIGN.md): what was already held and what was downloaded; the box cleared for the next load
-                const stLine = storeLine(job.result && job.result.store);
-                setIntervalsRefresh(false);
-                // the context's line (docs/CONTEXT_DESIGN.md §4 F1): what was written beside the data, and any call that failed
-                const ctxLine = contextReportLine(job.result && job.result.context);
-                // a dataset asked for that gave no file, and why (2026-10-29): said here rather than silently missing from the pills
-                const warnLine = (job.result && Array.isArray(job.result.warnings) && job.result.warnings.length) ? ' Not written: ' + job.result.warnings.join('; ') + '.' : '';
-                showIntervalsMessage('Data loaded successfully!' + (stLine ? ' ' + stLine + '.' : '') + (ctxLine ? ' ' + ctxLine : '') + warnLine, 'success');
-                if (warnLine) console.warn('Intervals.icu load: ' + warnLine.trim());
+                const note = intervalsNotLoaded(job.result);
+                if (note) console.warn('Intervals.icu load: ' + note);
+                const failedCalls = (job.result && job.result.context && job.result.context.failed) || [];
+                if (failedCalls.length) console.warn('Intervals.icu context, the calls that failed: ' + failedCalls.join('; '));
+                setIntervalsRefresh(false);     // the Download choice back on Only what's new for the next load
+                try {
+                    // Create pill ONLY ONCE
+                    const dataInfo = {
+                        start_date: dateRange.start,
+                        end_date: dateRange.end,
+                        aux_datasets: auxDatasets,
+                        shape: job.result.shape,
+                        columns: job.result.columns,
+                        files: (job.result && job.result.aux_datasets) || [],
+                        folder: (job.result && job.result.subject && job.result.subject.folder) || ''      // whose window (2026-10-29): the Dataset cache dialog's dots read it
+                    };
+                    createIntervalsPill(dataInfo);
 
-                // a line that names what was not written stays until the dialog is closed; the hide is for the dialog open now - the
-                // Dataset cache dialog's Load polls here too, and its delayed hide used to close an Intervals.icu dialog opened in
-                // those seconds (2026-11-06, found by the integrations walk)
-                const opened = intervalsModalOpens;
-                if (!warnLine) setTimeout(() => { if (intervalsModalOpens === opened) hideIntervalsModal(); }, ctxLine ? 6000 : 2000);
-
-                // Create pill ONLY ONCE
-                const dataInfo = {
-                    start_date: dateRange.start,
-                    end_date: dateRange.end,
-                    aux_datasets: auxDatasets,
-                    shape: job.result.shape,
-                    columns: job.result.columns,
-                    files: (job.result && job.result.aux_datasets) || [],
-                    folder: (job.result && job.result.subject && job.result.subject.folder) || ''      // whose window (2026-10-29): the Dataset cache dialog's dots read it
-                };
-                createIntervalsPill(dataInfo);
-
-                const coding = job.result && job.result.context && job.result.context.coding;
-                if (job.result && job.result.aux_datasets && job.result.aux_datasets.length > 0) {
-                    createIntervalsAuxiliaryPills(job.result.aux_datasets, dataInfo, { coding: !!(coding && coding.status === 'running'), line: (coding && coding.line) || '' });
-                    if (coding && coding.status === 'running') pollContextCoding(jobId, dataInfo);
-                    else if (coding && coding.codes_path) contextPillAdd([coding.codes_path], dataInfo, { coding: false, line: coding.line || '' });
-                }
-
-                // Update dataframe tab if available
-                if (job.dataframe) {
-                    try {
-                        const dfData = JSON.parse(job.dataframe);
-                        if (typeof createOrUpdateTab === 'function') {
-                            createOrUpdateTab('dataframe', dfData.data);
-                            if (typeof activateTab === 'function') {
-                                activateTab('dataframe');
-                            }
-                        }
-
-                        if (typeof window !== 'undefined' && typeof currentDatasetName !== 'undefined') {
-                            //Total number of days
-                            currentDatasetName = `Intervals ICU Data`;
-                        }
-                    } catch (error) {
-                        console.error('Error parsing Intervals dataframe:', error);
+                    const coding = job.result && job.result.context && job.result.context.coding;
+                    if (job.result && job.result.aux_datasets && job.result.aux_datasets.length > 0) {
+                        createIntervalsAuxiliaryPills(job.result.aux_datasets, dataInfo, { coding: !!(coding && coding.status === 'running'), line: (coding && coding.line) || '' });
+                        if (coding && coding.status === 'running') pollContextCoding(jobId, dataInfo);
+                        else if (coding && coding.codes_path) contextPillAdd([coding.codes_path], dataInfo, { coding: false, line: coding.line || '' });
                     }
+
+                    // Update dataframe tab if available
+                    if (job.dataframe) {
+                        try {
+                            const dfData = JSON.parse(job.dataframe);
+                            if (typeof createOrUpdateTab === 'function') {
+                                createOrUpdateTab('dataframe', dfData.data);
+                                if (typeof activateTab === 'function') {
+                                    activateTab('dataframe');
+                                }
+                            }
+
+                            if (typeof window !== 'undefined' && typeof currentDatasetName !== 'undefined') {
+                                //Total number of days
+                                currentDatasetName = `Intervals ICU Data`;
+                            }
+                        } catch (error) {
+                            console.error('Error parsing Intervals dataframe:', error);
+                        }
+                    }
+                } finally {
+                    say.end(true, intervalsLoadedLine(job.result && job.result.store), note);      // the end is said, whatever a pill did
                 }
-                
+
             } else if (job.status === 'error' && !jobCompleted) {  // Also check flag for errors
                 jobCompleted = true;  // Set flag
                 clearInterval(pollInterval);
-                
+
                 console.error('Intervals job failed:', job.error);
-                setIntervalsButtonLoading(false);
-                showIntervalsMessage(`Failed: ${job.error}`, 'error');
-                
-            } else if (job.status === 'not_found') {
+                say.end(false, `Failed: ${job.error}`);
+
+            } else if (job.status === 'not_found' && !jobCompleted) {
+                jobCompleted = true;
                 clearInterval(pollInterval);
-                
+
                 console.error('Job not found');
-                setIntervalsButtonLoading(false);
-                showIntervalsMessage('Job expired or not found', 'error');
+                say.end(false, 'Job expired or not found');
             }
-            
+
         } catch (error) {
             // Keep polling even if one request fails
             console.error('Error polling job status:', error);
         }
     }, 1000); // Poll every 1 seconds
-    
+
     // Safety timeout after 5 minutes
     setTimeout(() => {
         if (!jobCompleted) {  // Only timeout if not completed
             clearInterval(pollInterval);
-            setIntervalsButtonLoading(false);
-            showIntervalsMessage('Operation timed out', 'error');
+            say.end(false, 'Operation timed out');
         }
     }, 300000);
+}
+
+// The foot when a load from this dialog has ended (2026-11-27, docs/DATASETS_DESIGN.md section 19): the data in, "Loaded"
+// stands where the button was with the counts beside it, and the dialog closes itself; something not loaded, the note stays
+// beside the counts and the button closes the dialog; a failure is said, and Load is there again.
+function intervalsLoadEnded(ok, line, note) {
+    const button = document.getElementById('connectIntervals');
+    if (!ok) {
+        setLoadButton(button, 'idle');
+        showIntervalsMessage(line, 'error');
+        return;
+    }
+    showIntervalsMessage([line, note].filter(Boolean).join('. '), 'done');
+    setLoadButton(button, note ? 'close' : 'done');
+    if (!note) closeLoadDialogSoon(document.getElementById('intervalsModal'), hideIntervalsModal);
 }
 
 function initializeIntervalsConfigModal() {
@@ -797,7 +815,6 @@ function showIntervalsConfigMessage(message, type = 'default') {
 // athlete's key. Picking an athlete sets the window to the day after their last held day -> today; a window typed by hand stays.
 let intervalsAthletes = [];          // the roster rows: { id, name, pending, count, from, to, last, added }
 let intervalsPreselect = '';         // the athlete the Dataset cache dialog opened the dialog for
-let intervalsModalOpens = 0;         // bumped by showIntervalsModal: a load's delayed hide closes only the dialog it was scheduled for (2026-11-06)
 let intervalsWindowTyped = false;    // a window typed by hand stays (2026-10-14) until an athlete is picked by a click
 let intervalsLastChanged = 'end';    // which date was set last: the other one moves when the window is over the plan's (2026-11-08)
 const INTERVALS_FIND_FROM = 7;
@@ -859,7 +876,7 @@ function renderIntervalsAthletePicker(list) {
     const lit = host.querySelector('.row.on');
     if (lit && typeof lit.scrollIntoView === 'function') lit.scrollIntoView({ block: 'nearest' });
     const btn = document.getElementById('connectIntervals');
-    if (btn) btn.disabled = !(named.length || pending.length);
+    if (btn && !['busy', 'done'].includes(btn.dataset.state)) btn.disabled = !(named.length || pending.length);     // a load running, or just in, keeps its button
     intervalsWindowForPick();
     showIntervalsStoreLine();
 }
@@ -932,8 +949,9 @@ function showIntervalsModal(athleteId) {
     const modal = document.getElementById('intervalsModal');
     if (modal) {
         modal.style.display = 'flex';
-        intervalsModalOpens++;
-        showIntervalsMessage('', 'default');
+        loadDialogOpened(modal);
+        const button = document.getElementById('connectIntervals');
+        if (!button || button.dataset.state !== 'busy') { setLoadButton(button, 'idle'); showIntervalsMessage('', 'default'); }     // a load still running keeps its foot
         intervalsPreselect = String(athleteId || '');          // the Dataset cache dialog opens it for an athlete (2026-10-30)
         initializeIntervalsRoster();
         initializeIntervalsDatePickers();
@@ -1090,7 +1108,7 @@ function showIntervalsMessage(message, type = 'default') {
     const messageElement = document.getElementById('intervals-modal-message');
     if (!messageElement) return;
     
-    messageElement.classList.remove('success-message', 'error-message', 'loading-message');
+    messageElement.classList.remove('done-message', 'error-message', 'loading-message');
     messageElement.removeAttribute('data-store');            // a message is not the store line (which never replaces a message)
     
     switch(type) {
@@ -1098,9 +1116,9 @@ function showIntervalsMessage(message, type = 'default') {
             messageElement.classList.add('loading-message');
             messageElement.textContent = message;
             break;
-        case 'success':
-            messageElement.classList.add('success-message');
-            messageElement.textContent = '✓ ' + message;
+        case 'done':                                         // what a finished load brought (2026-11-27)
+            messageElement.classList.add('done-message');
+            messageElement.textContent = message;
             break;
         case 'error':
             messageElement.classList.add('error-message');
@@ -1108,23 +1126,6 @@ function showIntervalsMessage(message, type = 'default') {
             break;
         default:
             messageElement.innerHTML = message;
-    }
-}
-
-function setIntervalsButtonLoading(isLoading) {
-    const connectButton = document.getElementById('connectIntervals');
-    const buttonLabel = connectButton?.parentElement?.querySelector('.button-label');
-    
-    if (!connectButton) return;
-    
-    if (isLoading) {
-        connectButton.classList.add('loading');
-        connectButton.disabled = true;
-        if (buttonLabel) buttonLabel.textContent = 'Loading Data...';
-    } else {
-        connectButton.classList.remove('loading');
-        connectButton.disabled = false;
-        if (buttonLabel) buttonLabel.textContent = 'Load Data';
     }
 }
 

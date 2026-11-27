@@ -418,7 +418,7 @@
                     {% endfor %}
                 </div></div>
             </div>
-            <div class="modal-footer ui-dlg-f"><p id="modal-message" class="warning-note int-message status">More metrics and a longer window take longer to load and process.</p><span class="sp"></span><div class="button-label">Load data</div><button id="connectSweatstack" class="circular-button ui-btn primary" title="Load data from SweatStack" aria-label="Load Data from SweatStack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="modal-message" class="warning-note int-message status">More metrics and a longer window take longer to load and process.</p><span class="sp"></span><button id="connectSweatstack" class="circular-button ui-btn primary" title="Load data from SweatStack" aria-label="Load Data from SweatStack"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 
@@ -427,7 +427,7 @@
         <div class="modal-content ui-dlg sm">
             <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div class="title">SweatStack needs configuring</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
             <div class="ui-dlg-b modal-section"><p>Set the SWEATSTACK_CLIENT_ID and SWEATSTACK_CLIENT_SECRET environment variables. Credentials are issued at <a href="https://app.sweatstack.no/settings/api" target="_blank" rel="noopener noreferrer">app.sweatstack.no/settings/api</a>.</p></div>
-            <div class="ui-dlg-f"><span class="sp"></span><div class="button-label">OK</div><button onclick="document.getElementById('sweatstackConfigModal').style.display='none'" class="circular-button ui-btn primary" title="Close" aria-label="Close">OK</button></div>
+            <div class="ui-dlg-f"><span class="sp"></span><button onclick="document.getElementById('sweatstackConfigModal').style.display='none'" class="circular-button ui-btn primary" title="Close" aria-label="Close">OK</button></div>
         </div>
     </div>
    
@@ -436,7 +436,7 @@
         <div class="modal-content ui-dlg sm">
             <div class="ui-dlg-h"><img src="/static/image/sweatstack-favicon.svg" alt="" class="int-logo"><div class="title">SweatStack is connected</div><span class="sp"></span><button class="close x" aria-label="Close">×</button></div>
             <div class="ui-dlg-b modal-section"><p>You are signed in to SweatStack. Load data from the attach menu, or disconnect this account.</p></div>
-            <div class="ui-dlg-f"><span class="sp"></span><div class="button-label">Disconnect</div><button id="logoutSweatstack" class="circular-button ui-btn danger" title="Disconnect from SweatStack" aria-label="Logout from SweatStack">Disconnect</button></div>
+            <div class="ui-dlg-f"><span class="sp"></span><button id="logoutSweatstack" class="circular-button ui-btn danger" title="Disconnect from SweatStack" aria-label="Logout from SweatStack">Disconnect</button></div>
         </div>
     </div>
 
@@ -473,7 +473,7 @@
                     <span class="help">what the store already holds is reused · or the whole window fetched afresh</span>
                 </div></div>
             </div>
-            <div class="modal-footer ui-dlg-f"><p id="intervals-modal-message" class="intervals-status-message int-message status"></p><span class="sp"></span><div class="button-label">Load data</div><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals.icu" aria-label="Load Data from Intervals.icu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="intervals-modal-message" class="intervals-status-message int-message status"></p><span class="sp"></span><button id="connectIntervals" class="circular-button ui-btn primary" title="Load data from Intervals.icu" aria-label="Load Data from Intervals.icu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 
@@ -504,7 +504,7 @@
                     <label class="int-card endura-aux-option"><input type="checkbox" value="waymarkers"><span class="tick"><svg class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></span><b>Waymarkers</b><span class="d">feed zones, timing points, the marked places along the route</span></label>
                 </div></div>
             </div>
-            <div class="modal-footer ui-dlg-f"><p id="endura-modal-message" class="endura-status-message int-message status"></p><span class="sp"></span><div class="button-label">Load data</div><button id="loadEnduraData" class="circular-button ui-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
+            <div class="modal-footer ui-dlg-f"><p id="endura-modal-message" class="endura-status-message int-message status"></p><span class="sp"></span><button id="loadEnduraData" class="circular-button ui-btn primary"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></svg>Load</button></div>
         </div>
     </div>
 

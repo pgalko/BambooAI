@@ -46,6 +46,39 @@ function storeLine(st) {
     if (held === n) return 'all ' + n + ' ' + word + ' from the store, nothing downloaded' + laps;
     return held + ' of ' + n + ' ' + word + ' from the store, ' + (n - held) + ' downloaded' + laps;
 }
+// The end of a load in the three load dialogs - Intervals.icu, Endura, SweatStack (2026-11-27, the product owner's pick of
+// three mockups; docs/DATASETS_DESIGN.md section 19): the Load button takes one look for each moment of a load.
+//   busy   the load runs: the button grey, its icon still
+//   done   the data is in: "Loaded" with a tick where the button was - no frame, nothing to press - until the dialog closes
+//          itself, LOAD_DONE_MS later
+//   close  something asked for was not loaded, and the dialog stays to say so: the button closes it
+//   idle   as the page drew it (its own markup, kept at the first call)
+const LOAD_DONE_MS = 1500;
+const LOAD_TICK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+const loadButtonDrawn = new WeakMap();
+function setLoadButton(button, state) {
+    if (!button) return;
+    if (!loadButtonDrawn.has(button)) loadButtonDrawn.set(button, { html: button.innerHTML, title: button.getAttribute('title'), label: button.getAttribute('aria-label') });
+    const drawn = loadButtonDrawn.get(button);
+    const word = state === 'done' ? 'Loaded' : state === 'close' ? 'Close' : '';
+    button.dataset.state = state;
+    button.classList.toggle('loading', state === 'busy');
+    button.classList.toggle('done', state === 'done');
+    button.disabled = state === 'busy' || state === 'done';
+    button.innerHTML = state === 'done' ? LOAD_TICK + word : word || drawn.html;
+    for (const [attr, was] of [['title', drawn.title], ['aria-label', drawn.label]]) {
+        if (word || was) button.setAttribute(attr, word || was); else button.removeAttribute(attr);
+    }
+}
+// A load dialog's openings are counted, so the close a load schedules shuts only the opening it was meant for - not the
+// dialog closed and opened again in those moments (found on the Intervals.icu dialog, 2026-11-06)
+function loadDialogOpened(modal) {
+    if (modal) modal.dataset.opening = String(Number(modal.dataset.opening || 0) + 1);
+}
+function closeLoadDialogSoon(modal, hide) {
+    const opening = modal ? modal.dataset.opening : undefined;
+    setTimeout(() => { if (modal && modal.dataset.opening === opening) hide(); }, LOAD_DONE_MS);
+}
 let limitMessageTimeout = null;
 
 let mermaidReady = false;

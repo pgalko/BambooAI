@@ -116,6 +116,8 @@ method's inputs and the Data tab's pills; they are small).
   messages step counts the chats taken from the store.
 - The load's result carries `store` (`window`, `held`, `fetched`, `refresh`, and the store's `summary` - activities,
   chats, span, size, engine); the Data tab's completion line says *91 of 101 activities from the store, 10 downloaded*.
+  Since patch 0358 the Intervals.icu dialog says the counts alone, *101 activities · 10 new* (docs/DATASETS_DESIGN.md
+  section 19); the routine run dialog keeps the longer line.
 - The Intervals dialog's Download choice has two sides, *Only what's new* (the default) and *Everything again*; the routine run
   dialog offers *Everything again* as a box (off by default). Until 2026-10-16 both were a box named *Refresh everything*, which
   read as a reload of the page as easily as a re-download.

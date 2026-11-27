@@ -11,7 +11,9 @@ class Text extends Node { constructor(t) { super(); this.nodeType = 3; this.data
 class Element extends Node {
   constructor(tag) { super(); this.nodeType = 1; this.tag = tag.toLowerCase(); this.tagName = this.tag.toUpperCase(); this.attrs = {}; this.children = []; const self = this;
     this.classList = { add: c => self._cls(c, true), remove: c => self._cls(c, false), contains: c => self._c().includes(c), toggle: (c, on) => { const to = on === undefined ? !self._c().includes(c) : !!on; self._cls(c, to); return to; } };      // toggle() says, as the browser's does, whether the class is now there
-    this.style = {}; this.dataset = new Proxy({}, { get: (_, k) => self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())] }); }
+    this.style = {}; this.dataset = new Proxy({}, { get: (_, k) => self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())],
+      set: (_, k, v) => { self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())] = String(v); return true; },
+      deleteProperty: (_, k) => { delete self.attrs['data-' + String(k).replace(/[A-Z]/g, m => '-' + m.toLowerCase())]; return true; } }); }
   _c() { return (this.attrs['class'] || '').split(/\s+/).filter(Boolean); }
   _cls(c, on) { const cs = this._c().filter(x => x !== c); if (on) cs.push(c); this.attrs['class'] = cs.join(' '); }
   get className() { return this.attrs['class'] || ''; } set className(v) { this.attrs['class'] = v; }

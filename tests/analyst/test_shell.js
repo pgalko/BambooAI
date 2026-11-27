@@ -151,13 +151,11 @@ check('the rider profile (2026-10-16): a fifth card, on by default, between well
   && intMod.includes('<label class="int-card intervals-aux-option span"><input type="checkbox" id="context-checkbox"') && intMod.includes('<b>Rider profile</b><span class="d">the settings the data is read against: thresholds and zones per sport, weight, height, what the custom fields and zones mean; time in the custom zones per ride rides along</span>')
   && ij.includes("if (riderCheckbox?.checked) auxDatasets.push('rider');") && ij.includes("if (auxDatasets.includes('rider')) auxText += auxText ? '+R' : 'R';")
   && ij.includes("if (filename.includes('rider_profile')) return 'Rider profile';") && ij.includes("if (filename.includes('custom_zone_times')) return `Custom zones (${dayCount} days)`;"));
-const { contextReportLine } = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
-check('intervals.js: the report line - the passages by kind, most first, and the failed calls; no passages said; nothing without a report',
-  contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }) === 'Context: 15 passages — activity_message 9, status 4, tag 2; 1 call failed: the calendar entries could not be fetched (HTTPError).'
-  && contextReportLine({ passages: 0, kinds: {}, failed: [] }) === 'Context: no passages in this window.' && contextReportLine(null) === '' && contextReportLine({ passages: 1, kinds: { day_note: 1 } }) === 'Context: 1 passage — day_note 1.'
-  && contextReportLine({ passages: 212, kinds: { activity_message: 198, day_note: 14 }, coding_line: '201 of 212 coded, 180 rendered into English, 2 codes proposed' }) === 'Context: 212 passages — activity_message 198, day_note 14; 201 of 212 coded, 180 rendered into English, 2 codes proposed.'
-  && contextReportLine({ passages: 0, kinds: {}, coding_line: 'nothing to code' }) === 'Context: no passages in this window.',
-  contextReportLine({ passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] }));
+const { intervalsNotLoaded } = require(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'integrations', 'intervals.js'));
+check('intervals.js: a finished load says the Context only where calls failed, counted - the passages and the coding are the Context pill\'s (2026-11-27: the report line that named them went with the long success line)',
+  intervalsNotLoaded({ context: { passages: 15, kinds: { tag: 2, activity_message: 9, status: 4 }, failed: ['the calendar entries could not be fetched (HTTPError)'] } }) === 'Context: 1 call failed.' && intervalsNotLoaded({ context: { passages: 212, kinds: { activity_message: 198 }, failed: [] } }) === ''
+  && intervalsNotLoaded(null) === '' && !ij.includes('contextReportLine'),
+  intervalsNotLoaded({ context: { passages: 15, failed: ['the calendar entries could not be fetched (HTTPError)'] } }));
 // ---- the context codebook (2026-10-16, docs/CONTEXT_DESIGN.md §7 S3, step 6): Intervals-only, so its ways in are the Intervals dialog's Context card and the Context pill - nothing universal carries it ----
 check('codebook: no gear item and no rail entry carry it; the Context card of the Intervals dialog has the line slot the module fills; codebook.js is loaded after routines.js',
   !root.querySelector('.codebook-option') && !root.querySelector('.rail #codebookPill') && /id="contextCodebookLine"/.test(intMod) && html.indexOf("js/codebook.js") > html.indexOf("js/routines.js") && html.indexOf("js/codebook.js") < html.indexOf("js/integrations/sweatstack.js"));

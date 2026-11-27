@@ -160,7 +160,9 @@ window.Endura = (function() {
         const modal = document.getElementById('enduraModal');
         if (modal) {
             modal.style.display = 'flex';
-            showMainMessage('', 'default');
+            loadDialogOpened(modal);
+            const loadButton = document.getElementById('loadEnduraData');
+            if (!loadButton || loadButton.dataset.state !== 'busy') { setLoadButton(loadButton, 'idle'); showMainMessage('', 'default'); }     // a load still running keeps its foot
             loadRaces();
             initializeAuxOptions();
         }
@@ -295,19 +297,16 @@ window.Endura = (function() {
             }
         });
         
-        await loadRaceData(raceId, auxDatasets);
+        try { await loadRaceData(raceId, auxDatasets); } catch (e) { /* said in the dialog's foot (2026-11-27: a failed load was also an unhandled rejection) */ }
     }
     
-    // Extract the core loading logic into a separate internal function
+    // A race's load (2026-11-27, the end of a load as in the other two dialogs): the button grey while it runs; "Loaded" in
+    // its place once the race is in, and the dialog closes itself; a failure is said and Load is there again
     async function loadRaceData(raceId, auxDatasets) {
         const loadButton = document.getElementById('loadEnduraData');
-        if (loadButton) {
-            loadButton.disabled = true;
-            loadButton.classList.add('loading');
-        }
-        
+        setLoadButton(loadButton, 'busy');
         showMainMessage('Loading race data...', 'loading');
-        
+
         try {
             const response = await window.authService.fetch('/endura/load_data', {
                 method: 'POST',
@@ -317,22 +316,20 @@ window.Endura = (function() {
                     aux_datasets: auxDatasets
                 })
             });
-            
+
             if (!response.ok) {
                 const error = await response.json();
                 throw new Error(error.error || 'Failed to load data');
             }
-            
+
             const result = await response.json();
-            
-            showMainMessage('Data loaded successfully!', 'success');
-            
+
             // Create pills
             createPrimaryPill(result);
             if (result.aux_datasets?.length > 0) {
                 createAuxiliaryPills(result.aux_datasets);
             }
-            
+
             // Update dataframe preview
             if (result.dataframe) {
                 const dfData = JSON.parse(result.dataframe);
@@ -343,27 +340,25 @@ window.Endura = (function() {
                     }
                 }
             }
-            
+
             // Update global state
             if (typeof currentDatasetName !== 'undefined') {
                 currentDatasetName = `Endura Race Data`;
             }
-            
-            setTimeout(hideMainModal, 2000);
+
+            showMainMessage('', 'default');
+            setLoadButton(loadButton, 'done');
+            closeLoadDialogSoon(document.getElementById('enduraModal'), hideMainModal);
             return result;
-            
+
         } catch (error) {
             console.error('Error loading data:', error);
+            setLoadButton(loadButton, 'idle');
             showMainMessage(`Failed: ${error.message}`, 'error');
             throw error;
-        } finally {
-            if (loadButton) {
-                loadButton.disabled = false;
-                loadButton.classList.remove('loading');
-            }
         }
     }
-    
+
     function createPrimaryPill(data) {
         const pillId = 'endura-pill-' + Date.now();
         const raceTitle = data.race_title || 'Race';  // Use race_title instead of title
@@ -471,12 +466,12 @@ window.Endura = (function() {
     function showMainMessage(message, type = 'default') {
         const messageElement = document.getElementById('endura-modal-message');
         if (!messageElement) return;
-        
-        messageElement.className = `endura-status-message ${type}-message`;
-        messageElement.textContent = type === 'success' ? '✓ ' + message : 
-                                   type === 'error' ? '✗ ' + message : message;
+        // the state's class beside the element's own (2026-11-27: the whole class was replaced, and the line lost the dialog's look)
+        messageElement.classList.remove('error-message', 'loading-message');
+        if (type === 'error' || type === 'loading') messageElement.classList.add(type + '-message');
+        messageElement.textContent = type === 'error' ? '✗ ' + message : message;
     }
-    
+
     function showConfigMessage(message, type = 'default') {
         const messageElement = document.getElementById('endura-config-message');
         if (!messageElement) return;

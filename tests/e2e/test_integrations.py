@@ -187,6 +187,7 @@ def main():
             set_window(page, a_start, a_end)
             rd_default = page.evaluate("() => document.getElementById('rider-checkbox').checked")
             page.evaluate("() => { ['summary-checkbox', 'wellness-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; }); ['context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); if (c) c.checked = false; }); }")   # the context and the rider profile (both on by default) are walked at the end
+            page.evaluate("() => { window.__foot = []; const b = document.getElementById('connectIntervals'), m = document.getElementById('intervalsModal'); new MutationObserver(() => window.__foot.push([b.dataset.state, b.textContent.trim(), b.disabled])).observe(b, { attributes: true, childList: true }); }")
             page.click("#connectIntervals")
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /Intervals ICU \\(\\d+ days/.test(p.textContent) && /loaded/.test(p.textContent))", timeout=240000)
             pills = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
@@ -205,9 +206,14 @@ def main():
             msg_a = page.inner_text("#intervals-modal-message")
             store_a = os.path.join(exec_ds, "store")
             manifest_a = json.load(open(os.path.join(store_a, "activities.json"))) if os.path.isfile(os.path.join(store_a, "activities.json")) else {}
-            check("the first load downloaded the window whole and the dialog's line says so (60 activities downloaded); the executor kept every activity in the key's store - the manifest and one file each - beside the window's files",
-                  "Data loaded successfully! 60 activities downloaded." in msg_a and len(manifest_a) == 60 and len(os.listdir(os.path.join(store_a, "activities"))) == 60 and all(r.get("signature") and r.get("day") for r in manifest_a.values()),
+            page.wait_for_function("() => document.getElementById('intervalsModal').style.display === 'none'", timeout=5000)     # the dialog closes itself (2026-11-27)
+            foot_a = page.evaluate("() => window.__foot")
+            check("the first load downloaded the window whole and the dialog's line says so (60 activities, all new); the executor kept every activity in the key's store - the manifest and one file each - beside the window's files",
+                  msg_a.startswith("60 activities \u00b7 all new") and len(manifest_a) == 60 and len(os.listdir(os.path.join(store_a, "activities"))) == 60 and all(r.get("signature") and r.get("day") for r in manifest_a.values()),
                   (msg_a, len(manifest_a), sorted(os.listdir(store_a)) if os.path.isdir(store_a) else None))
+            check("the end of the load in the dialog's foot (2026-11-27): the button busy while it ran, then \"Loaded\" with nothing to press - and the dialog closed itself; opened again, Load is back",
+                  ["busy", "Load", True] in foot_a and ["done", "Loaded", True] in foot_a and foot_a.index(["busy", "Load", True]) < foot_a.index(["done", "Loaded", True])
+                  and page.evaluate("() => { showIntervalsModal(); const b = document.getElementById('connectIntervals'); return b.dataset.state === 'idle' && b.textContent.trim() === 'Load'; }"), foot_a)
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the Dataset cache dialog (docs/DATASETS_DESIGN.md §8, as rebuilt 2026-10-29): the athlete's line opens the details, where
             # Load brings the span held straight from the store - no dialog; the window loaded now is let go first, on asking
@@ -921,11 +927,11 @@ def main():
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             fits_before_c, msgs_before_c = calls_of(st, "fit-file"), calls_of(st, "/messages")
             page.click("#connectIntervals")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => ['done', 'close'].includes(document.getElementById('connectIntervals').dataset.state)", timeout=240000)
             msg = page.inner_text("#intervals-modal-message")
             chats_a = sum(1 for i in range(60) if apis_data.has_chat(a_start + timedelta(days=i)))
             check("the original window loaded again with the context: no FIT file fetched (all 60 activities from the store, the line says so); the chats fetched once, one call per activity with a chat",
-                  calls_of(st, "fit-file") == fits_before_c and calls_of(st, "/messages") - msgs_before_c == chats_a and "all 60 activities from the store, nothing downloaded" in msg, (calls_of(st, "fit-file") - fits_before_c, calls_of(st, "/messages") - msgs_before_c, chats_a, msg[:200]))
+                  calls_of(st, "fit-file") == fits_before_c and calls_of(st, "/messages") - msgs_before_c == chats_a and msg.startswith("60 activities \u00b7 nothing new"), (calls_of(st, "fit-file") - fits_before_c, calls_of(st, "/messages") - msgs_before_c, chats_a, msg[:200]))
             page.wait_for_function("() => [...document.querySelectorAll('.dataset-status-pill')].some(p => /W\\+S\\+C/.test(p.textContent))", timeout=60000)
             pills_c = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.trim())")
             ctx_pill = page.evaluate("() => { const p = document.getElementById('contextPill'); if (!p) return null; const c = p.querySelector('.dataset-pill-content'); return { label: c.querySelector('span').textContent, spinner: !!p.querySelector('.file-upload-spinner'), rows: [...p.querySelectorAll('.context-pill-menu .row')].map(r => r.textContent), title: c.title, pills: [...document.querySelectorAll('.dataset-status-pill')].length }; }")
@@ -1161,7 +1167,7 @@ def main():
             page.evaluate("() => ['summary-checkbox', 'wellness-checkbox', 'context-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             msgs_before_r = calls_of(st, "/messages")
             page.click("#connectIntervals")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => ['done', 'close'].includes(document.getElementById('connectIntervals').dataset.state)", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             reuse_line = page.evaluate("() => (document.querySelector('#contextPill .dataset-pill-content') || {}).getAttribute('title')")
             check("the same window loaded again in a new thread: the pass reused the store (the line says so) and settled in seconds", "already coded by an earlier load" in (reuse_line or ""), reuse_line)
@@ -1169,24 +1175,29 @@ def main():
             check("the chats of the window came from the store this time (every activity is older than sixty days and unchanged): no messages call, and the context file has the messages as before",
                   calls_of(st, "/messages") == msgs_before_r and (ctx_again.kind == "activity_message").sum() > 0 and ctx is not None and (ctx_again.kind == "activity_message").sum() == (ctx.kind == "activity_message").sum(), (calls_of(st, "/messages") - msgs_before_r, (ctx_again.kind == "activity_message").sum()))
             # Everything again (the Download choice's second side): the whole window fetched again - every FIT file and every chat - and the
-            # choice back on Only what's new after
+            # choice back on Only what's new after; the dialog closed itself after the load before (2026-11-27), so it is opened again
+            page.wait_for_function("() => document.getElementById('intervalsModal').style.display === 'none'", timeout=5000)
+            page.evaluate("showIntervalsModal()")
+            page.wait_for_selector("#intervalsModal", state="visible", timeout=10000)
+            pick_athlete(page, "i0")
+            set_window(page, a_start, a_end)
             page.click("#intervalsDownload [data-refresh='1']")
             dl_state = page.evaluate("() => ({ box: document.getElementById('intervals-refresh').checked, on: document.querySelector('#intervalsDownload .on').textContent })")
             check("the Download choice: Everything again clicked - the hidden box on, the side lit", dl_state["box"] is True and dl_state["on"] == "Everything again", dl_state)
             page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")     # every dataset the dialog offers (2026-10-29: one went missing on a live load)
             fits_before_rf, msgs_before_rf = calls_of(st, "fit-file"), calls_of(st, "/messages")
             page.click("#connectIntervals")
-            page.wait_for_function("() => /fetched again/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => ['done', 'close'].includes(document.getElementById('connectIntervals').dataset.state)", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             msg_rf = page.inner_text("#intervals-modal-message")
             pills_all = page.evaluate("() => [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim())")
             views_all = sorted(os.path.basename(p_) for p_ in glob.glob(os.path.join(exec_views, f"*_{tag_a}.csv")))
             check("every dataset the dialog offers, loaded together: the loader wrote all eight files of the window (the codes by the app), the Data tab carries a pill for each of the seven (the context's two under one), and the line names nothing as not written",
                   views_all == sorted([f"activity_intervals_{tag_a}.csv", f"activity_summary_{tag_a}.csv", f"wellness_data_{tag_a}.csv", f"context_notes_{tag_a}.csv", f"context_codes_{tag_a}.csv", f"planned_workouts_{tag_a}.csv", f"rider_profile_{tag_a}.csv", f"custom_zone_times_{tag_a}.csv"])
-                  and all(any(w in p_ for p_ in pills_all) for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones")) and "Not written" not in msg_rf
+                  and all(any(w in p_ for p_ in pills_all) for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones")) and msg_rf == "60 activities \u00b7 all downloaded again"
                   and any("[W+S+I+C+R]" in p_ for p_ in pills_all), (views_all, pills_all, msg_rf[:200]))
-            check("Everything again: every FIT file and every chat of the window fetched again, the line says 60 activities fetched again, and the choice is back on Only what's new for the next load",
-                  calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and "60 activities fetched again" in msg_rf and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False and page.evaluate("() => document.querySelector('#intervalsDownload .on').textContent") == "Only what\u2019s new",
+            check("Everything again: every FIT file and every chat of the window fetched again, the line says all 60 were downloaded again, and the choice is back on Only what's new for the next load",
+                  calls_of(st, "fit-file") - fits_before_rf == 60 and calls_of(st, "/messages") - msgs_before_rf == chats_a and msg_rf == "60 activities \u00b7 all downloaded again" and page.evaluate("() => document.getElementById('intervals-refresh').checked") is False and page.evaluate("() => document.querySelector('#intervalsDownload .on').textContent") == "Only what\u2019s new",
                   (calls_of(st, "fit-file") - fits_before_rf, calls_of(st, "/messages") - msgs_before_rf, msg_rf[:160]))
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             # the Dataset cache dialog draws the tree (docs/DATASETS_DESIGN.md §8, 2026-10-29): source → athlete → feed, the frames in memory under the athlete
@@ -1223,7 +1234,7 @@ def main():
             questions = []
             page.once("dialog", lambda d: (questions.append(d.message), d.accept()))
             page.click("#datasetDetails [data-act='load']")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => /^Loaded/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             sw = page.evaluate("() => ({ ids: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.dataset.identifier || ''), texts: [...document.querySelectorAll('.dataset-status-pill')].map(p => p.textContent.replace(/\\s+/g, ' ').trim()), folder: (window.Intervals.state.dataInfo || {}).folder })")
@@ -1261,7 +1272,7 @@ def main():
             set_window(page, a_start, a_end)
             page.evaluate("() => ['summary-checkbox', 'intervals-checkbox', 'wellness-checkbox', 'context-checkbox', 'rider-checkbox'].forEach(id => { const c = document.getElementById(id); c.checked = true; })")
             page.click("#connectIntervals")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('intervals-modal-message') || {}).textContent || '')", timeout=240000)
+            page.wait_for_function("() => ['done', 'close'].includes(document.getElementById('connectIntervals').dataset.state)", timeout=240000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !!p && !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             page.evaluate("() => { const m = document.getElementById('intervalsModal'); if (m) m.style.display = 'none'; }")
             page.evaluate("() => { DatasetManager.refresh(); const m = document.getElementById('datasetManagerModal'); if (m) m.style.display = 'block'; }")
@@ -1445,14 +1456,14 @@ def main():
             was_loaded = page.evaluate("() => !!(window.Intervals && window.Intervals.state.isLoaded)")
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='load']")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => /^Loaded/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
             status_cl = page.inner_text("#dsLoadStatus")
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             pills_cl = pills_now()
             check("Load everything from the athlete's details: the span held (" + f"{a_start.isoformat()} → {today.isoformat()}" + ") with every dataset held, from the store alone - not one call to Intervals.icu, the status line says every activity came from the store and nothing was fetched, the dialog closes by itself - the window loaded before let go on asking, and the Data tab showing the window with each file's pill once",
                   f"Span held{a_start.isoformat()} → {today.isoformat()}" in det_end["text"] and was_loaded and re.search(r"On the Data tab● \S+ → \S+ Activities, ", det_end["text"])
-                  and calls_of(st, "/api/v1/") == calls_before_cl and "from the store, nothing fetched" in status_cl
+                  and calls_of(st, "/api/v1/") == calls_before_cl and status_cl.startswith("Loaded \u00b7 ") and "activities \u00b7 from the store" in status_cl
                   and sum(1 for p_ in pills_cl if p_.startswith("Intervals ICU (")) == 1 and sum(1 for p_ in pills_cl if "Activity Summary" in p_) == 1 and sum(1 for p_ in pills_cl if "Wellness" in p_) == 1 and sum(1 for p_ in pills_cl if "Context (" in p_) == 1
                   and sum(1 for p_ in pills_cl if "Activity Intervals" in p_) == 1 and sum(1 for p_ in pills_cl if "Rider profile" in p_) == 1 and any("[W+S+I+C+R]" in p_ for p_ in pills_cl),
                   (det_end, status_cl, pills_cl, calls_of(st, "/api/v1/") - calls_before_cl))
@@ -1486,7 +1497,7 @@ def main():
             hint_at = page.evaluate("() => document.querySelector('#datasetDetails [data-act=\"today\"] + .hint').textContent")
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='today']")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => /^Loaded/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
             at = pills_now()
@@ -1515,7 +1526,7 @@ def main():
             laps_before_et, fits_before_et = calls_of(st, "/intervals"), calls_of(st, "fit-file")
             page.once("dialog", lambda d: d.accept())
             page.click("#datasetDetails [data-act='today']")
-            page.wait_for_function("() => /Data loaded successfully/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
+            page.wait_for_function("() => /^Loaded/.test((document.getElementById('dsLoadStatus') || {}).textContent || '')", timeout=300000)
             status_et = page.inner_text("#dsLoadStatus")
             page.wait_for_function("() => document.getElementById('datasetManagerModal').style.display === 'none'", timeout=15000)
             page.wait_for_function("() => { const p = document.getElementById('contextPill'); return !p || !p.querySelector('.file-upload-spinner'); }", timeout=120000)
@@ -1524,7 +1535,7 @@ def main():
             spans_et = page.evaluate("() => Object.fromEntries([...document.querySelectorAll('#datasetTree .ds-feed')].map(e => [e.dataset.feed, e.querySelector('.ds-feed-span').textContent]))")
             words_et = page.evaluate("() => [...document.querySelectorAll('#datasetTree .ds-feed .ds-feed-state')].map(e => e.textContent)")
             check("Load everything to today from the athlete's line: every dataset held, through Intervals.icu - the recent activities' laps looked at again, no FIT file fetched - the status line saying every activity came from the store, every line of the tree ending today and on the Data tab, the pills one window to today with [W+S+I+C+R]",
-                  calls_of(st, "/intervals") > laps_before_et and calls_of(st, "fit-file") == fits_before_et and "all 101 activities from the store, nothing downloaded" in status_et
+                  calls_of(st, "/intervals") > laps_before_et and calls_of(st, "fit-file") == fits_before_et and status_et.startswith("Loaded \u00b7 101 activities \u00b7 nothing new")
                   and all(v.endswith(today.isoformat()) for k, v in spans_et.items() if k != "profile") and spans_et.get("profile") == f"as of {today.isoformat()}" and set(words_et) == {"on the Data tab"} and len(words_et) == 6
                   and any(p_ == f"Intervals ICU ({n_days} days [W+S+I+C+R]) loaded" for p_ in et) and all(sum(1 for p_ in et if w in p_) == 1 for w in ("Activity Intervals", "Activity Summary", "Wellness Summary", "Context (", "Planned workouts", "Rider profile", "Custom zones")),
                   (spans_et, words_et, status_et, et, calls_of(st, "/intervals") - laps_before_et))

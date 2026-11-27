@@ -316,6 +316,10 @@ leaves the hosted edition working unchanged. "Done" is the acceptance line, not 
   follow-up on other data; the figures step; the Code tab; the Plots tab in order; Ask about a plot with the picture;
   PR #63 (Stripe API 2026-09-30) with the SDK pinned and the webhook crediting a paid session only - patches
   0111-0141. Executor build v52 (each Intervals load marked with its key): the image is rebuilt with this ship.
+- **Status 2026-11-27: after 2.9.3, not yet released (patch 0358; executor image v79 stands).** The three load dialogs
+  end a load as one: the Load button grey and still while it runs, *Loaded* with the counts once the data is in, the
+  dialog closing itself 1.5 s later; something not loaded keeps it open with the note (docs/DATASETS_DESIGN.md
+  section 19).
 - **Status 2026-11-25: 2.9.3 (patches 0354-0357; executor image v79).** For large datasets. The kernel saves a large
   state for less: a frame's text columns as blocks kept once, the buffers named in threads, the dataset's fingerprint
   taken in runs of rows; the executor's main process and the kernel's worker give freed memory back to the system
