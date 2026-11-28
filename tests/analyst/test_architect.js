@@ -1940,7 +1940,8 @@ check('how a chain\'s question was made: a brief not yet run; framed with the Pa
     + 'among the tabs the answer is rendered in, the plain version\'s goes nowhere - and before the answer\'s own copy for the toggle is kept; nothing dresses the answer any more',
     /case 'comparison':[^\n]*\n\s*case 'brief':[^\n]*\n\s*content = String\(data == null \? '' : data\);/.test(cr)
     && cr.includes("const cut = window.ArchitectUI.cutAnswer(finalContent);\n                finalContent = cut.html;\n                window.ArchitectUI.turnedOut(_root, cut.against);")
-    && cr.includes("if (window.ArchitectUI) finalContent = window.ArchitectUI.cutAnswer(finalContent).html;") && (cr.match(/cutAnswer\(/g) || []).length === 2 && (cr.match(/turnedOut\(/g) || []).length === 1
+    && js('simplify.js').includes("if (window.ArchitectUI) html = window.ArchitectUI.cutAnswer(html).html;") && (cr.match(/cutAnswer\(/g) || []).length === 1 && (js('simplify.js').match(/cutAnswer\(|turnedOut\(/g) || []).length === 1
+    && (cr.match(/turnedOut\(/g) || []).length === 1
     && cr.indexOf('window.ArchitectUI.turnedOut(_root, cut.against);') < cr.indexOf("currentData.technicalAnswer = '<div class=\"markdown-content content-body\">' + finalContent + '</div>';")
     && cr.includes("const _root = (typeof liveTargets === 'function') ? liveTargets().content : document.getElementById('contentOutput');")
     && !cr.includes('dressAnswer') && !js('architect.js').includes('dressAnswer'), [(cr.match(/cutAnswer\(/g) || []).length, (cr.match(/turnedOut\(/g) || []).length]);

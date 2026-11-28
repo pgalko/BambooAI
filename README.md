@@ -217,10 +217,10 @@ After `REPORT`, BambooAI performs several distinct steps:
 - **Figures.** The `Figures` seat uses objects already in the kernel to create up to three Plotly
   figures, or returns `NONE`. Failed figure code can be retried up to three times; failures are
   disclosed in the report.
-- **Report versions and export.** The `Rewriter` produces a second, less technical version alongside the
-  Analyst's report. The Answer tab and PDF use the Analyst's report title. The PDF includes the question
-  as understood by the Analyst, data source and window, date, mode, replay verdict, figures and
-  citations.
+- **Report versions and export.** On request (**Simplify**, on the Answer tab) the `Rewriter` writes a
+  second, less technical version of the Analyst's report, which is kept with the analysis. The Answer
+  tab and PDF use the Analyst's report title. The PDF includes the question as understood by the
+  Analyst, data source and window, date, mode, replay verdict, figures and citations.
 - **Numerical checks.** The technical report's numbers are checked against recorded computational
   evidence; the rewritten report is checked against the technical one. Unmatched values are flagged, not
   silently corrected.
@@ -436,7 +436,7 @@ both names are still read.
 | `Analyst` | Investigation, code execution and technical report. |
 | `Reviewer` | Periodic review in Adaptive mode. |
 | `Figures` | Plotly figures after the report; falls back to `Analyst` if absent. |
-| `Rewriter` | Second report version. |
+| `Rewriter` | Second, plain-language report version, written on request. |
 | `Reader` | Targeted document and context reads (`READ`). |
 | `Coder` | Codes Intervals.icu context against the codebook; falls back to `Reader`. |
 | `Promoter` | Extracts routine inputs; falls back to `Analyst`. |

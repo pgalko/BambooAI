@@ -8,7 +8,7 @@ sys.path[:0] = [os.path.dirname(os.path.abspath(__file__)), ROOT, os.path.join(R
 import pandas as pd
 from analyst import Session, Budget, Notebook, parse_turn, report
 from analyst import sources as src
-from analyst.session import SOURCES_CITED
+from analyst.session import SOURCES_CITED, rewrite as plain_version
 from kernel import PersistentKernel
 
 passed, failed = [], []
@@ -135,7 +135,7 @@ finally:
     ksrc.cleanup()
 _p = _src_seen["prompts"]
 check("a search written inside a fence runs as the search: two searches and a cell, no failed turn",
-      [t.kind for t in rs1.turns] == ["search", "search", "cell", "report", "rewrite"] and not any(t.error for t in rs1.turns) and rs1.turns[1].text == "plot as the unit", [(t.kind, t.error) for t in rs1.turns])
+      [t.kind for t in rs1.turns] == ["search", "search", "cell", "report"] and not any(t.error for t in rs1.turns) and rs1.turns[1].text == "plot as the unit", [(t.kind, t.error) for t in rs1.turns])
 check("the turn after a search: its digest whole, and under it how a source is cited and that the report writes no list of them; nothing else of it in view yet",
       ("SEARCH (yield by soil type):\n" + _d1 + SOURCES_CITED + "\n\n") in _p[1] and "Web searches left in this run: 3." in _p[1].split("TASK: turn")[-1]
       and src.IN_VIEW_HEAD not in _p[1] and SOURCES_CITED == "\n(" + src.CITING + ")", _p[1][-600:])
@@ -155,6 +155,7 @@ check("the number check takes a claim a search tied to a source as the source's 
       "3.2" not in rs1.report.split("> CHECK")[1].split("\n")[0] and "41.5" not in rs1.report.split("> CHECK")[1].split("\n")[0] and "(77.7)" in rs1.report
       and report.guard_technical("Sand held 77.7 t/ha.", ["x"]) == "CHECK: 1 number(s) in this report were not printed by any cell (77.7). Treat them as unverified."
       and report.guard_technical("Sand held 77.7 t/ha.", ["x"], searched=True) == _check1[4:], rs1.report[-300:])
+plain_version(_src_llm, rs1, "the contract")           # asked for after the run (0366)
 check("the plain-language version: the Rewriter is asked to keep a source's number and to write no list, and is shown none - the analyst's is out of the report it reads -; it ended its "
       "text with a list all the same, and the list is out of it: the page draws the report's sources under both versions",
       "as [3], keep that citation after the words it stands for, and write no list of sources: one is added under your text." in _src_seen["rewrites"][0] and "Sources" not in _src_seen["rewrites"][0]

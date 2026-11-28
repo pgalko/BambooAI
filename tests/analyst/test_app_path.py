@@ -36,6 +36,8 @@ class FakeModels:
             raise state["cold"].pop(0)                  # the provider fails: the model layer logs a call that came back, so nothing is logged or counted
         if messages[0]["content"].startswith("You explain") and state.get("explain") and isinstance(state["explain"][0], Exception):
             raise state["explain"].pop(0)               # ... and so for an explanation
+        if user.startswith("Rewrite the technical report") and state.get("rewrite") and isinstance(state["rewrite"][0], Exception):
+            raise state["rewrite"].pop(0)               # ... and for a report's plain version
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
@@ -71,7 +73,8 @@ class FakeModels:
             prompt_cache.reset()
             return state["draft"].pop(0) if state.get("draft") else ""
         if user.startswith("Rewrite the technical report"):
-            return "Plain: B is higher by DIFF."
+            state.setdefault("rewrite_seen", []).append((agent, kw, chain_id, messages[0]["content"], user))
+            return state["rewrite"].pop(0) if state.get("rewrite") else "Plain: B is higher by DIFF."
         if messages[0]["content"].startswith("You are drawing the figures"):
             fs = state.get("figures")
             return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
@@ -123,9 +126,9 @@ BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
 q = BAMBOO.output_manager.output_queue; events = []
 while not q.empty(): events.append(json.loads(q.get()))
 types = [e.get("type") for e in events if e.get("type")]
-check("web events: id, the Data tab (no Query tab), live Investigation-tab updates ('plan'), then answer, simplified_answer, code, results, end",
+check("web events: id, the Data tab (no Query tab), live Investigation-tab updates ('plan'), then answer, code, results, end - and no plain version: it is written when asked for (0366)",
       types[0] == "id" and "query" not in types and "dataframe" in types and "plan" in types
-      and all(t in types for t in ("answer", "simplified_answer", "code", "code_exec_results")) and types[-1] == "end", types)
+      and all(t in types for t in ("answer", "code", "code_exec_results")) and "simplified_answer" not in types and types[-1] == "end", types)
 # the report's head (2026-10-17): a top-level key before the answer - the rewrite's first two lines, the question, what data the
 # report stands on, the mode, the replay's verdict and the day - kept with the chain for the export's top section
 _heads = [e for e in events if "report_head" in e]
@@ -145,11 +148,9 @@ check("the usage ledger: the run's line written at its end - the chain and the t
       and _lines[0]["status"] == "answered" and _lines[0]["replay"] == "reproduced" and _lines[0]["cells"] == 2 and _lines[0]["created"] > 0 and _lines[0]["wall"] >= 0
       and set(_lines[0]) == {"chain", "thread", "at", "question", "title", "mode", "status", "replay", "cells", "figures", "created", "wall", "failed_at", "refused", "branch"}
       and _lines[0]["branch"] == {}, _lines)
-check("the plain-language version opens with the report's title line (the Rewriter forgot it; it is put there), then its text - the same anchor in both versions",
-      any(str(e.get("data", "")).startswith("# B exceeds A\n\nPlain: B is higher") for e in events if e.get("type") == "simplified_answer"))
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
-check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step, the rewrite - no review outside Adaptive), a cell row per cell, heartbeats, run_end",
-      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
+check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step - no review outside Adaptive, no rewrite), a cell row per cell, heartbeats, run_end",
+      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 4 and pane_types.count("pane_turn_end") == 4
       and pane_types.count("pane_cell") == 2 and pane_types.count("pane_heartbeat") == 2 and pane_types[-1] == "pane_run_end", pane_types)
 te = [e for e in events if e.get("type") == "pane_turn_end"]
 check("turn_end carries the note and the code for the fold, and the heartbeat carries the estimate line",
@@ -166,8 +167,8 @@ check("the reach report rides the pane events (2026-10-28): each cell row says w
 plan = [e for e in events if e.get("type") == "plan"][-1]["data"]
 check("the Investigation tab is a notebook: one HTML block, cells with collapsed outputs, no blank line inside it",
       plan.startswith('<div class="nb">') and plan.count('<details class="nb-out"') == 2 and "\n\n" not in plan and 'language-python' in plan)
-check("each turn opened a card labelled with the seat, the figures step (quiet, on the analyst seat) and the rewrite too; no review card outside Adaptive",
-      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 5
+check("each turn opened a card labelled with the seat, the figures step too (quiet, on the analyst seat); no review card outside Adaptive, and none for a rewrite",
+      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 4 and not any(e.get("turn") == "rewrite" for e in events)
       and [(e.get("quiet"), e.get("attempt")) for e in events if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"] == [(True, 1)]
       and [e.get("peek") for e in events if e.get("type") == "pane_turn_end" and e.get("turn") == "figures"] == ["no figure: a number or a table answers"]
       and not any(e.get("type") == "pane_turn_start" and e.get("turn") == "review" for e in events))
@@ -180,8 +181,9 @@ check("the replay ran through the executor: the results text is the script's own
       and any("call_summary" in e for e in events))
 run1 = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
 check("the run id IS the chain id the browser was told", any(e.get("type") == "id" and str(e.get("chain_id")) == run1.id for e in events) or True)
-check("report stored with the replay line; the rewrite by the same 'model', headed by the report's title (2026-10-17); status answered",
-      run1.status == "answered" and "Replay reproduced" in run1.report and run1.rewrite.startswith("# B exceeds A\n\nPlain:") and run1.title == "B exceeds A", run1.report[-160:])
+check("report stored with the replay line, its end marked before the lines put under it; no plain version yet; the report's title kept (2026-10-17); status answered",
+      run1.status == "answered" and "Replay reproduced" in run1.report and run1.report[run1.report_end:].startswith("\n\n> Replay reproduced") and run1.rewrite == ""
+      and not any(t.kind == "rewrite" for t in run1.turns) and run1.title == "B exceeds A", run1.report[-160:])
 check("the run keeps the mode it was asked in, as the host labels it, and each committed cell the registry entries it made (the code trace's record, 2026-10-20); the thread file carries both",
       run1.mode in ("Quick", "Deep", "Adaptive") and any(t.registry for t in run1.cells())
       and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["mode"] == run1.mode, (run1.mode, [t.registry for t in run1.cells()]))
@@ -1422,7 +1424,7 @@ try:
     state.update(i=0, calls=[], script=[cell(1), cell(2), cell(3), cell(4), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("review me")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
-    agents = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
+    agents = [a for a, u in state["calls"]]
     check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4, and none after the report (2026-11-28); the turns and the figures step's call on the analyst seat",
           agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator"], agents)
     check("review seat: the reviewer is sent its own prompt, never the analyst's contract",
@@ -1436,23 +1438,27 @@ try:
     BAMBOO.review_every = 0
     state.update(i=0, calls=[], script=[cell(1), cell(2), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("no review"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
-    _ag = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: analyst_review_every=0 - no reviewer call at all (2026-10-05); the figures step's call after the report",
-          _ag == ["Investigator", "Investigator", "Investigator", "Investigator"], _ag)
-    check("rewrite seat: without a Rewriter in the config the rewrite ran on the analyst seat",
-          [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"], [(a, u[:20]) for a, u in state["calls"]])
+    _ag = [a for a, u in state["calls"]]
+    check("review seat: analyst_review_every=0 - no reviewer call at all (2026-10-05); the figures step's call after the report, and no rewrite's",
+          _ag == ["Investigator", "Investigator", "Investigator", "Investigator"] and not any(u.startswith("Rewrite") for a, u in state["calls"]), _ag)
+    _plain0 = BAMBOO.simplify("1001", BAMBOO.chain_id)
+    check("rewrite seat: without a Rewriter in the config the plain version, when asked for, is written on the analyst seat - and its card says so",
+          [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"] and (_plain0["card"]["seat"], _plain0["card"]["model"]) == ("Investigator", "fake/model"), [(a, u[:20]) for a, u in state["calls"]])
     # with a Rewriter seat (2026-09-11): the rewrite, and only the rewrite, runs on it
     FakeModels.config["agent_configs"].append({"agent": "Rewriter", "details": {"model": "fake/flash", "provider": "fake", "reasoning_effort": "low"}})
     FakeModels.get_model_name = lambda self, agent: ("fake/strong", "fake") if agent == "Reviewer" else (("fake/flash", "fake") if agent == "Rewriter" else ("fake/model", "fake"))
     state.update(i=0, calls=[], script=[cell(1), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("rewrite me"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
+    _ran_rw = [(a, u.startswith("Rewrite")) for a, u in state["calls"]]
+    q = BAMBOO.output_manager.output_queue
+    while not q.empty(): q.get()
+    _plain1 = BAMBOO.simplify("1001", BAMBOO.chain_id)
     agents = [(a, u.startswith("Rewrite")) for a, u in state["calls"]]
-    check("rewrite seat: the rewrite call runs on the Rewriter, the analysis turns and the figures step on the analyst seat",
-          agents == [("Investigator", False), ("Investigator", False), ("Investigator", False), ("Rewriter", True)], agents)
-    q = BAMBOO.output_manager.output_queue; ev = []
-    while not q.empty(): ev.append(json.loads(q.get()))
-    rw = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "rewrite"]
-    check("rewrite seat: the pane's rewrite card carries 'Rewriter' and its model", rw and rw[-1] == ("Rewriter", "fake/flash"), rw)
+    check("rewrite seat: the analysis turns and the figures step run on the analyst seat and no call of the run is a rewrite's; the plain version, when asked for, is one call on the Rewriter",
+          _ran_rw == [("Investigator", False)] * 3 and agents == _ran_rw + [("Rewriter", True)], agents)
+    check("rewrite seat: the card of that call, as the page is given it, carries 'Rewriter' and its model, what the call took and cost, and the analysis' chain; the pane is sent no event for it",
+          (_plain1["card"]["seat"], _plain1["card"]["model"], _plain1["card"]["chain_id"]) == ("Rewriter", "fake/flash", BAMBOO.chain_id) and _plain1["card"]["cost"] > 0
+          and 0 <= _plain1["card"]["elapsed"] < 5 and set(_plain1["card"]) == {"seat", "model", "elapsed", "cost", "chain_id"} and q.empty(), _plain1["card"])
     # the Figures seat (2026-10-11): the figures request runs on it when the config carries one, on the analyst seat otherwise (above)
     FakeModels.config["agent_configs"].append({"agent": "Figures", "details": {"model": "fake/quick", "provider": "fake", "reasoning_effort": "low"}})
     FakeModels.get_model_name = lambda self, agent: ("fake/strong", "fake") if agent == "Reviewer" else (("fake/flash", "fake") if agent == "Rewriter" else (("fake/quick", "fake") if agent == "Figures" else ("fake/model", "fake")))
@@ -1463,7 +1469,7 @@ try:
     while not q.empty(): ev.append(json.loads(q.get()))
     fg = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"]
     check("figures seat: with a Figures seat in the config the figures request runs on it - the call and the pane's Figures card carry 'Figures' and its model; the turns stay on the analyst seat",
-          agents == ["Investigator", "Investigator", "Figures", "Rewriter"] and fg == [("Figures", "fake/quick")], (agents, fg))
+          agents == ["Investigator", "Investigator", "Figures"] and fg == [("Figures", "fake/quick")], (agents, fg))
     FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.get_model_name = _get_model_name; BAMBOO.review_every = 8
 except Exception as exc:                                     # noqa: BLE001
     check("review seat: the checks ran", False, repr(exc))
@@ -2067,7 +2073,7 @@ try:
     check("the exchange is kept with the analysis, on the record: where the passage stands, the words selected, the question and the answer - nothing else of the request -, what its call cost and the "
           "chain the call was logged under. The instance is where it was - its own chain, no stop signal left",
           {k: v for k, v in _x30.items() if k not in ("when", "cost")} == {**_place30, "quote": "above A", "question": "Above by how much?", "answer": "By the gap the report states.", "chain": _on30}
-          and _cost30 > 0 and _x30["cost"] == round(_cost30, 4) != round(BAMBOO._chain_cost(), 4) and abs(_x30["when"] - _time30.time()) < 60 and _thread_file()[str(_c2)]["explained"] == [_x30]
+          and _cost30 > 0 and _x30["cost"] == round(_cost30, 4) and abs(_x30["when"] - _time30.time()) < 60 and _thread_file()[str(_c2)]["explained"] == [_x30]
           and BAMBOO.chain_id == _chain30 and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set(), (_x30, BAMBOO.chain_id, _chain30))
     state["explain"] = ["The one between the two means.", "The means by arm."]
     _st31, _ln31 = _explain({**_ask30, "chain_id": str(_c2), "quote": "the gap", "question": "Which gap?"})
@@ -2127,6 +2133,66 @@ try:
           "from explain_routes import explain_bp" in _app_ex and "app.register_blueprint(explain_bp)" in _app_ex and _routes_ex.count("@requires_auth") == _routes_ex.count("@explain_bp.route(") == 2
           and _insp30.getsource(B.BambooAI.next_questions).count("self._beside(") == 1 == _insp30.getsource(B.BambooAI.explain).count("self._beside(")
           and "charge_for_completed_query" not in _insp30.getsource(B.BambooAI.next_questions) + _insp30.getsource(B.BambooAI.explain), None)
+    # ---- the report in plain language, written when it is asked for (0366; the Answer tab's Simplify): one call on the Rewriter's seat, under the contract the run worked
+    # ---- under and the analysis' own chain; kept with the run, and written once. No query of its own: not authorised again, not counted, and the chain is not settled again
+    import simplify_routes as SR
+    from analyst.session import REWRITE_TASK as _RW50, contract_of as _contract50
+    _ws = Flask("ts"); _ws.secret_key = "t"; _ws.register_blueprint(SR.simplify_bp); _wsc = _ws.test_client()
+    with _wsc.session_transaction() as _sess: _sess["session_id"] = "s1"
+    def _simplify(payload):
+        r = _wsc.post("/simplify", json=payload)
+        return r.status_code, [json.loads(ln) for ln in r.get_data(as_text=True).splitlines() if ln.strip()]
+    _c50 = int(_cand.id)
+    state["rewrite_seen"], state["rewrite"] = [], []
+    BAMBOO.kill_signal = True; BAMBOO._stop_event.set()                       # a run stopped earlier left the signal set
+    _n50, _chain50, _charged50, _runs50, _log50, _kinds50, _auth["counted"] = len(state["calls"]), BAMBOO.chain_id, list(_charged), len(BAMBOO.notebook.runs), _logged(_c50), [t.kind for t in _cand.turns], []
+    _led50 = BAMBOO.store.ledger()[str(_c50)]
+    _st50, _ln50 = _simplify({"thread_id": "1077", "chain_id": _c50})
+    _seat50, _kw50, _on50, _sys50, _user50 = state["rewrite_seen"][-1]
+    _made50 = _ln50[-1].get("simplify") or {}
+    check("/simplify: a stream that ends on the plain version and the card of its call. One model call - the rewrite's task and the report, under the contract the run worked under - on the "
+          "analyst's seat here, logged under the analysis' own chain. No query of its own: the account is not asked, nothing is counted, and no chain is settled",
+          _st50 == 200 and set(_ln50[-1]) == {"simplify"} and len(state["calls"]) == _n50 + 1 and _seat50 == "Investigator" and _on50 == _c50 and "label" not in _kw50
+          and _sys50 == _contract50(_cand, False, False) and _user50 == _RW50 + _cand.report[:_cand.report_end] and _cand.report_end > 0
+          and _logged(_c50) == _log50 + ["Investigator"] and _charged == _charged50 and _auth["counted"] == [] and len(BAMBOO.notebook.runs) == _runs50, (_st50, _ln50[-1], _seat50, _on50, _kw50, _auth["counted"]))
+    _turn50 = _cand.turns[-1]
+    check("... it is kept with the analysis, on the record: the plain version under the report's title, its turn with what the call cost and took and the seat and model it ran on. What the page is "
+          "given is that: the text, and the card. The instance is where it was - its own chain, no stop signal left - and the run's line in the usage ledger is as it was",
+          _cand.rewrite == "# " + _cand.title + "\n\nPlain: B is higher by DIFF." and [t.kind for t in _cand.turns] == _kinds50 + ["rewrite"] and _turn50.text == _cand.rewrite
+          and _made50 == {"text": _cand.rewrite, "card": {"seat": "Investigator", "model": "fake/model", "elapsed": _turn50.usage["elapsed"], "cost": _turn50.usage["cost"], "chain_id": _c50}}
+          and _turn50.usage["cost"] > 0 and 0 <= _turn50.usage["elapsed"] < 5 and _thread_file()[str(_c50)]["rewrite"] == _cand.rewrite and _thread_file()[str(_c50)]["turns"][-1]["usage"]["seat"] == "Investigator"
+          and BAMBOO.chain_id == _chain50 and BAMBOO.kill_signal is False and not BAMBOO._stop_event.is_set() and BAMBOO.store.ledger()[str(_c50)] == _led50, (_made50, _turn50.usage, _cand.title))
+    _st51, _ln51 = _simplify({"thread_id": "1077", "chain_id": str(_c50)})
+    check("... asked for again, it comes back as kept - the same text, the same card - and no call is made", _st51 == 200 and _ln51[-1] == _ln50[-1] and len(state["calls"]) == _n50 + 1 and _logged(_c50) == _log50 + ["Investigator"]
+          and [t.kind for t in _cand.turns] == _kinds50 + ["rewrite"], _ln51[-1])
+    # none written: nothing is kept, and it can be asked for again
+    _cand.rewrite, _cand.turns = "", _cand.turns[:-1]; BAMBOO.store.save(BAMBOO.notebook)
+    state["rewrite"] = ["", "  \n", RuntimeError("the provider is away")]
+    _st52, _ln52 = _simplify({"thread_id": "1077", "chain_id": _c50}); _st53, _ln53 = _simplify({"thread_id": "1077", "chain_id": _c50}); _st54, _ln54 = _simplify({"thread_id": "1077", "chain_id": _c50})
+    _n54, _kept54 = len(state["calls"]), (_cand.rewrite, [t.kind for t in _cand.turns], _thread_file()[str(_c50)]["rewrite"])
+    _st55, _ln55 = _simplify({"thread_id": "1077", "chain_id": 999999}); _st56, _ln56 = _simplify({"thread_id": "1077", "chain_id": _c6})
+    _r58 = [_wsc.post("/simplify", json=p) for p in ({"chain_id": _c50}, {"thread_id": "1077"}, {})]
+    _n58 = len(state["calls"])
+    _st59, _ln59 = _simplify({"thread_id": "1077", "chain_id": _c50})
+    check("/simplify, none written: a reply without a text, and a failure of the call, end on the reason in words, and nothing is kept; a chain that is not on the record, or is a brief not yet run, "
+          "ends on that, with no call; a request without its thread or chain is refused outright. Asked for again after that, the plain version is written",
+          _st52 == _st53 == _st54 == 200 and _ln52[-1] == _ln53[-1] == {"simplify": {"error": "No plain-language version was written: the model's reply was empty"}}
+          and _ln54[-1] == {"simplify": {"error": "No plain-language version was written: the provider is away"}} and _n54 == _n50 + 3 and _kept54 == ("", _kinds50, "")
+          and _ln55[-1] == _ln56[-1] == {"simplify": {"error": "This analysis is no longer on record: its report cannot be rewritten."}} and _n58 == _n54
+          and [r.status_code for r in _r58] == [400] * 3 and [r.get_json()["error"] for r in _r58] == ["The thread and the chain are needed."] * 3
+          and _st59 == 200 and _ln59[-1]["simplify"]["text"] == _cand.rewrite == "# " + _cand.title + "\n\nPlain: B is higher by DIFF." and len(state["calls"]) == _n58 + 1 and _charged == _charged50 and _auth["counted"] == [],
+          (_ln52[-1], _ln54[-1], _ln55[-1], [r.get_json() for r in _r58], _ln59[-1], _n54 - _n50, _kept54))
+    _name50 = FakeModels.get_model_name
+    FakeModels.get_model_name = lambda self, agent: (_ for _ in ()).throw(KeyError(agent)) if agent == "Nobody" else ["fake/listed", "fake"] if agent == "Listed" else "fake/bare"
+    _models50 = [BAMBOO._model("Listed"), BAMBOO._model("Bare"), BAMBOO._model("Nobody"), BAMBOO._model("Nobody", "?"), BAMBOO._multimodal("Nobody")]
+    FakeModels.get_model_name = _name50
+    check("a seat's model, as the host says it wherever it does: the name the config gives - with its provider or bare - and, for a seat the config cannot place, what the caller asks for in its stead; "
+          "such a seat reads no pictures", _models50 == ["fake/listed", "fake/bare", "", "?", False], _models50)
+    _routes_sp = open(os.path.join(ROOT, "web_app", "simplify_routes.py"), encoding="utf-8").read()
+    check("the app serves the route behind the sign-in; the instance settles no chain for the plain version, and looks a seat's model up in one place",
+          "from simplify_routes import simplify_bp" in _app_ex and "app.register_blueprint(simplify_bp)" in _app_ex and _routes_sp.count("@requires_auth") == _routes_sp.count("@simplify_bp.route(") == 1
+          and "query_refusal" not in _routes_sp and "charge_for_completed_query" not in _insp30.getsource(B.BambooAI.simplify) and "_beside" not in _insp30.getsource(B.BambooAI.simplify)
+          and _insp30.getsource(B.BambooAI).count("get_model_name(") == 1, None)
     # ---- a plot asked about (0363): the plot's picture comes with the request and goes with the call, on a seat whose model reads pictures - the Pathfinder's, else the
     # ---- analyst's; where neither does, or no picture came, the call is the Pathfinder's without it and the exchange says so. Here the Pathfinder has a seat and a model of its own
     _models40, _reads40 = {"Pathfinder": "fake/small"}, {"fake/model": "false", "fake/small": "false"}

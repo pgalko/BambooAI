@@ -1,0 +1,14 @@
+{
+ "/simplify": {
+  "simplify": {
+   "text": "# Mt Buller winter warming vs the published Australian Alps rate\n\nWinters at this station have not warmed in a way these records can show. Over 38 winters the change is close to nothing: for every ten years, somewhere between a cooling of 0.2 °C and a warming of 0.2 °C [fig 19].\n\n## What it depends on\n\nEach winter counts once, as the average of its June, July and August days. Four winters have few days on record; they are kept, and marked.\n\n## What it does not mean\n\nIt does not show that the mountains are not warming. The slower of the published rates, 0.2 °C in ten years, still fits these records. The faster one, 0.36 °C, does not.\n\n## How it was checked\n\nTwo ways of drawing the trend line were used, and they agree. The same was done for a second measure of cold, with the same result.",
+   "card": {
+    "seat": "Rewriter",
+    "model": "vendor/small",
+    "elapsed": 6.4,
+    "cost": 0.004,
+    "chain_id": 7
+   }
+  }
+ }
+}

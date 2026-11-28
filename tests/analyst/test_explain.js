@@ -534,7 +534,7 @@ async function asked(where, question, answer) {
   const guards = fs.readdirSync(path.join(web, 'static', 'js')).filter(f => f.endsWith('.js')).map(f => [f, (js(f).match(/protectLatexDelimiters\(/g) || []).length]).filter(g => g[1]);
   check('Markdown with formulas is turned into the page\'s HTML in one place - the formulas are kept from the parser once: the Answer, its plain version and a note\'s answer all go through it. The same '
     + 'function tells this module a text that still holds a formula\'s source',
-    same(guards, [['content-rendering.js', 2], ['explain.js', 1]]) && cr.includes('let finalContent = markdownToHtml(data, transformChainIdReferences);') && cr.includes('let finalContent = markdownToHtml(currentData.simplifiedAnswer);')
+    same(guards, [['content-rendering.js', 2], ['explain.js', 1]]) && cr.includes('let finalContent = markdownToHtml(data, transformChainIdReferences);') && js('simplify.js').includes('let html = markdownToHtml(text);')
     && js('explain.js').includes('markdownToHtml(x.answer)'), guards);
   check('tabs.css: a marked passage is underlined and tinted, and takes a click; a note is set off from the text it stands in - in the code it reads as text, not as code; the answer being written ends on a cursor',
     /#contentOutput \.xp-mark \{[^}]*border-bottom: 1px dashed var\(--c-model\);[^}]*background: var\(--accent-bg-hover\);[^}]*cursor: pointer; \}/.test(tabsCss)

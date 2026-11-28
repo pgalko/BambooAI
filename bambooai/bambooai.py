@@ -2,9 +2,10 @@
 
 The instance the web app holds per user. A question arrives; the analyst
 session answers it in a persistent kernel, keeps the notebook, writes the
-technical report and its plain-language rewrite; the assembled script is
-replayed in a fresh kernel; everything is stored as a tree of runs per thread
-and streamed to the browser as it lands.
+technical report; the assembled script is replayed in a fresh kernel;
+everything is stored as a tree of runs per thread and streamed to the browser
+as it lands. The report in plain language is written when the person asks
+for it (simplify).
 
 Modes are budget presets of the same session: quick / deep / adaptive.
 """
@@ -139,13 +140,19 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Analyst' if 'Analyst' in agents else 'Investigator'
 
+    def _model(self, seat, unknown=''):
+        """The model a seat runs on, by its name in the config; `unknown` where that cannot be told."""
+        try:
+            model = self.models.get_model_name(seat)
+            return model[0] if isinstance(model, (tuple, list)) else model
+        except Exception:                                      # noqa: BLE001
+            return unknown
+
     def _multimodal(self, seat):
         """Whether the seat's model takes images, by the config's model_properties (`multimodal`: "true"/"false", read
         nowhere until 2026-10-13); unknown counts as not."""
         try:
-            model = self.models.get_model_name(seat)
-            model = model[0] if isinstance(model, (tuple, list)) else model
-            flag = (self.models.get_model_properties() or {}).get(model, {}).get("multimodal")
+            flag = (self.models.get_model_properties() or {}).get(self._model(seat), {}).get("multimodal")
         except Exception:                                      # noqa: BLE001
             return False
         return str(flag).strip().lower() == "true"
@@ -156,13 +163,8 @@ class BambooAI:
         seat = self._seat()
         if self._multimodal(seat):
             return image
-        try:
-            model = self.models.get_model_name(seat)
-            model = model[0] if isinstance(model, (tuple, list)) else model
-        except Exception:                                      # noqa: BLE001
-            model = "?"
         self.output_manager.display_system_messages(
-            f"The analyst's model ({model}) does not take images, so the figure is not sent with the question; the analyst answers from the chain's record and data.", chain_id=self.chain_id)
+            f"The analyst's model ({self._model(seat, '?')}) does not take images, so the figure is not sent with the question; the analyst answers from the chain's record and data.", chain_id=self.chain_id)
         return None
 
     def _review_seat(self):
@@ -751,11 +753,7 @@ class BambooAI:
         if routine_id and routine is None:
             raise routines_host.RoutineRefused("the routine this version was meant for no longer exists")
         seat = self._promoter_seat()
-        try:
-            model = self.models.get_model_name(seat)
-            model = model[0] if isinstance(model, (tuple, list)) else model
-        except Exception:                                          # noqa: BLE001
-            model = ''
+        model = self._model(seat)
         if not self.log_and_call_manager.thread_id:
             self.log_and_call_manager.thread_id = str(thread_id)        # the usage rows need a thread (a fresh instance has none yet)
         keep = self.chain_id
@@ -1209,14 +1207,9 @@ class BambooAI:
             return
         kind = ev.get("type")
         if kind == "turn_start":
-            seat = self._review_seat() if ev.get("review") else (self._rewrite_seat() if ev.get("rewrite") else (self._figures_seat() if ev.get("figures") else self._seat()))
-            try:
-                model = self.models.get_model_name(seat)
-                model = model[0] if isinstance(model, (tuple, list)) else model
-            except Exception:                                  # noqa: BLE001
-                model = ""
+            seat = self._review_seat() if ev.get("review") else (self._figures_seat() if ev.get("figures") else self._seat())
             # a quiet card shows nothing while its reply streams (the figures step's code, 2026-10-11); the attempt names a correction
-            self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=model, review=bool(ev.get("review")),
+            self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=self._model(seat), review=bool(ev.get("review")),
                        quiet=bool(ev.get("quiet")), attempt=ev.get("attempt"), **({"kept": True} if ev.get("kept") else {}))   # kept: a turn a branch keeps
         elif kind == "turn_end":
             th = (ev.get("thinking") or "").strip()
@@ -1246,14 +1239,7 @@ class BambooAI:
         elif kind == "lookup_start":
             # a READ or SEARCH is under way: the pane shows a pending row until the digest replaces it (2026-10-03,
             # the Reader took a minute on a real paper and the page showed nothing meanwhile)
-            model = ''
-            if ev.get("kind") == "read":
-                try:
-                    model = self.models.get_model_name(self._reader_seat())
-                    model = model[0] if isinstance(model, (tuple, list)) else model
-                except Exception:                              # noqa: BLE001
-                    model = ''
-            self._pane('pane_lookup_start', kind=ev.get("kind"), query=ev.get("query") or '', model=model or '')
+            self._pane('pane_lookup_start', kind=ev.get("kind"), query=ev.get("query") or '', model=self._model(self._reader_seat()) if ev.get("kind") == "read" else '')
         elif kind in ("show", "names", "search", "read"):
             text = ev.get('text') or ''
             query = ev.get('query') or (getattr(self, '_last_read_query', '') if kind == "read" else '')
@@ -1618,6 +1604,32 @@ class BambooAI:
         self.store.save(self.notebook)
         return run.explained
 
+    def simplify(self, thread_id, run_id):
+        """The report of a finished analysis in plain language, written when the person asks for it (analyst/session.py
+        rewrite; until 2026-11-28 it was written at the end of every analysis): one call on the Rewriter's seat, under
+        the contract the run worked under. The call is the analysis' own: logged under its chain, as it was when the
+        analysis made it - no chain of its own, and on the hosted edition a chain is what compute is charged for - and
+        the plain version is kept with the run: asked for again, it comes back as kept, and no call is made. The chain
+        was settled when the analysis ended, and it is not settled again here. Returns {"text": the plain version,
+        "card": what the pane's card of the call says - seat, model, elapsed, cost - and its chain}, or None when the
+        run is not a finished analysis on the record."""
+        from analyst import session as analyst_session
+        self.kill_signal = False                     # a run stopped earlier leaves the signal set, and a call would not start
+        self._stop_event.clear()
+        self._on_thread(thread_id)
+        run = self.notebook.runs.get(str(run_id))
+        if run is None or run.status != "answered":
+            return None
+        chain = int(run.id) if str(run.id).isdigit() else run.id
+        if not run.rewrite:
+            seat = self._rewrite_seat()
+            turn = analyst_session.rewrite(lambda system, user, **kw: self._llm(system, user, chain=chain, **kw), run,
+                                           analyst_session.contract_of(run, bool(self._documents_prelude()), bool(self._context_prelude())))
+            turn.usage.update(seat=seat, model=self._model(seat))
+            self.store.save(self.notebook)
+        usage = next((t.usage for t in run.turns if t.kind == "rewrite"), None) or {}
+        return {"text": run.rewrite, "card": {**{k: usage.get(k) for k in ("seat", "model", "elapsed", "cost")}, "chain_id": chain}}
+
     def _architect_look(self, lookups):
         """A round of the Pathfinder's lookups (analyst/lookup.py), answered where the analysis' cells run: one
         host-written script through the executor, over the frame loaded now and the files beside it. It leaves nothing
@@ -1826,7 +1838,7 @@ class BambooAI:
         else:
             if self.synthesis_infographic and run.report and synthesis:      # the infographic is a synthesis's (2026-09-08): ordinary chains skip the call
                 self._generate_synthesis_image(run.report)
-            self.output_manager.display_results(chain_id=self.chain_id, answer=run.report or "(no report)", simplified_answer=run.rewrite or None,
+            self.output_manager.display_results(chain_id=self.chain_id, answer=run.report or "(no report)",
                                                 report_head=self._report_head(run, mode), code=run.replay_script or None,
                                                 plot_jsons=rep.get("plots") or None, code_exec_results=rep.get("results") or None,
                                                 plan=self._notebook_view(run))

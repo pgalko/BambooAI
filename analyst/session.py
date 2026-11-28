@@ -9,8 +9,9 @@ call the model, parse ONE action, carry it out, store the turn, emit it to the
 UI. On long budgets a self-review is asked for at intervals - the same turn, the same
 prompt, marked review=True for the caller (the app runs it on the Reviewer seat when the
 config has one, a stronger model at the run's decision points). When the analyst
-writes REPORT the session asks for the plain-language REWRITE, runs the two
-guards, verifies the assembled script in a fresh kernel, and stores the lot.
+writes REPORT the session draws the figures, runs the guards, verifies the assembled
+script in a fresh kernel, and stores the lot. The report in plain language is
+written when the person asks for it (rewrite()).
 
 `llm(system, user) -> (text, usage)` is whatever model layer the host provides; so are `search(query)` and `read(arg)`,
 which return (digest, usage) the same way: what a lookup costs counts against the run's budget as a model call does.
@@ -118,6 +119,14 @@ def contract(documents: bool = False, review_every: int = 0, context: bool = Fal
                               .replace("{BRIEF}", "\n" + CONTRACT_BRIEF if brief else "")
                               .replace("{HINT}", "\n" + _HINT_TEMPLATE.replace("{OVER_BRIEF}", HINT_OVER_BRIEF if brief else "") if hint else "")
                               .replace("{BRIEF_PARTS}", ((BRIEF_AGAINST if held else "") + BRIEF_MISFIT) if brief else ""))
+
+
+def contract_of(run: Run, documents: bool, context: bool) -> str:
+    """The contract a run works under: the Reviews section only where it has reviews, The brief only with one, the
+    hint's only in a branch."""
+    return contract(documents, int((run.budget or {}).get("review_every") or 0), context=context, brief=bool(run.brief),
+                    held=briefs.held(run.brief, has_data(run.data)), hint=bool(run.hints))
+
 
 CONTRACT = contract(False)
 
@@ -286,6 +295,32 @@ def strip_cell_tokens(text: str) -> str:
     t = re.sub(r"\s+([.,;:])", r"\1", t)                 # a space left before punctuation
     t = re.sub(r"([.,;:])\1+", r"\1", t)                 # doubled punctuation
     return t
+
+
+REWRITE_EMPTY = "the model's reply was empty"
+
+
+def rewrite(llm: Callable, run: Run, system: str) -> Turn:
+    """The report of a finished run in plain language, written when the person asks for it (2026-11-28, Palo: it had
+    been one more call at the end of every analysis, read or not): one call - `llm(system, user, rewrite=True)`, which
+    the app runs on the Rewriter seat when the config has one (2026-09-11) - under the contract the run worked under
+    (contract_of). It is made from the report itself, with its Figures section: not from the lines the session put
+    under it. Kept as the run's `rewrite`, with its turn, which says what the call cost and took. Returns the turn;
+    raises ValueError, and keeps nothing, where the reply holds no text."""
+    report_text = run.report[:run.report_end] if run.report_end else run.report
+    t0 = time.time()
+    text, usage = llm(system, REWRITE_TASK + (REWRITE_BRIEF if run.brief else "") + report_text, rewrite=True)
+    # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
+    # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
+    body = strip_cell_tokens(strip_scaffold(text))
+    if not body.strip():                             # nothing is kept of a reply without a text: the person can ask again
+        raise ValueError(REWRITE_EMPTY)
+    plain = sources.drop_list(with_title(body, run.title))      # a list of sources of its own goes, as the report's
+    check = rep.guard_rewrite(plain, report_text)
+    run.rewrite = plain + (f"\n\n> {check}" if check else "")
+    turn = Turn(kind="rewrite", note=run.note, text=run.rewrite, usage={**(usage or {}), "elapsed": round(time.time() - t0, 1)})
+    run.turns.append(turn)
+    return turn
 
 
 _NOTE_RE = re.compile(r"###NOTE###\s*\n(.*?)\n###ACTION###", re.S)
@@ -820,7 +855,7 @@ class Session:
                  context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None, saved: Optional[Callable] = None):
         self.kernel = kernel
         self.nb = notebook
-        self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, rewrite=True on the plain-language rewrite
+        self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, figures=True on the figures step
         self.store = store
         self.emit = emit or (lambda ev: None)
         self.search = search
@@ -1035,8 +1070,7 @@ class Session:
         carry = carry or {}
         spent, extra, failures = float(carry.get("spent") or 0.0), carry.get("extra") or "", int(carry.get("failures") or 0)
         lost_at = carry.get("lost_at") or ""           # the effort a reply that came back empty or cut short was asked at
-        self.system = contract(self.documents, budget.review_every, context=self.context, brief=bool(run.brief),    # the Reviews section only when a reviewer runs, The brief only with one
-                               held=briefs.held(run.brief, has_data(run.data)), hint=bool(run.hints))                # ... the hint's only in a branch
+        self.system = contract_of(run, self.documents, self.context)
         final_turn, final_extra, forced_by_review = budget.turns, LAST_TURNS_LINE + "\nWrite REPORT now.", False
         tools.run_prelude(self.kernel, self.kernel_prelude)        # the document objects, when the thread has documents
         for turn_no in range(int(carry.get("turn") or 0) + 1, budget.turns + 1):
@@ -1128,7 +1162,7 @@ class Session:
                         rturn = Turn(kind="report", note=note or run.note, text=body, usage=dict(usage or {}))
                         run.turns.append(rturn)
                         self._emit_turn(run, rturn)
-                        self._finish(run, body, budget, spent)
+                        self._finish(run, body)
                         return run
             elif action.verb == "show":
                 arg = str(action.arg).strip()
@@ -1214,7 +1248,7 @@ class Session:
                 turn.text = action.arg
                 run.turns.append(turn)
                 self._emit_turn(run, turn)
-                self._finish(run, action.arg, budget, spent)
+                self._finish(run, action.arg)
                 return run
             else:
                 turn.kind = "error"
@@ -1278,19 +1312,19 @@ class Session:
         turn = Turn(kind="report", note=note or run.note, text=body, usage=dict(usage or {}))
         run.turns.append(turn)
         self._emit_turn(run, turn)
-        self._finish(run, body, budget, spent)
+        self._finish(run, body)
         return run
 
-    # ----- the ending: rewrite, guards, replay ------------------------------
-    def _finish(self, run: Run, report_text: str, budget: Budget, spent: float) -> None:
+    # ----- the ending: figures, guards, replay ------------------------------
+    def _finish(self, run: Run, report_text: str) -> None:
         # the page draws the report's sources itself, from its searches (0340): a list of them the analyst wrote all the same
-        # goes, before the figures step, the guards and the Rewriter read the report
+        # goes, before the figures step and the guards read the report - and the Rewriter, when it is asked
         report_text = sources.drop_list(rep.repair_markdown_tables(report_text))
         run.title = report_title(report_text)         # the report's first line, the analyst's own title (2026-10-17); '' when it opens otherwise
         run.report = report_text                      # as written, on the record from here (a stop during the steps below keeps it)
         # the figures, drawn once, after the report, from the variables the cells left in the kernel (2026-10-11): the
         # report gains a Figures section that cites them, and from here on the section is part of the report - the
-        # guards, the rewrite, the replay and a routine read it as such
+        # guards, the replay, a routine and the plain version read it as such
         figures_section, figures_note = self._figures(run, report_text)
         report_text += figures_section
         cells = self.nb.path_cells(run.id)            # the record: what any cell of the path printed verifies a number
@@ -1329,24 +1363,15 @@ class Session:
             # said what they expect and the report gives no verdict on it
             answered = run.brief_outcome["stated"] and (run.brief_outcome["expected"] or not run.brief.get("expects"))
             check_b = BRIEF_UNANSWERED if briefs.held(run.brief, has_data(run.data)) and not answered else ""
+        # the report ends here: what the session says about it stands under it, and the plain version, written when the
+        # person asks for it (rewrite), is made from the report alone
+        run.report_end = len(report_text)
         run.report = report_text + "".join(f"\n\n> {x}" for x in (check, check_u, check_d, check_b, figures_note) if x)
-        # the plain-language rewrite by the same analyst
-        self.emit({"type": "turn_start", "run": run.id, "turn": "rewrite", "of": budget.turns, "rewrite": True})
-        t_rw = time.time()
-        text, usage = self.llm(self.system, REWRITE_TASK + (REWRITE_BRIEF if run.brief else "") + report_text, rewrite=True)   # the app runs it on the Rewriter seat when the config has one (2026-09-11)
-        self.emit({"type": "turn_end", "run": run.id, "turn": "rewrite", "kind": "rewrite", "thinking": "", "note": "", "code": "",
-                   "elapsed": round(time.time() - t_rw, 1), "cost": (usage or {}).get("cost", 0.0)})
-        # the plain-language text: the seat's scaffold off, the cell citations out in any dress, the report's title as its
-        # first line - the same anchor in both versions of the Answer tab and at the top of the export (2026-10-17)
-        rewrite = sources.drop_list(with_title(strip_cell_tokens(strip_scaffold(text)), run.title))      # a list of sources of its own goes, as the report's
-        check2 = rep.guard_rewrite(rewrite, report_text)
-        run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
-        run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
         # the replay: the host's runner when it has one (the app's executor, which also
         # yields the figures and the results text), else a fresh kernel
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):
             # the replay can take as long as the analysis did; the pane shows it under way (2026-10-04: between the
-            # rewrite and the closing card nothing was shown, and a person took a working run for a stuck one)
+            # last call and the closing card nothing was shown, and a person took a working run for a stuck one)
             self.emit({"type": "replay_start", "run": run.id, "cells": len(run.cells()),
                        "seconds": round(sum(float(c.elapsed or 0.0) for c in computed), 1)})   # what the cells took: the replay re-runs them, so about as long again (2026-10-15)
             try:
@@ -1372,7 +1397,6 @@ class Session:
             run.code_map = {"error": " ".join(str(exc).split())[:300]}
         run.status = "answered"
         self.emit({"type": "report", "run": run.id, "text": run.report})
-        self.emit({"type": "rewrite", "run": run.id, "text": run.rewrite})
         if run.replay_status:
             self.emit({"type": "replay_status", "run": run.id, "status": run.replay_status, "script": run.replay_script})
         self._save()
@@ -1387,7 +1411,7 @@ class Session:
         number answered). Each attempt is a card in the pane and a turn of the record (step "figures"; the committed
         cell gets a number like any cell). Returns (the report's Figures section - "## Figures" with one "[fig n]
         caption" line per figure, or "" - and a line for the report when the figures were not drawn, or ""). Outside
-        the turn budget, like the rewrite.
+        the turn budget.
 
         Where the brief holds figures the person agreed (2026-11-18), the step is given them. A reply that leaves one
         out - NONE, or a cell whose code does not name its title - is an attempt too, asked again once before

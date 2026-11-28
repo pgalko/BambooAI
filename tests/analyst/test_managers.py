@@ -68,11 +68,11 @@ page.add_user_input("Which regime yields more?")
 check("the question: read once from what the person sent, and nothing where nothing was sent", nothing is None and page.get_user_input() == "Which regime yields more?" and page.get_user_input() is None)
 
 page.display_results(chain_id="c1", execution_mode="local", df_id="d1", df=TRIAL, api_client=None, plan="<div>the investigation</div>", code="print(1)", answer="## Answer\nB.",
-                     simplified_answer="B is higher.", plot_jsons=[json.dumps({"type": "plot", "data": "{}", "id": "p1"})], code_exec_results="1", report_head={"title": "B against A"})
+                     plot_jsons=[json.dumps({"type": "plot", "data": "{}", "id": "p1"})], code_exec_results="1", report_head={"title": "B against A"})
 events = sent(page)
-check("a result: the data's first page, the report's head, a tab each for the investigation, the script, the answer, the plain answer and the script's output, the "
-      "figures, then the end - in that order, each under the chain",
-      [kind(e) for e in events] == ["dataframe", "report_head", "plan", "code", "answer", "simplified_answer", "code_exec_results", "plot", "end"]
+check("a result: the data's first page, the report's head, a tab each for the investigation, the script, the answer and the script's output, the "
+      "figures, then the end - in that order, each under the chain; no plain answer goes with it (0366: it is written when asked for)",
+      [kind(e) for e in events] == ["dataframe", "report_head", "plan", "code", "answer", "code_exec_results", "plot", "end"]
       and events[0]["data"]["df_id"] == "d1" and len(events[0]["data"]["rows"]) == 50 and events[1] == {"report_head": {"title": "B against A"}, "chain_id": "c1"}
       and events[4] == {"type": "answer", "data": "## Answer\nB.", "chain_id": "c1"} and all(e.get("chain_id") == "c1" for e in events if kind(e) != "plot"),
       [kind(e) for e in events])
@@ -108,8 +108,6 @@ class FakeModels:
     def llm_stream(self, prompts, lacm, om, messages, agent=None, chain_id=None, reasoning_models=None, **kw):
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
         system, user = messages[0]["content"], messages[-1]["content"]
-        if isinstance(user, str) and user.startswith("Rewrite the technical report"):
-            return "In plain words: regime B yields more."
         if system.startswith("You are drawing the figures"):
             return "NONE"
         if system.startswith("You propose the questions to analyse next"):

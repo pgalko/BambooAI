@@ -334,41 +334,13 @@ function _reattachRestoredListeners() {
         tab.onclick = () => activateTabInView(tab.id.split('-')[1]);
     }
 
-    // Answer tab — rebuild content and restore simplified button state
+    // Answer tab — rebuild content; its buttons come with it (pdf-export.js handleAnswerTabUpdate)
     const answerTab = document.getElementById('content-answer');
     if (answerTab) {
         const markdownContent = answerTab.querySelector('.markdown-content');
         if (markdownContent && typeof updateTabContent === 'function') {
             updateTabContent('answer', markdownContent.innerHTML);
         }
-
-        function updateSimplifiedButton() {
-            const button = document.querySelector('.simplified-summary-btn');
-            if (button) {
-                if (currentData.simplifiedAnswer) {
-                    button.style.display = '';
-                    button.disabled = false;
-                    button.classList.remove('loading');
-                    if (typeof updateSimplifiedButtonLabel === 'function') {
-                        updateSimplifiedButtonLabel();
-                    }
-                } else {
-                    button.style.display = 'none';
-                }
-                return true;
-            }
-            return false;
-        }
-
-        setTimeout(() => {
-            if (!updateSimplifiedButton()) {
-                setTimeout(() => {
-                    if (!updateSimplifiedButton()) {
-                        setTimeout(updateSimplifiedButton, 150);
-                    }
-                }, 150);
-            }
-        }, 200);
     }
 
     // Synthesis infographic — must come after answer tab rebuild

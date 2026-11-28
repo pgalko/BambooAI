@@ -51,6 +51,7 @@ from codebook_routes import codebook_bp
 from code_map_routes import code_map_bp
 from architect_routes import architect_bp
 from explain_routes import explain_bp
+from simplify_routes import simplify_bp
 
 # Logs
 from logger_config import setup_logging, get_logger
@@ -231,6 +232,7 @@ app.register_blueprint(codebook_bp)
 app.register_blueprint(code_map_bp)
 app.register_blueprint(architect_bp)
 app.register_blueprint(explain_bp)
+app.register_blueprint(simplify_bp)
 
 # Initialize authentication
 init_auth(app)

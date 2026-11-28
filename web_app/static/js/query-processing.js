@@ -61,6 +61,7 @@ function handleQuerySubmit(options = {}) {
     }
     if (window.NextQuestionsUI && window.NextQuestionsUI.holds()) return;      // a set of next questions is being written: nothing starts beside it
     if (window.ExplainUI && window.ExplainUI.holds()) return;                  // ... nor beside an explanation
+    if (window.SimplifyUI && window.SimplifyUI.holds()) return;                // ... nor beside a report's plain version
     // the composer's own send with a passage quoted on the box: the question is asked about the passage and explained
     // where it stands - no analysis, no brief (selection.js, explain.js)
     if (typed && window.SelectionUI && window.SelectionUI.send(query)) { emptyComposer(); return; }
@@ -278,34 +279,6 @@ function processChunk(chunk) {
                 else if (data.type === "synthesis_image") {
                     currentData.synthesisImage = { data: data.data, mime_type: data.mime_type || 'image/png' };
                     if (typeof appendSynthesisImage === 'function') appendSynthesisImage(data.data, data.mime_type || 'image/png');
-                }
-                else if (data.type === "simplified_answer") {
-                    currentData.simplifiedAnswer = data.data;
-                    
-                    function enableAndShowButton() {
-                        const button = document.querySelector('.simplified-summary-btn');
-                        if (button) {
-                            button.style.display = '';  // Show it
-                            button.disabled = false;
-                            button.classList.remove('loading');
-                            if (typeof updateSimplifiedButtonLabel === 'function') {
-                                updateSimplifiedButtonLabel();
-                            }
-                            console.log("Simplified summary button enabled");
-                            return true;
-                        }
-                        return false;
-                    }
-                    
-                    if (!enableAndShowButton()) {
-                        setTimeout(() => {
-                            if (!enableAndShowButton()) {
-                                setTimeout(enableAndShowButton, 200);
-                            }
-                        }, 150);
-                    }
-                    
-                    console.log("Simplified summary received");
                 } else if (data.report_head) {
                     // the report's head (2026-10-17): the title and lead the analyst wrote for the finished report, the question,
                     // what data it stands on, the mode, the replay's verdict - kept with the chain for the PDF export's top section
@@ -320,7 +293,7 @@ function processChunk(chunk) {
                     if (typeof paneSystem === 'function') paneSystem(data.error, 'error');
                     else streamOutputDiv.innerHTML += '<div class="sp-sys error">' + escapeHtml(String(data.error)) + '</div>';
                 } else if (data.type && data.type !== 'end' && data.type !== 'id') {
-                    // Reset simplified summary data when new answer arrives
+                    // a new answer has no plain version yet: it is written when the person asks for it (simplify.js)
                     if (data.type === 'answer') {
                         currentData.simplifiedAnswer = null;
                         currentData.summaryViewMode = 'technical';

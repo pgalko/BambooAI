@@ -138,8 +138,6 @@ script = [act("READ D2 what about the wet season"), act("READ ALL regimes"), act
 i = {"n": 0}; prompts = []
 def fake_llm(system, user, **hints):
     prompts.append(user)
-    if user.startswith("Rewrite the technical report"):
-        return "Plain.", {"cost": 0.0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0.0}
     k = min(i["n"], len(script) - 1); i["n"] += 1
     return script[k], {"cost": 0.001}
@@ -160,7 +158,7 @@ starts = [e for e in events if e.get("type") == "lookup_start"]
 check("session: a READ announces itself before the reader runs (lookup_start with the kind and the query), once per answered read, not for the one the budget answered",
       len(starts) == 3 and starts[0] == {"type": "lookup_start", "run": run.id, "kind": "read", "query": "D2 what about the wet season"}, starts)
 check("session: three READ turns answered, the fourth answered from the budget without a reader call - pointing at SHOW READ and the kernel objects - then SHOW READ, then the report",
-      kinds == ["read", "read", "read", "read", "show", "report", "rewrite"] and len(read_calls) == 3 and run.turns[3].stdout.startswith("(read budget for this run used: 3 of 3")
+      kinds == ["read", "read", "read", "read", "show", "report"] and len(read_calls) == 3 and run.turns[3].stdout.startswith("(read budget for this run used: 3 of 3")
       and "D1.grep" in run.turns[3].stdout, (kinds, run.turns[3].stdout[:80]))
 check("session: a read turn records the scope and query as its text and the digest as its stdout", run.turns[0].text == "D2 what about the wet season" and run.turns[0].stdout.startswith("PASSAGES (verbatim"), run.turns[0].stdout[:120])
 # the report turn (the last cell turn: everything in view) carries the passages the run's reads returned
@@ -169,7 +167,6 @@ rp_script = [act("READ D2 what about the wet season"), act("CELL\n```python\npri
 rp_n = {"i": 0}
 def rp_llm(system, user, **h):
     rp_prompts.append(user)
-    if user.startswith("Rewrite"): return "Plain.", {"cost": 0.0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0.0}
     k = min(rp_n["i"], len(rp_script) - 1); rp_n["i"] += 1
     return rp_script[k], {"cost": 0.0}
@@ -201,7 +198,7 @@ check("the next prompt carries the whole digest after a READ; the first turn's t
 check("guard: the number 40 came from the cited passage [D2.3], so it passes; 4.2 did not and is disclosed; [D9.9] is disclosed as not in the documents",
       "40" not in (run.report.split("CHECK:")[1] if "CHECK:" in run.report else "") and "4.2" in run.report.split("CHECK:")[1] and "not in this thread's documents: [D9.9]" in run.report, run.report[-500:])
 events2 = []
-s2 = Session(PersistentKernel(), nb, lambda sy, us, **h: ("NONE", {"cost": 0.0}) if sy.startswith("You are drawing the figures") else ((act("SHOW READ 2") if "TASK: turn 1;" in us and "SHOWN:" not in us else act("REPORT\nDone."), {"cost": 0.0}) if not us.startswith("Rewrite") else ("Plain.", {"cost": 0.0})), store=store, emit=events2.append, read=host_read, unit_text=host_unit_text, documents=True)
+s2 = Session(PersistentKernel(), nb, lambda sy, us, **h: ("NONE", {"cost": 0.0}) if sy.startswith("You are drawing the figures") else (act("SHOW READ 2") if "TASK: turn 1;" in us and "SHOWN:" not in us else act("REPORT\nDone."), {"cost": 0.0}), store=store, emit=events2.append, read=host_read, unit_text=host_unit_text, documents=True)
 run2 = s2.run("follow-up", parent=run.id, budget=Budget(turns=4, dollars=1.0))
 check("session: in a follow-up chain, SHOW READ 2 reaches the earlier chain's second read - numbered along the path, as searches are", run2.turns[0].stdout.startswith("--- read 2: ALL regimes ---"), run2.turns[0].stdout[:80])
 check("notebook: reads() along the path counts both chains' read turns, the budget-refused one included as searches do", len(nb.reads(run2.id)) == 4, len(nb.reads(run2.id)))
@@ -275,7 +272,6 @@ script_c = [act("READ CTX the legs on the climbs"), act("REPORT\n## Answer\nThe 
 ic = {"n": 0}; prompts_c = []
 def llm_c(system, user, **hints):
     prompts_c.append((system, user))
-    if user.startswith("Rewrite the technical report"): return "Plain.", {"cost": 0.0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0.0}
     k = min(ic["n"], len(script_c) - 1); ic["n"] += 1
     return script_c[k], {"cost": 0.001}

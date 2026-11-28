@@ -13,7 +13,7 @@ DAGRE = open(os.path.join(HERE, 'fixtures', 'dagre_stub.js')).read()            
 PLOTLY = open(os.path.join(HERE, 'stack', 'browser', 'libs_stub_plotly.js')).read()      # the stack's stand-in for Plotly: here the library's address is not reached (2026-11-18, the drafts of the figures)
 PILLS = "const c=document.getElementById('datasetStatusPillsContainer'); c.innerHTML='<div class=\"dataset-status-pill primary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Primary (mtbuller_climate.csv)</span></span><span class=\"dataset-pill-remove-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><line x1=\"5\" y1=\"12\" x2=\"19\" y2=\"12\"/></svg></span></div><div class=\"dataset-status-pill auxiliary-dataset-pill success\"><span class=\"dataset-pill-content clickable-pill-content\"><span>Auxiliary (wellness.csv)</span></span></div>';"
 # the analysis on the page is a finished one - a chain of a thread, its run over: its passages can be asked about (explain.js)
-FINISHED = "if (!document.querySelector('.selection-bar')) { SelectionUI.initialize(); ExplainUI.initialize(); } responses.push({ chain_id: 7, thread_id: 3 }); currentResponseIndex = responses.length - 1; "
+FINISHED = "if (!document.querySelector('.selection-bar')) { SelectionUI.initialize(); ExplainUI.initialize(); SimplifyUI.initialize(); } responses.push({ chain_id: 7, thread_id: 3 }); currentResponseIndex = responses.length - 1; "
 # a passage of the answer selected as the mouse selects it: pressed in the content pane, with the first paragraph marked
 SELECT = ("activateTab('answer'); " + FINISHED + "const p = document.querySelector('#content-answer p'), r = document.createRange(), b = p.getBoundingClientRect(); r.selectNodeContents(p); "
           "p.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); getSelection().removeAllRanges(); getSelection().addRange(r); ")
@@ -29,8 +29,13 @@ FIGURE = json.dumps({"data": [{"type": "scatter", "mode": "lines", "name": "wint
                      "layout": {"title": {"text": "Winter mean temperature, 38 winters"}}})
 PLOT = (PLOTLY + MARKED + "createOrUpdateTab('plot', %s, 'plot_1', 'json'); activateTab('plot'); " % json.dumps(FIGURE) + FINISHED
         + "setTimeout(() => ExplainUI.restore(responses[currentResponseIndex]), 300);")
+# the Answer tab's buttons, as the page puts them where an answer is drawn: PDF, and before it the plain version's (simplify.js, 2026-11-28)
+BUTTONS = "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a); SimplifyUI.dress(a); "
 STATES = {
-    'page_answer': "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a);",
+    'page_answer': BUTTONS,                              # a finished analysis: Simplify beside PDF - its plain version is written when asked for
+    # Simplify pressed (tools/fixtures/simplify.json answers): the plain version shown, the button now Technical, the call's card in the left pane and the run's cost raised
+    'simplified': MARKED + FINISHED + "Object.assign(currentData, { chain_id: 7, thread_id: 3 }); " + BUTTONS
+                  + "currentData.technicalAnswer = a.querySelector('.content-body').outerHTML; document.querySelector('.simplified-summary-btn').click();",
     'page_data': "activateTab('dataframe');",
     'gear': "document.querySelector('.rail .settings-button').focus();",
     'composer_adaptive': "setMode('adaptive'); document.getElementById('queryInput').value='How does the warming trend compare?';",
@@ -79,6 +84,7 @@ def render_all(out, light=False):
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'codebook.json'))))     # the codebook screen's book (2026-10-16), a file of its own
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'drafts.json'))))       # the plots of the drafts the Pathfinder's state shows (2026-11-18), by the address the page asks
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'explain.json'))))      # what was asked about the analysis on the page (2026-11-27), by the address the page asks
+    fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'simplify.json'))))     # its report in plain language, as the server gives it when asked (2026-11-28)
     usage_fx = os.path.join(HERE, 'fixtures', 'usage.json')                               # the usage dialog's answers (2026-10-31): a synthetic month, made on demand
     if not os.path.exists(usage_fx):
         import subprocess; subprocess.run([sys.executable, os.path.join(HERE, 'usage_fixture.py'), usage_fx], check=True, env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, 'tools', 'stack', 'fakepkgs')))

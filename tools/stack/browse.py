@@ -158,7 +158,7 @@ def story(w, mod, dataset, questions):
     p.wait_for_timeout(300)
     if p.query_selector(".simplified-summary-btn"):
         p.click(".simplified-summary-btn")
-        p.wait_for_timeout(500)
+        p.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=60000)      # asked of the server, then shown (0366)
         w.shot("simplified")
         p.click(".simplified-summary-btn")
         p.wait_for_timeout(300)

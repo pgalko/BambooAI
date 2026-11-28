@@ -65,16 +65,19 @@ check('the print styles carry the citation chips - a quiet pill, not interactive
 check('the export: the head model builds the top section, the page title becomes the report\'s title for the print dialog and is restored after; the old 200-character cut is gone',
   pe.includes("headerDiv.innerHTML = renderPdfHead(headModel);") && pe.includes("document.title = pdfFileTitle(headModel.title) || pageTitle;") && pe.includes("document.title = pageTitle;") && !pe.includes("substring(0, 200)") && !pe.includes("Generated: ${new Date().toLocaleString()}"));
 const crSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'content-rendering.js'), 'utf8');
+const sjSrc = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'js', 'simplify.js'), 'utf8');      // the plain version is drawn there (0366)
 check('the export prints the answer as its tab holds it, and since 0312 that holds nothing of what the report says against its brief - the part is cut where the answer is rendered, in both versions '
   + '(architect.js cutAnswer): what goes to other people says nothing of a brief they have not seen. The print styles carry no rule for its card any more',
   pe.includes('const contentClone = answerContent.cloneNode(true);') && !pe.includes('ar-against') && !/against the brief/i.test(pe)
-  && (crSrc.match(/window\.ArchitectUI\.cutAnswer\(finalContent\)/g) || []).length === 2);
+  && (crSrc.match(/window\.ArchitectUI\.cutAnswer\(finalContent\)/g) || []).length === 1 && sjSrc.includes('if (window.ArchitectUI) html = window.ArchitectUI.cutAnswer(html).html;'));
 const tabsCss = fs.readFileSync(path.join(__dirname, '..', '..', 'web_app', 'static', 'css', 'tabs.css'), 'utf8');
 check('the report\'s sources (0340): the page draws them from the report\'s head, as data, under both versions of the answer - after the part against the brief is cut - and the maths '
   + 'leaves them alone; on the page a title is quiet, in the text\'s colour, the blue on hover; no bullets; printed, the list has no bullets and its titles stay plain',
-  (crSrc.match(/const sources = \(currentData\.reportHead && currentData\.reportHead\.sources\) \|\| \[\];/g) || []).length === 2
-  && (crSrc.match(/paneCiteHtml\(finalContent, sources\)/g) || []).length === 2 && (crSrc.match(/finalContent \+= paneSourcesHtml\(sources\);/g) || []).length === 2
+  (crSrc.match(/const sources = \(currentData\.reportHead && currentData\.reportHead\.sources\) \|\| \[\];/g) || []).length === 1
+  && (crSrc.match(/paneCiteHtml\(finalContent, sources\)/g) || []).length === 1 && (crSrc.match(/finalContent \+= paneSourcesHtml\(sources\);/g) || []).length === 1
   && crSrc.indexOf('paneSourcesHtml(sources)') > crSrc.indexOf('window.ArchitectUI.cutAnswer(finalContent)') && crSrc.includes("ignoredClasses: ['answer-sources'],")
+  && sjSrc.includes('build.plain(currentData.simplifiedAnswer, (currentData.reportHead && currentData.reportHead.sources) || [])') && sjSrc.includes('html = paneCiteHtml(html, sources);')
+  && sjSrc.indexOf('paneSourcesHtml(sources)') > sjSrc.indexOf('window.ArchitectUI.cutAnswer(html)')
   && tabsCss.includes('#content-answer .answer-sources .src a { color: var(--text-primary); text-decoration: none; }')
   && tabsCss.includes('#content-answer .answer-sources .src a:hover { color: var(--c-lookup); text-decoration: underline; }')
   && tabsCss.includes('#content-answer .answer-sources ol { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }')

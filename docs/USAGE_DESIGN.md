@@ -92,7 +92,8 @@ immediately before it. The answer:
   (`analysis`, `ideas` - a run of the ideas path, retired with 2.8 - or, for a chain the thread store does not know, `routine` for the Promoter's Save-as-routine
   call, `next` for a set of next questions, `context` for the Coder's pass, `reading`, `memory` - the Knowledge Distiller's calls, a seat retired with 2.8 - or `other`), the question and the title, the mode, the
   cells and figures, the outcome (`answered`, `reproduced`, `differed`, `replay failed`, `failed at cell n`,
-  `refused`, `stopped`, `asked`, `running`), the wall time (first turn to last), the calls, tokens, cache, time,
+  `refused`, `stopped`, `asked`, `running`), the wall time (first turn to last; the plain version, written when it
+  is asked for, is left out), the calls, tokens, cache, time,
   cost, compute, the cost per seat, and `saved` - whether the chain's favourite file exists, since the page opens a
   chain from it (an unsaved analysis shows "not saved" instead of the link);
 - `stands_out`: three computed lines - the heaviest day (its share, its analyses, its top seat, its dearest

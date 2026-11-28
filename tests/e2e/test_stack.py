@@ -69,6 +69,43 @@ def usage_rows(wa, edition, user):
 
 
 # ---- the Pathfinder (docs/ARCHITECT_DESIGN.md §2.11-§2.14): the helpers of its section ----
+def walk_simplify(page, wa, edition, user):
+    """The report in plain language, asked for (0366): Simplify, on the Answer tab of the finished analysis on screen. One call on the server - the Rewriter's, under the analysis' own chain, and
+    no query of its own. The plain version is shown at once, and is kept; the call's card stands in the left pane where the run's own cards end, and the run's cost and time are raised by the
+    call's on the closing card and the strip. Asked of the server again, it comes back as kept, with no call."""
+    state = lambda: page.evaluate("""() => { const b = document.querySelector('#content-answer .simplified-summary-btn'), s = document.querySelector('#streamOutput .sp-stream'), d = s.querySelector(':scope > .sp-done');      // noqa: E731
+        const rw = s.querySelector('.sp-turn[data-turn="rewrite"]'), said = d.querySelector('.head .nums').textContent.split(' · '), num = (name, k) => [Number(d.getAttribute(name)), said[said.length - k]];
+        const kept = responses[currentResponseIndex] || {};
+        return { word: b ? b.querySelector('.simplified-text').textContent : null, hover: b ? b.title : null, turning: b ? b.classList.contains('loading') : null, view: currentData.summaryViewMode, has: !!currentData.simplifiedAnswer,
+                 card: rw ? { n: rw.querySelector('.n').textContent, kind: rw.querySelector('.kind').textContent, meta: rw.querySelector('.meta').textContent, seat: rw.querySelector('.sp-prompt').dataset.agent,
+                              chain: rw.querySelector('.sp-prompt').dataset.chain, open: rw.hasAttribute('open'), after: rw.previousElementSibling.className,
+                              then: rw.nextElementSibling.className + ' ' + ((rw.nextElementSibling.querySelector('.in') || {}).textContent || '').slice(0, 6) } : null,
+                 cost: num('data-cost', 2), secs: num('data-secs', 1), strip: (document.querySelector('#streamOutput .sp-strip .spent') || {}).textContent,
+                 kept: !!kept.simplifiedAnswer, keptCard: /data-turn="rewrite"/.test(kept.streamOutput || ''), chain: String(currentData.chain_id), thread: String(currentData.thread_id) }; }""")
+    rows0, month0, was = usage_rows(wa, edition, user), month_queries(page), state()
+    check("a finished analysis has no plain version: the Answer tab's button says Simplify, and the left pane has no Rewrite card - the run ended with its report (0366)",
+          was["word"] == "Simplify" and was["hover"] == "Write this report in plain language" and was["turning"] is False and was["view"] == "technical" and not was["has"] and was["card"] is None
+          and not any(str(r.get("agent")) == "Rewriter" and str(r.get("chain_id")) == was["chain"] for r in rows0) and was["cost"] and was["secs"], was)
+    page.click("#content-answer .simplified-summary-btn")
+    page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=60000)
+    now, new = state(), usage_rows(wa, edition, user)[len(rows0):]
+    check("Simplify: the plain version is written by one call - the Rewriter's, logged under the analysis' own chain - and shown as soon as it is there; the button now says Technical. It is no "
+          "query of its own: the month's count stands",
+          now["word"] == "Technical" and now["hover"] == "Show the technical report" and now["turning"] is False and now["view"] == "simplified" and now["has"]
+          and [(str(r.get("agent")), str(r.get("chain_id"))) for r in new] == [("Rewriter", was["chain"])] and month_queries(page) == month0, (now, [(r.get("agent"), r.get("chain_id")) for r in new]))
+    spent = was["cost"][0] + float(new[0].get("cost") or 0) if new else None        # the usage row keeps the call's cost to four places
+    check("... the call's card stands in the left pane where the run's own cards end - before the replay's row -, shut, on the Rewriter's seat with the button to its prompt; and the run's cost "
+          "and time are raised by the call's on the closing card and on the strip",
+          now["card"] and (now["card"]["n"], now["card"]["kind"], now["card"]["seat"], now["card"]["chain"], now["card"]["open"]) == ("Rewrite", "plain-language version", "Rewriter", was["chain"], False)
+          and now["card"]["then"] == "sp-row tool REPLAY" and "$" in now["card"]["meta"] and now["cost"][0] > was["cost"][0] and abs(now["cost"][0] - spent) < 1e-4 and now["secs"][0] > was["secs"][0]
+          and now["strip"] == "$%.2f" % now["cost"][0] == now["cost"][1] and now["kept"] and now["keptCard"], (now, was["cost"], was["secs"], spent))
+    again = page.evaluate("""async ([thread, chain]) => { const r = await window.authService.fetch('/simplify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: thread, chain_id: chain }) });
+        const lines = (await r.text()).split('\\n').filter(l => l.trim()).map(l => JSON.parse(l)), made = (lines[lines.length - 1] || {}).simplify || {};
+        return [r.status, made.text === currentData.simplifiedAnswer, (made.card || {}).seat]; }""", [was["thread"], was["chain"]])
+    check("... the server keeps the plain version with the analysis: asked again, it comes back as kept and no call is made",
+          again == [200, True, "Rewriter"] and len(usage_rows(wa, edition, user)) == len(rows0) + 1, again)
+
+
 def brief_on_screen(page):
     """The Brief tab as the coach sees it: the step on screen of how many on its way and the name of the button to the map beside the arrows, the parts that hold something - a part with nothing in it has no line - and what can be changed; each line the brief
     rests on with its mark, the fact beside it and whether the fact is in red; each other explanation with what it would show, its box - ticked, unticked or none - and who brought it in; the one
@@ -567,8 +604,7 @@ def walk_architect(page, st, mod, wa, edition, user):
     printed = lambda n: (page.click("#content-answer .pdf-export-btn"), page.wait_for_function("(n) => window.__printed.length === n", arg=n, timeout=20000),      # noqa: E731
                          page.wait_for_function("() => !document.getElementById('pdf-print-container')", timeout=10000), page.evaluate("() => window.__printed[window.__printed.length - 1]"))[3]
     paper = printed(1)
-    page.click("#content-answer .simplified-summary-btn")
-    page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=5000)
+    walk_simplify(page, wa, edition, user)
     plain = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, cards: document.querySelectorAll('#content-answer .ar-against').length, "
                           "wrote: currentData.simplifiedAnswer || '', tab: document.querySelectorAll('#content-brief .ar-against .r').length })")
     paper_plain = printed(2)
@@ -2332,7 +2368,7 @@ def main():
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
             check("the closing card counts 3 cells with 1 failed", "3 cells (1 failed)" in done.replace("\n", " "), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
-            check("one card per model call (6 analyst turns, the figures step, the rewrite; no review outside Adaptive)", turns == 8, turns)
+            check("one card per model call (6 analyst turns, the figures step; no review outside Adaptive, and no rewrite: it is written when asked for)", turns == 7, turns)
             # the figures step (2026-10-11): the figure cell of turn 5 was not run - a skipped row; after the report one quiet
             # 'Figures' card, then its cell row as cell 3 with the two figures; the Answer tab's Figures section cites them
             fig = page.evaluate("""() => { const rows = [...document.querySelectorAll('.sp-row')];
@@ -2454,7 +2490,7 @@ def main():
             # the plain-language version keeps the figure citation, as a chip (2026-10-11)
             page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
             page.click("#content-answer .simplified-summary-btn")
-            page.wait_for_timeout(300)
+            page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=60000)      # asked of the server, then shown (0366)
             web_plain = page.evaluate(web_of)
             check("Simplified: the plain-language version keeps the source it cites, as a chip that opens the page, and the report's Sources stand under it, once: the list the Rewriter "
                   "ended its text with is not there (0338, 0340)",
@@ -2678,13 +2714,11 @@ def main():
             map_open = page.evaluate("() => { const m = document.getElementById('workflowMapModal'); return !!m && getComputedStyle(m).display !== 'none'; }")
             check("the Workflow map stays closed when an Adaptive run ends (v65)", not map_open, map_open)
             cards = page.evaluate("() => [...document.querySelectorAll('.sp-turn')].map(t => ({ n: (t.querySelector('.n') || {}).textContent || '', meta: (t.querySelector('.meta') || {}).textContent || '', seat: (t.querySelector('.sp-prompt') || {}).dataset ? t.querySelector('.sp-prompt').dataset.agent : '' }))")
-            rewrite_seat = page.evaluate("() => { const c = [...document.querySelectorAll('.sp-turn')].find(t => /Rewrite/.test((t.querySelector('.n') || {}).textContent || '')); const b = c && c.querySelector('.sp-prompt'); return b ? b.dataset.agent : null; }")
-            check("rewrite seat: the Rewrite card ran on the Rewriter seat (v71)", rewrite_seat == "Rewriter", rewrite_seat)
             check("review: after turn 8 of the Adaptive run a Review card on the Reviewer seat with its model, between turns 8 and 9 on the Analyst - and its REPORT verdict made turn 9 the report",
                   len(cards) >= 10 and cards[8]["n"] == "Review" and "Reviewer" in cards[8]["meta"] and cards[8]["seat"] == "Reviewer"
                   and cards[7]["n"] == "Turn 8" and cards[7]["seat"] == "Analyst" and cards[9]["n"] == "Turn 9" and cards[9]["seat"] == "Analyst", cards[7:10])
-            check("review: that is the run's one review - none follows the report (0365): after turn 9 the cards are the figures step's and the rewrite's, and the Reviewer has one card",
-                  [c["n"] for c in cards].count("Review") == 1 and [c["seat"] for c in cards].count("Reviewer") == 1 and not any("Review" in c["n"] for c in cards[10:]), [(c["n"], c["seat"]) for c in cards[8:]])
+            check("review: that is the run's one review - none follows the report (0365), and no rewrite either (0366): the Reviewer has one card, and turn 9's is the last but the figures step's",
+                  [c["n"] for c in cards].count("Review") == 1 and [c["seat"] for c in cards].count("Reviewer") == 1 and not any("Review" in c["n"] or "Rewrite" in c["n"] for c in cards[10:]), [(c["n"], c["seat"]) for c in cards[8:]])
             page.evaluate("setMode('deep')")
             page.click("#prevResponse")
             page.wait_for_timeout(500)

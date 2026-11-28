@@ -764,7 +764,7 @@ function handleAnswerTabUpdate() {
         const answerTab = document.getElementById('content-answer');
         if (answerTab) {
             addPDFExportButton(answerTab);
-            addSimplifiedSummaryButton(answerTab);
+            if (window.SimplifyUI) window.SimplifyUI.dress(answerTab);      // the plain version's button, before it
         }
     }, 100);
 }

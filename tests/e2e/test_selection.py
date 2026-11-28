@@ -170,8 +170,6 @@ FILL = """([answer, plain, code, output, thread, chain]) => {
   document.getElementById('content-plot').innerHTML = '<p>Yield by regime, for each soil type</p>';
   document.getElementById('streamOutput').innerHTML = '<div style="height: 3000px">the analysis, turn by turn</div>';
   activateTab('answer'); }"""
-# the plain version has arrived, as the stream brings it once the analysis has ended: its button is on
-PLAIN_READY = """() => { const b = document.querySelector('.simplified-summary-btn'); b.style.display = ''; b.disabled = false; b.classList.remove('loading'); updateSimplifiedButtonLabel(); }"""
 KEEP = """() => { responses.push({ chain_id: currentData.chain_id, thread_id: currentData.thread_id, queryText: currentData.queryText, parentChainId: null,
   tabContent: document.getElementById('tabContainer').innerHTML, contentOutput: document.getElementById('contentOutput').innerHTML, streamOutput: '', taskContents: {},
   technicalAnswer: currentData.technicalAnswer, simplifiedAnswer: currentData.simplifiedAnswer, summaryViewMode: 'technical' }); currentResponseIndex = responses.length - 1; }"""
@@ -194,8 +192,7 @@ class Page:
         self.page.wait_for_timeout(400)
         self.page.evaluate("() => {" + HELPERS + "}")
         self.page.evaluate(FILL, [ANSWER, PLAIN, CODE, OUTPUT, THREAD, CHAIN])
-        self.page.wait_for_timeout(400)
-        self.page.evaluate(PLAIN_READY)
+        self.page.wait_for_selector(".simplified-summary-btn:not(.loading)", timeout=5000)      # the analysis has a plain version: its button switches to it (simplify.js)
         if plots:                                          # two plots, drawn by the page's own function: a picture, and a figure the library draws
             self.pictures = [self.page.evaluate(DRAW, tall) for tall in (200, 120)]
             self.page.evaluate("([png, figure]) => { document.getElementById('content-plot').innerHTML = ''; createOrUpdateTab('plot', png, 'plot_1', 'png'); createOrUpdateTab('plot', figure, 'plot_2', 'json'); }",

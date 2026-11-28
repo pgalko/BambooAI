@@ -175,7 +175,10 @@ class Run:
     question: str
     turns: List[Turn] = field(default_factory=list)
     report: str = ""                # the technical report (final)
-    rewrite: str = ""               # the simplified rewrite (final)
+    report_end: int = 0             # how much of `report` is the report itself, with its Figures section: under it stand the lines the session
+                                    # adds - the guards', the replay's. The plain version is written from the report alone (session.rewrite).
+                                    # 0 in a run made before 2026-11-28, whose plain version was written when it ended
+    rewrite: str = ""               # the report in plain language: written when the person asks for it (2026-11-28; at the run's end before)
     title: str = ""                 # the report's title (2026-10-17): its first line, a statement of what was found, for the Answer tab and the export
     replay_status: str = ""         # reproduced | differed | failed | (empty = not run)
     replay_script: str = ""
@@ -631,7 +634,8 @@ class Notebook:
 
 def run_facts(run) -> dict:
     """What the usage ledger shows of a run (docs/USAGE_DESIGN.md §3): the question and the title, the mode, how it
-    ended, its cells and figures, when it started and how long it took wall to wall. A branch is counted by its own
+    ended, its cells and figures, when it started and how long it took wall to wall - to the last of its own turns: its
+    plain version, written when it is asked for, is none of them. A branch is counted by its own
     turns - those it kept from the run it went on from were that run's, and paid for there - and says after which
     turn it went on and under what hint (`branch`: {turn, hint}; {} for a run that is none). From a Run, or from its
     dict in the thread file - never the cells' outputs or figures."""
@@ -646,7 +650,8 @@ def run_facts(run) -> dict:
     branch = g("branch") or {}
     failed_at = next((tg(t, "cell_no") for t in reversed(cells) if tg(t, "error")), None)
     created = float(g("created") or 0)
-    last = max([float(tg(t, "created") or 0) + float(tg(t, "elapsed") or 0) for t in turns] + [created])
+    # the run's own turns: its plain version is written when it is asked for, which can be days after the run ended (2026-11-28)
+    last = max([float(tg(t, "created") or 0) + float(tg(t, "elapsed") or 0) for t in turns if tg(t, "kind") != "rewrite"] + [created])
     return {"question": g("question") or "", "title": g("title") or "", "mode": g("mode") or "", "status": g("status") or "", "replay": g("replay_status") or "",
             "cells": len(cells), "figures": sum(len(tg(t, "figures") or []) for t in cells), "created": created, "wall": round(max(0.0, last - created), 1),
             "failed_at": failed_at, "refused": any(tg(t, "refused") for t in turns),

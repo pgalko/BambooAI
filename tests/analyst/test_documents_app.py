@@ -34,8 +34,6 @@ class FakeModels:
     def llm_stream(self, prompts, lacm, om, messages, agent=None, chain_id=None, reasoning_models=None, **kw):
         user = messages[-1]["content"]; state["calls"].append(user)
         lacm.write_to_log(agent, chain_id, "2026-10-03 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
-        if user.startswith("Rewrite the technical report"):
-            return "Plain: 4.2 million."
         if messages[0]["content"].startswith("You are drawing the figures"):
             return state.get("figures") or "NONE"
         i = min(state["i"], len(SCRIPT) - 1); state["i"] += 1

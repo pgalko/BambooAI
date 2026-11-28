@@ -59,7 +59,7 @@ is not earning its place.
 
 ## F. Outputs, storage, UI
 
-- [ ] F1. Two summaries per answer — technical (Answer first; how established, citing cells; limitations in three kinds; next steps; replay status) and simplified (the analyst's own plain-language rewrite, labelled). Both exportable to PDF with figures resolved by cell reference. Whole-path export as a second option.
+- [ ] F1. Two summaries per answer — technical (Answer first; how established, citing cells; limitations in three kinds; next steps; replay status) and simplified (the analyst's own plain-language rewrite, labelled; written when the person asks for it, since 2026-11-28). Both exportable to PDF with figures resolved by cell reference. Whole-path export as a second option.
 - [ ] F2. Two mechanical guards, invisible to the model: numbers in the technical report exist in cell outputs; numbers in the simplified exist in the technical. Mismatch → a visible disclosure, never a silent edit.
 - [ ] F3. The assembled script = the cited cells and their dependencies, in order; replayed in a fresh kernel; one status line (reproduced / differed / failed); one repair turn by the analyst on failure.
 - [ ] F4. Artifacts render as they land: cells and note → Investigation tab; figures → Plots; reports → Answer / Simplified; script + status → Code; the tree → workflow map.

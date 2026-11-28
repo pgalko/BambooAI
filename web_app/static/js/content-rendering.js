@@ -215,7 +215,7 @@ async function updateTabContent(type, data, id = null, format = null) {
                     // Add event listeners to chain ID references
                     attachChainRefListeners(contentElement);
                     
-                    // Add PDF export button and simplified summary button to answer tab
+                    // the Answer tab's buttons: PDF, and the plain version's (simplify.js)
                     if (typeof handleAnswerTabUpdate === 'function') {
                         handleAnswerTabUpdate();
                     }
@@ -707,123 +707,6 @@ function initializeCodeTab() {
         a.remove();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-}
-
-//--------------------
-//  SIMPLIFIED SUMMARY TOGGLE
-//--------------------
-
-function addSimplifiedSummaryButton(answerTabContent) {
-    // Don't add if already exists
-    if (answerTabContent.querySelector('.simplified-summary-btn')) return;
-    
-    const header = answerTabContent.querySelector('h3');
-    if (!header) return;
-    
-    // Ensure header container exists (same pattern as PDF button)
-    if (!header.parentElement.classList.contains('tab-header-container')) {
-        const headerContainer = document.createElement('div');
-        headerContainer.className = 'tab-header-container';
-        header.parentElement.insertBefore(headerContainer, header);
-        headerContainer.appendChild(header);
-    }
-    
-    const headerContainer = header.parentElement;
-    const simplifiedButton = createSimplifiedSummaryButton();
-    
-    // Insert before PDF button if it exists, otherwise append
-    const pdfButton = headerContainer.querySelector('.pdf-export-btn');
-    if (pdfButton) {
-        headerContainer.insertBefore(simplifiedButton, pdfButton);
-    } else {
-        headerContainer.appendChild(simplifiedButton);
-    }
-}
-
-function createSimplifiedSummaryButton() {
-    const button = document.createElement('button');
-    button.className = 'simplified-summary-btn loading';
-    button.title = 'Accessible summary loading...';
-    button.setAttribute('aria-label', 'Toggle accessible summary');
-    button.disabled = true;
-    button.style.display = 'none';
-    
-    // Lightbulb icon
-    button.innerHTML = `
-        <svg class="simplified-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 18h6"></path>
-            <path d="M10 22h4"></path>
-            <path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0 0 18 8 6 6 0 0 0 6 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 0 1 8.91 14"></path>
-        </svg>
-        <span class="simplified-text">Simplified</span>
-        <div class="simplified-spinner"></div>
-    `;
-    
-    button.addEventListener('click', handleSimplifiedSummaryToggle);
-    return button;
-}
-
-function handleSimplifiedSummaryToggle() {
-    const answerTab = document.getElementById('content-answer');
-    if (!answerTab) return;
-    
-    const answerContent = answerTab.querySelector('.content-body');
-    if (!answerContent) return;
-    
-    const button = document.querySelector('.simplified-summary-btn');
-    if (!button || button.disabled) return;
-    
-    // Toggle view mode
-    if (currentData.summaryViewMode === 'technical') {
-        // Switch to simplified
-        if (currentData.simplifiedAnswer) {
-            // Format and display simplified content
-            let finalContent = markdownToHtml(currentData.simplifiedAnswer);
-            // the figure citations the rewrite keeps become chips, as in the technical answer (2026-10-11)
-            const sources = (currentData.reportHead && currentData.reportHead.sources) || [];      // the report's, under both versions (0340)
-            if (typeof paneCiteHtml === 'function') finalContent = paneCiteHtml(finalContent, sources);
-            if (window.ArchitectUI) finalContent = window.ArchitectUI.cutAnswer(finalContent).html;      // the rewrite keeps the part "Against the brief": not in the answer
-            if (typeof paneSourcesHtml === 'function') finalContent += paneSourcesHtml(sources);
-            
-            answerContent.innerHTML = finalContent;
-            currentData.summaryViewMode = 'simplified';
-            
-            // Re-render LaTeX in the new content
-            renderLatex(answerContent);
-        }
-    } else {
-        // Switch to technical
-        if (currentData.technicalAnswer) {
-            // technicalAnswer is already formatted HTML
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = currentData.technicalAnswer;
-            const innerContent = tempDiv.querySelector('.content-body');
-            
-            answerContent.innerHTML = innerContent ? innerContent.innerHTML : currentData.technicalAnswer;
-            
-            // Re-render LaTeX
-            renderLatex(answerContent);
-        }
-        currentData.summaryViewMode = 'technical';
-    }
-    
-    updateSimplifiedButtonLabel();
-}
-
-function updateSimplifiedButtonLabel() {
-    const button = document.querySelector('.simplified-summary-btn');
-    if (!button) return;
-    
-    const textSpan = button.querySelector('.simplified-text');
-    if (!textSpan) return;
-    
-    if (currentData.summaryViewMode === 'simplified') {
-        textSpan.textContent = 'Technical';
-        button.title = 'Show technical summary';
-    } else {
-        textSpan.textContent = 'Simplified';
-        button.title = 'Show simplified summary';
-    }
 }
 
 //--------------------

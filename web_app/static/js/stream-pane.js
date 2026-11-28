@@ -28,6 +28,8 @@
 //   pane_run_end     -> paneRunEnd       {turns, of, cells, failed, refused, cost, seconds, replay_status, replay_line, plots, reaches:{lines, refused, counts, sandbox, recorded},
 //                                         turn_map}    turn_map: it has turns to go on from - the ids' row says so (data-branch), for branch.js
 //   system_message   -> paneSystem(text) ; error -> paneSystem(text, 'error')
+// And one call the page makes itself: paneLate(pane, t) - the card of a call made for a run after it ended
+// (simplify.js), with the run's cost and time raised by the call's.
 
 (function () {
     'use strict';
@@ -116,7 +118,7 @@
                 (h.mode ? '<span class="mode">' + esc(h.mode) + '</span>' : '') +
                 '<span>turn <b>' + esc(h.turn || 0) + '</b>' + (h.of ? ' of ' + esc(h.of) : '') + '</span>' +
                 '<span class="bar"><i style="width:' + pct + '%"></i></span>' +
-                '<span>' + fmtCost(h.spent) + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
+                '<span><span class="spent">' + fmtCost(h.spent) + '</span>' + (h.dollars ? ' / ' + fmtCost(h.dollars) : '') + '</span>' +
                 '<span class="est"' + (h.estimate ? ' title="' + esc(h.estimate) + '"' : '') + '><b>Best estimate so far:</b> ' + esc(h.estimate || 'none yet') + '</span>';
         },
         // what the person said when they went back to a turn: a card where the branch's own turns begin, under the fold of
@@ -243,8 +245,10 @@
             const rep = r.replay_status === 'reproduced' ? 'ok' : (r.replay_status ? 'warn' : '');
             const cellsNote = [r.failed ? esc(r.failed) + ' failed' : '', r.refused ? esc(r.refused) + ' not run' : ''].filter(Boolean).join(', ');
             // an answered run ends on the row of what can be done next: next-questions.js puts its button first in it,
-            // the code trace's follows where the run ran code. The dataset pills ride once, under the REPLAY row (2026-10-06)
-            return '<div class="sp-done">' +
+            // the code trace's follows where the run ran code. The dataset pills ride once, under the REPLAY row (2026-10-06).
+            // What the run cost and how long its calls and cells took ride on the card as numbers too - the last two of the
+            // head's - so that a call made after the run ended can be added to them (paneLate)
+            return '<div class="sp-done" data-cost="' + Number(r.cost || 0) + '" data-secs="' + Number(r.seconds || 0) + '">' +
                 build.head(r.status === 'asked' ? 'The analyst has a question for you' : (r.status === 'stopped' ? 'Run stopped' : 'Run complete'),
                            [r.of ? esc(r.turns) + ' of ' + esc(r.of) + ' turns' : count(r.turns, 'turn'), count(r.cells || 0, 'cell') + (cellsNote ? ' (' + cellsNote + ')' : ''),
                             r.plots ? count(r.plots, 'plot') : '', fmtCost(r.cost), esc(fmtSecs(r.seconds))]) +
@@ -454,13 +458,16 @@
     window.paneTurnEnd = function (t) {
         if (!liveCard) return;
         const card = liveCard; liveCard = null;
-        card.classList.remove('live');
-        if (t.turn === -1) { card.classList.add('lost'); card.removeAttribute('open'); return; }
+        if (t.turn === -1) { card.classList.remove('live'); card.classList.add('lost'); card.removeAttribute('open'); return; }
         // a reply with a tool call in it: its step is the one the session read, not the stream (the call and its code);
         // a kept turn streamed nothing here: its step is the one on the record
-        if (t.kept || TOOL_CALL.test(liveRaw)) {
-            const th = card.querySelector('.sp-think'); if (th) th.textContent = t.thinking || '';
-        }
+        ended(card, t, t.kept || TOOL_CALL.test(liveRaw) ? t.thinking || '' : null);
+    };
+    // A turn's card when its call has ended: shut, on one line - its kind, its first sentence, what it took and cost -
+    // with the note and the code folded under it. `said`: its step in words, where the card did not get it as a stream
+    function ended(card, t, said) {
+        card.classList.remove('live');
+        if (said != null) { const th = card.querySelector('.sp-think'); if (th) th.textContent = said; }
         const kind = card.querySelector('summary .kind'); if (kind) kind.textContent = kindLabel(t.kind);
         card.setAttribute('data-kind', t.kind || '');          // a search's look-up goes on its card by it (0339)
         const peek = card.querySelector('summary .peek');
@@ -479,6 +486,30 @@
         const reasoning = card.querySelector('.sp-reasoning');
         if (reasoning && !reasoning.classList.contains('has')) reasoning.remove();
         card.removeAttribute('open');
+    }
+    // A call made for a run after it ended (simplify.js: the report in plain language, written when it is asked for):
+    // its card, as a turn's is when it has ended, where the run's own would stand - before the replay's row, the saved
+    // datasets and the closing card - and the run's cost and time raised by the call's where the pane says them: on
+    // the closing card and on the strip. `pane`: the run's pane, on screen or as its chain keeps it; `t`: {turn, kind,
+    // seat, model, chain_id, elapsed, cost, said: what the call wrote}. A closing card from before the sums rode on it
+    // (2026-11-28) keeps the numbers it says
+    window.paneLate = function (pane, t) {
+        const s = pane.querySelector('.sp-stream'), done = s && s.querySelector(':scope > .sp-done');
+        if (!done) return;
+        const under = x => !!x && (x.classList.contains('sp-pills') || (x.classList.contains('sp-row') && x.classList.contains('tool')));
+        const made = document.createElement('div');
+        let at = done;
+        while (under(at.previousElementSibling)) at = at.previousElementSibling;
+        t.call = 1 + (t.seat ? s.querySelectorAll('.sp-prompt[data-agent="' + String(t.seat).replace(/"/g, '') + '"]').length : 0);
+        made.innerHTML = build.turnStart(t);
+        ended(s.insertBefore(made.firstElementChild, at), t, t.said || '');
+        if (!done.hasAttribute('data-cost')) return;
+        const plus = (name, more, places) => Number((Number(done.getAttribute(name)) + Number(more || 0)).toFixed(places));
+        const spent = plus('data-cost', t.cost, 6), took = plus('data-secs', t.elapsed, 1), nums = done.querySelector('.head .nums'), strip = pane.querySelector('.sp-strip .spent');
+        done.setAttribute('data-cost', spent);
+        done.setAttribute('data-secs', took);
+        nums.textContent = nums.textContent.split(' · ').slice(0, -2).concat(fmtCost(spent), fmtSecs(took)).join(' · ');
+        if (strip) strip.textContent = fmtCost(spent);
     };
     window.paneCell = function (c) { append(build.cell(c)); };
     window.paneSummary = function (text) {

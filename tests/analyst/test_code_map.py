@@ -625,8 +625,6 @@ x_i = {"n": 0}
 
 
 def x_llm(system, user, **h):
-    if user.startswith("Rewrite"):
-        return "plain", {"cost": 0}
     i = x_i["n"]; x_i["n"] += 1
     return x_script[min(i, len(x_script) - 1)], {"cost": 0.001}
 
@@ -840,8 +838,6 @@ by_line_seen = []
 
 
 def by_line_llm(system, user, **h):
-    if user.startswith("Rewrite"):
-        return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"):
         return "NONE", {"cost": 0}
     by_line_seen.append(user)

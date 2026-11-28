@@ -141,7 +141,42 @@ finally:
     kernel.cleanup()
 kinds = [t.kind for t in run.turns]
 check("loop: every action kind ran and was recorded, in order",
-      kinds == ["cell", "cell", "names", "cell", "show", "report", "rewrite"], kinds)
+      kinds == ["cell", "cell", "names", "cell", "show", "report"], kinds)
+# 2026-11-28 (Palo): the plain version had been one more call at the end of every analysis, read or not. A run ends without it now;
+# it is written when the person asks for it - the same call, made later (session.rewrite)
+from analyst.session import rewrite as _rewrite, REWRITE_TASK as _TASK
+_own, _under = run.report[:run.report_end], run.report[run.report_end:]
+check("a run ends without a plain version: no call asks for one, none is on the record, no card or text of one is streamed; and the run says where its report ends - under it only the session's own lines",
+      run.rewrite == "" and not any(p.startswith("Rewrite") for p in calls["prompts"]) and not any(e.get("turn") == "rewrite" or e.get("type") == "rewrite" for e in events)
+      and _own.startswith("# B is higher than A by a small margin.\n") and _own.rstrip().endswith("| A | 1 |") and "CHECK" not in _own and "Replay" not in _own
+      and [ln[:8] for ln in _under.split("\n\n") if ln] == ["> CHECK:", "> Replay"], (run.report_end, _under))
+from analyst.session import contract_of as _contract_of, REWRITE_EMPTY as _EMPTY
+from analyst.notebook import run_facts as _facts
+_asked, _wall = len(calls["prompts"]), _facts(run)["wall"]
+_blank = []
+for _reply in ("", "  \n", "###STEP###\nI will rewrite.\n###ACTION###\nREPORT\n"):
+    try:
+        _rewrite(lambda system, user, **kw: (_reply, {"cost": 0.01}), run, s.system)
+    except ValueError as exc:
+        _blank.append(str(exc))
+check("the plain version: a reply without a text - empty, blank, the seat's scaffold and nothing in it - is none: it is said, and nothing is kept of it, so it can be asked for again",
+      _blank == [_EMPTY] * 3 and run.rewrite == "" and [t.kind for t in run.turns] == kinds, (_blank, run.rewrite))
+_turn = _rewrite(s.llm, run, s.system)
+_turn.created = run.created + 3 * 86400            # asked for three days after the run
+store.save(nb2)
+check("the plain version is no part of how long the run took - it may be written days later; and the contract it is written under is the run's own, as the loop built it",
+      _facts(run)["wall"] == _wall > 0 and _contract_of(run, False, False) == s.system == CONTRACT and _contract_of(run, True, False) == contract(True) and _contract_of(run, False, True) == contract(False, context=True),
+      (_wall, _facts(run)["wall"]))
+_was = (run.report_end, run.rewrite, list(run.turns))
+_old_seen = []
+run.report_end = 0                                 # a run made before the report's end was kept: the plain version is made from all the record has under `report`
+_rewrite(lambda system, user, **kw: (_old_seen.append(user), ("# T\n\nplain", {"cost": 0}))[1], run, s.system)
+check("a run from before its report's end was marked gives the Rewriter the report as the record has it", _old_seen == [_TASK + run.report], _old_seen[0][-200:] if _old_seen else None)
+run.report_end, run.rewrite, run.turns = _was
+check("the plain version, when asked for: one call, under the contract the run worked under, of the task and the report itself - none of the lines the session put under it; its turn joins the record, "
+      "with what the call cost and took",
+      len(calls["prompts"]) == _asked + 1 and calls["prompts"][-1] == _TASK + _own and _turn is run.turns[-1] and _turn.kind == "rewrite" and _turn.text == run.rewrite
+      and _turn.usage["cost"] == 0.01 and 0 <= _turn.usage["elapsed"] < 5 and [t.kind for t in run.turns] == kinds + ["rewrite"], (_turn.usage, calls["prompts"][-1][-200:]))
 check("the report's title (2026-10-17): the report's first line, read without its marks or full stop, kept on the run and left in the report; the plain-language text has the seat's scaffold off, its cell citations out in any dress, and the same title as its first line",
       run.title == "B is higher than A by a small margin" and run.report.startswith("# B is higher than A by a small margin.\n") and run.rewrite.startswith("# B is higher than A by a small margin\n\nB is higher than A by about ")
       and "cell" not in run.rewrite.split("CHECK")[0] and "###" not in run.rewrite and "I will rewrite" not in run.rewrite and ", see; and 7.777" not in run.rewrite and run.turns[-1].text == run.rewrite, (run.title, run.rewrite[:160]))
@@ -157,7 +192,7 @@ check("loop: the prompt carries the contract's seven-heading note and collapses 
 check("report: the technical guard flagged the invented 0.999 and nothing else",
       "CHECK: 1 number(s)" in run.report and "0.999" in run.report.split("CHECK")[1])
 check("report: the table separator was repaired to the header's width", "|---|---|\n" in run.report and "|---|---|---|" not in run.report)
-check("rewrite: same analyst, the guard flagged the invented 7.777", run.rewrite and "7.777" in run.rewrite.split("CHECK")[-1])
+check("rewrite: the guard flagged the invented 7.777, in a line of its own under the plain version", "\n\n> CHECK:" in run.rewrite and "7.777" in run.rewrite.split("\n\n> CHECK:")[-1], run.rewrite[-200:])
 check("replay: assembled the two cited cells and reproduced them in a fresh kernel",
       run.replay_status == "reproduced" and "# --- cell 1 ---" in run.replay_script and "# --- cell 2 ---" in run.replay_script, run.replay_status)
 kinds_seen = [e.get("type") for e in events]
@@ -165,8 +200,8 @@ check("emit: the replay announces itself before it runs and reports when done (r
       "replay_start" in kinds_seen and "replay_end" in kinds_seen and kinds_seen.index("replay_start") < kinds_seen.index("replay_end") < kinds_seen.index("replay_status")
       and next(e for e in events if e.get("type") == "replay_start").get("cells") == 2 and "reproduced" in (next(e for e in events if e.get("type") == "replay_end").get("line") or ""),
       [k for k in kinds_seen if "replay" in str(k)])
-check("emit: cells, show, names, report, rewrite, replay_status all streamed",
-      {e["type"] for e in events} >= {"cell", "names", "show", "report", "rewrite", "replay_status"})
+check("emit: cells, show, names, report, replay_status all streamed",
+      {e["type"] for e in events} >= {"cell", "names", "show", "report", "replay_status"})
 saved = store.load("t2"); rr = saved.runs[run.id]
 check("store: the run is on disk with its turns, reports, replay and title; a record carrying a key this version does not know loads all the same", rr.report == run.report and rr.replay_status == "reproduced" and len(rr.turns) == 7 and rr.title == run.title
       and Notebook.from_dict({"thread_id": "x", "runs": {"r": {"id": "r", "parent": None, "question": "q", "lead": "an old key", "turns": [{"kind": "cell", "stranger": 1}]}}}).runs["r"].question == "q")
@@ -180,7 +215,6 @@ FAILS = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nx = 1.5\nprin
 seen = {"prompts": []}
 def fail_llm(system, user, **hints):
     seen["prompts"].append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = min(len(seen["prompts"]) - 1, len(FAILS) - 1); return FAILS[i], {"cost": 0.01}
 k2 = PersistentKernel(df=df); nb3 = Notebook("t3")
@@ -249,7 +283,6 @@ LOOP = ["###NOTE###\n" + NOTE + "\n###ACTION###\nCELL\n```python\nundefined_thin
 seen_loop = {"n": 0, "halt_seen": False, "prompts": []}
 def loop_llm(system, user, **hints):
     seen_loop["prompts"].append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if "STOP:" in user and "could not get past this error" in user:
         seen_loop["halt_seen"] = True
@@ -273,7 +306,6 @@ check("ceiling: the forced report is a turn with a card - turn_start then turn_e
 # is told what was missing
 ex_prompts, ex_events = [], []
 def exhausted_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     ex_prompts.append(user)
     if len(ex_prompts) in (1, 3):
@@ -299,7 +331,6 @@ check("the budget exhausted: the forced report call is turn 4 of 3 with a turn_s
 def _report_turn_run(cut, name):
     prompts = []
     def llm(system, user, **h):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
         prompts.append(user)
         if len(prompts) == 1:
@@ -345,7 +376,6 @@ check("parse_turn: an action written as a tool call with no marker lines is read
 def _tool_call_run():
     prompts = []
     def llm(system, user, **h):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
         prompts.append((system, user))
         if len(prompts) == 1:
@@ -388,7 +418,6 @@ check("parse_turn: REPORT with nothing under it is not a report - an invalid act
       and parse_turn("###NOTE###\nn\n###ACTION###\nREPORT\n\n## Answer\n\nx")[2].arg == "## Answer\n\nx", (_er[2], _er[1]))
 em_prompts = []
 def empty_report_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     em_prompts.append(user)
     if len(em_prompts) == 1:
@@ -431,7 +460,6 @@ NOTE5 = ("- Question as understood: q\n- Best estimate so far: none yet\n- Held 
 def thread_llm_factory(script):
     calls = {"i": 0}
     def llm(system, user, **hints):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
         i = calls["i"]; calls["i"] += 1
         return script[min(i, len(script) - 1)], {"cost": 0.001}
@@ -506,7 +534,6 @@ SYN = [act6("SHOW RUN 1 2 3"), act6("SHOW RUN 4"), act6("REPORT\n## The thread\n
 syn_i = {"n": 0}
 def syn_llm(system, user, **h):
     syn_prompts.append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = syn_i["n"]; syn_i["n"] += 1
     return SYN[min(i, len(SYN) - 1)], {"cost": 0.001}
@@ -558,7 +585,7 @@ check("parse_turn: a fenced CELL word followed by the block is the cell", pb2[2]
 pm2 = parse_turn("###NOTE###\nn\n###ACTION###\nCELL\n```python\na = 1\n```\nSHOW 3")[2]
 check("parse_turn: a CELL followed by another kind of action runs the cell and records the other", pm2.verb == "cell" and pm2.more == ("show",), (pm2.verb, pm2.more))
 check("synthesis: the report comes at the third exchange and is answered; the numbers it cites are the chains' and pass the guard through the path's cells",
-      syn.status == "answered" and len([x for x in syn.turns if x.kind != "rewrite"]) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
+      syn.status == "answered" and len(syn.turns) == 3 and "CHECK:" not in syn.report, (syn.status, [x.kind for x in syn.turns], syn.report[-200:]))
 check("synthesis: the prompt with three chains whole stays well inside a 64k context (chars/4)", len(p2) // 4 < 20000, len(p2) // 4)
 check("the contract: SHOW RUN takes several and the chains stay in view; shown cells are for the next prompt", "`SHOW RUN <run numbers>`" in c_all and "stay in view for the rest of the run" in c_all and "Those cells, whole, in your next prompt" in c_all)
 # a SHOW of several cells at once is capped from the middle, with the marker; the record keeps it whole
@@ -568,7 +595,6 @@ cap_prompts = []
 cap_i = {"n": 0}
 def cap_llm(system, user, **h):
     cap_prompts.append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = cap_i["n"]; cap_i["n"] += 1
     return big_cells[min(i, len(big_cells) - 1)], {"cost": 0.001}
@@ -586,7 +612,6 @@ PLAIN = [act6("SHOW 1"), act6("NAMES"), act6("CELL\n```python\nprint('one')\n```
 pl_i = {"n": 0}
 def plain_llm(system, user, **h):
     plain_prompts.append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = pl_i["n"]; pl_i["n"] += 1
     return PLAIN[min(i, len(PLAIN) - 1)], {"cost": 0.001}
@@ -612,7 +637,6 @@ TWO = [act("CELL\n```python\nprint('one')\n```\nCELL\n```python\nprint('two')\n`
 two_i = {"n": 0}
 def two_llm(system, user, **h):
     two_prompts.append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = two_i["n"]; two_i["n"] += 1
     return TWO[min(i, len(TWO) - 1)], {"cost": 0.001}
@@ -625,7 +649,7 @@ check("a reply with two different actions runs the first; the next prompt names 
       r2.turns[0].kind == "cell" and r2.turns[0].cell_no == 1 and "(Your reply held 2 actions - CELL then CELL; only the first ran. A reply carries one action.)" in two_prompts[1]
       and "one" in (r2.turns[0].stdout or "") and "two" not in (r2.turns[0].stdout or ""), ([(x.kind, x.cell_no) for x in r2.turns], two_prompts[1][-300:]))
 check("a SHOW written with a REPORT runs the SHOW alone, and the plain REPORT then ends the run",
-      [x.kind for x in r2.turns if x.kind != "rewrite"][:4] == ["cell", "cell", "show", "report"] and r2.status == "answered" and "Done [cell 1]" in r2.report
+      [x.kind for x in r2.turns] == ["cell", "cell", "show", "report"] and r2.status == "answered" and "Done [cell 1]" in r2.report
       and "(Your reply held 2 actions - SHOW then REPORT; only the first ran." in two_prompts[3], ([x.kind for x in r2.turns], r2.status, two_prompts[3][-300:]))
 pt = parse_turn("###NOTE###\nn\n###ACTION###\nSHOW 1 2\nNAMES\nREPORT\n## r\n\nx")[2]
 check("parse_turn: SHOW and NAMES before a REPORT - the SHOW runs, the rest recorded (a report written beside other actions does not run)", pt.verb == "show" and pt.more == ("names", "report"), (pt.verb, pt.more))
@@ -641,7 +665,6 @@ check("parse_turn: a python block without its closing fence is not run - unfinis
 PRE_SCRIPT = [act("CELL\n```python\nprint(D9.name)\n```"), act("CELL\n```python\nraise ValueError('boom')\n```"), act("CELL\n```python\nprint(D9.name)\n```"), act("REPORT\n## r\n\nDone.")]
 pre_n = {"n": 0}
 def pre_llm(system, user, **hints):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = pre_n["n"]; pre_n["n"] += 1
     return PRE_SCRIPT[min(i, len(PRE_SCRIPT) - 1)], {"cost": 0.001}
@@ -663,7 +686,6 @@ RES = [act6("CELL\n```python\ne = 1.5\nRESULT('B vs A mean, 20 subjects', e, e -
 res_i = {"n": 0}; res_prompts = []
 def res_llm(system, user, **h):
     res_prompts.append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     i = res_i["n"]; res_i["n"] += 1
     return RES[min(i, len(RES) - 1)], {"cost": 0.001}
@@ -754,7 +776,6 @@ FIG_STEP = ["```python\n" + FIG_CELL + "\nraise ValueError('bad trace')\n```\nCA
 fig_i = {"n": 0, "f": 0}; fig_prompts = []; fig_events = []
 def fig_llm(system, user, **h):
     fig_prompts.append((system, user))
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"):
         k = fig_i["f"]; fig_i["f"] += 1
         return FIG_STEP[min(k, len(FIG_STEP) - 1)], {"cost": 0.002}
@@ -770,7 +791,7 @@ finally:
     kf.cleanup()
     if _pp is None: os.environ.pop("PYTHONPATH", None)
     else: os.environ["PYTHONPATH"] = _pp
-analysis_prompts = [u for s_, u in fig_prompts if not s_.startswith("You are drawing") and not u.startswith("Rewrite")]
+analysis_prompts = [u for s_, u in fig_prompts if not s_.startswith("You are drawing")]
 step_prompts = [u for s_, u in fig_prompts if s_.startswith("You are drawing")]
 check("figures: a cell that draws during the analysis is not run - no cell number, its output says figures come after the report, the refusal reaches the next prompt - and the run goes on",
       rf.turns[1].kind == "cell" and rf.turns[1].cell_no is None and not rf.turns[1].error and "Figures come after the report" in rf.turns[1].stdout
@@ -787,9 +808,12 @@ check("figures: the failed cell came back with its error, the attempt counted, t
 check("figures: the step's prompt carries the question, the report as written, every cell's code, the RESULT lines and the note",
       "QUESTION:\nq" in step_prompts[0] and "THE REPORT, AS WRITTEN:\n## r" in step_prompts[0] and "--- cell 1 ---" in step_prompts[0] and "--- cell 2 ---" in step_prompts[0]
       and "YOUR NOTE" in step_prompts[0] and "THE CELLS (their code" in step_prompts[0], step_prompts[0][:600])
-check("figures: the report gains a Figures section citing the figures cell - a caption written for the first, the second named by its title - and the rewrite saw it",
-      rf.report.split("\n\n> ")[0].endswith("## Figures\n\n- [fig 3] the mean with its interval\n- [fig 3] again")
-      and "## Figures" in [u for s_, u in fig_prompts if u.startswith("Rewrite")][0], rf.report)
+_rw_f = []
+_rewrite(lambda system, user, **kw: (_rw_f.append(user), ("plain", {"cost": 0}))[1], rf, "the contract")
+check("figures: the report gains a Figures section citing the figures cell - a caption written for the first, the second named by its title - and the plain version, when asked for, is made from the "
+      "report with that section",
+      rf.report.split("\n\n> ")[0].endswith("## Figures\n\n- [fig 3] the mean with its interval\n- [fig 3] again") and rf.report[:rf.report_end] == rf.report.split("\n\n> ")[0]
+      and _rw_f == [_TASK + rf.report[:rf.report_end]], rf.report)
 fig_cards = [(e["type"], e.get("attempt"), e.get("peek"), e.get("quiet")) for e in fig_events if e.get("turn") == "figures" and e["type"] in ("turn_start", "turn_end")]
 check("figures: each attempt is a quiet card - 'figures' with its attempt number - whose end line says what the cell draws; then its cell row",
       fig_cards == [("turn_start", 1, None, True), ("turn_end", None, "figure cell: the mean", None), ("turn_start", 2, None, True), ("turn_end", None, "figure cell: the mean with its interval", None)]
@@ -827,7 +851,6 @@ def _fig_run(replies, name):
     """A two-cell analysis whose figures request answers from `replies` in order (text, usage)."""
     seqs = {"n": 0, "f": 0}; prompts = []
     def llm(system, user, **h):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         if system.startswith("You are drawing the figures"):
             prompts.append(user); k = seqs["f"]; seqs["f"] += 1
             return replies[min(k, len(replies) - 1)]
@@ -855,7 +878,6 @@ check("figures: prose without a block is an attempt - told to reply with a block
 # earlier chain's variables are not in its kernel), its replay re-runs its own cells only, and the ledger says the earlier chain is on other data
 _bp = []
 def _bllm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"):
         _bp.append(user); return "NONE", {"cost": 0}
     _bp.append(user)
@@ -1023,7 +1045,6 @@ check("replay: the assembled script runs to the run's last figure cell when the 
 # a reply cut at the length limit (2026-10-06): the usage says truncated, and the next prompt says cut off, not "no valid action"
 tr_prompts = []
 def truncated_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     tr_prompts.append(user)
     if len(tr_prompts) == 1:
@@ -1042,7 +1063,6 @@ check("a reply cut at the length limit: the next prompt says so, and nothing ran
 # times - the turn is a lost one in the record, and the run goes on
 dc_prompts = []
 def declined_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     dc_prompts.append(user)
     if len(dc_prompts) == 1:
@@ -1066,7 +1086,6 @@ check("attempt_effort: the report turn asks for medium, else high; the call afte
       and attempt_effort(False) is None and attempt_effort(False, "none") is None and attempt_effort(False, "?") is None)
 ef_asks = []
 def effort_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     ef_asks.append(h.get("effort"))
     return [("", {"cost": 0.01, "truncated": True, "effort": "xhigh"}),                     # turn 1: thought away its allowance
@@ -1075,7 +1094,6 @@ def effort_llm(system, user, **h):
             (act6("REPORT\n## r\n\nThe rows [cell 1]."), {"cost": 0.01, "effort": "low"})][min(len(ef_asks) - 1, 3)]
 hf_asks = []
 def halt_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     hf_asks.append(h.get("effort"))
     return (act6("CELL\n```python\nraise ValueError('no')\n```") if len(hf_asks) <= 2 else act6("REPORT\n## r\n\nNothing stood.")), {"cost": 0.01}
@@ -1135,9 +1153,8 @@ SEARCHES = ["###NOTE###\n" + NOTE + "\n###ACTION###\nSEARCH query %d" % i for i 
 seen_s = {"prompts": []}
 def search_llm(system, user, **hints):
     seen_s["prompts"].append(user)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
-    i = len([p for p in seen_s["prompts"] if not p.startswith("Rewrite")]) - 1
+    i = len(seen_s["prompts"]) - 1
     return SEARCHES[min(i, len(SEARCHES) - 1)], {"cost": 0.001}
 calls = {"n": 0}
 def fake_search(q):
@@ -1238,7 +1255,6 @@ rv_calls, an_prompts, rv_starts, rv_ends, hints_seen = [], [], [], [], []
 rv_i = {"n": 0}
 def review_llm(system, user, **hints):
     hints_seen.append(dict(hints))
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         rv_calls.append((system, user, dict(hints))); i_ = rv_i["n"]; rv_i["n"] += 1
@@ -1289,7 +1305,6 @@ check("after a review, YOUR NOTE is the analyst's note as it last wrote it, not 
 # a tagged RESULT answers the test: the status says so, in the analyst's block and in the reviewer's input
 tg_prompts, tg_rv = [], []
 def tagged_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         tg_rv.append(user)
@@ -1320,26 +1335,26 @@ check("review: a REPORT verdict citing a cell handed to it binds - the next turn
 # 2026-11-28 (Palo): a review had followed every report of a run with reviews - one more call on the Reviewer when the analysis
 # was over and nothing it found could change it, its verdict a note under the report
 check("no review follows the report: the reviewer is asked after turns 2 and 4 and not again once the report is written - each time it reads the analyst's note, never the report - and nothing "
-      "of a review stands under the report: the run's record ends with its report and the plain version",
+      "of a review stands under the report: the run's record ends with its report",
       [u.rstrip().rsplit("\n", 1)[-1] for _, u, _ in rv_calls] == ["TURN: after turn 2; up to 12.", "TURN: after turn 4; up to 12."] and all("THE ANALYST'S NOTE:\n" in u and "THE REPORT" not in u for _, u, _ in rv_calls)
-      and [t.kind for t in r9.turns][-2:] == ["report", "rewrite"] and r9.report.startswith("## r\n\nB is higher [cell 3].") and "The question requires" not in r9.report and "difference by sex" not in r9.report,
+      and [t.kind for t in r9.turns][-1:] == ["report"] and r9.report.startswith("## r\n\nB is higher [cell 3].") and "The question requires" not in r9.report and "difference by sex" not in r9.report,
       ([u.rstrip().rsplit("\n", 1)[-1] for _, u, _ in rv_calls], [t.kind for t in r9.turns], r9.report))
 check("review: recorded as turns of kind review with their verdict and lines; the pane gets a Review card for each",
       [t.text for t in rv_turns] == ["after turn 2", "after turn 4"] and rv_turns[1].thinking.startswith("Verdict: REPORT")
       and sum(1 for e in rv_starts if e.get("turn") == "review" and e.get("review")) == 2 and sum(1 for e in rv_ends if e.get("kind") == "review") == 2
       and "- Established: the means [cell 1]." in rv_turns[0].note, [(t.text, t.thinking[:30]) for t in rv_turns])
-check("review: the analyst's contract for the run carries the Reviews section, naming the cadence", "## Reviews" in s9.system and "After every 2nd turn a reviewer" in s9.system)
+check("review: the analyst's contract for the run carries the Reviews section, naming the cadence - and it is the contract told from the run's record",
+      "## Reviews" in s9.system and "After every 2nd turn a reviewer" in s9.system and _contract_of(r9, False, False) == s9.system)
 check("contract: the Reviews section only when a reviewer runs - none, and no reviewer at all, in Quick and Deep",
       "After every 8th turn a reviewer" in contract(False, 8) and "## Reviews" not in contract(False, 0) and "reviewer" not in contract(False, 0).lower()
       and "## Reviews" not in CONTRACT and contract(True, 8).index("## Reviews") < contract(True, 8).index("## The note"))
-check("rewrite: the plain-language rewrite call carries rewrite=True and no other call does",
-      sum(1 for h in hints_seen if h.get("rewrite")) == 1, hints_seen)
+check("rewrite: no call of a run carries rewrite=True - a run asks for no plain version; the call that writes one, when asked for, does, and nothing else",
+      not any(h.get("rewrite") for h in hints_seen) and _rewrite(review_llm, r9, s9.system) is r9.turns[-1] and hints_seen[-1] == {"rewrite": True}, hints_seen)
 # the evidence of one review has a size: each cell's output up to REVIEW_OPEN_CHARS, the cells together up to REVIEW_EVIDENCE_CHARS,
 # newest first; what does not fit is named, to be asked for
 from analyst.session import REVIEW_EVIDENCE_CHARS, REVIEW_OPEN_CHARS
 big_rv, big_prompts = [], []
 def big_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         big_rv.append(user)
@@ -1363,7 +1378,6 @@ check("review: more to check than fits - each cell's output is cut at its limit 
 # a REPORT citing a cell no review has checked is advice: the run goes on, and the analyst's block says why
 ad_prompts, ad_rv = [], []
 def advice_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         ad_rv.append(user)
@@ -1383,7 +1397,6 @@ check("review: a REPORT citing a cell no review has checked (its cells recorded 
 # report citing the cell is flagged, and a later review's "matches" clears the mark
 dp_prompts, dp_rv = [], []
 def disputed_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         dp_rv.append(user)
@@ -1514,7 +1527,6 @@ check("standing rule: no prompt text a model reads carries the tested tasks' voc
 nr_systems = []
 def noreview_llm(system, user, **h):
     nr_systems.append(system[:40])
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"): return "###REVIEW###\n- The question requires: x\n- Established: y\n- Most consequential problem: none\n- Verdict: REPORT done", {"cost": 0.01}
     return (act6("REPORT\n## r\n\nDone [cell 1].") if sum(1 for x in nr_systems if x.startswith("You are the analyst")) >= 2 else act6("CELL\n```python\nprint('RESULT: x, 5 units: +1 (95% CI 0 to 2), up')\n```")), {"cost": 0.001}
@@ -1529,7 +1541,6 @@ check("no reviews outside Adaptive: a run without reviews makes no reviewer call
 # a review with no verdict is not used: no REVIEW block, no review turn; the run goes on
 nv_prompts = []
 def noverdict_llm(system, user, **hints):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"): return "It looks fine to me.", {"cost": 0.001}
     nv_prompts.append(user)
@@ -1553,7 +1564,6 @@ seen_prompts = []
 def view_llm(system, user, **hints):
     seen_prompts.append(user)
     n = len(seen_prompts)
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     note = "- Question as understood: q"
     if n == 1: return "###THINKING###\nt\n###NOTE###\n" + note + "\n###ACTION###\nCELL\n```python\nprint('A' * 2400 + '\\nZTAIL=42')\n```", {"cost": 0.001}
@@ -1924,8 +1934,9 @@ check("brief in a run: the run keeps the brief as it was handed over and what th
                                                "checks": ["The season: not separable here, and 77.7 is invented.", "Chance: none, the values are constant [cell 1]."],
                                                "did_not_fit": ["The first was larger and the rise still came [cell 1]."]}
       and "> CHECK: 1 number(s) in this report were not printed by any cell (77.7). Treat them as unverified." in rb.report and BRIEF_UNANSWERED not in rb.report, (rb.brief_outcome, rb.report[-300:]))
-check("brief in a run: the plain-language version is asked to keep the two parts under their headings; the record on disk holds the brief and its outcome",
-      len(_bseen["rewrite"]) == 1 and _bseen["rewrite"][0].startswith(REWRITE_TASK + REWRITE_BRIEF + "# After was 1.2 percent higher than before")
+_rewrite(sb.llm, rb, _contract_of(rb, False, False))
+check("brief in a run: the plain-language version, when asked for, is asked to keep the two parts under their headings; the record on disk holds the brief and its outcome",
+      _contract_of(rb, False, False) == sb.system == _cb and len(_bseen["rewrite"]) == 1 and _bseen["rewrite"][0].startswith(REWRITE_TASK + REWRITE_BRIEF + "# After was 1.2 percent higher than before")
       and store_b.load("tb").runs[rb.id].brief == _b and store_b.load("tb").runs[rb.id].brief_outcome == rb.brief_outcome, _bseen["rewrite"][0][-400:])
 # without a brief: nothing of it anywhere
 _bseen = {"system": [], "user": [], "rewrite": []}
@@ -1934,6 +1945,7 @@ try:
     rp = Session(kb, nb_p, _brief_llm([_bact("REPORT\n# A title\n\n## Answer\nNothing was computed.")]), data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=4, dollars=1.0))
 finally:
     kb.cleanup()
+_rewrite(_brief_llm([]), rp, CONTRACT)
 check("no brief: the run has none, its prompts carry no BRIEF block, its contract is the plain one, its rewrite task the plain one, and its report is asked nothing about a brief",
       rp.brief == {} and rp.brief_outcome == {} and not any("BRIEF" in u for u in _bseen["user"]) and _bseen["system"] == [CONTRACT]
       and _bseen["rewrite"][0].startswith(REWRITE_TASK + "# A title") and BRIEF_UNANSWERED not in rp.report, (rp.brief, _bseen["system"][0][:80]))
@@ -1985,6 +1997,7 @@ check("brief: a part the person left unsaid asks for no verdict line - the contr
 _NONE, _BARE = {"source": "none", "aux": []}, "REPORT\n# A title\n\n## Answer\nDrawn.\n\n## Did not fit\nNothing."
 _bseen = {"system": [], "user": [], "rewrite": []}
 _nd1, _nd2, _nd3 = _part_run({"decision": "to see it", "thinks": "it holds"}, _BARE, _NONE), _part_run({"decision": "to see it", "expects": "a rise"}, _BARE, _NONE), _part_run({"decision": "to see it"}, _BARE, {"source": "none", "aux": ["notes.csv"]})
+_rewrite(_brief_llm([]), _nd1, CONTRACT)
 check("brief, a run without data: its BRIEF block lists no standing check, its contract asks for what did not fit and for no part Against the brief, and a report without that part is not said to leave the brief unanswered - the rewrite is asked "
       "to keep the parts the report has; where the person said what they expect the part is asked for and its absence said, without data too; a run on files beside no frame is a run on data",
       _bseen["system"][0] == contract(False, 0, brief=True, held=False) and "QUESTION:\nDid it work?\n\nBRIEF (agreed with the person before this run):\nWhat the answer is for: to see it\nWhat the person thinks: it holds\n\nYOUR NOTE" in _bseen["user"][0]
@@ -1995,7 +2008,6 @@ check("brief, a run without data: its BRIEF block lists no standing check, its c
 # the reviewer reads the brief (Adaptive)
 _rvb = {"system": [], "user": []}
 def _rvb_llm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     if system.startswith("You are the reviewer"):
         _rvb["system"].append(system); _rvb["user"].append(user)
@@ -2651,7 +2663,6 @@ def _fig_run(steps, brief, plots=None):
     script = [_CELL, _bact(_BREPORT)]
     nb, framed = _drafted(brief, "Did it work?", plots) if plots is not None else (Notebook("tfg"), None)
     def llm(system, user, **h):
-        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
         if system.startswith("You are drawing the figures"):
             seen["figures"].append(user); return steps[min(len(seen["figures"]) - 1, len(steps) - 1)], {"cost": 0.002}
         seen["analyst"].append((system, user)); return script[min(len(seen["analyst"]) - 1, len(script) - 1)], {"cost": 0.001}
@@ -3641,7 +3652,6 @@ _snote = "- Question as understood: q\n- Best estimate so far: none yet\n- Held 
 _sact = lambda a: "###STEP###\ns.\n###NOTE###\n" + _snote + "\n###ACTION###\n" + a
 _sseen = []
 def _sllm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     _sseen.append(user)
     return (_sact("REPORT\n# T\n\n## Answer\nDone [cell 1].\n\n## Against the brief\n- The seasons differ: no [cell 1].\n\n## Did not fit\nNothing.") if len(_sseen) > 1
@@ -3660,7 +3670,6 @@ _wseen, _wasked = [], []
 _WACTS = ["SHOW SAVED 1 2 3", "SHOW saved 2", "SHOW SAVED 3", "SHOW SAVED 4", "SHOW SAVED 0", "SHOW KEPT 1", "```python\nprint(df.groupby('part')['y'].mean().to_dict())\n```"]
 _WREPORT = "REPORT\n# T\n\n## Answer\nDone [cell 1].\n\n## Against the brief\n- chance: no [cell 1].\n\n## Did not fit\nNothing."
 def _wllm(system, user, **h):
-    if user.startswith("Rewrite"): return "plain", {"cost": 0}
     if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
     _wseen.append(user)
     return _sact(_WACTS[len(_wseen) - 1] if len(_wseen) <= len(_WACTS) else _WREPORT), {"cost": 0.001}
@@ -3670,7 +3679,6 @@ def _wsaved(thread, run):
 def _wonce(saved, brief):                                # a run that opens saved analysis 1 and reports: its show turn as recorded, and the prompt after it
     seen = []
     def llm(system, user, **h):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         seen.append(user)
         return _sact("SHOW SAVED 1" if len(seen) == 1 else "REPORT\n# T\n\n## Answer\nNothing was computed.\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."), {"cost": 0.001}
     run = Session(_wk, _wn, llm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf), **({"saved": saved} if saved else {})).run(
@@ -3679,7 +3687,6 @@ def _wonce(saved, brief):                                # a run that opens save
 def _wreport(first, says):                           # the report of a run whose first action is `first` and whose report says `says`
     seen = []
     def llm(system, user, **h):
-        if user.startswith("Rewrite"): return "plain", {"cost": 0}
         seen.append(user)
         return _sact(first if len(seen) == 1 else f"REPORT\n# T\n\n## Answer\nNothing was computed. {says}\n\n## Against the brief\n- chance: cannot tell.\n\n## Did not fit\nNothing."), {"cost": 0.001}
     return Session(_wk, _wn, llm, data_description="4 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_sdf), saved=lambda t, r: "REPORT:\n# B led\n\nThe gap was 41.7 units.").run(
@@ -4083,7 +4090,7 @@ from analyst.notebook import branch_points, hint_block, AGAIN_LINE
 from analyst.session import CONTRACT_HINT, REVIEWER_HINT_ITEM
 
 def _seat(system, user):
-    return "rewrite" if user.startswith("Rewrite") else "figures" if system.startswith("You are drawing the figures") else "review" if system.startswith("You are the reviewer") else "analyst"
+    return "figures" if system.startswith("You are drawing the figures") else "review" if system.startswith("You are the reviewer") else "analyst"
 
 def _scripted(replies, seen, cost=0.01, review="###REVIEW###\n- The question requires: x\n- Established: nothing yet\n- Most consequential problem: none\n- Verdict: TEST check the second step"):
     """A model that plays `replies` on the analyst's seat, one a call, and keeps what each seat was sent."""
@@ -4091,7 +4098,6 @@ def _scripted(replies, seen, cost=0.01, review="###REVIEW###\n- The question req
     def llm(system, user, **hints):
         seat = _seat(system, user)
         seen.append((seat, system, user))
-        if seat == "rewrite": return "plain", {"cost": 0}
         if seat == "figures": return "NONE", {"cost": 0}
         if seat == "review": return review, {"cost": cost}
         return left.pop(0), {"cost": cost}
@@ -4112,7 +4118,7 @@ try:
     root_b = nbb.new_run("an earlier question"); root_b.status, root_b.report = "answered", "## Earlier\n\nDone."
     sb = Session(kb, nbb, _scripted(_FIRST, seen_a), data_description="d", emit=ev_b.append, kernel_factory=lambda: PersistentKernel(df=df))
     ra_ = sb.run("How do the two blocks compare?", parent=root_b.id, budget=_BUDGET, run_id="a", mode="Deep")
-    work = [t for t in ra_.turns if t.kind not in ("rewrite", "review") and not t.step]
+    work = [t for t in ra_.turns if t.kind != "review" and not t.step]
     check("branch: every working turn of a run keeps what the loop carried out of it - its number, what it handed to the next prompt, what was spent by then, "
           "the failed cells in a row; the report keeps none; the run keeps its limits; the turns to go on from are its working turns",
           [t.carry.get("turn") for t in work] == [1, 2, 3, 4, 5, None] and work[1].carry["extra"].startswith("YOUR LAST CELL FAILED") and work[1].carry["failures"] == 1
@@ -4148,9 +4154,9 @@ try:
           "its kept turns are copies marked kept, its own follow with the next numbers, and its cell takes the next cell number",
           rb_.id == "b1" and rb_.parent == root_b.id and rb_.question == ra_.question and rb_.budget == ra_.budget and rb_.mode == "Deep" and rb_.branch == {"of": "a", "turn": 3}
           and rb_.hints == [{"turn": 3, "text": "keep the two blocks apart"}] and [t.kept for t in rb_.turns[:3]] == ["kept"] * 3 and not any(t.kept for t in rb_.turns[3:])
-          and [t.carry.get("turn") for t in rb_.turns if t.kind not in ("rewrite",)] == [1, 2, 3, 4, None] and [c.cell_no for c in rb_.cells()] == [1, 2, 3]
+          and [t.carry.get("turn") for t in rb_.turns] == [1, 2, 3, 4, None] and [c.cell_no for c in rb_.cells()] == [1, 2, 3]
           and rb_.cells()[2].code.startswith("apart") and rb_.turns[0] is not ra_.turns[0], (rb_.branch, rb_.hints, [t.kept for t in rb_.turns]))
-    check("branch: the chain it left is as it was - its turns, its cells, none marked", len(ra_.turns) == len(work) + 1 and [c.cell_no for c in ra_.cells()] == [1, 2, 3]
+    check("branch: the chain it left is as it was - its turns, its cells, none marked", len(ra_.turns) == len(work) and [c.cell_no for c in ra_.cells()] == [1, 2, 3]
           and not any(t.kept for t in ra_.turns) and ra_.cells()[2].code.startswith("zz_after") and ra_.status == "answered")
     check("branch: the kernel was at the state the kept turns left - the new cell finds what the kept cells made and nothing of the turn that was left - and the "
           "branch ends as any chain does: its report, its replay over the kept cells and its own, its code trace",
@@ -4203,7 +4209,7 @@ try:
     asked_l, efforts_l = [], []
     def lost_llm(system, user, **hints):
         if _seat(system, user) != "analyst":
-            return ("plain" if _seat(system, user) == "rewrite" else "NONE"), {"cost": 0}
+            return "NONE", {"cost": 0}
         asked_l.append(user); efforts_l.append(hints.get("effort"))
         return ("" if len(asked_l) == 1 else act6("REPORT\n## r\n\nDone.")), {"cost": 0.01, "effort": "high"}
     rl_ = Session(kb, nbb, lost_llm, data_description="d").run("a reply is lost", budget=Budget(turns=4, dollars=1.0), run_id="l")
@@ -4245,7 +4251,7 @@ try:
     check("branch: the kept turns count as used - the branch goes on at the next turn number with what was spent by then, so where the money was nearly gone its "
           "first turn is asked for the report, every cell in view",
           "TASK: turn 6; up to 8 turns and $0.50 (spent $0.50).\n" + _LAST in _asked(seen_d)[0][1] and "EVERY CELL OF THIS RUN" in _asked(seen_d)[0][1]
-          and rd_.status == "answered" and [t.carry.get("turn") for t in rd_.turns if t.kind != "rewrite"] == [1, 2, 3, 4, 5, None], _asked(seen_d)[0][1][-300:])
+          and rd_.status == "answered" and [t.carry.get("turn") for t in rd_.turns] == [1, 2, 3, 4, 5, None], _asked(seen_d)[0][1][-300:])
 finally:
     kb.cleanup()
 
@@ -4360,11 +4366,9 @@ def _fig_branch(steps, hint="One figure is enough: leave the rise in percent out
     """The analysis of _fig_run under the brief _fgb, then a branch of it from its turn 1 under `hint`: the branch, and what its seats were sent."""
     seen = {"figures": [], "analyst": [], "first": 0}
     def first(system, user, **h):
-        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
         if system.startswith("You are drawing the figures"): return _draws("After against before", "The rise in percent"), {"cost": 0.002}
         seen["first"] += 1; return (_CELL if seen["first"] == 1 else _bact(_BREPORT)), {"cost": 0.001}
     def then(system, user, **h):
-        if user.startswith("Rewrite the technical report"): return "# After was 1.2 percent higher than before\n\nplain", {"cost": 0}
         if system.startswith("You are drawing the figures"):
             seen["figures"].append(user); return steps[min(len(seen["figures"]) - 1, len(steps) - 1)], {"cost": 0.002}
         seen["analyst"].append((system, user)); return _bact(_BREPORT), {"cost": 0.001}

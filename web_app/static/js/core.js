@@ -376,6 +376,11 @@ function continueAppInitialization() {
         window.ExplainUI.initialize();
     }
 
+    // The report in plain language (simplify.js): the Answer tab's button, which asks for it and then shows it
+    if (typeof window.SimplifyUI !== 'undefined' && typeof window.SimplifyUI.initialize === 'function') {
+        window.SimplifyUI.initialize();
+    }
+
     // Next questions (docs/ARCHITECT_DESIGN.md §2.7): the button on a finished analysis' closing card, the cards under it
     if (typeof window.NextQuestionsUI !== 'undefined' && typeof window.NextQuestionsUI.initialize === 'function') {
         window.NextQuestionsUI.initialize();

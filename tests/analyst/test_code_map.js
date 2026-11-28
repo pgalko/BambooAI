@@ -240,9 +240,9 @@ check('... a hint has a row where it was given: the person\'s words whole, after
 
 // the bands between the steps: a review during the run, the report - and, in an analysis made before 0365, the review that followed its report
 const band = r => el(b.row(TRIAL, r, c1, null, noFocus));
-check('... a review is a band with the turn it came after and its verdict; the report\'s band says what follows it - the figures cell and the plain-language rewrite; an older analysis\'s review of its report has a band of its own',
+check('... a review is a band with the turn it came after and its verdict; the report\'s band says what follows it - the figures cell; an older analysis\'s review of its report has a band of its own',
   band({ type: 'review', turn: 8, verdict: 'TEST', text: 'no interval yet' }).textContent === 'Review after turn 8 · TEST · no interval yet'
-  && band({ type: 'report', turn: 9 }).textContent === 'Turn 9 · report · The report is written here. The figures cell and the plain-language rewrite follow.'
+  && band({ type: 'report', turn: 9 }).textContent === 'Turn 9 · report · The report is written here. The figures cell follows.'
   && band({ type: 'final', verdict: 'NARROW', text: 'no interval was given' }).textContent === 'Review of the report · NARROW · no interval was given'
   && band({ type: 'final', verdict: 'NARROW', text: '' }).querySelector('.cm-row').className === 'cm-row band' && band({ type: 'final', verdict: 'NARROW', text: 'x' }).querySelector('.k').textContent === 'Review of the report · NARROW',
   band({ type: 'final', verdict: 'NARROW', text: 'no interval was given' }).outerHTML);

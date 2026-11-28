@@ -1087,7 +1087,7 @@ def main():
             page.evaluate("activateTab('answer')")
             page.wait_for_selector("#content-answer .simplified-summary-btn:not(.loading)", timeout=15000)
             page.click("#content-answer .simplified-summary-btn")
-            page.wait_for_timeout(300)
+            page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=60000)      # asked of the server, then shown (0366)
             simp_c = page.evaluate("() => ({ text: document.querySelector('#content-answer .content-body').textContent, chips: [...document.querySelectorAll('#content-answer .content-body .cite.ctx')].map(e => [e.textContent, e.getAttribute('title')]) })")
             check("Simplified: the plain-language version keeps the quote and its citation as a chip of the context with the same hover",
                   "own words" in simp_c["text"] and len(simp_c["chips"]) == 1 and simp_c["chips"][0][0] == chip_c[0] and simp_c["chips"][0][1] == chip_c[2], simp_c)

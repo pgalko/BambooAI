@@ -136,7 +136,7 @@ class WebOutputManager:
         }))
 
     def display_results(self, chain_id=None, execution_mode=None, df_id=None, api_client=None, df=None,
-                        plan=None, code=None, answer=None, simplified_answer=None, plot_jsons=None,
+                        plan=None, code=None, answer=None, plot_jsons=None,
                         code_exec_results=None, report_head=None):
         from bambooai import utils
 
@@ -172,7 +172,6 @@ class WebOutputManager:
             ('plan', plan),
             ('code', code),
             ('answer', answer),
-            ('simplified_answer', simplified_answer),
             ('code_exec_results', code_exec_results)      # generated datasets are the pane's pills, not a tab (2026-10-06: the tab was empty)
         ]:
             if data:

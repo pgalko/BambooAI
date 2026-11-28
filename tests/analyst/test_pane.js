@@ -409,6 +409,52 @@ check('the stylesheet: a search\'s card line wraps to take its face, shut; opene
   && paneCss.includes('#streamOutput .sp-srcs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: column;')
   && /@container \(max-width: \d+px\) \{ #streamOutput \.sp-srcs \{ grid-template-columns: minmax\(0, 1fr\);/.test(paneCss) && /#streamOutput \.sp-src \.host \{[^}]*white-space: nowrap;/.test(paneCss));
 
+// ---- 0366: a call made for a run after it ended (simplify.js: the report in plain language) - its card where the run's own end, and
+// the run's cost and time, which ride on the closing card as numbers, raised by the call's wherever they are said
+const pane3 = doc.createElement('div'); pane3.setAttribute('id', 'streamOutput'); pane2.remove(); doc.body.appendChild(pane3);
+w.paneRunStart({ mode: 'Deep', of: 15, dollars: 1.5 });
+w.paneTurnStart({ turn: 1, of: 15, seat: 'Analyst', model: 'v/analyst', chain_id: 9 }); w.paneToken('###STEP###\nFit the model, as it was streamed.');
+w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'Fit.', note: '', code: 'print(1)', elapsed: 5, cost: 0.05 });
+check('a step the card got as a stream stays as it was streamed when its turn ends: the session\'s own reading of it is for a card that got none',
+  pane3.querySelector('.sp-turn[data-turn="1"] .sp-think').textContent === 'Fit the model, as it was streamed.' && pane3.querySelector('.sp-turn[data-turn="1"] summary .peek').textContent === 'Fit.',
+  pane3.querySelector('.sp-turn[data-turn="1"]').outerHTML);
+w.paneCell({ cell_no: 1, ok: true, peek: 'done', elapsed: 0.1, chars: 4, figs: 0 });
+w.paneTurnStart({ turn: 2, of: 15, seat: 'Analyst', model: 'v/analyst', chain_id: 9 }); w.paneTurnEnd({ turn: 2, kind: 'report', thinking: '', note: '', code: '', elapsed: 4, cost: 0.05 });
+w.paneTurnStart({ turn: 'figures', of: 15, seat: 'Figures', model: 'v/fig', chain_id: 9, quiet: true, attempt: 1 }); w.paneTurnEnd({ turn: 'figures', kind: 'figures', peek: '1 figure', elapsed: 2, cost: 0.01 });
+w.paneCell({ cell_no: 2, ok: true, peek: 'drawn', elapsed: 0.3, chars: 0, figs: 1 });
+w.paneLookupStart({ kind: 'replay', query: '2 cells', model: '' }); w.paneLookup({ kind: 'replay', query: '', peek: 'Replay reproduced the cited results.', sources: [], passages: [] });
+w.paneDatasets({ files: [{ path: 'd/yields.csv', name: 'yields.csv' }] });
+w.paneRunEnd({ status: 'answered', turns: 2, of: 15, cells: 2, cost: 0.11, seconds: 11.4, replay_status: 'reproduced', replay_line: 'Replay reproduced the cited results.', chain_id: 9 });
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+const order3 = p => p.querySelector('.sp-stream').elements.map(e => (e.classList.contains('sp-turn') ? 'turn ' + e.getAttribute('data-turn') : e.className));
+const said3 = p => [p.querySelector('.sp-done .nums').textContent, p.querySelector('.sp-done').getAttribute('data-cost'), p.querySelector('.sp-done').getAttribute('data-secs'), p.querySelector('.sp-strip .spent').textContent];
+const copy3 = () => { const d = doc.createElement('div'); d.innerHTML = pane3.innerHTML; return d; };
+const asKept = copy3(), old3 = copy3(), open3 = copy3(), analyst3 = copy3();
+check('the run\'s cost and time ride on its closing card as numbers, beside the line that says them - which is words alone, as it was; on the strip the spend is a part of its own',
+  same(said3(pane3), ['2 of 15 turns · 2 cells · $0.11 · 11 s', '0.11', '11.4', '$0.11']) && pane3.querySelector('.sp-done .nums').elements.length === 0
+  && pane3.querySelector('.sp-strip .spent').parentElement.textContent === '$0.11 / $1.50' && !w.__paneBuild.routineEnd({ number: 3, status: 'reproduced', results: 4, elapsed: 5 }).includes('data-cost'), said3(pane3));
+const late3 = { turn: 'rewrite', kind: 'rewrite', seat: 'Rewriter', model: 'v/flash', chain_id: 9, elapsed: 4.2, cost: 0.06, said: '# T\n\nPlain <b>text</b>.' };
+w.paneLate(pane3, Object.assign({}, late3));
+const card3 = pane3.querySelector('.sp-turn[data-turn="rewrite"]');
+check('a call made after the run: its card stands where the run\'s own cards end - after the figures cell\'s row, before the replay\'s row, the saved datasets and the closing card',
+  same(order3(pane3), ['turn 1', 'sp-row', 'turn 2', 'turn figures', 'sp-row', 'turn rewrite', 'sp-row tool', 'sp-pills', 'sp-done']), order3(pane3));
+check('... the card is a turn\'s that has ended: shut, not live, its name and kind, what it took and cost, what the call wrote as text, the button to its prompt - the first call of its seat in the chain',
+  card3.className === 'sp-turn' && !card3.hasAttribute('open') && card3.querySelector('summary .n').textContent === 'Rewrite' && card3.querySelector('summary .kind').textContent === 'plain-language version'
+  && card3.querySelector('summary .meta').textContent === '4.2 s · $0.06' && card3.querySelector('.sp-think').textContent === '# T\n\nPlain <b>text</b>.' && !card3.querySelector('.sp-think b') && !card3.querySelector('.cursor')
+  && !card3.querySelector('.sp-reasoning') && ['data-agent', 'data-chain', 'data-call'].map(a => card3.querySelector('.sp-prompt').getAttribute(a)).join() === 'Rewriter,9,1', card3.outerHTML);
+check('... and the run\'s cost and time are raised by the call\'s: on the closing card - the numbers and their words - and on the strip',
+  same(said3(pane3), ['2 of 15 turns · 2 cells · $0.17 · 16 s', '0.17', '15.6', '$0.17']), said3(pane3));
+w.paneLate(asKept, Object.assign({}, late3));
+check('... the same on a pane as its chain keeps it: the markup is the pane\'s on screen', asKept.innerHTML === pane3.innerHTML);
+w.paneLate(analyst3, Object.assign({}, late3, { seat: 'Analyst' }));
+check('... a call on a seat the run used: its prompt is that seat\'s next in the chain\'s log', analyst3.querySelector('.sp-turn[data-turn="rewrite"] .sp-prompt').getAttribute('data-call') === '3');
+old3.querySelector('.sp-done').removeAttribute('data-cost'); old3.querySelector('.sp-done').removeAttribute('data-secs'); old3.querySelector('.sp-strip .spent').parentElement.innerHTML = '$0.11 / $1.50';
+w.paneLate(old3, Object.assign({}, late3));
+check('... a closing card from before the sums rode on it keeps the numbers it has, and the pane still gets the card',
+  old3.querySelector('.sp-done .nums').textContent === '2 of 15 turns · 2 cells · $0.11 · 11 s' && old3.querySelector('.sp-strip').textContent.includes('$0.11 / $1.50') && order3(old3).indexOf('turn rewrite') === 5, order3(old3));
+open3.querySelector('.sp-done').remove();
+w.paneLate(open3, Object.assign({}, late3));
+check('... a pane without a closing card - a run that has not ended - gets nothing', !open3.querySelector('.sp-turn[data-turn="rewrite"]') && order3(open3).length === 7, order3(open3));
 // every check above is printed and counted here (2026-11-15: the loop sat above the last checks, which then counted as passed whatever they found;
 // three of them read the first pane after the second had taken its place)
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }
