@@ -2683,6 +2683,8 @@ def main():
             check("review: after turn 8 of the Adaptive run a Review card on the Reviewer seat with its model, between turns 8 and 9 on the Analyst - and its REPORT verdict made turn 9 the report",
                   len(cards) >= 10 and cards[8]["n"] == "Review" and "Reviewer" in cards[8]["meta"] and cards[8]["seat"] == "Reviewer"
                   and cards[7]["n"] == "Turn 8" and cards[7]["seat"] == "Analyst" and cards[9]["n"] == "Turn 9" and cards[9]["seat"] == "Analyst", cards[7:10])
+            check("review: that is the run's one review - none follows the report (0365): after turn 9 the cards are the figures step's and the rewrite's, and the Reviewer has one card",
+                  [c["n"] for c in cards].count("Review") == 1 and [c["seat"] for c in cards].count("Reviewer") == 1 and not any("Review" in c["n"] for c in cards[10:]), [(c["n"], c["seat"]) for c in cards[8:]])
             page.evaluate("setMode('deep')")
             page.click("#prevResponse")
             page.wait_for_timeout(500)

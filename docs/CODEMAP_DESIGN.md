@@ -113,7 +113,8 @@ ids and tokens. The golden fixtures pin the prototype's output; the departures a
 - `failed[]`: each failed attempt with its turn, the cell before it, its purpose and its error line; a cell the
   executor refused before it ran rides here with `refused` (the restricted word) and is shown as its own state;
 - `sandbox`: the box the cells ran on, as the kernel saw itself (2026-10-28);
-- `events[]`: the reviews (turn, verdict, the most consequential problem), the review of the report, the report turn;
+- `events[]`: the reviews (turn, verdict, the most consequential problem), the report turn; in an analysis made before
+  2026-11-28 also the review that followed its report (`type: final`) - none is made since;
 - a branch (2.9, `docs/BRANCH_DESIGN.md` §7) holds the turns it kept of the run it went on from and then its own, so
   its record is of its whole way: a cell or a failed attempt it kept carries `kept` (`differs` for a kept cell that
   printed something else when it was run again), each hint the person gave is an event (`type: hint`, the turn it

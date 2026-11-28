@@ -1423,21 +1423,21 @@ try:
     BAMBOO.output_manager.add_user_input("review me")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     agents = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4 and after the report; the turns and the figures step's call on the analyst seat",
-          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer"], agents)
+    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4, and none after the report (2026-11-28); the turns and the figures step's call on the analyst seat",
+          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator"], agents)
     check("review seat: the reviewer is sent its own prompt, never the analyst's contract",
           all(u.startswith("QUESTION:") for a, u in state["calls"] if a == "Reviewer"), [u[:40] for a, u in state["calls"] if a == "Reviewer"])
     q = BAMBOO.output_manager.output_queue; ev = []
     while not q.empty(): ev.append(json.loads(q.get()))
     starts = [(e.get("turn"), e.get("seat"), e.get("model"), e.get("review")) for e in ev if e.get("type") == "pane_turn_start"]
     check("review seat: the pane's Review cards carry 'Reviewer' and its model; the turns carry the analyst seat",
-          [x[1:] for x in starts if x[0] == "review"] == [("Reviewer", "fake/strong", True)] * 3
+          [x[1:] for x in starts if x[0] == "review"] == [("Reviewer", "fake/strong", True)] * 2
           and all(x[1:3] == ("Investigator", "fake/model") and not x[3] for x in starts if isinstance(x[0], int)), starts)
     BAMBOO.review_every = 0
     state.update(i=0, calls=[], script=[cell(1), cell(2), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("no review"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     _ag = [a for a, u in state["calls"] if not u.startswith("Rewrite")]
-    check("review seat: analyst_review_every=0 - no review during the run and none after the report: no reviewer call at all (2026-10-05); the figures step's call after the report",
+    check("review seat: analyst_review_every=0 - no reviewer call at all (2026-10-05); the figures step's call after the report",
           _ag == ["Investigator", "Investigator", "Investigator", "Investigator"], _ag)
     check("rewrite seat: without a Rewriter in the config the rewrite ran on the analyst seat",
           [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"], [(a, u[:20]) for a, u in state["calls"]])

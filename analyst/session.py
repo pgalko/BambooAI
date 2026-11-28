@@ -416,22 +416,6 @@ def cited_cells(text: str) -> List[int]:
     return nums
 
 
-def review_note(rv: dict) -> str:
-    """The review after the report, as the note the reader sees under it."""
-    req, arg, problem = rv["requires"].rstrip(" ."), rv["arg"].rstrip(" ."), rv["problem"].rstrip(" .")
-    checked, cited = rv.get("checked_cells") or [], rv.get("cited") or []
-    seen = [c for c in cited if c in checked]
-    unseen = [c for c in cited if c not in checked]
-    read = (f" Checked against the code of {', '.join(f'cell {c}' for c in seen)}." if seen else "") + (
-        f" Not checked: {', '.join(f'cell {c}' for c in unseen)}." if unseen else "")
-    if rv["verdict"] == "REPORT":
-        caution = "" if problem.lower() in ("", "none", "nothing") else f" One caution: {problem}."   # 2026-10-06: a REPORT verdict had found a misstated bound and the note did not say so
-        return f"**Reviewer's note.** The question requires: {req}. The report answers it as asked" + (f": {arg}." if arg else ".") + caution + read
-    if rv["verdict"] == "TEST":
-        return f"**Reviewer's note.** The question requires: {req}. Not established: {problem}. The analysis that would settle it: {arg}.{read}"
-    return f"**Reviewer's note.** The question requires: {req}. {problem}. The evidence supports a narrower conclusion: {arg}.{read}"
-
-
 def _first_line(text: str, cap: int = 110) -> str:
     ln = next((x.strip() for x in (text or "").splitlines() if x.strip()), "")
     return ln if len(ln) <= cap else ln[:cap - 3] + "..."
@@ -859,7 +843,8 @@ class Session:
     @staticmethod
     def is_review(budget: Budget, turn_no: int) -> bool:
         """A review comes before this turn: never before the first; after every review_every turns (before turns 9, 17,
-        25... for 8)."""
+        25... for 8). A review is of a run under way, where it can still change the answer: none follows the report
+        (2026-11-28, Palo: the one that did added little - the analysis was over), and Quick and Deep have none at all."""
         return bool(budget.review_every) and turn_no > 1 and (turn_no - 1) % budget.review_every == 0
 
     def _saved_view(self, named: list, k: int) -> str:
@@ -1357,13 +1342,6 @@ class Session:
         check2 = rep.guard_rewrite(rewrite, report_text)
         run.rewrite = rewrite + (f"\n\n> {check2}" if check2 else "")
         run.turns.append(Turn(kind="rewrite", note=run.note, text=run.rewrite, usage=dict(usage or {})))
-        # the review after the report: only in a run that has reviews during it (Adaptive). Quick and Deep make no reviewer
-        # call at all (2026-10-05, Palo: in Deep it cost 35-40% of the run and 20-40 s, before the replay, for no value a
-        # reader asked for - who wants a review chooses Adaptive)
-        if budget.review_every:
-            rv, _ = self._review(run, budget, report=run.report)
-            if rv is not None:
-                run.report += "\n\n> " + review_note(rv)
         # the replay: the host's runner when it has one (the app's executor, which also
         # yields the figures and the results text), else a fresh kernel
         if run.cells() and (self.replay_runner is not None or self.kernel_factory is not None):
@@ -1567,7 +1545,7 @@ class Session:
     def _review_block(self, run: Run) -> str:
         """The latest review during the run, for the analyst's prompt; a TEST carries its status, from the evidence: answered
         by a RESULT line tagged with it, or open (2026-10-05: a test the analyst said it had run never ran)."""
-        latest = next((x for x in reversed(run.turns) if x.kind == "review" and x.text != "after the report"), None)
+        latest = next((x for x in reversed(run.turns) if x.kind == "review"), None)
         if latest is None:
             return ""
         # the Re-check and Shown lines are the session's, not the analyst's (2026-10-06: the analyst read "Re-check: cell 17,
@@ -1596,13 +1574,13 @@ class Session:
                     out[int(rec["cell"])] = f"{rec['text']} (review {x.text})"
         return out
 
-    def _evidence_for_review(self, run: Run, report: Optional[str]):
+    def _evidence_for_review(self, run: Run):
         """The cells handed to this review, code and complete output - chosen by the session, not asked for (2026-10-06:
         the SHOW rounds re-sent the whole input each time, the reviewer drafted before asking and cited cells it had
         not opened). In order: the cells behind the best estimate (those its line cites, and those whose RESULT lines
         carry its numbers); the cells tagged as answering a TEST; the cells that recorded a result since the last
-        review; a cell an earlier review asked to see again. After the report: the cells the report cites. A cell an
-        earlier review was handed is not sent again unless asked for. Up to REVIEW_EVIDENCE_CHARS; the rest are named.
+        review; a cell an earlier review asked to see again. A cell an earlier review was handed is not sent again
+        unless asked for. Up to REVIEW_EVIDENCE_CHARS; the rest are named.
         Returns (text, cells sent, cells named but not sent)."""
         cells = {c.cell_no: c for c in self.nb.path_cells(run.id) if c.cell_no is not None}
         before = self._checked_before(run)
@@ -1615,33 +1593,28 @@ class Session:
                 why[n] = reason
         for n in recheck:                     # the last review's explicit ask comes first (2026-10-06: a Re-check had lost to the budget)
             want(n, "you asked to see it again")
-        if report is not None:
-            for n in cited_cells(report):
-                want(n, "cited by the report")
-        else:
-            # the first cell behind the estimate, then the TEST's answers, then the rest behind the estimate (2026-10-06: an
-            # estimate that cites six cells had crowded the reviewer's own test out of the budget), then the new results
-            est = _estimate_line(run.note)
-            est_nums = {x for x in rep._numbers(est) if "." in x or len(x.lstrip("+-")) >= 3}
-            behind = cited_cells(est) + [n for n, r in result_records(run) if est_nums & rep._numbers(r.get("text", ""))]
-            for n in behind[:1]:
-                want(n, "behind the best estimate")
-            for n, r in result_records(run):
-                if r.get("test"):
-                    want(n, f"tagged as answering the TEST {r['test']}")
-            for n in behind[1:]:
-                want(n, "behind the best estimate")
-            for x in reversed(run.turns[last_review + 1:]):
-                if x.kind == "cell" and x.cell_no is not None and x.results:
-                    want(x.cell_no, "a result recorded since the last review")
+        # the first cell behind the estimate, then the TEST's answers, then the rest behind the estimate (2026-10-06: an
+        # estimate that cites six cells had crowded the reviewer's own test out of the budget), then the new results
+        est = _estimate_line(run.note)
+        est_nums = {x for x in rep._numbers(est) if "." in x or len(x.lstrip("+-")) >= 3}
+        behind = cited_cells(est) + [n for n, r in result_records(run) if est_nums & rep._numbers(r.get("text", ""))]
+        for n in behind[:1]:
+            want(n, "behind the best estimate")
+        for n, r in result_records(run):
+            if r.get("test"):
+                want(n, f"tagged as answering the TEST {r['test']}")
+        for n in behind[1:]:
+            want(n, "behind the best estimate")
+        for x in reversed(run.turns[last_review + 1:]):
+            if x.kind == "cell" and x.cell_no is not None and x.results:
+                want(x.cell_no, "a result recorded since the last review")
         parts, sent, left, used = [], [], [], 0
-        budget_chars = REVIEW_EVIDENCE_CHARS if report is None else REVIEW_EVIDENCE_CHARS * 3 // 5   # the report itself is in view
         for n, reason in why.items():
             c = cells[n]
             out = c.stdout or ""
             out = out if len(out) <= REVIEW_OPEN_CHARS else out[:REVIEW_OPEN_CHARS] + "\n... [output cut for length]"
             block = f"--- cell {n} ({reason}) ---\n```python\n{(c.code or '').rstrip()}\n```\nOUTPUT:\n{out.rstrip() or '(printed nothing)'}"
-            if used + len(block) > budget_chars and sent:
+            if used + len(block) > REVIEW_EVIDENCE_CHARS and sent:
                 left.append(n)
                 continue
             parts.append(block); sent.append(n); used += len(block)
@@ -1650,16 +1623,16 @@ class Session:
             text += "\n\nNot sent this review, for length (name one under Re-check to see it next time): " + ", ".join(f"cell {c}" for c in left)
         return text, sent, left
 
-    def _review_input(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None):
-        """What the reviewer reads, fixed material first: the question, the data, the thread; then the note (or the report),
-        the ledger, what earlier reviews checked, the earlier reviews with the analyst's answer to each, the turns since
-        the last review, the cells to check now, and where the run stands. Returns (text, cells sent)."""
+    def _review_input(self, run: Run, budget: Budget, after_turn: int):
+        """What the reviewer reads, fixed material first: the question, the data, the thread; then the note, the ledger,
+        what earlier reviews checked, the earlier reviews with the analyst's answer to each, the turns since the last
+        review, the cells to check now, and where the run stands. Returns (text, cells sent)."""
         parts = ([f"QUESTION:\n{run.question.strip()}"] + ([self._brief(run)] if run.brief else []) + ([hint_block(run)] if run.hints else [])
                  + [f"DATA:\n{self.data_description}"])
         anc = self.nb.render_ancestry(run.id)
         if anc:
             parts.append(anc)
-        parts.append(f"THE REPORT:\n{report.strip()}" if report is not None else f"THE ANALYST'S NOTE:\n{run.note or '(none yet)'}")
+        parts.append(f"THE ANALYST'S NOTE:\n{run.note or '(none yet)'}")
         res = result_lines(run)
         parts.append("RESULTS SO FAR:\n" + ("\n".join(res) if res else "(no results recorded)"))
         before = self._checked_before(run)
@@ -1667,7 +1640,7 @@ class Session:
         earlier = []
         for j, x in enumerate(run.turns):
             if x.kind == "review":
-                nxt = next((y for y in run.turns[j + 1:] if y.kind not in ("review", "rewrite")), None)
+                nxt = next((y for y in run.turns[j + 1:] if y.kind != "review"), None)
                 answer = _first_sentence(nxt.thinking) if nxt is not None and nxt.thinking else "(no turn since)"
                 ev = self._since_review(run, j)
                 verdict = x.thinking if len(x.thinking) <= 400 else x.thinking[:397].rsplit(" ", 1)[0] + "..."   # the analyst saw it whole
@@ -1684,10 +1657,9 @@ class Session:
         head = "TURNS SINCE YOUR LAST REVIEW" if last_review >= 0 else "TURNS"
         parts.append(f"{head} (the analyst's own account of each turn, its action, and the outcome):\n"
                      + ("\n".join(self._turn_log(run, since=last_review)) or "(none)"))
-        evidence, sent, _left = self._evidence_for_review(run, report)
+        evidence, sent, _left = self._evidence_for_review(run)
         parts.append("TO CHECK NOW (code and complete output; no review has checked these):\n" + evidence)
-        parts.append("The analysis is over; this review is added to the report." if report is not None
-                     else f"TURN: after turn {after_turn}; up to {budget.turns}.")
+        parts.append(f"TURN: after turn {after_turn}; up to {budget.turns}.")
         return "\n\n".join(parts), sent
 
     @staticmethod
@@ -1697,8 +1669,6 @@ class Session:
         was pooled sat in a turn the reviewer never saw; it saw a cell list and 'FAILED ATTEMPTS: 7')."""
         lines, k = [], 0
         for idx, x in enumerate(run.turns):
-            if x.kind == "rewrite":
-                continue
             if x.kind == "review":
                 if idx > since:
                     lines.append(f"- (review {x.text}: {x.thinking[:140]})")
@@ -1721,19 +1691,19 @@ class Session:
             lines.append(f"- turn {k}: {th or '(no step written)'} | {what}")
         return lines
 
-    def _review(self, run: Run, budget: Budget, after_turn: Optional[int] = None, report: Optional[str] = None):
+    def _review(self, run: Run, budget: Budget, after_turn: int):
         """One call on the Reviewer seat with the reviewer's own prompt; the session hands it the cells to check (2026-10-06,
         replacing the SHOW rounds). Returns (review or None, cost). A review that names no verdict is not used: the run
         goes on as if none had been asked for. Its Checked lines join the verification ledger; a REPORT binds only when
         every cell it cites has been checked, in this review or an earlier one."""
         self.emit({"type": "turn_start", "run": run.id, "turn": "review", "of": budget.turns, "review": True})
         t0 = time.time()
-        user, sent = self._review_input(run, budget, after_turn, report)
+        user, sent = self._review_input(run, budget, after_turn)
         text, usage_r = self.llm(reviewer(self.context, brief=bool(run.brief), hint=bool(run.hints)), user, review=True)    # the Words lens only with context, the brief only with one, the hint only in a branch
         cost = float((usage_r or {}).get("cost", 0.0) or 0.0)
         usage = {"cost": cost, "elapsed": round(time.time() - t0, 1)}
         rv = parse_review(text)
-        label = "after the report" if report is not None else f"after turn {after_turn}"
+        label = f"after turn {after_turn}"
         if rv is not None:
             before = self._checked_before(run)
             checked_cells = sorted(set(before) | set(sent) | {c for c, _ in rv["checked"]})
@@ -1748,7 +1718,7 @@ class Session:
             return None, cost
         turn = Turn(kind="review", note=rv["lines"], thinking=verdict, text=label, usage=usage, shown=list(sent),
                     checked=[{"cell": c, "text": t, "ok": checked_ok(t), "partly": checked_verdict(t) == "partly"} for c, t in rv["checked"]], recheck=list(rv["recheck"]))
-        if report is None and rv["verdict"] == "REPORT" and not rv["binding"]:
+        if rv["verdict"] == "REPORT" and not rv["binding"]:
             missing = [c for c in rv["cited"] if c not in rv["checked_cells"]]
             turn.stdout = "not binding: " + ("the reviewer cites no cell" if not rv["cited"] else
                                              "no review has checked " + ", ".join(f"cell {c}" for c in missing) + ", which it cites")

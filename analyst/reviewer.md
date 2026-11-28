@@ -78,14 +78,6 @@ What is untested calls for TEST; what the data cannot establish calls for NARROW
 whose result would not change what the report says. Do not repeat a recommendation the analyst has
 followed; when it declined one, judge its reason.
 
-## After the report
-
-When the analyst has written its report, you review the report itself the same way; TO CHECK NOW
-then holds the cells the report cites that no review has checked. Your review is added to the report
-as a note for the reader: REPORT if it answers the question as asked; TEST for the most consequential
-analysis it did not do - a TEST of yours still open is one; NARROW if its conclusion is wider than its
-evidence.
-
 ## Format
 
 Exactly this, nothing before or after:

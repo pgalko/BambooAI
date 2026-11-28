@@ -1229,8 +1229,8 @@ check("guard: a real missing number is reported", report.numbers_missing("the es
 import re
 c = open(os.path.join(ROOT, "analyst", "contract.md")).read()
 # ---- the reviewer (2026-10-05): its own prompt and input, no actions; its review rides in the analyst's next prompts; a REPORT
-# ---- verdict binds; and once after every report, its note added for the reader
-from analyst.session import REVIEWER, parse_review, review_note
+# ---- verdict binds. No review follows the report (2026-11-28): the script's third review is there to be left unasked for
+from analyst.session import REVIEWER, parse_review
 REVIEWS_SCRIPT = ["###REVIEW###\n- The question requires: B against A with an interval.\n- Established: the means [cell 1].\n- Checked: cell 2 - computes the mean difference B vs A for 20 subjects; matches its line\n- Checked: cell 1 - the same, step 1; matches its line\n- Most consequential problem: no interval yet.\n- Verdict: TEST bootstrap the difference by subject\n- Re-check: cell 1",
                   "###REVIEW###\n- **The question requires:** B against A with an interval.\n- **Established:** the difference and its interval [cell 3].\n- **Checked:** cell 4 - computes the step-4 difference; matches its line\n- **Checked:** cell 3 - computes the difference with its interval; matches its line\n- **Most consequential problem:** none\n- **Verdict:** **REPORT** the comparison is made and its uncertainty stated",
                   "###REVIEW###\n- The question requires: B against A with an interval.\n- Established: +1.5 (CI 0.2 to 2.8) [cell 3].\n- Most consequential problem: the difference by sex was not examined.\n- Verdict: TEST the difference by sex"]
@@ -1255,7 +1255,7 @@ finally:
     k9.cleanup()
 an_tasks = [ln for u, _ in an_prompts for ln in u.splitlines() if ln.startswith("TASK:")]
 check("review: one call per review (2026-10-06: no SHOW rounds), on the reviewer's own prompt as review=True; no analyst turn is review=True",
-      len(rv_calls) == 3 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
+      len(rv_calls) == 2 and all(sy == REVIEWER and h.get("review") is True for sy, _, h in rv_calls) and not any(h.get("review") for _, h in an_prompts),
       ([h for _, _, h in rv_calls], [h for _, h in an_prompts]))
 check("review: reviews come after every 2nd turn and are not turns - the analyst's task lines run 1 to 5 without a gap",
       [t.split(";")[0] for t in an_tasks] == [f"TASK: turn {k}" for k in (1, 2, 3, 4, 5)], an_tasks)
@@ -1317,15 +1317,16 @@ p5 = an_prompts[4][0]
 check("review: a REPORT verdict citing a cell handed to it binds - the next turn is the report: every cell in view, the review above, the report-now line - and the run is answered",
       "REVIEW (after turn 4 - answer it in your STEP):" in p5 and "- Verdict: REPORT the comparison is made" in p5 and "this turn is the report. Write REPORT now." in p5
       and "TASK: turn 5;" in p5 and r9.status == "answered" and len(an_prompts) == 5, (r9.status, len(an_prompts), p5[-400:]))
-u3 = rv_calls[2][1]
-check("review after the report: the report is read instead of the note, the input says the analysis is over, the cells it cites that were checked are not sent again, and the note names the cells checked",
-      "THE REPORT:\n## r" in u3 and "THE ANALYST'S NOTE" not in u3 and "The analysis is over; this review is added to the report." in u3
-      and "TO CHECK NOW (code and complete output; no review has checked these):\n(nothing new to check" in u3
-      and r9.report.rstrip().endswith("> **Reviewer's note.** The question requires: B against A with an interval. Not established: the difference by sex was not examined. The analysis that would settle it: the difference by sex. Checked against the code of cell 3."),
-      (u3[-700:], r9.report[-300:]))
+# 2026-11-28 (Palo): a review had followed every report of a run with reviews - one more call on the Reviewer when the analysis
+# was over and nothing it found could change it, its verdict a note under the report
+check("no review follows the report: the reviewer is asked after turns 2 and 4 and not again once the report is written - each time it reads the analyst's note, never the report - and nothing "
+      "of a review stands under the report: the run's record ends with its report and the plain version",
+      [u.rstrip().rsplit("\n", 1)[-1] for _, u, _ in rv_calls] == ["TURN: after turn 2; up to 12.", "TURN: after turn 4; up to 12."] and all("THE ANALYST'S NOTE:\n" in u and "THE REPORT" not in u for _, u, _ in rv_calls)
+      and [t.kind for t in r9.turns][-2:] == ["report", "rewrite"] and r9.report.startswith("## r\n\nB is higher [cell 3].") and "The question requires" not in r9.report and "difference by sex" not in r9.report,
+      ([u.rstrip().rsplit("\n", 1)[-1] for _, u, _ in rv_calls], [t.kind for t in r9.turns], r9.report))
 check("review: recorded as turns of kind review with their verdict and lines; the pane gets a Review card for each",
-      [t.text for t in rv_turns] == ["after turn 2", "after turn 4", "after the report"] and rv_turns[1].thinking.startswith("Verdict: REPORT")
-      and sum(1 for e in rv_starts if e.get("turn") == "review" and e.get("review")) == 3 and sum(1 for e in rv_ends if e.get("kind") == "review") == 3
+      [t.text for t in rv_turns] == ["after turn 2", "after turn 4"] and rv_turns[1].thinking.startswith("Verdict: REPORT")
+      and sum(1 for e in rv_starts if e.get("turn") == "review" and e.get("review")) == 2 and sum(1 for e in rv_ends if e.get("kind") == "review") == 2
       and "- Established: the means [cell 1]." in rv_turns[0].note, [(t.text, t.thinking[:30]) for t in rv_turns])
 check("review: the analyst's contract for the run carries the Reviews section, naming the cadence", "## Reviews" in s9.system and "After every 2nd turn a reviewer" in s9.system)
 check("contract: the Reviews section only when a reviewer runs - none, and no reviewer at all, in Quick and Deep",
@@ -1333,6 +1334,32 @@ check("contract: the Reviews section only when a reviewer runs - none, and no re
       and "## Reviews" not in CONTRACT and contract(True, 8).index("## Reviews") < contract(True, 8).index("## The note"))
 check("rewrite: the plain-language rewrite call carries rewrite=True and no other call does",
       sum(1 for h in hints_seen if h.get("rewrite")) == 1, hints_seen)
+# the evidence of one review has a size: each cell's output up to REVIEW_OPEN_CHARS, the cells together up to REVIEW_EVIDENCE_CHARS,
+# newest first; what does not fit is named, to be asked for
+from analyst.session import REVIEW_EVIDENCE_CHARS, REVIEW_OPEN_CHARS
+big_rv, big_prompts = [], []
+def big_llm(system, user, **h):
+    if user.startswith("Rewrite"): return "plain", {"cost": 0}
+    if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+    if system.startswith("You are the reviewer"):
+        big_rv.append(user)
+        return "###REVIEW###\n- The question requires: X.\n- Established: X is +1.5 [cell 4].\n- Checked: cell 4 - computes X; matches its line\n- Most consequential problem: none\n- Verdict: REPORT X is established [cell 4]", {"cost": 0.001}
+    big_prompts.append(user)
+    if "this turn is the report" in user: return act6("REPORT\n## r\n\nX is +1.5 [cell 4]."), {"cost": 0.001}
+    return act6("CELL\n```python\ne = 1.5\nRESULT('X step %d, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'up')\nprint('y' * 7000)\n```" % len(big_prompts)), {"cost": 0.001}
+kg = PersistentKernel(df=df); nbg = Notebook("tg")
+try:
+    rg = Session(kg, nbg, big_llm, data_description="d").run("q", budget=Budget(turns=8, dollars=1.0, review_every=4))
+finally:
+    kg.cleanup()
+ug = big_rv[0] if big_rv else ""
+_sent = [int(n) for n in re.findall(r"^--- cell (\d+) \(", ug, re.M)]
+_blocks = sum(len(b) for b in re.findall(r"^--- cell \d+ \(.*?(?=^--- cell |\Z)", ug[ug.find("TO CHECK NOW"):ug.find("Not sent this review")], re.M | re.S))
+check("review: more to check than fits - each cell's output is cut at its limit and says so, the newest cells are handed over up to the review's limit, and the one left out is named for a Re-check; "
+      "the review's turn records the cells it was handed",
+      REVIEW_EVIDENCE_CHARS == 20_000 and REVIEW_OPEN_CHARS == 6_000 and _sent == [4, 3, 2] and ug.count("yyy\n... [output cut for length]") == 3 and "y" * 5900 in ug and "y" * 6000 not in ug
+      and "\n\nNot sent this review, for length (name one under Re-check to see it next time): cell 1\n\nTURN: after turn 4; up to 8." in ug and 3 * 6000 < _blocks <= REVIEW_EVIDENCE_CHARS
+      and [t.shown for t in rg.turns if t.kind == "review"] == [[4, 3, 2]] and rg.status == "answered" and len(big_rv) == 1, (_sent, _blocks, ug[-200:], len(big_rv)))
 # a REPORT citing a cell no review has checked is advice: the run goes on, and the analyst's block says why
 ad_prompts, ad_rv = [], []
 def advice_llm(system, user, **h):
@@ -1364,7 +1391,7 @@ def disputed_llm(system, user, **h):
                 "- Most consequential problem: cell 1's label\n- Verdict: TEST refit with the subject term" if len(dp_rv) == 1 else
                 "###REVIEW###\n- The question requires: X.\n- Established: +1.5 [cell 1].\n- Most consequential problem: none\n- Verdict: NARROW pooled only"), {"cost": 0.001}
     dp_prompts.append(user)
-    if "this turn is the report" in user or len(dp_prompts) >= 4:
+    if "this turn is the report" in user or len(dp_prompts) >= 6:
         return act6("REPORT\n## r\n\nWithin subjects, +1.50 [cell 1]."), {"cost": 0.001}
     return act6("CELL\n```python\ne = 1.5\nRESULT('X within subjects, 20 subjects', e, e - 1.3, e + 1.3, 'units', 'up')\n```"), {"cost": 0.001}
 kd = PersistentKernel(df=df); nbd = Notebook("td")
@@ -1377,16 +1404,15 @@ check("disputed: a Checked line saying the cell's line does not describe its cod
       (dp_prompts[3][-600:], dp_rv[1][-900:] if len(dp_rv) > 1 else ""))
 check("disputed: a report citing the disputed cell is flagged for the reader",
       "> CHECK: this report cites cell 1, whose RESULT line the review after turn 2 found does not describe its code. Treat what it quotes from there as unverified." in rd.report, rd.report[-400:])
-check("reviewer's note: a REPORT verdict whose problem is not 'none' carries it to the reader as a caution",
-      review_note({"verdict": "REPORT", "requires": "X", "arg": "established", "problem": "the summary understates the lower bound", "established": "", "checked_cells": [3], "cited": [3]})
-      == "**Reviewer's note.** The question requires: X. The report answers it as asked: established. One caution: the summary understates the lower bound. Checked against the code of cell 3."
-      and " One caution" not in review_note({"verdict": "REPORT", "requires": "X", "arg": "ok", "problem": "none", "established": "", "checked_cells": [], "cited": []}))
 prs = parse_review("###REVIEW###\n- The question requires: X\n- Established: +1 [cell 3]\n- Most consequential problem: none\n- Verdict: REPORT done [cell 3]\n- Re-check: cell 21\n###REVIEW###")
 check("parse_review: a stray marker after a complete review does not lose it (2026-10-06: the review after a report ended with ###REVIEW### and was dropped)",
       prs and prs["verdict"] == "REPORT" and prs["arg"] == "done [cell 3]" and prs["recheck"] == [21], prs)
 prs2 = parse_review("###REVIEW###\n- Verdict: pending\n###REVIEW###\n- The question requires: X\n- Established: y\n- Most consequential problem: none\n- Verdict: NARROW only y")
 check("parse_review: with several markers, the review is the text after the last one that carries a verdict", prs2 and prs2["verdict"] == "NARROW" and prs2["requires"] == "X", prs2)
 check("reviewer prompt: checking is the reviewer's own work - it does not ask the analyst to verify or re-open cells", "do not ask the analyst to\nverify or re-open cells - ask it for analysis" in REVIEWER)
+check("reviewer prompt: its sections are those of a review during the run - none for a report already written, which it is not shown",
+      re.findall(r"^## (.+)$", REVIEWER, re.M) == ["What you receive", "Checking cells", "Perspectives", "What you do", "Format"] and "THE REPORT" not in REVIEWER and "note for the reader" not in REVIEWER,
+      re.findall(r"^## (.+)$", REVIEWER, re.M))
 from analyst.session import checked_ok, checked_verdict, disputed_cells, disputed_mark, Run as _Run, Turn as _Turn
 check("checked_ok: 'matches its line' is fine, 'does not match' is not, a line with both ('matches ..., but does not cover ...') stays fine",
       checked_ok("computes the difference; matches its line") and not checked_ok("labelled within-athlete; no athlete term: pooled. Does not match.")
@@ -1484,7 +1510,7 @@ for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
 check("standing rule: no prompt text a model reads carries the tested tasks' vocabulary - contract (plain, documents, context), reviewer (five lenses and six), rewrite, reader, the routines' promoter, the context map, the coder, and every string the session, tools, reader, routines, context, coder and codebook send (the seed codebook is data, not scanned)",
       not _hits, _hits)
-# Quick and Deep make no reviewer call at all - not during the run, not after the report (2026-10-05)
+# Quick and Deep make no reviewer call at all (2026-10-05)
 nr_systems = []
 def noreview_llm(system, user, **h):
     nr_systems.append(system[:40])
@@ -1497,11 +1523,10 @@ try:
     rn = Session(kn, nbn, noreview_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=0))
 finally:
     kn.cleanup()
-check("no reviews outside Adaptive: a run without reviews during it makes no reviewer call after its report either, and its report carries no reviewer's note",
-      rn.status == "answered" and not any(x.startswith("You are the reviewer") for x in nr_systems) and "Reviewer's note" not in rn.report
-      and not any(t.kind == "review" for t in rn.turns), (rn.status, nr_systems))
+check("no reviews outside Adaptive: a run without reviews makes no reviewer call, and no review is on its record",
+      rn.status == "answered" and not any(x.startswith("You are the reviewer") for x in nr_systems) and not any(t.kind == "review" for t in rn.turns), (rn.status, nr_systems))
 
-# a review with no verdict is not used: no REVIEW block, no review turn, no note; the run goes on
+# a review with no verdict is not used: no REVIEW block, no review turn; the run goes on
 nv_prompts = []
 def noverdict_llm(system, user, **hints):
     if user.startswith("Rewrite"): return "plain", {"cost": 0}
@@ -1514,8 +1539,8 @@ try:
     rvv = Session(kv, nbv, noverdict_llm, data_description="d").run("q", budget=Budget(turns=6, dollars=1.0, review_every=1))
 finally:
     kv.cleanup()
-check("review: a reply that names no verdict is not used - no REVIEW block, no review turn, no note - and the run goes on to its report",
-      rvv.status == "answered" and not any("REVIEW (" in u for u in nv_prompts) and not any(t.kind == "review" for t in rvv.turns) and "Reviewer's note" not in rvv.report,
+check("review: a reply that names no verdict is not used - no REVIEW block, no review turn - and the run goes on to its report",
+      rvv.status == "answered" and not any("REVIEW (" in u for u in nv_prompts) and not any(t.kind == "review" for t in rvv.turns),
       (rvv.status, [t.kind for t in rvv.turns]))
 pr_ = parse_review("Some preamble\n###REVIEW###\n- The question requires: X by group\n  and its interval.\n- Established: nothing yet\n- Most consequential problem: none\n- Verdict: NARROW only the pooled X is supported")
 check("parse_review: a field running on to the next line is joined; NARROW parsed with its conclusion", pr_ and pr_["requires"] == "X by group and its interval." and pr_["verdict"] == "NARROW" and pr_["arg"] == "only the pooled X is supported", pr_)
@@ -1981,8 +2006,8 @@ try:
     rr = Session(kb, nb_r, _rvb_llm, data_description="60 rows: part, y", kernel_factory=lambda: PersistentKernel(df=_bdf)).run("Did it work?", budget=Budget(turns=8, dollars=1.0, review_every=2), brief=_b_in)
 finally:
     kb.cleanup()
-check("brief, the reviewer: with a brief its prompt names the brief among what it receives and its input carries the BRIEF block under the question, before the data - during the run and after the report",
-      len(_rvb["user"]) >= 2 and all(sy == reviewer_text(False, brief=True) for sy in _rvb["system"]) and all(u.startswith("QUESTION:\nDid it work?\n\n" + _block + "\n\nDATA:\n") for u in _rvb["user"])
+check("brief, the reviewer: with a brief its prompt names the brief among what it receives and its input carries the BRIEF block under the question, before the data",
+      len(_rvb["user"]) == 1 and all(sy == reviewer_text(False, brief=True) for sy in _rvb["system"]) and all(u.startswith("QUESTION:\nDid it work?\n\n" + _block + "\n\nDATA:\n") for u in _rvb["user"])
       and rr.brief_outcome["expected"] == "met", (len(_rvb["user"]), _rvb["user"][0][:200] if _rvb["user"] else None))
 _btexts = {"contract (brief)": _cb, "reviewer (brief)": reviewer_text(True, brief=True), "the block": _thin, "rewrite, brief": REWRITE_BRIEF, "unanswered": BRIEF_UNANSWERED}
 for _k, _t in enumerate(_authored_strings("analyst/brief.py")):

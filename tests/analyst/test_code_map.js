@@ -238,6 +238,14 @@ check('... a hint has a row where it was given: the person\'s words whole, after
   && el(b.steps(BR, c1, { t: 's', id: 2 }, { cells: [2], inputs: null, recipe: null })).querySelectorAll('.cm-row')[2].className === 'cm-row band hint faded'
   && el(b.step(BR, c1, 1)).querySelector('.cm-big.cell').textContent === 'Cell 1 · turn 1 · kept' && el(b.step(BR, c1, 2)).querySelector('.cm-big.cell').textContent === 'Cell 2 · turn 4', rb[2].innerHTML);
 
+// the bands between the steps: a review during the run, the report - and, in an analysis made before 0365, the review that followed its report
+const band = r => el(b.row(TRIAL, r, c1, null, noFocus));
+check('... a review is a band with the turn it came after and its verdict; the report\'s band says what follows it - the figures cell and the plain-language rewrite; an older analysis\'s review of its report has a band of its own',
+  band({ type: 'review', turn: 8, verdict: 'TEST', text: 'no interval yet' }).textContent === 'Review after turn 8 · TEST · no interval yet'
+  && band({ type: 'report', turn: 9 }).textContent === 'Turn 9 · report · The report is written here. The figures cell and the plain-language rewrite follow.'
+  && band({ type: 'final', verdict: 'NARROW', text: 'no interval was given' }).textContent === 'Review of the report · NARROW · no interval was given'
+  && band({ type: 'final', verdict: 'NARROW', text: '' }).querySelector('.cm-row').className === 'cm-row band' && band({ type: 'final', verdict: 'NARROW', text: 'x' }).querySelector('.k').textContent === 'Review of the report · NARROW',
+  band({ type: 'final', verdict: 'NARROW', text: 'no interval was given' }).outerHTML);
 // ---- the module on the mini DOM, with a scripted route ----
 const route = (thread, chain, view, built) => [200, { thread_id: thread, chain_id: chain, built: built || 'end', map: view }];
 answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': route('1001', '2', TRIAL2, 'now'), '/code_map/1001/3': [200, { thread_id: '1001', chain_id: '3', state: 'running' }],

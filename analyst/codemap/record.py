@@ -76,7 +76,7 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
         elif t.kind == "review":
             m = _VERDICT_RE.search(t.thinking or "")
             p = _PROBLEM_RE.search(t.note or "")
-            if (t.text or "") == "after the report":
+            if (t.text or "") == "after the report":           # a record made before 2026-11-28, when a review followed the report
                 events.append(dict(type="final", verdict=m.group(1).upper() if m else "", text=(p.group(1) if p else "")[:220]))
             else:
                 after = re.search(r"after turn (\d+)", t.text or "")

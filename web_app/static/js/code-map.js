@@ -44,7 +44,7 @@
         notRun: 'Not run', restricted: 'restricted operation ({w})',                 // a cell the executor refused before it ran (2026-10-28)
         reaches: { h: 'Reaches outside the data', none: 'None: no cell reached outside the data.', notRecorded: 'Not recorded: the executor that ran this chain predates the record.',
                    asked: 'the question named it', unasked: 'not asked for', blocked: 'refused by the kernel', refused: 'refused', sandbox: 'Sandbox: ', attempt: 'attempt' },
-        reportBand: 'The report is written here. The figures cell, the plain-language rewrite and a final review follow.',
+        reportBand: 'The report is written here. The figures cell and the plain-language rewrite follow.',
         role: { carries: 'Carries data forward', results: 'Records results', evidence: 'Printed what the report cites', printed: 'Printed only: not used later or cited by the report', figures: 'Draws the figures' },
         note: { figures: '{n} figure{s} drawn after the report', evidence: 'Printed what the report cites', carries: 'Carried forward to {n} later step{s}', printed: 'Printed only: not used later or cited by the report' },
         tips: { 'read': 'Reads one of the files the chain was given.', 'compute': 'Makes numbers in the code; no data file is read.', 'filter': 'Keeps only the rows that match a condition.',
@@ -341,7 +341,7 @@
             // a hint (a branch, 2.9): what the person said, in the row where they said it - whole, it is theirs
             if (r.type === 'hint') return '<div class="cm-row band hint' + (focus.cells ? ' faded' : '') + '"><span class="k">' + esc(fill(WORDS.band.hint, { n: r.turn })) + '</span><span> · ' + esc(t) + '</span></div>';
             if (r.type === 'review') head = fill(WORDS.band.review, { n: r.turn, v: r.verdict });
-            else if (r.type === 'final') head = fill(WORDS.band.final, { v: r.verdict });
+            else if (r.type === 'final') head = fill(WORDS.band.final, { v: r.verdict });       // an analysis made before 2026-11-28: the review that followed its report
             else { head = fill(WORDS.band.report, { n: r.turn }); t = WORDS.reportBand; }
             return '<div class="cm-row band' + (focus.cells ? ' faded' : '') + '"><span class="k">' + esc(head) + '</span><span> · ' + esc(t) + '</span></div>';
         },

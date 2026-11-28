@@ -208,8 +208,7 @@ within the preset's limit.
 
 In Adaptive mode, a separate `Reviewer` examines the work at intervals, including the code and outputs
 supporting current results. It can request another test, narrow a claim or recommend reporting. A report
-verdict only binds when the cited cells have been checked. The Reviewer also assesses the completed
-report against the question. The Analyst and Reviewer can use different models.
+verdict only binds when the cited cells have been checked. The Analyst and Reviewer can use different models.
 
 ### Reports and verification
 
@@ -435,7 +434,7 @@ both names are still read.
 | Seat | Function |
 |---|---|
 | `Analyst` | Investigation, code execution and technical report. |
-| `Reviewer` | Periodic and final review in Adaptive mode. |
+| `Reviewer` | Periodic review in Adaptive mode. |
 | `Figures` | Plotly figures after the report; falls back to `Analyst` if absent. |
 | `Rewriter` | Second report version. |
 | `Reader` | Targeted document and context reads (`READ`). |

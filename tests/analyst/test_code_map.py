@@ -815,6 +815,16 @@ b5.turns = [_bcell(1, 1, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:
 b5.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"
 check("two reviews and the report that follow the same step stand in the order they came (0322: the report stood before the review that came before it, and the "
       "later review before the earlier)", [x[:2] for x in _rows(codemap.build(nbb, b5))] == [("step", 1), ("review", 1), ("review", 2), ("report", 3)], _rows(codemap.build(nbb, b5)))
+# an analysis made before 0365 (2026-11-28) holds the review that followed its report, after the plain version: none is made now, and
+# such a record is read as it was
+b7 = nbb.new_run("Mean yield, with its review?"); b7.mode, b7.data = "Adaptive", dict(r1.data)
+b7.turns = [_bcell(1, 1, "m = df['yield_t_ha'].mean()\nRESULT(f\"mean yield: {m:.2f} t/ha\")", "mean yield: 4.87 t/ha", "The mean yield."), Turn(kind="report", text="done"), Turn(kind="rewrite", text="plain"),
+            Turn(kind="review", text="after the report", thinking="Verdict: NARROW the mean of these plots only", note="- The question requires: the mean.\n- Most consequential problem: no interval was given")]
+b7.report = "## Mean yield\nThe mean is 4.87 t/ha [cell 1].\n"
+cm7 = codemap.build(nbb, b7)
+check("an older analysis's review of its report is the last row of its map, with its verdict and the problem it named, and counts among its reviews",
+      [x[:2] for x in _rows(cm7)] == [("step", 1), ("report", 2), ("final", None)] and {k: cm7["view"]["rows"][-1].get(k) for k in ("verdict", "text")} == {"verdict": "NARROW", "text": "no interval was given"}
+      and cm7["view"]["meta"] == "Adaptive · 2 turns · 1 cell · 1 review · 1 RESULT line", (cm7.get("error"), _rows(cm7), (cm7.get("view") or {}).get("meta")))
 
 # ---- 0326: a correction marks the line it replaced - one run on the real kernel, and what its ledger says its map says
 from analyst.session import result_lines  # noqa: E402
