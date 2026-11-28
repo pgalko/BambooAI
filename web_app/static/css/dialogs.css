@@ -1178,11 +1178,14 @@ body.composer-locked .left-panel #queryInput { cursor: not-allowed; }
 #codeMapModal .cm-res.printed .est, #codeMapModal .cm-res.figure .est { color: var(--text-secondary); font-weight: 600; }
 #codeMapModal .cm-res.printed.on, #codeMapModal .cm-res.figure.on, #codeMapModal .cm-res.replaced.on { background: var(--row-select-bg); }
 #codeMapModal .cm-note { font-size: var(--fs-small); line-height: 1.4; color: var(--text-tertiary); }
-/* a step in plain words (2026-11-28): what it showed heads the right column; under a failed attempt's error, what it did and what stopped it */
-#codeMapModal .cm-showed, #codeMapModal .cm-did { font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45; color: var(--text-primary); }
-#codeMapModal .cm-out .cm-showed { margin-bottom: 2px; }
-#codeMapModal .cm-failed-text .cm-did, #codeMapModal .cm-restricted-text .cm-did { margin-top: 3px; }
-#codeMapModal .cm-failed-text .cm-showed, #codeMapModal .cm-restricted-text .cm-showed { margin-top: 2px; color: var(--text-secondary); }
+/* a step in plain words (2026-11-28): two lines, each under its label, in the wide column - the labels in a gutter of their own, the words no wider
+   than reads well; the chips of the step's code stand under the words. Under a failed attempt's error, the same two lines */
+#codeMapModal .cm-plain { display: block; width: 100%; border: 0; background: none; padding: 0; text-align: left; cursor: pointer; }
+#codeMapModal .cm-lines { display: grid; grid-template-columns: 78px minmax(0, 860px); gap: 5px 0; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.45; color: var(--text-primary); }
+#codeMapModal .cm-lines .l { padding-top: 2px; font-size: var(--fs-small); font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-tertiary); }
+#codeMapModal .cm-what.plain .cm-chips { margin: 7px 0 0 78px; }
+#codeMapModal .cm-failed-text .cm-lines, #codeMapModal .cm-restricted-text .cm-lines { margin-top: 5px; }
+#codeMapModal .cm-failed-text .cm-showed, #codeMapModal .cm-restricted-text .cm-showed { color: var(--text-secondary); }
 #codeMapModal .cm-failed-text { grid-column: span 2; padding: 8px 14px 8px 16px; font-size: var(--fs-meta); line-height: 1.45; color: var(--text-tertiary); }
 #codeMapModal .cm-failed-text .k { color: var(--c-fail); }
 #codeMapModal .cm-failed-text .err { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--c-fail); }

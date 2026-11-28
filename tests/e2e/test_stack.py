@@ -2559,26 +2559,34 @@ def main():
             cm_plain = page.evaluate("""() => { const m = document.getElementById('codeMapModal'), card = document.querySelector('#streamOutput .sp-turn[data-turn="plain"]'), text = e => (e ? e.textContent : null);
                 return { heads: [...m.querySelectorAll('.cm-col-h')].map(text),
                          rows: [...m.querySelectorAll('.cm-row.step, .cm-row.failed')].map(r => ({ failed: r.classList.contains('failed'), figures: text(r.querySelector('.cm-cell-no')).startsWith('Fig'),
-                             did: text(r.querySelector('.cm-did') || r.querySelector('.cm-purpose span')), showed: text(r.querySelector('.cm-showed')), note: !!r.querySelector('.cm-note'), chips: r.querySelectorAll('.cm-res').length })),
-                         said: [...m.querySelectorAll('.cm-pane.summary .cm-p')].filter(p => p.textContent.startsWith('The words in the two columns were written by a model')).length,
+                             did: text(r.querySelector('.cm-did') || r.querySelector('.cm-purpose span')), showed: text(r.querySelector('.cm-showed')), chips: r.querySelectorAll('.cm-out .cm-res').length,
+                             labels: [...r.querySelectorAll('.cm-lines .l')].map(text), recorded: !!r.querySelector('.cm-out .cm-showed, .cm-out .cm-did'),
+                             wide: r.querySelector('.cm-what') ? Math.round(r.querySelector('.cm-what').getBoundingClientRect().width) : 0,
+                             out: r.querySelector('.cm-out') ? Math.round(r.querySelector('.cm-out').getBoundingClientRect().width) : 0,
+                             gutter: r.querySelector('.cm-lines') ? Math.round(r.querySelector('.cm-showed').getBoundingClientRect().left - r.querySelector('.cm-lines').getBoundingClientRect().left) : 0 })),
+                         said: [...m.querySelectorAll('.cm-pane.summary .cm-p')].filter(p => p.textContent.startsWith('The lines under Did and Showed were written by a model')).length,
                          card: card ? { n: text(card.querySelector('.n')), kind: text(card.querySelector('.kind')), peek: text(card.querySelector('.peek')), meta: text(card.querySelector('.meta')), seat: card.querySelector('.sp-prompt').dataset.agent,
                                         open: card.hasAttribute('open'), before: ((card.previousElementSibling.querySelector('.in') || {}).textContent || '').slice(0, 6), then: card.nextElementSibling.getAttribute('data-turn') } : null }; }""")
             hm, cm_rows = harness_models, cm_plain["rows"]
             cm_cells, cm_failed, cm_figs = [r for r in cm_rows if not r["failed"] and not r["figures"]], [r for r in cm_rows if r["failed"]], [r for r in cm_rows if r["figures"]]
-            check("the code trace's steps in plain words: the two columns are headed for what they say, and the summary says a model wrote the words. A cell says what it did in the middle and what "
-                  "it showed at the head of the right column, above what it recorded; the rolled-back attempt, under its error, what it tried and that nothing of it was kept; the figures cell, what "
-                  "the figures show. The first cell's lines carried a number its record lacks: that row keeps the analyst's own sentence",
-                  cm_plain["heads"] == ["Step", "What the step did", "What it showed"] and cm_plain["said"] == 1
-                  and not cm_cells[0]["did"].startswith(hm.PLAIN_DID) and cm_cells[0]["showed"] is None
-                  and len(cm_cells) >= 2 and all(r["did"].startswith(hm.PLAIN_DID) and r["showed"].startswith(hm.PLAIN_SHOWED) and not r["note"] for r in cm_cells[1:])
-                  and any(r["chips"] for r in cm_cells[1:]) and [(r["did"].startswith(hm.PLAIN_DID), r["showed"]) for r in cm_failed] == [(True, hm.PLAIN_FAILED)]
+            check("the code trace's steps in plain words: the two columns are headed for what they hold, and the summary says a model wrote the lines. A cell says what it did and what it showed "
+                  "in the wide column, each under its label, and the right column holds what it recorded; the rolled-back attempt, under its error, what it tried and that nothing of it was "
+                  "kept; the figures cell, what the figures show. The first cell's lines carried a number its record lacks: that row keeps the analyst's own sentence",
+                  cm_plain["heads"] == ["Step", "What the step did, and what it showed", "What it recorded"] and cm_plain["said"] == 1
+                  and not cm_cells[0]["did"].startswith(hm.PLAIN_DID) and cm_cells[0]["showed"] is None and cm_cells[0]["labels"] == []
+                  and len(cm_cells) >= 2 and all(r["did"].startswith(hm.PLAIN_DID) and r["showed"].startswith(hm.PLAIN_SHOWED) and r["labels"] == ["Did", "Showed"] for r in cm_cells[1:])
+                  and any(r["chips"] for r in cm_cells[1:]) and not any(r["recorded"] for r in cm_rows)
+                  and [(r["did"].startswith(hm.PLAIN_DID), r["showed"], r["labels"]) for r in cm_failed] == [(True, hm.PLAIN_FAILED, ["Did", "Showed"])]
                   and [(r["did"], r["showed"].startswith(hm.PLAIN_DRAWN), r["chips"] >= 1) for r in cm_figs] == [(hm.PLAIN_DREW, True, True)], cm_plain)
+            check("... as the page lays them out (0368): the words have the width - their column is wider than the one of what was recorded, which keeps between 300 and 460 px - and the two "
+                  "labels stand in a gutter of their own, the lines beside it",
+                  all(r["wide"] > r["out"] and 300 <= r["out"] <= 460 and r["gutter"] == 78 for r in cm_cells[1:] + cm_figs), [(r["wide"], r["out"], r["gutter"]) for r in cm_rows])
             check("... the call that wrote them has a card in the left pane - Steps, in plain words, how many steps have their lines, shut, on the Rewriter's seat - after the replay's row, "
                   "the last of the run's own: the card of the plain version, asked for since, follows it",
                   cm_plain["card"] and (cm_plain["card"]["n"], cm_plain["card"]["kind"], cm_plain["card"]["seat"], cm_plain["card"]["open"]) == ("Steps", "in plain words", "Rewriter", False)
                   and cm_plain["card"]["peek"] == "%d of %d steps" % (len(cm_rows) - 1, len(cm_rows)) and "$" in cm_plain["card"]["meta"] and cm_plain["card"]["before"] == "REPLAY"
                   and cm_plain["card"]["then"] == "rewrite", cm_plain["card"])
-            page.evaluate("() => [...document.querySelectorAll('#codeMapModal .cm-row.step')].find(r => r.querySelector('.cm-showed')).querySelector('.cm-purpose').click()")
+            page.evaluate("() => [...document.querySelectorAll('#codeMapModal .cm-row.step')].find(r => r.querySelector('.cm-showed')).querySelector('.cm-plain .cm-did').click()")
             page.wait_for_selector("#codeMapModal .cm-pane.step", timeout=5000)
             cm_step = page.evaluate("() => [...document.querySelectorAll('#codeMapModal .cm-pane.step .cm-h')].slice(0, 2).map(h => [h.textContent, h.parentElement.querySelectorAll('.cm-p').length])")
             check("... a click on a step opens its panel: the two lines under In plain words, and the analyst's own words under them", cm_step == [["In plain words", 2], ["Why, in the analyst's words", 1]], cm_step)

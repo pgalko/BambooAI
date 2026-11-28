@@ -4,8 +4,9 @@
 // GET /code_map/<thread_id>/<chain_id>. Two views: Steps (one row per cell, the inputs as lanes, what came out) and the
 // Recipe diagram (the data, the tables and values the code made, the number); a side panel with the chain's summary, a
 // result's recipe or a step's detail. Where the chain's steps were put into plain words when it ended (analyst/plain.py,
-// 2026-11-28; the route sends them beside the map), a row says what its step did and what it showed in those words, and
-// the analyst's own are in the step's panel. The map follows the top bar's chain navigator while it is open (onChain), and
+// 2026-11-28; the route sends them beside the map), a row says what its step did and what it showed in those words - two
+// lines, each under its label, in the wide column; the right column is what the step recorded - and the analyst's own
+// are in the step's panel. The map follows the top bar's chain navigator while it is open (onChain), and
 // opening another chain from inside it moves the app there. Markup is built here on the app's own grammar (ui-*);
 // the rules are in dialogs.css under #codeMapModal. The map's content comes from the server (analyst/codemap/words.py);
 // the modal's own words sit in WORDS below. Nothing here reaches a prompt.
@@ -23,9 +24,9 @@
         legendSteps: [['read', 'reads the data here'], ['via', 'uses it through an earlier step'], ['recorded', 'result recorded'], ['replaced', 'replaced'], ['empty', 'came out empty'], ['printed', 'cited printout']],
         legendDiagram: [['in', 'data the chain was given'], ['table', 'a table or values the code made'], ['estimate', 'a calculation'], ['result', 'the result']],
         colStep: 'Step', colWhat: 'What the step did, in the analyst\'s words', colOut: 'What came out',
-        // a chain whose steps are in plain words (2026-11-28): the two columns' heads, and who wrote the words
-        colDid: 'What the step did', colShowed: 'What it showed',
-        plainNote: 'The words in the two columns were written by a model from each step\'s own record. A number in them is one the step printed. Click a step for the analyst\'s own words.',
+        // a chain whose steps are in plain words (2026-11-28): the two columns' heads, the labels of a step's two lines, and who wrote them
+        colPlain: 'What the step did, and what it showed', colRecorded: 'What it recorded', did: 'Did', showed: 'Showed',
+        plainNote: 'The lines under Did and Showed were written by a model from each step\'s own record. A number in them is one the step printed. Click a step for the analyst\'s own words.',
         noLanes: 'No data attached: the numbers are made in the code',
         loading: 'Loading the trace…',
         error: 'The code trace could not be built for this chain.',
@@ -249,7 +250,12 @@
         },
         // ---- the Steps view
         lanesWidth(view) { const n = (view.inputs || []).length; return n ? n * 34 : 112; },
-        cols(view) { return '70px ' + build.lanesWidth(view) + 'px minmax(0, 1fr) 460px'; },
+        // the grid of the head and of every row. A chain whose steps are in plain words gives the width to the column
+        // of the words: what a step recorded takes under a third of it, between 300 and 460 px (0367 kept the 460 px on
+        // every screen, and the words stood in what was left)
+        cols(view) { return '70px ' + build.lanesWidth(view) + 'px minmax(0, 1fr) ' + (build.plainly(view) ? 'clamp(300px, 30%, 460px)' : '460px'); },
+        // whether the chain's steps are in plain words: the route sent lines for it
+        plainly(view) { return Object.keys(view.plain || {}).length > 0; },
         laneHead(i, ctx, dim) {
             const used = i.status === 'used' || i.status === 'via';
             const sub = used ? i.cols : (i.status === 'loaded' ? WORDS.lane.loaded : WORDS.lane.unused);
@@ -295,16 +301,18 @@
                 return '<span class="cm-chip' + cls + '"' + (WORDS.tips[t] ? ' title="' + esc(WORDS.tips[t]) + '"' : '') + '>' + esc(t) + '</span>';
             }).join('');
         },
-        // under a step's turn: kept, where a branch kept it of the run it went on from - and changed, where the cell printed
-        // something else when it was run again (the column holds a word; the hover and the step's panel say it whole)
         // a row's step in plain words - {did, showed} - where the chain has them: a cell by its number, an attempt that
         // did not run through by its turn (analyst/plain.py names them so)
         plainOf(view, r) {
             return (view.plain || {})[r.type === 'step' ? 'cell ' + r.cell : 'turn ' + r.turn] || null;
         },
+        // the two lines, each under its label: what the step did, what it showed
         plainLines(p) {
-            return '<div class="cm-did">' + esc(p.did) + '</div><div class="cm-showed">' + esc(p.showed) + '</div>';
+            return '<span class="cm-lines"><span class="l">' + WORDS.did + '</span><span class="cm-did">' + esc(p.did) + '</span>' +
+                '<span class="l">' + WORDS.showed + '</span><span class="cm-showed">' + esc(p.showed) + '</span></span>';
         },
+        // under a step's turn: kept, where a branch kept it of the run it went on from - and changed, where the cell printed
+        // something else when it was run again (the column holds a word; the hover and the step's panel say it whole)
         keptSub(r) {
             return r.kept ? '<div class="sub">' + WORDS.kept + '</div>' + (r.kept === 'differs' ? '<div class="sub" title="' + esc(WORDS.keptAgain) + '">' + WORDS.keptChanged + '</div>' : '') : '';
         },
@@ -323,7 +331,7 @@
                 build.figsOf(view, r.cell).forEach(k => resHtml.push(build.figureChip(view.figures[k], !!(sel && sel.t === 'r' && sel.id === k))));
                 let note = '';
                 if (r.mapped === false) note = WORDS.notMapped;
-                else if (!resHtml.length && !said) {            // what the step showed is said in words: the note of its role is in its panel
+                else if (!resHtml.length) {
                     const nUsed = (s.used_by || []).length;
                     const nFig = (s.builds || []).filter(b => b.kind === 'figure').length || 1;
                     if (r.figures) note = fill(WORDS.note.figures, { n: nFig, s: plural(nFig) });
@@ -335,8 +343,11 @@
                     '<div class="cm-cell"><button class="cm-cell-no" data-act="pick-s" data-cell="' + esc(r.cell) + '" aria-label="' + (r.figures ? 'Figures cell ' : 'Cell ') + esc(r.cell) + '">' + esc(fill(r.figures ? WORDS.rowSub.fig : WORDS.rowSub.cell, { n: r.cell })) + '</button>' +
                     '<div class="sub">' + esc(r.figures ? WORDS.rowSub.afterReport : (r.turn ? fill(WORDS.rowSub.turn, { n: r.turn }) : '')) + '</div>' + build.keptSub(r) + '</div>' +
                     '<div class="cm-dots">' + build.dots(view, r.lanes, laneOn, ctx) + '</div>' +
-                    '<div class="cm-what"><button class="cm-purpose" data-act="pick-s" data-cell="' + esc(r.cell) + '" title="' + esc(said ? said.did : r.purpose) + '"><span>' + esc(said ? said.did : r.purpose) + '</span></button><div class="cm-chips">' + build.chips(r) + build.reachChip(r) + '</div></div>' +
-                    '<div class="cm-out">' + (said ? '<div class="cm-showed">' + esc(said.showed) + '</div>' : '') + resHtml.join('') + (note ? '<span class="cm-note">' + esc(note) + '</span>' : '') + '</div></div>';
+                    '<div class="cm-what' + (said ? ' plain' : '') + '">' +
+                    (said ? '<button class="cm-plain" data-act="pick-s" data-cell="' + esc(r.cell) + '">' + build.plainLines(said) + '</button>'
+                        : '<button class="cm-purpose" data-act="pick-s" data-cell="' + esc(r.cell) + '" title="' + esc(r.purpose) + '"><span>' + esc(r.purpose) + '</span></button>') +
+                    '<div class="cm-chips">' + build.chips(r) + build.reachChip(r) + '</div></div>' +
+                    '<div class="cm-out">' + resHtml.join('') + (note ? '<span class="cm-note">' + esc(note) + '</span>' : '') + '</div></div>';
             }
             if (r.type === 'failed' && r.refused) {
                 // a cell the executor refused before it ran (2026-10-28): its own state in the kernel's colour, not a failure of the code
@@ -366,10 +377,10 @@
             const laneOn = ins.map(i => !focus.inputs || focus.inputs.indexOf(i.name) >= 0);
             const lanes = ins.length ? ins.map((i, k) => build.laneHead(i, ctx, !laneOn[k])).join('') : '<div class="cm-nolane head">' + WORDS.noLanes + '</div>';
             const minW = 70 + build.lanesWidth(view) + 340 + 460;
-            const plainly = Object.keys(view.plain || {}).length > 0;
+            const plainly = build.plainly(view);
             return '<div class="cm-steps" style="min-width: ' + minW + 'px">' +
                 '<div class="cm-steps-head" style="grid-template-columns: ' + build.cols(view) + '"><div class="cm-col-h">' + WORDS.colStep + '</div><div class="cm-lanes">' + lanes + '</div>' +
-                '<div class="cm-col-h what">' + (plainly ? WORDS.colDid : WORDS.colWhat) + '</div><div class="cm-col-h out">' + (plainly ? WORDS.colShowed : WORDS.colOut) + '</div></div>' +
+                '<div class="cm-col-h what">' + (plainly ? WORDS.colPlain : WORDS.colWhat) + '</div><div class="cm-col-h out">' + (plainly ? WORDS.colRecorded : WORDS.colOut) + '</div></div>' +
                 (view.rows || []).map(r => build.row(view, r, ctx, sel, focus)).join('') + '</div>';
         },
         // ---- the recipe diagram
@@ -491,7 +502,7 @@
                             [n.recorded, WORDS.counts.recorded], [n.replaced, WORDS.counts.replaced], [n.empty, WORDS.counts.empty]];
             return '<div class="cm-pane summary">' +
                 (view.nocode ? '' : '<div>' + build.h(WORDS.panel.summaryHow) + '<div class="cm-p">' + WORDS.howToRead + '</div>' +
-                    (Object.keys(view.plain || {}).length ? '<div class="cm-p">' + WORDS.plainNote + '</div>' : '') + '</div>') +
+                    (build.plainly(view) ? '<div class="cm-p">' + WORDS.plainNote + '</div>' : '') + '</div>') +
                 '<div>' + build.h(WORDS.panel.summaryData) + '<div class="cm-p">' + esc(usedLine) + '</div>' + cols + '</div>' +
                 (view.nocode ? '' : build.reaches(view)) +
                 '<div>' + build.h(WORDS.panel.summaryChecks) + (checks ? '<div class="cm-checks">' + checks + '</div>' : '<div class="cm-p">' + WORDS.panel.nothingFlagged + '</div>') + '</div>' +

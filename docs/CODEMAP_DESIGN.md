@@ -14,6 +14,8 @@ from the map. They are kept with the run beside the map (`Run.plain`), not in it
 rule 1 holds for the map as before, and the same chain gives the same map whatever the lines say. A step's lines are
 kept only where every number in them stands in what the model was given of that step; a step without lines shows the
 analyst's sentence, as every step did before, and the step's panel keeps the analyst's own words in any case (§6).
+In a row the two lines stand in the wide column, each under its label - *Did*, *Showed* - and the right column is
+what the step recorded; in such a chain that column gives way to the words, to between 300 and 460 px (0368).
 
 **The eyes (0329).** The two eyes are the trace's name now - *Code trace* in a green rectangle, the closing card's
 button in small, with no icon (the product owner, 2026-11-22: one look for the ways in). On a chain's box it shows

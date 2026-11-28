@@ -93,35 +93,48 @@ const PLAIN = { 'cell 1': { did: 'Opened the trial and counted the plots.', show
 const TRIALP = Object.assign({}, TRIAL, { plain: PLAIN });
 const stp = el(b.steps(TRIALP, c1, null, { cells: null, inputs: null, recipe: null })), prow = stp.querySelectorAll('.cm-row');
 const heads = s => s.querySelectorAll('.cm-col-h').map(x => x.textContent).join('|');
-check('plain steps: the two columns are headed for what they say; a step with its lines says what it did in the middle - on the button and in its hover, the analyst\'s sentence gone from the row, the chips kept - '
-  + 'and what it showed at the head of the right column, in place of the note of its role; the words are text, whatever they hold',
-  heads(stp) === 'Step|What the step did|What it showed' && prow[0].querySelector('.cm-purpose span').textContent === PLAIN['cell 1'].did && prow[0].querySelector('.cm-purpose').getAttribute('title') === PLAIN['cell 1'].did
-  && prow[0].querySelector('.cm-purpose').getAttribute('data-act') === 'pick-s' && !prow[0].textContent.includes(TRIAL.rows[0].purpose) && prow[0].querySelectorAll('.cm-chips .cm-chip').map(c => c.textContent).join() === 'print'
-  && prow[0].querySelector('.cm-out').elements.map(e => e.className).join() === 'cm-showed' && prow[0].querySelector('.cm-showed').textContent === PLAIN['cell 1'].showed && !prow[0].querySelector('.cm-showed b')
-  && prow[0].querySelector('.cm-out').innerHTML.includes('&amp; &lt;b&gt;three&lt;/b&gt;'), prow[0].outerHTML);
-check('plain steps: what a step showed stands above what it recorded - the figures cell\'s above its figures; a step without lines, in a chain that has them, keeps the analyst\'s sentence and what came out as it was',
-  prow[3].querySelector('.cm-purpose span').textContent === 'Drew two figures.' && prow[3].querySelector('.cm-out').elements.map(e => e.className.split(' ').slice(0, 2).join(' ')).join() === 'cm-showed,cm-res figure,cm-res figure'
-  && prow[2].querySelector('.cm-purpose span').textContent === TRIAL.rows[2].purpose && prow[2].querySelector('.cm-purpose').getAttribute('title') === TRIAL.rows[2].purpose
-  && prow[2].querySelector('.cm-out').elements.map(e => e.className).join() === 'cm-res recorded' && !prow[2].querySelector('.cm-showed'), [prow[3].querySelector('.cm-out').innerHTML, prow[2].querySelector('.cm-out').innerHTML]);
-check('plain steps: a failed attempt keeps its mark and its error, and under them says what it tried and what stopped it, in place of the analyst\'s sentence',
-  prow[1].className === 'cm-row failed' && prow[1].querySelector('.cm-failed-text').elements.map(e => e.className).join() === 'k,err,cm-did,cm-showed' && prow[1].querySelector('.cm-failed-text .err').textContent === TRIAL.rows[1].error
-  && prow[1].querySelector('.cm-did').textContent === PLAIN['turn 3'].did && prow[1].querySelector('.cm-showed').textContent === PLAIN['turn 3'].showed && !prow[1].textContent.includes(TRIAL.rows[1].purpose), prow[1].outerHTML);
-const refusedP = el(b.row(TRIALP, { type: 'failed', turn: 3, after_cell: 1, purpose: 'Lists the processes on the box', error: 'x', refused: 'subprocess' }, c1, null, { cells: null, inputs: null, recipe: null }));
-const bandP = el(b.row(TRIALP, { type: 'review', turn: 3, verdict: 'TEST', text: 'no interval yet' }, c1, null, { cells: null, inputs: null, recipe: null }));
+const none = { cells: null, inputs: null, recipe: null }, kinds = e => e.elements.map(x => x.className).join();
+check('plain steps: the two columns are headed for what they hold; a step with its lines says them in the wide column, each under its label - Did, Showed - on one button that opens the step, '
+  + 'in place of the analyst\'s sentence, with the chips of its code under them; the words are text, whatever they hold',
+  heads(stp) === 'Step|What the step did, and what it showed|What it recorded' && prow[0].querySelector('.cm-what').className === 'cm-what plain' && kinds(prow[0].querySelector('.cm-what')) === 'cm-plain,cm-chips'
+  && prow[0].querySelector('.cm-plain').getAttribute('data-act') === 'pick-s' && prow[0].querySelector('.cm-plain').getAttribute('data-cell') === '1' && prow[3].querySelector('.cm-plain').getAttribute('data-cell') === '3' && !prow[0].querySelector('.cm-purpose')
+  && kinds(prow[0].querySelector('.cm-plain')) === 'cm-lines' && prow[0].querySelector('.cm-lines').elements.map(e => e.className + ':' + e.textContent).join('|')
+     === 'l:Did|cm-did:' + PLAIN['cell 1'].did + '|l:Showed|cm-showed:' + PLAIN['cell 1'].showed
+  && !prow[0].textContent.includes(TRIAL.rows[0].purpose) && prow[0].querySelectorAll('.cm-chips .cm-chip').map(c => c.textContent).join() === 'print'
+  && !prow[0].querySelector('.cm-showed b') && prow[0].querySelector('.cm-lines').innerHTML.includes('&amp; &lt;b&gt;three&lt;/b&gt;'), prow[0].outerHTML);
+check('plain steps: the right column is what the step recorded, and holds nothing of its lines - its results, its figures, or the note of its role where it recorded none (0367 had what the '
+  + 'step showed there, and the wide column nearly empty); a step without lines, in a chain that has them, keeps the analyst\'s sentence',
+  kinds(prow[0].querySelector('.cm-out')) === 'cm-note' && prow[0].querySelector('.cm-out .cm-note').textContent === 'Printed only: not used later or cited by the report'
+  && prow[3].querySelector('.cm-did').textContent === 'Drew two figures.' && prow[3].querySelector('.cm-out').elements.map(e => e.className.split(' ').slice(0, 2).join(' ')).join() === 'cm-res figure,cm-res figure'
+  && !stp.querySelector('.cm-out .cm-showed') && !stp.querySelector('.cm-out .cm-did')
+  && prow[2].querySelector('.cm-what').className === 'cm-what' && prow[2].querySelector('.cm-purpose span').textContent === TRIAL.rows[2].purpose && prow[2].querySelector('.cm-purpose').getAttribute('title') === TRIAL.rows[2].purpose
+  && kinds(prow[2].querySelector('.cm-out')) === 'cm-res recorded' && !prow[2].querySelector('.cm-lines'), [prow[0].querySelector('.cm-out').innerHTML, prow[3].querySelector('.cm-out').innerHTML, prow[2].outerHTML.slice(0, 300)]);
+check('plain steps: the width goes to the words - what a step recorded takes under a third of a row, between 300 and 460 px, in the head as in every row; '
+  + 'a chain without lines keeps the 460 px it had, and the grid is at the least as wide as it was, in both',
+  [stp.querySelector('.cm-steps-head')].concat(prow.filter(r => !r.classList.contains('band'))).map(r => r.getAttribute('style')).join('|') === Array(5).fill('grid-template-columns: 70px 34px minmax(0, 1fr) clamp(300px, 30%, 460px)').join('|')
+  && stp.querySelector('.cm-steps').getAttribute('style') === 'min-width: ' + (70 + 34 + 340 + 460) + 'px'
+  && st1.querySelector('.cm-steps-head').getAttribute('style') === 'grid-template-columns: 70px 34px minmax(0, 1fr) 460px' && rows[0].getAttribute('style') === 'grid-template-columns: 70px 34px minmax(0, 1fr) 460px'
+  && st1.querySelector('.cm-steps').getAttribute('style') === 'min-width: ' + (70 + 34 + 340 + 460) + 'px', [stp.querySelector('.cm-steps-head').getAttribute('style'), stp.querySelector('.cm-steps').getAttribute('style')]);
+check('plain steps: a failed attempt keeps its mark and its error, and under them has the same two lines - what it tried, what stopped it - in place of the analyst\'s sentence',
+  prow[1].className === 'cm-row failed' && kinds(prow[1].querySelector('.cm-failed-text')) === 'k,err,cm-lines' && prow[1].querySelector('.cm-failed-text .err').textContent === TRIAL.rows[1].error
+  && prow[1].querySelector('.cm-lines').elements.map(e => e.className + ':' + e.textContent).join('|') === 'l:Did|cm-did:' + PLAIN['turn 3'].did + '|l:Showed|cm-showed:' + PLAIN['turn 3'].showed
+  && !prow[1].textContent.includes(TRIAL.rows[1].purpose) && !prow[1].querySelector('.cm-plain'), prow[1].outerHTML);
+const refusedP = el(b.row(TRIALP, { type: 'failed', turn: 3, after_cell: 1, purpose: 'Lists the processes on the box', error: 'x', refused: 'subprocess' }, c1, null, none));
+const bandP = el(b.row(TRIALP, { type: 'review', turn: 3, verdict: 'TEST', text: 'no interval yet' }, c1, null, none));
 check('plain steps: an attempt that was not run keeps its own mark and takes its lines the same way; a review after the turn of an attempt is a band, and takes none',
-  refusedP.querySelector('.cm-restricted-text').elements.map(e => e.className).join() === 'k,cm-did,cm-showed' && refusedP.querySelector('.cm-restricted-text .k').textContent === 'Not run · restricted operation (subprocess)'
-  && refusedP.querySelector('.cm-did').textContent === PLAIN['turn 3'].did && !refusedP.textContent.includes('Lists the processes') && bandP.querySelector('.cm-row.band') && !bandP.querySelector('.cm-did') && !bandP.querySelector('.cm-showed'),
-  [refusedP.innerHTML, bandP.innerHTML]);
+  kinds(refusedP.querySelector('.cm-restricted-text')) === 'k,cm-lines' && refusedP.querySelector('.cm-restricted-text .k').textContent === 'Not run · restricted operation (subprocess)'
+  && refusedP.querySelector('.cm-did').textContent === PLAIN['turn 3'].did && refusedP.querySelector('.cm-showed').textContent === PLAIN['turn 3'].showed && !refusedP.textContent.includes('Lists the processes')
+  && bandP.querySelector('.cm-row.band') && !bandP.querySelector('.cm-lines'), [refusedP.innerHTML, bandP.innerHTML]);
 check('plain steps: a chain without lines - made before there were any, or whose call failed - reads as it did: the columns say whose words they are, no row has a line of the kind',
-  heads(st1) === 'Step|What the step did, in the analyst\'s words|What came out' && !st1.querySelector('.cm-showed') && !st1.querySelector('.cm-did')
-  && heads(el(b.steps(Object.assign({}, TRIAL, { plain: {} }), c1, null, { cells: null, inputs: null, recipe: null }))) === heads(st1), heads(st1));
+  heads(st1) === 'Step|What the step did, in the analyst\'s words|What came out' && !st1.querySelector('.cm-lines') && !st1.querySelector('.cm-plain') && !st1.querySelector('.cm-what.plain')
+  && heads(el(b.steps(Object.assign({}, TRIAL, { plain: {} }), c1, null, none))) === heads(st1), heads(st1));
 const stepP = el(b.step(TRIALP, c1, 1)), stepN = el(b.step(TRIALP, c1, 2)), sumP = el(b.summary(TRIALP, c1)), sumN = el(b.summary(TRIAL, c1));
 check('plain steps: a step\'s panel has the two lines under "In plain words", above the analyst\'s own words, which stay; a step without lines has no such part; the summary says who wrote the words of the '
-  + 'two columns and what holds for a number in them - and says nothing of it for a chain without lines',
+  + 'lines and what holds for a number in them - and says nothing of it for a chain without lines',
   stepP.querySelectorAll('.cm-h').map(x => x.textContent).slice(0, 2).join('|') === 'In plain words|Why, in the analyst\'s words'
   && stepP.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p').map(p => p.textContent).join('|') === PLAIN['cell 1'].did + '|' + PLAIN['cell 1'].showed
   && stepP.querySelectorAll('.cm-h')[1].parentElement.querySelector('.cm-p').textContent === TRIAL.steps['1'].why && stepN.querySelector('.cm-h').textContent === 'Why, in the analyst\'s words'
-  && sumP.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p').length === 2 && sumP.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p')[1].textContent.startsWith('The words in the two columns were written by a model')
+  && sumP.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p').length === 2 && sumP.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p')[1].textContent.startsWith('The lines under Did and Showed were written by a model')
   && sumP.textContent.includes('A number in them is one the step printed.') && sumN.querySelector('.cm-h').parentElement.querySelectorAll('.cm-p').length === 1 && !sumN.textContent.includes('written by a model'), stepP.innerHTML.slice(0, 600));
 // the chips of a replaced, an empty and a cited printout
 const T4c = { titles: T4.titles, built: 'end', number: () => 4, chainId: '4' };
@@ -451,13 +464,13 @@ answers = { '/code_map/1001/1': route('1001', '1', TRIAL), '/code_map/1001/2': r
   // the steps in plain words, through the module: the route's answer carries them beside the map
   answers['/code_map/1001/13'] = [200, { thread_id: '1001', chain_id: '13', built: 'end', map: JSON.parse(JSON.stringify(TRIAL)), plain: PLAIN }];
   w.CodeMapUI.open('13'); await tick(); await tick();
-  const drawn = [m.querySelector('.cm-col-h.what').textContent, m.querySelector('.cm-row.step .cm-purpose span').textContent, m.querySelector('.cm-row.step .cm-showed').textContent, m.querySelector('.cm-row.failed .cm-did').textContent];
-  m.dispatch('click', m.querySelector('.cm-row.step .cm-purpose')); await tick();
+  const drawn = [m.querySelector('.cm-col-h.what').textContent, m.querySelector('.cm-row.step .cm-did').textContent, m.querySelector('.cm-row.step .cm-showed').textContent, m.querySelector('.cm-row.failed .cm-did').textContent];
+  m.dispatch('click', m.querySelector('.cm-row.step .cm-plain .cm-showed')); await tick();
   drawn.push(m.querySelector('.cm-panel .cm-h').textContent, m.querySelector('.cm-row.step.marked .cm-showed').textContent);
   w.CodeMapUI.open('1'); await tick(); await tick();
-  check('plain steps, in the modal: a chain the route sends lines for is drawn with them - the heads, a cell\'s row, a failed attempt\'s - and a click on the step opens its panel with them, the row keeping them; '
+  check('plain steps, in the modal: a chain the route sends lines for is drawn with them - the heads, a cell\'s row, a failed attempt\'s - and a click on the lines of a step opens its panel with them, the row keeping them; '
     + 'a chain the route sends none for is drawn in the analyst\'s words',
-    drawn.join('|') === ['What the step did', PLAIN['cell 1'].did, PLAIN['cell 1'].showed, PLAIN['turn 3'].did, 'In plain words', PLAIN['cell 1'].showed].join('|')
+    drawn.join('|') === ['What the step did, and what it showed', PLAIN['cell 1'].did, PLAIN['cell 1'].showed, PLAIN['turn 3'].did, 'In plain words', PLAIN['cell 1'].showed].join('|')
     && m.querySelector('.cm-col-h.what').textContent === 'What the step did, in the analyst\'s words' && !m.querySelector('.cm-showed'), drawn);
   w.CodeMapUI.close();
 
