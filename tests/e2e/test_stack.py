@@ -78,14 +78,16 @@ def walk_simplify(page, wa, edition, user):
         const kept = responses[currentResponseIndex] || {};
         return { word: b ? b.querySelector('.simplified-text').textContent : null, hover: b ? b.title : null, turning: b ? b.classList.contains('loading') : null, view: currentData.summaryViewMode, has: !!currentData.simplifiedAnswer,
                  card: rw ? { n: rw.querySelector('.n').textContent, kind: rw.querySelector('.kind').textContent, meta: rw.querySelector('.meta').textContent, seat: rw.querySelector('.sp-prompt').dataset.agent,
-                              chain: rw.querySelector('.sp-prompt').dataset.chain, open: rw.hasAttribute('open'), after: rw.previousElementSibling.className,
-                              then: rw.nextElementSibling.className + ' ' + ((rw.nextElementSibling.querySelector('.in') || {}).textContent || '').slice(0, 6) } : null,
+                              chain: rw.querySelector('.sp-prompt').dataset.chain, open: rw.hasAttribute('open'), call: rw.querySelector('.sp-prompt').dataset.call,
+                              after: [rw.previousElementSibling.getAttribute('data-turn'), ((rw.previousElementSibling.previousElementSibling.querySelector('.in') || {}).textContent || '').slice(0, 6)],
+                              then: rw.nextElementSibling.className.split(' ')[0] } : null,
                  cost: num('data-cost', 2), secs: num('data-secs', 1), strip: (document.querySelector('#streamOutput .sp-strip .spent') || {}).textContent,
                  kept: !!kept.simplifiedAnswer, keptCard: /data-turn="rewrite"/.test(kept.streamOutput || ''), chain: String(currentData.chain_id), thread: String(currentData.thread_id) }; }""")
     rows0, month0, was = usage_rows(wa, edition, user), month_queries(page), state()
-    check("a finished analysis has no plain version: the Answer tab's button says Simplify, and the left pane has no Rewrite card - the run ended with its report (0366)",
+    check("a finished analysis has no plain version: the Answer tab's button says Simplify, and the left pane has no Rewrite card - the run ended with its report (0366). The Rewriter's one call "
+          "in it put its steps into plain words (0367)",
           was["word"] == "Simplify" and was["hover"] == "Write this report in plain language" and was["turning"] is False and was["view"] == "technical" and not was["has"] and was["card"] is None
-          and not any(str(r.get("agent")) == "Rewriter" and str(r.get("chain_id")) == was["chain"] for r in rows0) and was["cost"] and was["secs"], was)
+          and sum(1 for r in rows0 if str(r.get("agent")) == "Rewriter" and str(r.get("chain_id")) == was["chain"]) == 1 and was["cost"] and was["secs"], was)
     page.click("#content-answer .simplified-summary-btn")
     page.wait_for_function("() => currentData.summaryViewMode === 'simplified'", timeout=60000)
     now, new = state(), usage_rows(wa, edition, user)[len(rows0):]
@@ -94,10 +96,11 @@ def walk_simplify(page, wa, edition, user):
           now["word"] == "Technical" and now["hover"] == "Show the technical report" and now["turning"] is False and now["view"] == "simplified" and now["has"]
           and [(str(r.get("agent")), str(r.get("chain_id"))) for r in new] == [("Rewriter", was["chain"])] and month_queries(page) == month0, (now, [(r.get("agent"), r.get("chain_id")) for r in new]))
     spent = was["cost"][0] + float(new[0].get("cost") or 0) if new else None        # the usage row keeps the call's cost to four places
-    check("... the call's card stands in the left pane where the run's own cards end - before the replay's row -, shut, on the Rewriter's seat with the button to its prompt; and the run's cost "
-          "and time are raised by the call's on the closing card and on the strip",
+    check("... the call's card stands in the left pane where the run's own cards end - after the replay's row and the card of the steps in plain words, before the closing card -, shut, on the "
+          "Rewriter's seat with the button to its prompt, the seat's second in the chain; and the run's cost and time are raised by the call's on the closing card and on the strip",
           now["card"] and (now["card"]["n"], now["card"]["kind"], now["card"]["seat"], now["card"]["chain"], now["card"]["open"]) == ("Rewrite", "plain-language version", "Rewriter", was["chain"], False)
-          and now["card"]["then"] == "sp-row tool REPLAY" and "$" in now["card"]["meta"] and now["cost"][0] > was["cost"][0] and abs(now["cost"][0] - spent) < 1e-4 and now["secs"][0] > was["secs"][0]
+          and now["card"]["after"] == ["plain", "REPLAY"] and now["card"]["then"] == "sp-done" and now["card"]["call"] == "2"
+          and "$" in now["card"]["meta"] and now["cost"][0] > was["cost"][0] and abs(now["cost"][0] - spent) < 1e-4 and now["secs"][0] > was["secs"][0]
           and now["strip"] == "$%.2f" % now["cost"][0] == now["cost"][1] and now["kept"] and now["keptCard"], (now, was["cost"], was["secs"], spent))
     again = page.evaluate("""async ([thread, chain]) => { const r = await window.authService.fetch('/simplify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ thread_id: thread, chain_id: chain }) });
         const lines = (await r.text()).split('\\n').filter(l => l.trim()).map(l => JSON.parse(l)), made = (lines[lines.length - 1] || {}).simplify || {};
@@ -2368,7 +2371,7 @@ def main():
             check("the closing card reports the replay reproduced the cited numbers", "Replay reproduced" in done, done)
             check("the closing card counts 3 cells with 1 failed", "3 cells (1 failed)" in done.replace("\n", " "), done)
             turns = page.evaluate("() => document.querySelectorAll('.sp-turn').length")
-            check("one card per model call (6 analyst turns, the figures step; no review outside Adaptive, and no rewrite: it is written when asked for)", turns == 7, turns)
+            check("one card per model call (6 analyst turns, the figures step, the steps in plain words; no review outside Adaptive, and no rewrite: it is written when asked for)", turns == 8, turns)
             # the figures step (2026-10-11): the figure cell of turn 5 was not run - a skipped row; after the report one quiet
             # 'Figures' card, then its cell row as cell 3 with the two figures; the Answer tab's Figures section cites them
             fig = page.evaluate("""() => { const rows = [...document.querySelectorAll('.sp-row')];
@@ -2551,6 +2554,35 @@ def main():
             check("the code trace opens on chain 1, built when the chain ended (said in its data, not in words): the facts, its cells and the rolled-back attempt as rows, the dataset's lane as tall as its name, a recorded result",
                   cm_head["chain"] == "chain 1" and cm_head["built"] == "end" and "cells" in cm_head["facts"] and "built" not in cm_head["line"] and cm_head["rows"] >= 3 and cm_head["failed"] == 1 and cm_head["lanes"] == ["field_trial.csv"]
                   and 70 < cm_head["lanesHeight"] < 160 and cm_head["results"] >= 1, cm_head)
+            # the steps in plain words (0367, analyst/plain.py): written by the run's last call - the scripted model says each step back from the prompt it was given, and
+            # puts a number no record holds into the first step's lines, which therefore do not hold
+            cm_plain = page.evaluate("""() => { const m = document.getElementById('codeMapModal'), card = document.querySelector('#streamOutput .sp-turn[data-turn="plain"]'), text = e => (e ? e.textContent : null);
+                return { heads: [...m.querySelectorAll('.cm-col-h')].map(text),
+                         rows: [...m.querySelectorAll('.cm-row.step, .cm-row.failed')].map(r => ({ failed: r.classList.contains('failed'), figures: text(r.querySelector('.cm-cell-no')).startsWith('Fig'),
+                             did: text(r.querySelector('.cm-did') || r.querySelector('.cm-purpose span')), showed: text(r.querySelector('.cm-showed')), note: !!r.querySelector('.cm-note'), chips: r.querySelectorAll('.cm-res').length })),
+                         said: [...m.querySelectorAll('.cm-pane.summary .cm-p')].filter(p => p.textContent.startsWith('The words in the two columns were written by a model')).length,
+                         card: card ? { n: text(card.querySelector('.n')), kind: text(card.querySelector('.kind')), peek: text(card.querySelector('.peek')), meta: text(card.querySelector('.meta')), seat: card.querySelector('.sp-prompt').dataset.agent,
+                                        open: card.hasAttribute('open'), before: ((card.previousElementSibling.querySelector('.in') || {}).textContent || '').slice(0, 6), then: card.nextElementSibling.getAttribute('data-turn') } : null }; }""")
+            hm, cm_rows = harness_models, cm_plain["rows"]
+            cm_cells, cm_failed, cm_figs = [r for r in cm_rows if not r["failed"] and not r["figures"]], [r for r in cm_rows if r["failed"]], [r for r in cm_rows if r["figures"]]
+            check("the code trace's steps in plain words: the two columns are headed for what they say, and the summary says a model wrote the words. A cell says what it did in the middle and what "
+                  "it showed at the head of the right column, above what it recorded; the rolled-back attempt, under its error, what it tried and that nothing of it was kept; the figures cell, what "
+                  "the figures show. The first cell's lines carried a number its record lacks: that row keeps the analyst's own sentence",
+                  cm_plain["heads"] == ["Step", "What the step did", "What it showed"] and cm_plain["said"] == 1
+                  and not cm_cells[0]["did"].startswith(hm.PLAIN_DID) and cm_cells[0]["showed"] is None
+                  and len(cm_cells) >= 2 and all(r["did"].startswith(hm.PLAIN_DID) and r["showed"].startswith(hm.PLAIN_SHOWED) and not r["note"] for r in cm_cells[1:])
+                  and any(r["chips"] for r in cm_cells[1:]) and [(r["did"].startswith(hm.PLAIN_DID), r["showed"]) for r in cm_failed] == [(True, hm.PLAIN_FAILED)]
+                  and [(r["did"], r["showed"].startswith(hm.PLAIN_DRAWN), r["chips"] >= 1) for r in cm_figs] == [(hm.PLAIN_DREW, True, True)], cm_plain)
+            check("... the call that wrote them has a card in the left pane - Steps, in plain words, how many steps have their lines, shut, on the Rewriter's seat - after the replay's row, "
+                  "the last of the run's own: the card of the plain version, asked for since, follows it",
+                  cm_plain["card"] and (cm_plain["card"]["n"], cm_plain["card"]["kind"], cm_plain["card"]["seat"], cm_plain["card"]["open"]) == ("Steps", "in plain words", "Rewriter", False)
+                  and cm_plain["card"]["peek"] == "%d of %d steps" % (len(cm_rows) - 1, len(cm_rows)) and "$" in cm_plain["card"]["meta"] and cm_plain["card"]["before"] == "REPLAY"
+                  and cm_plain["card"]["then"] == "rewrite", cm_plain["card"])
+            page.evaluate("() => [...document.querySelectorAll('#codeMapModal .cm-row.step')].find(r => r.querySelector('.cm-showed')).querySelector('.cm-purpose').click()")
+            page.wait_for_selector("#codeMapModal .cm-pane.step", timeout=5000)
+            cm_step = page.evaluate("() => [...document.querySelectorAll('#codeMapModal .cm-pane.step .cm-h')].slice(0, 2).map(h => [h.textContent, h.parentElement.querySelectorAll('.cm-p').length])")
+            check("... a click on a step opens its panel: the two lines under In plain words, and the analyst's own words under them", cm_step == [["In plain words", 2], ["Why, in the analyst's words", 1]], cm_step)
+            page.click("#codeMapModal .cm-pane.step .cm-kicker button.x")
             page.click("#codeMapModal .cm-res.recorded")
             page.wait_for_selector("#codeMapModal .cm-pane.result", timeout=5000)
             cm_panel = page.evaluate("() => ({ kicker: document.querySelector('#codeMapModal .cm-kicker span').textContent, est: document.querySelector('#codeMapModal .cm-big').textContent, items: document.querySelectorAll('#codeMapModal .cm-item:not(.final)').length, sizes: [...document.querySelectorAll('#codeMapModal .cm-item .cm-names')].map(e => e.textContent), status: document.querySelector('#codeMapModal .cm-status').textContent })")

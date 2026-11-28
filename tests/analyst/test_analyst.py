@@ -1506,6 +1506,7 @@ check("parse_review: the five lens lines are read; those answered 'nothing' or '
 import ast as _ast
 from analyst.session import REWRITE_TASK, LAST_TURNS_LINE, REPORT_NOW, reviewer as reviewer_text, REVIEWER_WORDS_LENS
 from bambooai.reading import READER_SYSTEM
+from analyst import plain as plain_steps
 _DOMAIN = re.compile(r"\b(athletes?|altitude|sea.level|heart.rate|HR|HRmax|hr_max|pace|runners?|race|marathon|venues?|surfaces?|terrain|km|laps?|weekly load|gap years|site name|F1|Formula|drivers?)\b", re.I)
 def _authored_strings(path):
     tree = _ast.parse(open(os.path.join(ROOT, path), encoding="utf-8").read())
@@ -1516,8 +1517,9 @@ def _authored_strings(path):
             docs.add(id(body[0].value))
     return [n.value for n in _ast.walk(tree) if isinstance(n, _ast.Constant) and isinstance(n.value, str) and id(n) not in docs]
 _texts = {"contract (plain)": contract(False, 0), "contract (documents, reviews)": contract(True, 8), "contract (context)": contract(False, 0, context=True),
-          "reviewer": REVIEWER, "reviewer (context)": reviewer_text(True), "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW}
-for _path in ("analyst/session.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py", "analyst/coded.py", "analyst/profile.py"):
+          "reviewer": REVIEWER, "reviewer (context)": reviewer_text(True), "rewrite task": REWRITE_TASK, "reader": READER_SYSTEM, "last turns": LAST_TURNS_LINE, "report now": REPORT_NOW,
+          "the steps in plain words": plain_steps.SYSTEM}
+for _path in ("analyst/session.py", "analyst/plain.py", "analyst/tools.py", "bambooai/reading.py", "analyst/routines.py", "bambooai/routines_host.py", "analyst/context.py", "analyst/coder.py", "analyst/codebook.py", "analyst/coded.py", "analyst/profile.py"):
     for _k, _t in enumerate(_authored_strings(_path)):
         _texts[f"{_path} string {_k}"] = _t
 _hits = {name: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for name, t in _texts.items() if _DOMAIN.search(t)}
@@ -4459,6 +4461,163 @@ check("branch: the standing rules hold for its texts too - none of the tested ta
       not {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)}
       and not any(_re_c.search(r"(?i)\b(thinking|reasoning|scratchpad|memory|private)\b", t) for t in _htexts.values()) and hint_block(Notebook("tn0").new_run("q")) == "",
       {n: sorted({m.group(0) for m in _DOMAIN.finditer(t)}) for n, t in _htexts.items() if _DOMAIN.search(t)})
+
+# ---- the steps in plain words (2026-11-28, Palo; analyst/plain.py): the code trace's Steps view had each step in the analyst's own sentence, written
+# ---- for itself, and what a step found was not said in its row at all. One call when a run ends - the Rewriter's seat - writes two lines for every
+# ---- step of the trace: what it did, what it showed. Here: what the model is given of a step, how its reply is read and which lines hold, and the call in a run
+from analyst.codemap.record import captions_of, turn_numbers
+_pr = Notebook("tp").new_run("Does regime B raise yield over regime A?")
+_pr.report = "# B is higher\n\nB is higher [cell 2].\n\n## Figures\n\n- [fig 3] yield by regime within each soil type\n- [fig 3] mean plot yield by regime\n- [fig 7] another cell's"
+_pline = "RESULT: yield, B vs A: +0.42 (95% CI +0.18 to +0.66) t/ha"
+_pr.turns = [
+    Turn(kind="cell", cell_no=1, thinking="Starting. First the shape of the trial and the regimes by soil.", code="print(1)", stdout="\nplots 96\n" + "row of the table 0.1234\n" * 200),
+    Turn(kind="review", thinking="Verdict: TEST", note="- x", text="after turn 1"),
+    Turn(kind="cell", thinking="Cell 1 showed 96 plots under three regimes. This turn computes the adjusted difference with a bootstrap.", code="x(",
+         error="Traceback (most recent call last):\n  File \"<cell>\", line 1\nKeyError: 'yield'"),
+    Turn(kind="cell", thinking="The last cell died on a wrong column name. This turn repeats it with the name put right.", code="import os", error="refused", refused="subprocess"),
+    Turn(kind="cell", cell_no=2, thinking="Nothing ran. The same cell without the shell call.", code="print(2)", stdout="B over A +0.42 (0.18 to 0.66)\n" + _pline,
+         results=[{"text": _pline[8:]}, {"text": ""}]),
+    Turn(kind="report", thinking="Cell 2 put the lead of B at 0.42 t/ha. Nothing further is needed.", text="# B is higher"),
+    Turn(kind="error", stdout="the reply carried no python block", step="figures"),
+    Turn(kind="cell", code="fig()", error="NameError: fig", step="figures"),
+    Turn(kind="cell", cell_no=3, code="fig, ax = plt.subplots()", step="figures", figures=[{}, {}]),
+]
+_ps = plain_steps.steps(_pr)
+_pgiven = {s["name"]: s["given"] for s in _ps}
+_phead = ("plots 96\n" + "row of the table 0.1234\n" * 200)[:plain_steps.PRINTED_CHARS].rstrip()
+check("plain steps: the steps are the code trace's rows, in the order they ran, each under the name its row is found by - a cell that ran by its number, the figures cell among them; an attempt "
+      "that failed or was not run by its turn, as the analysis counts turns (a review is none) - and a figures attempt that failed, which has no turn, is no step",
+      [s["name"] for s in _ps] == ["cell 1", "turn 2", "turn 3", "cell 2", "cell 3"] and turn_numbers(_pr) == [1, None, 2, 3, 4, 5, None, None, None], ([s["name"] for s in _ps], turn_numbers(_pr)))
+check("plain steps: a cell is given as the record has it - what the analyst set out to do (its account of the step, from the second sentence on), the beginning of what the code printed "
+      "with the mark that it goes on, the results it recorded, and what the analyst wrote of the output once it had seen it: the first sentence of its next turn, a review between them skipped; never the code",
+      _pgiven["cell 1"] == "SET OUT TO: First the shape of the trial and the regimes by soil.\nPRINTED:\n" + _phead + "\n(the print goes on)\nTHEN READ AS: Cell 1 showed 96 plots under three regimes."
+      and _pgiven["cell 2"] == "SET OUT TO: The same cell without the shell call.\nPRINTED:\nB over A +0.42 (0.18 to 0.66)\n" + _pline + "\nRECORDED:\n- " + _pline[8:] + "\nTHEN READ AS: Cell 2 put the lead of B at 0.42 t/ha."
+      and len(_phead) < plain_steps.PRINTED_CHARS + 1 and not any("print(" in g or "plt." in g or "import os" in g for g in _pgiven.values()), (_pgiven["cell 1"][-200:], _pgiven["cell 2"]))
+check("plain steps: an attempt that failed is given with the line that names its error, one that was not run with the restricted word - each with what the analyst wrote next; the figures cell "
+      "with the captions the report's Figures section gives its number, and where it gives none, with how many it drew",
+      _pgiven["turn 2"] == "SET OUT TO: This turn computes the adjusted difference with a bootstrap.\nFAILED WITH: KeyError: 'yield'\nTHEN READ AS: The last cell died on a wrong column name."
+      and _pgiven["turn 3"] == "SET OUT TO: This turn repeats it with the name put right.\nNOT RUN: a restricted operation (subprocess)\nTHEN READ AS: Nothing ran."
+      and _pgiven["cell 3"] == "DREW:\n- yield by regime within each soil type\n- mean plot yield by regime"
+      and captions_of(_pr.report) == {3: ["yield by regime within each soil type", "mean plot yield by regime"], 7: ["another cell's"]} and captions_of("") == {}
+      and [s["given"] for s in plain_steps.steps(type(_pr)(id="x", parent=None, question="q", turns=_pr.turns[-1:]))] == ["DREW:\n- 2 figure(s), without a caption"], _pgiven)
+_puser, _pfound = plain_steps.prompt(_pr)
+check("plain steps: the call's message is the question and the steps under their names, in order; a run without a step has none to ask about",
+      _pfound == _ps and _puser == "QUESTION:\nDoes regime B raise yield over regime A?\n\nSTEPS:\n\n" + "\n\n".join(f"=== {s['name']} ===\n{s['given']}" for s in _ps)
+      and plain_steps.prompt(Notebook("tp0").new_run("q"))[1] == [], _puser[:200])
+def _printing(n, chars=3000):
+    r = Notebook("tps").new_run("q"); r.turns = [Turn(kind="cell", cell_no=k + 1, thinking="One. Two.", stdout="y" * chars) for k in range(n)]
+    return [s["given"].count("y") for s in plain_steps.steps(r)]
+check("plain steps: what the steps printed rides at its beginning, each up to the same length - and where together that is more than the prompt carries, each step's share is shortened alike, "
+      "to no less than a few lines",
+      _printing(40) == [plain_steps.PRINTED_CHARS] * 40 and _printing(50) == [plain_steps.STEPS_CHARS // 50] * 50 and _printing(400) == [plain_steps.SHARE_CHARS] * 400
+      and _printing(3, 100) == [100] * 3 and (plain_steps.PRINTED_CHARS, plain_steps.STEPS_CHARS, plain_steps.SHARE_CHARS) == (1500, 60000, 300), (_printing(40)[:2], _printing(50)[:2], _printing(400)[:2]))
+_preply = ("Here are the steps.\nDID: nobody's\nSHOWED: nothing\n=== cell 1 ===\nDID: Opened the trial's data and counted the plots.\nSHOWED: There are 96 plots.\nCell 1 said they are under three regimes.\n\n"
+           "**Turn 2 (failed)**\n- **DID:** Tried to compare the regimes with `bootstrap`.\n- **SHOWED:** The code stopped. Nothing of it was kept.\n\n"
+           "[turn 3]\ndid: Tried again.\nshowed: It was not run.\n"
+           "=== cell 2 ===\nDID: Compared the regimes.\nSHOWED: B gives 0.4 t/ha more than A, between 0.18 and 0.66.\n"
+           "=== cell 1 ===\nDID: Again.\nSHOWED: Twice.\n=== cell 9 ===\nDID: None.\nSHOWED: None.\n=== cell 3 ===\nDID: Drew two figures.\n")
+_pread = plain_steps.read(_preply, _ps)
+check("plain steps: the reply is read by step - a name on a line of its own in whatever dress, DID and SHOWED in either case with a model's marks off, a line that goes on taken with its part "
+      "even where it begins like a name; what stands before the first name is nobody's, a name written a second time is not read again, a step that was not asked about is none, "
+      "and a step with one of its two lines missing has no lines",
+      _pread == {"cell 1": {"did": "Opened the trial's data and counted the plots.", "showed": "There are 96 plots. Cell 1 said they are under three regimes."},
+                 "turn 2": {"did": "Tried to compare the regimes with bootstrap.", "showed": "The code stopped. Nothing of it was kept."},
+                 "turn 3": {"did": "Tried again.", "showed": "It was not run."},
+                 "cell 2": {"did": "Compared the regimes.", "showed": "B gives 0.4 t/ha more than A, between 0.18 and 0.66."}}
+      and plain_steps.read("", _ps) == {} and plain_steps.read(None, _ps) == {} and plain_steps.read("=== cell 2 ===\nDID: Compared.", _ps) == {}, _pread)
+_pone = lambda showed, did="Compared the regimes.": plain_steps.read(f"=== cell 2 ===\nDID: {did}\nSHOWED: {showed}", _ps).get("cell 2")     # noqa: E731
+_plong = ["The lead of B shows on loam and on clay, " + "and again " * 14 + "there.", "On sand nobody can tell, " + "which is " * 16 + "so.", "A third sentence, " + "that goes on " * 12 + "long."]
+check("plain steps: a step's lines hold only where every number in them stands in what the model was given of that step - at the precision stated, as the report's guard reads a number: "
+      "rounded it holds, with a thousands separator it holds, one the step's record lacks takes the step's lines away, whichever line carries it - and so does one that only another step printed",
+      _pone("B gives 0.42 t/ha more.") and _pone("B gives 0.4 t/ha more.") and _pone("B gives 7.77 t/ha more.") is None and _pone("B leads.", did="Compared 7.77 regimes.") is None
+      and _pone("There are 96 plots.") is None and plain_steps.read("=== cell 1 ===\nDID: Counted.\nSHOWED: There are 96 plots.", _ps) != {}
+      and plain_steps.holds("Checked the top value.", "The top is 2,480 units.", "max 2480.0") and not plain_steps.holds("Did.", "", "x") and not plain_steps.holds("", "Showed.", "x")
+      and not plain_steps.holds("Did.", "It was 7.77 units.", "x 0.42"), (_pone("B gives 0.4 t/ha more."), _pone("B gives 7.77 t/ha more.")))
+check("plain steps: the last number of a sentence is read like any other - the report's guard takes a number right before a full stop for none - in the lines and in what was given: "
+      "one the record lacks takes the lines away there too, and one the record ends a sentence with is there to be rounded",
+      _pone("The lead of B is 7.77.") is None and _pone("The lead of B is 0.42.") and not plain_steps.holds("Did.", "It was 7.77.", "x 0.42") and plain_steps.holds("Did.", "It was 0.42.", "x 0.42")
+      and plain_steps.holds("Did.", "About 612 units.", "the top was 611.8.") and not plain_steps.holds("Did.", "About 614 units.", "the top was 611.8.")
+      and report.numbers_missing("It was 7.77.", ["x"]) == [], (_pone("The lead of B is 7.77."), report.numbers_missing("It was 7.77.", ["x"])))
+check("plain steps: a line is kept as the whole sentences of it that fit - what a step did shorter than what it showed - and a line whose first sentence does not fit is none, so its step has no lines",
+      _pone(" ".join(_plong))["showed"] == " ".join(_plong[:2]) and len(" ".join(_plong[:2])) <= plain_steps.SHOWED_CHARS < len(" ".join(_plong))
+      and _pone("It led.", did=" ".join(_plong))["did"] == _plong[0] and plain_steps.DID_CHARS < len(" ".join(_plong[:2]))
+      and _pone("One sentence " + "that never ends " * 40 + "here.") is None and (plain_steps.DID_CHARS, plain_steps.SHOWED_CHARS) == (320, 480), _pone(" ".join(_plong)))
+_psys = plain_steps.SYSTEM
+check("plain steps: the instructions - everyday words for a reader who has never studied statistics or programming, nothing computed; only what stands under the step's own name, the print over "
+      "the analyst's words where they differ; a number as printed, rounded at most, never converted and never worked out; what a failed step's lines say; the reply's form, a name and two lines "
+      "for every step and nothing else; in the question's language. None of the tested tasks' vocabulary, and no example from a task",
+      _psys.startswith("You put the steps of a finished data analysis into plain words.") and "has never studied statistics or programming" in _psys and "you\ncompute nothing" in _psys
+      and "Only what stands under the step's own name." in _psys and "where the analyst's words and the\n   print differ, the print holds" in _psys
+      and "You may round a number to fewer digits. You may not\n   convert it to another unit and you may not work out a new one" in _psys
+      and "A number that does not stand under the step's name may not stand in its lines." in _psys and "what stopped it, in everyday words, and that nothing of it was kept" in _psys
+      and _psys.endswith("=== cell 3 ===\nDID: ...\nSHOWED: ...") and "In the language of QUESTION." in _psys and "no opening and no closing" in _psys
+      and all(w in _psys for w in ("SET OUT TO:", "PRINTED:", "RECORDED:", "FAILED WITH:", "NOT RUN:", "DREW:", "THEN READ AS:")) and not _DOMAIN.search(_psys), sorted({m.group(0) for m in _DOMAIN.finditer(_psys)}))
+# ---- in a run: asked for by the host that shows the trace, made last, on the Rewriter's seat by its hint; the run is answered with or without it
+_STEPPED = lambda step, action: "###STEP###\n" + step + "\n###NOTE###\n" + NOTE + "\n###ACTION###\n" + action      # noqa: E731
+_PL_SCRIPT = [_STEPPED("First the size of the data.", "CELL\n```python\nprint('rows', len(df))\n```"),
+              _STEPPED("Cell 1 printed 200 rows. This turn compares the two arms.", "CELL\n```python\nbad_syntax(\n```"),
+              _STEPPED("The last cell did not parse. The comparison again, written out.", "CELL\n```python\nm = df.groupby('arm')['x'].mean()\nprint('lead of B', round(m['B'] - m['A'], 3))\n```"),
+              _STEPPED("Cell 2 printed the lead of B. Nothing further is needed.", "REPORT\n## r\n\nB leads [cell 2].")]
+_PL_REPLY = ("=== cell 1 ===\nDID: Counted the rows.\nSHOWED: There are 200 rows.\n=== turn 2 ===\nDID: Tried to compare the two arms.\nSHOWED: The code stopped. Nothing of it was kept.\n"
+             "=== cell 2 ===\nDID: Compared the two arms.\nSHOWED: The lead of B is 7.777 units.")
+def _plain_llm(seen, reply=_PL_REPLY, script=_PL_SCRIPT):
+    def llm(system, user, **h):
+        seen["hints"].append(dict(h))
+        if system.startswith("You are drawing the figures"): return "NONE", {"cost": 0}
+        if h.get("plain"):
+            seen["plain"].append((system, user))
+            if isinstance(reply, Exception): raise reply
+            return reply, {"cost": 0.02}
+        seen["n"] += 1
+        return script[seen["n"] - 1], {"cost": 0.01}
+    return llm
+def _plain_run(reply=_PL_REPLY, script=_PL_SCRIPT, **kw):
+    seen, ev, k = {"hints": [], "plain": [], "n": 0}, [], PersistentKernel(df=df)
+    nb_, store_ = Notebook("tpl"), NotebookStore(tempfile.mkdtemp())
+    try:
+        r = Session(k, nb_, _plain_llm(seen, reply, script), store=store_, emit=ev.append, data_description="d", kernel_factory=lambda: PersistentKernel(df=df), **kw).run("Is B higher?", budget=Budget(turns=15, dollars=1.0))
+    finally:
+        k.cleanup()
+    return r, seen, ev, store_
+_plr, _pls, _plev, _plstore = _plain_run(plain_steps=True)
+_plcards = [e for e in _plev if e.get("turn") == "plain"]
+_pltypes = [e["type"] for e in _plev]
+check("plain steps in a run: one call, with the hint the app runs on the Rewriter's seat and on no other call, under the instructions, with the message the steps give; the lines that hold are "
+      "kept with the run - the step whose line carries a number its record lacks has none - and the run is answered and replayed as before",
+      [bool(h.get("plain")) for h in _pls["hints"]].count(True) == 1 and _pls["hints"][-1] == {"plain": True} and _pls["plain"] == [(plain_steps.SYSTEM, plain_steps.prompt(_plr)[0])]
+      and "=== turn 2 ===\nSET OUT TO: This turn compares the two arms.\nFAILED WITH: " in _pls["plain"][0][1] and "PRINTED:\nrows 200\nTHEN READ AS: Cell 1 printed 200 rows." in _pls["plain"][0][1]
+      and _plr.plain == {"cell 1": {"did": "Counted the rows.", "showed": "There are 200 rows."}, "turn 2": {"did": "Tried to compare the two arms.", "showed": "The code stopped. Nothing of it was kept."}}
+      and _plr.status == "answered" and _plr.replay_status == "reproduced", (_pls["hints"], _plr.plain, _plr.status, _plr.replay_status))
+check("plain steps in a run: the call is the last thing the run does - after the replay, before the report goes out - with a quiet card of its own in the pane, opened before the call and "
+      "closed after it with how many steps have their lines, what it cost and took; and a turn of the record that is no turn of the analysis (step 'plain'), which says the same",
+      _plcards[0] == {"type": "turn_start", "run": _plr.id, "turn": "plain", "plain": True, "quiet": True} and len(_plcards) == 2
+      and {k: v for k, v in _plcards[1].items() if k != "elapsed"} == {"type": "turn_end", "run": _plr.id, "turn": "plain", "kind": "plain", "thinking": "", "note": "", "code": "", "cost": 0.02, "peek": "2 of 3 steps"}
+      and isinstance(_plcards[1]["elapsed"], float) and _pltypes.index("replay_end") < _plev.index(_plcards[0]) < _plev.index(_plcards[1]) == len(_plev) - 3 and _pltypes[-2:] == ["report", "replay_status"]
+      and [t.kind for t in _plr.turns] == ["cell", "cell", "cell", "report", "plain"] and (_plr.turns[-1].step, _plr.turns[-1].text, _plr.turns[-1].usage["cost"]) == ("plain", "2 of 3 steps", 0.02)
+      and isinstance(_plr.turns[-1].usage["elapsed"], float) and _plr.turns[-1].note == _plr.turns[-2].note, (_plcards, _pltypes, [t.kind for t in _plr.turns]))
+_plrows = [r for r in _plr.code_map["view"]["rows"] if r["type"] in ("step", "failed")]
+check("plain steps in a run: the names are those of the trace's rows - a cell's number, a failed attempt's turn - and the trace itself holds none of the lines: it is built without a model; "
+      "the turns are counted as before, the lines survive the store, and the Investigation tab says where they are",
+      [f"cell {r['cell']}" if r["type"] == "step" else f"turn {r['turn']}" for r in _plrows] == ["cell 1", "turn 2", "cell 2"] and "Counted the rows" not in json.dumps(_plr.code_map)
+      and turn_numbers(_plr) == [1, 2, 3, 4, None] and "turn 2" in Notebook.failed_attempts(_plr) and _plstore.load("tpl").runs[_plr.id].plain == _plr.plain
+      and _plstore.load("tpl").runs[_plr.id].turns[-1].step == "plain"
+      and '<span class="nb-out-label">Steps put in plain words</span> — see the Code trace' in notebook_html(_plr), ([r.get("turn") for r in _plrows], turn_numbers(_plr)))
+_pl0, _pl0s, _pl0ev, _ = _plain_run()
+check("plain steps in a run: a host that does not show them does not have them written - no call, no card, no turn, and the run has no lines",
+      not any(h.get("plain") for h in _pl0s["hints"]) and _pl0.plain == {} and [t.kind for t in _pl0.turns] == ["cell", "cell", "cell", "report"] and not [e for e in _pl0ev if e.get("turn") == "plain"]
+      and _pl0.status == "answered", (_pl0s["hints"], _pl0.plain))
+_plx, _plxs, _plxev, _ = _plain_run(reply=RuntimeError("the provider is away"), plain_steps=True)
+_plxcards = [e for e in _plxev if e.get("turn") == "plain"]
+check("plain steps in a run: a call that fails - or that the person stops - is no failure of the run: nothing is raised, the run is answered with its report and its replay, it has no lines "
+      "and no turn for the call, and the card is closed saying they were not written",
+      len(_plxs["plain"]) == 1 and _plx.status == "answered" and _plx.replay_status == "reproduced" and _plx.plain == {} and [t.kind for t in _plx.turns] == ["cell", "cell", "cell", "report"]
+      and [e["type"] for e in _plxcards] == ["turn_start", "turn_end"] and (_plxcards[1]["peek"], _plxcards[1]["cost"]) == ("not written", 0.0) and "report" in [e["type"] for e in _plxev],
+      (_plx.status, _plx.plain, _plxcards))
+_pln, _plns, _plnev, _ = _plain_run(script=[_STEPPED("Nothing to compute.", "REPORT\n## r\n\nNothing was computed.")], plain_steps=True)
+_ple, _ples, _, _ = _plain_run(reply="I cannot do that.", plain_steps=True)
+check("plain steps in a run: a run that ran no code has no step and makes no call; a reply that names no step leaves the run without lines, and the call is on the record with what it cost",
+      _pln.status == "answered" and not _plns["plain"] and not [e for e in _plnev if e.get("turn") == "plain"] and [t.kind for t in _pln.turns] == ["report"]
+      and _ple.plain == {} and (_ple.turns[-1].kind, _ple.turns[-1].text, _ple.turns[-1].usage["cost"]) == ("plain", "0 of 3 steps", 0.02), (_plns["plain"], _ple.plain, _ple.turns[-1].text))
 
 print(f"\n{len(passed)} passed, {len(failed)} failed")
 sys.exit(1 if failed else 0)

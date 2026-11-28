@@ -139,7 +139,7 @@ def purpose_of(turn: "Turn", width: int = 110) -> str:
 
 @dataclass
 class Turn:
-    kind: str                       # cell | show | names | search | read | ask | report | rewrite | review | error (recall, ideas: in runs made before 2.8)
+    kind: str                       # cell | show | names | search | read | ask | report | rewrite | review | plain | error (recall, ideas: in runs made before 2.8)
     note: str = ""                  # the note as rewritten this turn
     thinking: str = ""              # free text before the note, if any
     code: str = ""                  # CELL: the code that ran
@@ -159,7 +159,8 @@ class Turn:
     checked: List[dict] = field(default_factory=list)    # REVIEW: the verification ledger entries it wrote ({cell, text})
     recheck: List[int] = field(default_factory=list)     # REVIEW: cells it asked to see again at the next review
     elapsed: float = 0.0            # CELL: seconds the kernel took to run it
-    step: str = ""                  # "figures" for the cells of the figures step after the report (2026-10-11); "" for a turn of the analysis
+    step: str = ""                  # "figures" for the cells of the figures step after the report (2026-10-11), "plain" for the call that put the
+                                    # steps into plain words (2026-11-28); "" for a turn of the analysis
     carry: dict = field(default_factory=dict)   # a working turn of the analysis (2.9): what the loop carried out of it into the next - {turn: its
                                     # number, extra: what it handed to the next prompt, spent, failures: failed cells in a row, lost_at}.
                                     # A branch goes on from a turn that has it; the report, a question to the person, a review have none
@@ -187,6 +188,8 @@ class Run:
     data: dict = field(default_factory=dict)   # what the run ran on (df_id, name, source, columns, rows, aux): a routine made from it later needs it (2026-10-10)
     mode: str = ""                  # the budget preset the run was asked in: Quick, Deep or Adaptive (2026-10-20, the code trace's header)
     code_map: dict = field(default_factory=dict)   # the code trace built when the chain ended (analyst/codemap; 2026-10-20), or {"error": ...}
+    plain: dict = field(default_factory=dict)      # the trace's steps in plain words, written by a model when the chain ended (analyst/plain.py; 2026-11-28):
+                                                   # {"cell 3" | "turn 5": {did, showed}} for the steps whose lines hold; {} for a run made before, or without code
     sandbox: dict = field(default_factory=dict)   # the box the kernel ran on, as it saw itself (kernel.sandbox_facts; 2026-10-28); {} when the executor did not say
     brief: dict = field(default_factory=dict)     # what the person agreed before the run, as the analyst received it (analyst/brief.py); {} for a run without one
     brief_outcome: dict = field(default_factory=dict)   # what the report says against the brief (brief.outcome): the verdicts, the checks, what did not fit

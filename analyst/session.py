@@ -10,8 +10,9 @@ UI. On long budgets a self-review is asked for at intervals - the same turn, the
 prompt, marked review=True for the caller (the app runs it on the Reviewer seat when the
 config has one, a stronger model at the run's decision points). When the analyst
 writes REPORT the session draws the figures, runs the guards, verifies the assembled
-script in a fresh kernel, and stores the lot. The report in plain language is
-written when the person asks for it (rewrite()).
+script in a fresh kernel, has the steps put into plain words for the code trace
+(plain.py), and stores the lot. The report in plain language is written when the
+person asks for it (rewrite()).
 
 `llm(system, user) -> (text, usage)` is whatever model layer the host provides; so are `search(query)` and `read(arg)`,
 which return (digest, usage) the same way: what a lookup costs counts against the run's budget as a model call does.
@@ -27,7 +28,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Callable, Dict, List, Optional
 
-from . import tools, report as rep, reach, brief as briefs, draft as drafts, sources
+from . import tools, report as rep, reach, brief as briefs, draft as drafts, plain, sources
 from .notebook import Notebook, NotebookStore, Run, Turn, has_data, hint_block
 from .routines import corrected_by
 from .replay import verify
@@ -852,10 +853,12 @@ class Session:
                  kernel_factory: Optional[Callable[[], object]] = None,
                  replay_runner: Optional[Callable] = None, read: Optional[Callable] = None,
                  unit_text: Optional[Callable[[str], Optional[str]]] = None, kernel_prelude: str = "", documents: bool = False,
-                 context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None, saved: Optional[Callable] = None):
+                 context: bool = False, map_inputs: Optional[Callable[[Run], list]] = None, saved: Optional[Callable] = None,
+                 plain_steps: bool = False):
         self.kernel = kernel
         self.nb = notebook
-        self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, figures=True on the figures step
+        self.llm = llm            # llm(system, user, **hints) -> (text, usage); hints: review=True on a self-review turn, figures=True on the figures step,
+                                  # plain=True on the call that puts the steps into plain words
         self.store = store
         self.emit = emit or (lambda ev: None)
         self.search = search
@@ -872,6 +875,7 @@ class Session:
         self.context = context                  # the load carries the words written beside the data (CTX, READ CTX)
         self.map_inputs = map_inputs            # map_inputs(run) -> the inputs the chain was offered, for the code trace (2026-10-20);
                                                 # None: the map is drawn from run.data alone
+        self.plain_steps = plain_steps          # the host shows a run's steps in plain words (the page's code trace): they are written when a run ends
         self.system = contract(documents, context=context)      # the documents' and the context's sections and READ rows only when present
 
     # ----- the prompt --------------------------------------------------------
@@ -1315,7 +1319,7 @@ class Session:
         self._finish(run, body)
         return run
 
-    # ----- the ending: figures, guards, replay ------------------------------
+    # ----- the ending: figures, guards, replay, the steps in plain words ------
     def _finish(self, run: Run, report_text: str) -> None:
         # the page draws the report's sources itself, from its searches (0340): a list of them the analyst wrote all the same
         # goes, before the figures step and the guards read the report - and the Rewriter, when it is asked
@@ -1395,11 +1399,32 @@ class Session:
         except Exception as exc:                              # noqa: BLE001
             logger.warning("code trace for run %s: %s", run.id, exc)
             run.code_map = {"error": " ".join(str(exc).split())[:300]}
+        if self.plain_steps:
+            self._plain(run)
         run.status = "answered"
         self.emit({"type": "report", "run": run.id, "text": run.report})
         if run.replay_status:
             self.emit({"type": "replay_status", "run": run.id, "status": run.replay_status, "script": run.replay_script})
         self._save()
+
+    def _plain(self, run: Run) -> None:
+        """The steps of the run in plain words, for its code trace (analyst/plain.py; 2026-11-28): one call when all else
+        is done - `llm(system, user, plain=True)`, which the app runs on the Rewriter's seat - a card in the pane and a
+        turn of the record, outside the turn budget. For a host that shows them (`plain_steps`). The last thing a run
+        does, and the run is answered with or without it: a call that fails, or that the person stops, leaves the trace
+        its steps in the analyst's own words, and nothing is raised. A run without a step makes no call."""
+        user, found = plain.prompt(run)
+        if not found:
+            return
+        self.emit({"type": "turn_start", "run": run.id, "turn": "plain", "plain": True, "quiet": True})
+        t0, cost, peek = time.time(), 0.0, plain.NOT_WRITTEN
+        try:
+            turn = plain.write(self.llm, run, user, found)
+            cost, peek = float(turn.usage.get("cost", 0.0) or 0.0), turn.text
+        except Exception as exc:                              # noqa: BLE001
+            logger.warning("the steps of run %s in plain words: %s", run.id, exc)
+        self.emit({"type": "turn_end", "run": run.id, "turn": "plain", "kind": "plain", "thinking": "", "note": "", "code": "",
+                   "elapsed": round(time.time() - t0, 1), "cost": cost, "peek": peek})
 
     # ----- the figures step ------------------------------------------------------
     def _figures(self, run: Run, report_text: str) -> tuple:

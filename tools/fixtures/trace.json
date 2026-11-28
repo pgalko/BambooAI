@@ -1,0 +1,18 @@
+{
+ "cell 1": {
+  "did": "Opened the trial's data and looked at what is in it: how many rows, which watering regimes, which soil types.",
+  "showed": "There are 720 rows. The regimes are not spread evenly over the soil types, so a plain comparison of the regimes would mix the two."
+ },
+ "turn 3": {
+  "did": "Tried to average each plot and to compare the regimes within each soil type.",
+  "showed": "The code stopped: it asked for a column by a name the data does not have. Nothing of it was kept."
+ },
+ "cell 2": {
+  "did": "Repeated the attempt with the column name put right. Also worked out how far the answer could be off by chance.",
+  "showed": "On the same soil, regime B gives 0.57 tonnes per hectare more than regime A. The true lead is somewhere between 0.38 and 0.76."
+ },
+ "cell 3": {
+  "did": "Drew two figures from the plot averages.",
+  "showed": "The yield of every plot by regime, one panel for each soil type; and the average yield of each regime."
+ }
+}

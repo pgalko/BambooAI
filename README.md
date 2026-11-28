@@ -230,7 +230,10 @@ After `REPORT`, BambooAI performs several distinct steps:
 - **Code trace.** Built from committed code and kernel records, without an LLM. It traces each result to
   its cells, input data, intermediate values and choices such as seeds or thresholds. Open it from the
   closing card, a report's `[cell n]` citation, or the **Code trace** label on a cell. It documents *how* a result was obtained, not whether
-  the method was sound. See [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md).
+  the method was sound. Its Steps view also says, in plain words, what each step did and what it showed:
+  the `Rewriter` writes those two lines when the analysis ends, from the step's own record, and a line
+  whose numbers the step did not print is dropped. The Analyst's own words stay one click away.
+  See [`docs/CODEMAP_DESIGN.md`](docs/CODEMAP_DESIGN.md).
 - **Reach report.** Records activity outside the supplied data: network hosts and transfer sizes, files,
   environment-variable names and spawned programs, with the responsible cells. It also marks refused
   cells and whether a resource was named in the question. Most activity is observed and reported;
@@ -436,7 +439,7 @@ both names are still read.
 | `Analyst` | Investigation, code execution and technical report. |
 | `Reviewer` | Periodic review in Adaptive mode. |
 | `Figures` | Plotly figures after the report; falls back to `Analyst` if absent. |
-| `Rewriter` | Second, plain-language report version, written on request. |
+| `Rewriter` | The code trace's steps in plain words, at the end of each analysis; the plain-language report version, on request. |
 | `Reader` | Targeted document and context reads (`READ`). |
 | `Coder` | Codes Intervals.icu context against the codebook; falls back to `Reader`. |
 | `Promoter` | Extracts routine inputs; falls back to `Analyst`. |
@@ -774,6 +777,7 @@ browser ── HTTP / SSE ── web_app (Flask) ── HTTP ── executor con
   `analyst/cold.py` and `analyst/next_questions.py` implement the Pathfinder; `analyst/memory.py` and `analyst/reader.py` the memory
   made of saved analyses.
 - `analyst/explain.py` answers a question about a selected passage of a finished analysis, or about one of its plots.
+- `analyst/plain.py` puts the steps of a finished analysis into plain words for the code trace.
 - `tools/stack/` provides an offline test stack with scripted model responses and fake
   Intervals.icu/Endura services.
 

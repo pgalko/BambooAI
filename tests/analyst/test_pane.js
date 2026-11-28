@@ -410,7 +410,15 @@ check('the stylesheet: a search\'s card line wraps to take its face, shut; opene
   && /@container \(max-width: \d+px\) \{ #streamOutput \.sp-srcs \{ grid-template-columns: minmax\(0, 1fr\);/.test(paneCss) && /#streamOutput \.sp-src \.host \{[^}]*white-space: nowrap;/.test(paneCss));
 
 // ---- 0366: a call made for a run after it ended (simplify.js: the report in plain language) - its card where the run's own end, and
-// the run's cost and time, which ride on the closing card as numbers, raised by the call's wherever they are said
+// the run's cost and time, which ride on the closing card as numbers, raised by the call's wherever they are said// the steps in plain words (0367): the run's last call has a quiet card of its own, named for what it writes
+w.paneTurnStart({turn:'plain', seat:'Rewriter', model:'v/flash', quiet:true});
+const stepsCard = Array.from(pane2.querySelectorAll('.sp-turn')).pop();
+const stepsLive = [stepsCard.querySelector('summary .n').textContent, stepsCard.classList.contains('quiet'), stepsCard.querySelector('summary .kind').textContent, stepsCard.hasAttribute('open'), stepsCard.querySelector('summary .meta').textContent];
+w.paneTurnEnd({turn:'plain', kind:'plain', thinking:'', note:'', code:'', elapsed:6.2, cost:0.004, peek:'7 of 8 steps'});
+check('the card of the call that puts a run\'s steps into plain words: named Steps, quiet and shut while the call runs, with its seat and model; ended, it says "in plain words", how many steps have their lines, what the call took and cost',
+      JSON.stringify(stepsLive) === JSON.stringify(['Steps', true, 'working…', false, 'Rewriter · flash']) && stepsCard.getAttribute('data-turn') === 'plain' && stepsCard.querySelector('summary .kind').textContent === 'in plain words'
+      && stepsCard.querySelector('summary .peek').textContent === '7 of 8 steps' && stepsCard.querySelector('summary .meta').textContent === '6.2 s · $0.00' && !stepsCard.classList.contains('live'), stepsCard.outerHTML);
+
 const pane3 = doc.createElement('div'); pane3.setAttribute('id', 'streamOutput'); pane2.remove(); doc.body.appendChild(pane3);
 w.paneRunStart({ mode: 'Deep', of: 15, dollars: 1.5 });
 w.paneTurnStart({ turn: 1, of: 15, seat: 'Analyst', model: 'v/analyst', chain_id: 9 }); w.paneToken('###STEP###\nFit the model, as it was streamed.');
@@ -455,6 +463,19 @@ check('... a closing card from before the sums rode on it keeps the numbers it h
 open3.querySelector('.sp-done').remove();
 w.paneLate(open3, Object.assign({}, late3));
 check('... a pane without a closing card - a run that has not ended - gets nothing', !open3.querySelector('.sp-turn[data-turn="rewrite"]') && order3(open3).length === 7, order3(open3));
+// a run that ended with its steps put into plain words (0367): that call's card stands after the replay's row, and a call made later - the plain version, on the same seat - stands after it, as the seat's second
+const pane4 = doc.createElement('div'); pane4.setAttribute('id', 'streamOutput'); pane3.remove(); doc.body.appendChild(pane4);
+w.paneRunStart({ mode: 'Deep', of: 15, dollars: 1.5 });
+w.paneTurnStart({ turn: 1, of: 15, seat: 'Analyst', model: 'v/analyst', chain_id: 9 }); w.paneTurnEnd({ turn: 1, kind: 'cell', thinking: 'Fit.', note: '', code: 'print(1)', elapsed: 5, cost: 0.05 });
+w.paneCell({ cell_no: 1, ok: true, peek: 'done', elapsed: 0.1, chars: 4, figs: 0 });
+w.paneTurnStart({ turn: 2, of: 15, seat: 'Analyst', model: 'v/analyst', chain_id: 9 }); w.paneTurnEnd({ turn: 2, kind: 'report', thinking: '', note: '', code: '', elapsed: 4, cost: 0.05 });
+w.paneLookupStart({ kind: 'replay', query: '1 cell', model: '' }); w.paneLookup({ kind: 'replay', query: '', peek: 'Replay reproduced the cited results.', sources: [], passages: [] });
+w.paneTurnStart({ turn: 'plain', seat: 'Rewriter', model: 'v/flash', chain_id: 9, quiet: true }); w.paneTurnEnd({ turn: 'plain', kind: 'plain', peek: '1 of 1 steps', elapsed: 3, cost: 0.01 });
+w.paneRunEnd({ status: 'answered', turns: 2, of: 15, cells: 1, cost: 0.11, seconds: 12, replay_status: 'reproduced', replay_line: 'Replay reproduced the cited results.', chain_id: 9 });
+w.paneLate(pane4, Object.assign({}, late3));
+check('a run whose steps were put into plain words: that card is the last of the run\'s own, after the replay\'s row; the plain version asked for later stands after it, before the closing card, and its prompt is the second of the Rewriter\'s in the chain\'s log',
+  same(order3(pane4), ['turn 1', 'sp-row', 'turn 2', 'sp-row tool', 'turn plain', 'turn rewrite', 'sp-done'])
+  && ['plain', 'rewrite'].map(t => pane4.querySelector('.sp-turn[data-turn="' + t + '"] .sp-prompt').getAttribute('data-call')).join() === '1,2', order3(pane4));
 // every check above is printed and counted here (2026-11-15: the loop sat above the last checks, which then counted as passed whatever they found;
 // three of them read the first pane after the second had taken its place)
 let fails = 0; for (const [n, ok, d] of results) { console.log((ok ? '  ok   ' : '  FAIL ') + n + (ok ? '' : '  <- ' + (d || ''))); if (!ok) fails++; }

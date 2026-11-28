@@ -38,6 +38,8 @@ class FakeModels:
             raise state["explain"].pop(0)               # ... and so for an explanation
         if user.startswith("Rewrite the technical report") and state.get("rewrite") and isinstance(state["rewrite"][0], Exception):
             raise state["rewrite"].pop(0)               # ... and for a report's plain version
+        if messages[0]["content"].startswith("You put the steps of a finished data analysis into plain words") and isinstance(state.get("plain"), Exception):
+            raise state["plain"]                        # ... and for a run's steps in plain words: the person stopped the call
         state["calls"].append((agent, user))
         state.setdefault("images", []).append(bool(isinstance(raw, list) and any(isinstance(p, dict) and p.get("type") == "image_url" and str(p["image_url"].get("url", "")).startswith("data:image/png;base64,") for p in raw)))
         lacm.write_to_log(kw.get("label") or agent, chain_id, "2026-09-05 12:00:00", "fake/model", messages, "reply", 100, 50, 150, 1.0, 50.0)
@@ -78,6 +80,10 @@ class FakeModels:
         if messages[0]["content"].startswith("You are drawing the figures"):
             fs = state.get("figures")
             return fs.pop(0) if isinstance(fs, list) and fs else (fs if isinstance(fs, str) and fs else "NONE")
+        if messages[0]["content"].startswith("You put the steps of a finished data analysis into plain words"):
+            # a run's steps in plain words (0367): two lines for every step the prompt names
+            state.setdefault("plain_seen", []).append((agent, chain_id, user))
+            return "".join(f"=== {name} ===\nDID: Did what the step was for.\nSHOWED: It showed what it printed.\n" for name in re.findall(r"^=== ((?:cell|turn) \d+) ===$", user, re.M))
         if messages[0]["content"].startswith("You are preparing an analysis so that it can be run again"):
             state["brief"] = messages[0]["content"]             # which of the promoter's briefs the call carried
             from bambooai.models import prompt_cache
@@ -149,8 +155,8 @@ check("the usage ledger: the run's line written at its end - the chain and the t
       and set(_lines[0]) == {"chain", "thread", "at", "question", "title", "mode", "status", "replay", "cells", "figures", "created", "wall", "failed_at", "refused", "branch"}
       and _lines[0]["branch"] == {}, _lines)
 pane_types = [e.get("type") for e in events if str(e.get("type", "")).startswith("pane_")]
-check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step - no review outside Adaptive, no rewrite), a cell row per cell, heartbeats, run_end",
-      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 4 and pane_types.count("pane_turn_end") == 4
+check("the pane protocol: run_start, a turn_start/turn_end pair per model call (three turns, the figures step, the steps in plain words - no review outside Adaptive, no rewrite), a cell row per cell, heartbeats, run_end",
+      pane_types[0] == "pane_run_start" and pane_types.count("pane_turn_start") == 5 and pane_types.count("pane_turn_end") == 5
       and pane_types.count("pane_cell") == 2 and pane_types.count("pane_heartbeat") == 2 and pane_types[-1] == "pane_run_end", pane_types)
 te = [e for e in events if e.get("type") == "pane_turn_end"]
 check("turn_end carries the note and the code for the fold, and the heartbeat carries the estimate line",
@@ -167,8 +173,8 @@ check("the reach report rides the pane events (2026-10-28): each cell row says w
 plan = [e for e in events if e.get("type") == "plan"][-1]["data"]
 check("the Investigation tab is a notebook: one HTML block, cells with collapsed outputs, no blank line inside it",
       plan.startswith('<div class="nb">') and plan.count('<details class="nb-out"') == 2 and "\n\n" not in plan and 'language-python' in plan)
-check("each turn opened a card labelled with the seat, the figures step too (quiet, on the analyst seat); no review card outside Adaptive, and none for a rewrite",
-      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 4 and not any(e.get("turn") == "rewrite" for e in events)
+check("each turn opened a card labelled with the seat, the figures step and the steps in plain words too (quiet, on the analyst seat); no review card outside Adaptive, and none for a rewrite",
+      sum(1 for e in events if e.get("type") == "pane_turn_start" and e.get("seat") == "Investigator") == 5 and not any(e.get("turn") == "rewrite" for e in events)
       and [(e.get("quiet"), e.get("attempt")) for e in events if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"] == [(True, 1)]
       and [e.get("peek") for e in events if e.get("type") == "pane_turn_end" and e.get("turn") == "figures"] == ["no figure: a number or a table answers"]
       and not any(e.get("type") == "pane_turn_start" and e.get("turn") == "review" for e in events))
@@ -194,6 +200,19 @@ check("the run carries its code trace, at the current version, built from the pr
       and run1.code_map["inputs"][0]["columns"] == ["arm", "x"] and run1.code_map["view"]["meta"].startswith(run1.mode + " · ")
       and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["code_map"]["version"] == _cm.VERSION,
       {k_: v for k_, v in run1.code_map.items() if k_ != "view"})
+# the steps in plain words (0367, analyst/plain.py): the host has them written when a run ends, for the code trace's rows
+_pcard = [e for e in events if e.get("turn") == "plain" and str(e.get("type", "")).startswith("pane_turn")]
+_plines = {"did": "Did what the step was for.", "showed": "It showed what it printed."}
+check("the steps in plain words: the run's last call - on the Rewriter's seat, which is the analyst's where the config has none - logged under the run's chain, with the question and the steps "
+      "of the trace; its quiet card in the pane, closed before the closing card with how many steps have their lines; the lines kept with the run and in the thread file; the call a turn of the "
+      "record that the closing card does not count as a turn",
+      [(a, c) for a, c, u in state["plain_seen"]] == [("Investigator", BAMBOO.chain_id)] and state["plain_seen"][0][2].startswith("QUESTION:\nIs B higher than A?\n\nSTEPS:\n\n=== cell 1 ===\nSET OUT TO: ")
+      and state["calls"][-1] == ("Investigator", state["plain_seen"][0][2])
+      and [(e["type"], e.get("seat"), e.get("model"), e.get("quiet"), e.get("kind"), e.get("peek")) for e in _pcard]
+          == [("pane_turn_start", "Investigator", "fake/model", True, None, None), ("pane_turn_end", None, None, None, "plain", "2 of 2 steps")]
+      and events.index(_pcard[1]) < events.index(rend) and rend["turns"] == 3 and run1.plain == {"cell 1": _plines, "cell 2": _plines}
+      and (run1.turns[-1].kind, run1.turns[-1].step, run1.turns[-1].text) == ("plain", "plain", "2 of 2 steps") and run1.turns[-1].usage["cost"] > 0
+      and json.load(open(os.path.join(work, "storage", "u1", "threads", "1001.json")))["runs"][run1.id]["plain"] == run1.plain, (state.get("plain_seen"), _pcard, run1.plain))
 _keep_cols, _keep_manifest, _keep_dp = BAMBOO._aux_columns, B.documents.load_manifest, BAMBOO._documents_prelude
 BAMBOO._aux_columns = lambda paths: {paths[0]: "date, load, notes"}             # the executor's one call for all files; the second file unreadable
 B.documents.load_manifest = lambda d: {"documents": [{"id": "D1", "file": "field_notes.md"}]}
@@ -1425,8 +1444,9 @@ try:
     BAMBOO.output_manager.add_user_input("review me")
     BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     agents = [a for a, u in state["calls"]]
-    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4, and none after the report (2026-11-28); the turns and the figures step's call on the analyst seat",
-          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator"], agents)
+    check("review seat: in Adaptive with analyst_review_every=2 a review runs on the Reviewer after turns 2 and 4, and none after the report (2026-11-28); the turns, the figures step's call and "
+          "the steps in plain words on the analyst seat",
+          agents == ["Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Reviewer", "Investigator", "Investigator", "Investigator"], agents)
     check("review seat: the reviewer is sent its own prompt, never the analyst's contract",
           all(u.startswith("QUESTION:") for a, u in state["calls"] if a == "Reviewer"), [u[:40] for a, u in state["calls"] if a == "Reviewer"])
     q = BAMBOO.output_manager.output_queue; ev = []
@@ -1439,12 +1459,12 @@ try:
     state.update(i=0, calls=[], script=[cell(1), cell(2), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
     BAMBOO.output_manager.add_user_input("no review"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="adaptive")
     _ag = [a for a, u in state["calls"]]
-    check("review seat: analyst_review_every=0 - no reviewer call at all (2026-10-05); the figures step's call after the report, and no rewrite's",
-          _ag == ["Investigator", "Investigator", "Investigator", "Investigator"] and not any(u.startswith("Rewrite") for a, u in state["calls"]), _ag)
+    check("review seat: analyst_review_every=0 - no reviewer call at all (2026-10-05); the figures step's call after the report, then the steps in plain words, and no rewrite's",
+          _ag == ["Investigator", "Investigator", "Investigator", "Investigator", "Investigator"] and not any(u.startswith("Rewrite") for a, u in state["calls"]), _ag)
     _plain0 = BAMBOO.simplify("1001", BAMBOO.chain_id)
     check("rewrite seat: without a Rewriter in the config the plain version, when asked for, is written on the analyst seat - and its card says so",
           [a for a, u in state["calls"] if u.startswith("Rewrite")] == ["Investigator"] and (_plain0["card"]["seat"], _plain0["card"]["model"]) == ("Investigator", "fake/model"), [(a, u[:20]) for a, u in state["calls"]])
-    # with a Rewriter seat (2026-09-11): the rewrite, and only the rewrite, runs on it
+    # with a Rewriter seat (2026-09-11): the rewrite runs on it - and the call that puts a run's steps into plain words (0367) - and nothing else
     FakeModels.config["agent_configs"].append({"agent": "Rewriter", "details": {"model": "fake/flash", "provider": "fake", "reasoning_effort": "low"}})
     FakeModels.get_model_name = lambda self, agent: ("fake/strong", "fake") if agent == "Reviewer" else (("fake/flash", "fake") if agent == "Rewriter" else ("fake/model", "fake"))
     state.update(i=0, calls=[], script=[cell(1), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
@@ -1454,8 +1474,10 @@ try:
     while not q.empty(): q.get()
     _plain1 = BAMBOO.simplify("1001", BAMBOO.chain_id)
     agents = [(a, u.startswith("Rewrite")) for a, u in state["calls"]]
-    check("rewrite seat: the analysis turns and the figures step run on the analyst seat and no call of the run is a rewrite's; the plain version, when asked for, is one call on the Rewriter",
-          _ran_rw == [("Investigator", False)] * 3 and agents == _ran_rw + [("Rewriter", True)], agents)
+    check("rewrite seat: the analysis turns and the figures step run on the analyst seat and no call of the run is a rewrite's - its last, the steps in plain words, is on the Rewriter; "
+          "the plain version, when asked for, is one more call there",
+          _ran_rw == [("Investigator", False)] * 3 + [("Rewriter", False)] and agents == _ran_rw + [("Rewriter", True)]
+          and state["calls"][3][1].startswith("QUESTION:\nrewrite me\n\nSTEPS:\n\n=== cell 1 ==="), agents)
     check("rewrite seat: the card of that call, as the page is given it, carries 'Rewriter' and its model, what the call took and cost, and the analysis' chain; the pane is sent no event for it",
           (_plain1["card"]["seat"], _plain1["card"]["model"], _plain1["card"]["chain_id"]) == ("Rewriter", "fake/flash", BAMBOO.chain_id) and _plain1["card"]["cost"] > 0
           and 0 <= _plain1["card"]["elapsed"] < 5 and set(_plain1["card"]) == {"seat", "model", "elapsed", "cost", "chain_id"} and q.empty(), _plain1["card"])
@@ -1469,7 +1491,23 @@ try:
     while not q.empty(): ev.append(json.loads(q.get()))
     fg = [(e.get("seat"), e.get("model")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "figures"]
     check("figures seat: with a Figures seat in the config the figures request runs on it - the call and the pane's Figures card carry 'Figures' and its model; the turns stay on the analyst seat",
-          agents == ["Investigator", "Investigator", "Figures"] and fg == [("Figures", "fake/quick")], (agents, fg))
+          agents == ["Investigator", "Investigator", "Figures", "Rewriter"] and fg == [("Figures", "fake/quick")], (agents, fg))
+    check("the steps in plain words, with a Rewriter in the config: the pane's card carries 'Rewriter' and its model",
+          [(e.get("seat"), e.get("model"), e.get("quiet")) for e in ev if e.get("type") == "pane_turn_start" and e.get("turn") == "plain"] == [("Rewriter", "fake/flash", True)],
+          [e for e in ev if e.get("turn") == "plain"])
+    # the person stops while that last call is under way: the report is written and replayed, and the run ends as answered - without the lines
+    state.update(i=0, calls=[], plain=B.ExecutionInterrupted("stopped by the user"), script=[cell(1), "###NOTE###\n" + NOTE + "\n###ACTION###\nREPORT\n## Answer\nDone [cell 1].\n"])
+    BAMBOO.output_manager.add_user_input("stopped at the last call"); BAMBOO.pd_agent_converse(thread_id="1001", chain_id=None, mode="deep")
+    state.pop("plain")
+    q = BAMBOO.output_manager.output_queue; ev = []
+    while not q.empty(): ev.append(json.loads(q.get()))
+    _stopped = BAMBOO.notebook.runs[str(BAMBOO.chain_id)]
+    check("the steps in plain words, stopped: a stop during that call is no stop of the run - it is answered, with its report on the page and its replay; it has no lines and no turn for "
+          "the call, the card is closed saying they were not written, and the page is not told the run was stopped",
+          _stopped.status == "answered" and _stopped.replay_status == "reproduced" and _stopped.plain == {} and not any(t.kind == "plain" for t in _stopped.turns)
+          and any(e.get("type") == "answer" for e in ev) and [e.get("peek") for e in ev if e.get("type") == "pane_turn_end" and e.get("turn") == "plain"] == ["not written"]
+          and [e.get("status") for e in ev if e.get("type") == "pane_run_end"] == ["answered"] and "Stopped." not in json.dumps(ev)
+          and [a for a, u in state["calls"]] == ["Investigator", "Investigator", "Figures"], (_stopped.status, _stopped.plain, [e for e in ev if e.get("turn") == "plain"]))
     FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.config["agent_configs"].pop(); FakeModels.get_model_name = _get_model_name; BAMBOO.review_every = 8
 except Exception as exc:                                     # noqa: BLE001
     check("review seat: the checks ran", False, repr(exc))

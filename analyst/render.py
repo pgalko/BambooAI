@@ -137,6 +137,8 @@ def _step_html(turn: Turn, index: int) -> str:
         return '<div class="nb-step nb-step--done"><span class="nb-out-label">Report written</span> — see the Answer tab</div>'
     if kind == "rewrite":
         return '<div class="nb-step nb-step--done"><span class="nb-out-label">Plain-language version written</span> — see the Simplified tab</div>'
+    if kind == "plain":
+        return '<div class="nb-step nb-step--done"><span class="nb-out-label">Steps put in plain words</span> — see the Code trace</div>'
     if kind == "error":
         return f'<div class="nb-step nb-step--warn"><span class="nb-out-label">Turn lost</span> {html.escape((turn.stdout or "")[:160])}</div>'
     return ""

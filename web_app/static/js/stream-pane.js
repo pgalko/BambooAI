@@ -79,7 +79,7 @@
     function count(n, word) { return esc(n) + ' ' + word + (Number(n) === 1 ? '' : 's'); }        // "1 cell", "3 cells"
     function kindLabel(kind) {
         return ({ cell: 'cell', show: 'look-up', names: 'look-up', search: 'search', review: 'review',
-                  ask: 'question', report: 'report', rewrite: 'plain-language version', figures: 'figures', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
+                  ask: 'question', report: 'report', rewrite: 'plain-language version', plain: 'in plain words', figures: 'figures', infographic: 'infographic', routine: 'routine', error: 'lost' })[kind] || kind || '';
     }
     function noteGrid(note) {
         const rows = [];
@@ -138,7 +138,7 @@
         turnStart(t) {
             // the figures step after the report (2026-10-11): one card per attempt, a correction named as such
             const label = typeof t.turn === 'number' ? 'Turn ' + esc(t.turn) : (t.turn === 'rewrite' ? 'Rewrite' : (t.turn === 'review' ? 'Review' : (t.turn === 'infographic' ? 'Infographic' : (t.turn === 'routine' ? 'Routine' :
-                          (t.turn === 'figures' ? 'Figures' + (t.attempt > 1 ? ' · correction ' + esc(t.attempt - 1) : '') : esc(t.turn))))));
+                          (t.turn === 'plain' ? 'Steps' : (t.turn === 'figures' ? 'Figures' + (t.attempt > 1 ? ' · correction ' + esc(t.attempt - 1) : '') : esc(t.turn)))))));
             const seatModel = t.seat ? esc(t.seat) + (t.model ? ' · ' + esc(String(t.model).split('/').pop()) : '') : '';
             return '<details class="sp-turn live' + (t.kept ? ' kept' : '') + (t.quiet ? ' quiet' : '') + (t.review ? ' review' : '') + '"' + (t.quiet || t.kept ? '' : ' open') + ' data-turn="' + esc(t.turn) + '"' +
                 (t.review ? ' data-review="1" data-seat-model="' + seatModel + '"' : '') + '>' +
@@ -488,8 +488,9 @@
         card.removeAttribute('open');
     }
     // A call made for a run after it ended (simplify.js: the report in plain language, written when it is asked for):
-    // its card, as a turn's is when it has ended, where the run's own would stand - before the replay's row, the saved
-    // datasets and the closing card - and the run's cost and time raised by the call's where the pane says them: on
+    // its card, as a turn's is when it has ended, where the run's own cards end - before the rows that stand between the
+    // last of them and the closing card: the saved datasets, and the replay's row in a run that made no call after its
+    // replay (one made before 0367) - and the run's cost and time raised by the call's where the pane says them: on
     // the closing card and on the strip. `pane`: the run's pane, on screen or as its chain keeps it; `t`: {turn, kind,
     // seat, model, chain_id, elapsed, cost, said: what the call wrote}. A closing card from before the sums rode on it
     // (2026-11-28) keeps the numbers it says

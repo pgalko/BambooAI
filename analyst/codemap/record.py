@@ -13,8 +13,8 @@ _PROBLEM_RE = re.compile(r"^- Most consequential problem:\s*(.*)$", re.M)
 
 
 def turn_numbers(run):
-    """Each turn's number as the analysis counts (Notebook.failed_attempts): a review, a rewrite and the figures step
-    are not turns; None for those."""
+    """Each turn's number as the analysis counts (Notebook.failed_attempts): a review, a rewrite and the steps after the
+    report - the figures', the one that puts the steps into plain words - are not turns; None for those."""
     out, n = [], 0
     for t in run.turns:
         if t.kind in ("review", "rewrite") or getattr(t, "step", ""):
@@ -23,6 +23,14 @@ def turn_numbers(run):
             n += 1
             out.append(n)
     return out
+
+
+def captions_of(report):
+    """The captions of a report's Figures section, by the cell that drew them: {cell: [caption, ...]}."""
+    captions = {}
+    for n, cap in re.findall(r"^- \[fig (\d+)\] (.*)$", report or "", re.M):
+        captions.setdefault(int(n), []).append(cap.strip())
+    return captions
 
 
 def inputs_from_data(run, context=False):
@@ -55,9 +63,7 @@ def chain_record(nb, run, inputs=None, context=False, earlier=None, registry_sta
     for r in path[:-1]:
         for t in r.cells():
             last_cell = t.cell_no or last_cell
-    captions = {}
-    for n, cap in re.findall(r"^- \[fig (\d+)\] (.*)$", run.report or "", re.M):
-        captions.setdefault(int(n), []).append(cap.strip())
+    captions = captions_of(run.report)
     for t, num in zip(run.turns, nums):
         if t.kind == "cell" and t.cell_no:
             figures = bool(getattr(t, "step", "") == "figures")

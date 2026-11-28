@@ -6,6 +6,15 @@ back to its data. This document keeps the name it was written under, as do the n
 (`analyst/codemap`, `code_map`, `CodeMapUI`, `/code_map/...`). Its ways in are as they were: the closing card's
 button, a `[cell n]` citation, a cell's eye in the Investigation tab, the eye on a chain's box of the Workflow map.
 
+**The steps in plain words (0367, 2026-11-28).** The Steps view says what each step did and what it showed in plain
+words, where the chain has them: two lines a model writes for every step when the chain ends (`analyst/plain.py`, one
+call on the Rewriter's seat), from the step's own record - what the analyst set out to do, what the code printed, the
+results recorded, an attempt's error, the figures' captions, and the analyst's first sentence after it - and never
+from the map. They are kept with the run beside the map (`Run.plain`), not in it, and the route sends them beside it:
+rule 1 holds for the map as before, and the same chain gives the same map whatever the lines say. A step's lines are
+kept only where every number in them stands in what the model was given of that step; a step without lines shows the
+analyst's sentence, as every step did before, and the step's panel keeps the analyst's own words in any case (§6).
+
 **The eyes (0329).** The two eyes are the trace's name now - *Code trace* in a green rectangle, the closing card's
 button in small, with no icon (the product owner, 2026-11-22: one look for the ways in). On a chain's box it shows
 under the pointer and on the open chain's, as the eye did (`workflowGraph.js`); on a cell's header it is always
@@ -266,7 +275,8 @@ the tooltip. One function renders every `{chain:<id>}` token and path step as "c
   `own` (the RESULT's own statement); the notebook draws a translucent bar behind each span, the own one strong,
   placed by line number so the syntax colouring is untouched, in every cell of the recipe, and clears them when
   another cell is opened. Where the map could not trace, nothing lights. A printout and a figure likewise with their
-  own heads; a step — why in the analyst's words, its role, what it uses (inputs, names from earlier cells and chains),
+  own heads; a step — the two lines in plain words where it has them (0367), why in the analyst's words, its role, what
+  it uses (inputs, names from earlier cells and chains),
   what it made with sizes, the figures it drew, what it printed, the results it recorded, the later steps that use it,
   its lines, Open in the notebook.
 - **States**: loading; "The code map could not be built for this chain."; "The code map is built when this chain

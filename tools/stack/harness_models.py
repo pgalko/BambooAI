@@ -23,6 +23,7 @@ are the numbers the kernel printed.
 """
 import importlib.util
 import os
+import re
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -31,6 +32,12 @@ CHUNK = 48
 DELAY = float(os.environ.get("STACK_STREAM_DELAY", "0.012"))    # seconds per chunk while streaming (~4,000 chars/s)
 PAUSE = float(os.environ.get("STACK_TURN_PAUSE", "0"))          # seconds of "thinking" before each reply, to watch a run
 TRANSPORT_ERRORS = ()               # nothing here is a transport
+# a run's steps in plain words (analyst/plain.py): the call is answered here, the same for every scenario - see plain_steps()
+PLAIN_SYSTEM = "You put the steps of a finished data analysis into plain words"
+PLAIN_DID, PLAIN_SHOWED = "In plain words, the step set out as follows: ", "It printed: "
+PLAIN_FAILED = "The code stopped. Nothing of it was kept."
+PLAIN_DREW, PLAIN_DRAWN = "Drew the figures.", "They show: "
+PLAIN_INVENTED = " That makes 4,321 in all."      # a number no step's record holds
 
 
 def load(name):
@@ -72,10 +79,32 @@ def _tokens(s):
     return max(1, len(_text(s) if not isinstance(s, str) else s) // 4)
 
 
+def plain_steps(user):
+    """A run's steps in plain words, read off the call's prompt: two lines for every step it names - what the step set
+    out to do, said back in its first words, and the first line it printed; for an attempt that did not run through,
+    that nothing of it was kept; for the figures cell, its first caption. The first step's lines carry a number its
+    record lacks (PLAIN_INVENTED): they do not hold, and the code trace keeps the analyst's own words there - so a walk
+    sees a step with its lines and one without."""
+    out = []
+    for k, (name, given) in enumerate(re.findall(r"^=== ((?:cell|turn) \d+) ===\n(.*?)(?=\n\n=== |\Z)", user, re.S | re.M)):
+        part = lambda head: (re.search(r"^" + head + r"(.*)$", given, re.M) or [None, ""])[1].strip()     # noqa: E731
+        did = PLAIN_DID + " ".join(part("SET OUT TO: ").split()[:8]).rstrip(".,;:") + "."
+        if part("DREW:\n- "):
+            did, showed = PLAIN_DREW, PLAIN_DRAWN + part("DREW:\n- ").rstrip(".") + "."
+        elif part("FAILED WITH: ") or part("NOT RUN: "):
+            showed = PLAIN_FAILED
+        else:
+            showed = PLAIN_SHOWED + (part("PRINTED:\n")[:120].rstrip(".") or "nothing") + "."
+        out.append(f"=== {name} ===\nDID: {did}\nSHOWED: {showed}{PLAIN_INVENTED if k == 0 else ''}")
+    return "\n".join(out)
+
+
 def _reply(messages):
     if SCENARIO is None:
         raise RuntimeError("harness_models: no scenario loaded (call harness_models.load(name))")
     system, user = _split(messages)
+    if system.startswith(PLAIN_SYSTEM):
+        return "", plain_steps(user)
     thinking, text = SCENARIO.reply(system, user)
     return thinking or "", text or ""
 

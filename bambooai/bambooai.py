@@ -174,8 +174,9 @@ class BambooAI:
         return 'Reviewer' if 'Reviewer' in agents else self._seat()
 
     def _rewrite_seat(self):
-        """The seat the plain-language rewrite runs on (2026-09-11): 'Rewriter' when the config carries one -
-        a fast, cheap model at low effort for a prose task whose numbers the guard checks - else the analyst seat."""
+        """The seat the plain-language rewrite runs on (2026-09-11), and the call that puts a run's steps into plain
+        words (2026-11-28): 'Rewriter' when the config carries one - a fast, cheap model at low effort for a prose task
+        whose numbers a guard checks - else the analyst seat."""
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Rewriter' if 'Rewriter' in agents else self._seat()
 
@@ -212,14 +213,16 @@ class BambooAI:
         agents = {a.get('agent') for a in (getattr(self.models, "config", {}) or {}).get('agent_configs', [])}
         return 'Promoter' if 'Promoter' in agents else self._seat()
 
-    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, seat: str = None, image: str = None,
-             effort=None, label: str = None, chain=None, **hints):
+    def _llm(self, system: str, user: str, review: bool = False, rewrite: bool = False, figures: bool = False, plain: bool = False, seat: str = None,
+             image: str = None, effort=None, label: str = None, chain=None, **hints):
         """The model call the session uses: the app's model layer (streaming,
         telemetry, retries), returning (text, {'cost': delta}). A self-review
         turn (review=True) runs on the Reviewer seat; its cost is accounted to
         that seat and counts against the run's budget like any other call. The
         rewrite and the figures request have seats of their own when the config
-        carries them. `seat` names the seat outright (the routines' promoter).
+        carries them; the call that puts a run's steps into plain words
+        (plain=True) is the Rewriter's too. `seat` names the seat outright (the
+        routines' promoter).
         `image` (a PNG, base64) rides with the user message as an image part in
         the OpenAI form - the OpenAI-compatible adapters pass it through, the
         Anthropic and Gemini adapters convert it (a figure given with an
@@ -239,7 +242,8 @@ class BambooAI:
         content = user if not image else [{"type": "text", "text": user}, {"type": "image_url", "image_url": {"url": "data:image/png;base64," + image}}]
         messages = [{"role": "system", "content": system}, {"role": "user", "content": content}]
         text = self.llm_stream(self.prompts, self.log_and_call_manager, self.output_manager, messages,
-                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite else (self._figures_seat() if figures else self._seat()))), chain_id=chain,
+                               agent=seat or (self._review_seat() if review else (self._rewrite_seat() if rewrite or plain else (self._figures_seat() if figures else self._seat()))),
+                               chain_id=chain,
                                reasoning_models=self.reasoning_models, **({"reasoning_effort": effort} if effort else {}),
                                **({"label": label} if label else {}))
         if isinstance(text, tuple):
@@ -1207,7 +1211,7 @@ class BambooAI:
             return
         kind = ev.get("type")
         if kind == "turn_start":
-            seat = self._review_seat() if ev.get("review") else (self._figures_seat() if ev.get("figures") else self._seat())
+            seat = self._review_seat() if ev.get("review") else (self._figures_seat() if ev.get("figures") else (self._rewrite_seat() if ev.get("plain") else self._seat()))
             # a quiet card shows nothing while its reply streams (the figures step's code, 2026-10-11); the attempt names a correction
             self._pane('pane_turn_start', turn=ev.get("turn"), of=ev.get("of"), seat=seat, model=self._model(seat), review=bool(ev.get("review")),
                        quiet=bool(ev.get("quiet")), attempt=ev.get("attempt"), **({"kept": True} if ev.get("kept") else {}))   # kept: a turn a branch keeps
@@ -1785,7 +1789,7 @@ class BambooAI:
                           read=self._read, unit_text=self._unit_text, kernel_prelude=self._kernel_prelude(),
                           documents=bool(self._documents_prelude()), context=bool(self._context_prelude()),
                           data_description=self._data_description(), kernel_factory=self._new_kernel,
-                          replay_runner=self._run_replay, map_inputs=self._map_inputs, saved=self._saved_analysis)
+                          replay_runner=self._run_replay, map_inputs=self._map_inputs, saved=self._saved_analysis, plain_steps=True)
         try:
             if src is not None:
                 run = session.go_on(src.id, after, hint, run_id=str(self.chain_id), data=data_record, reran=reran)

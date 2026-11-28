@@ -31,11 +31,18 @@ PLOT = (PLOTLY + MARKED + "createOrUpdateTab('plot', %s, 'plot_1', 'json'); acti
         + "setTimeout(() => ExplainUI.restore(responses[currentResponseIndex]), 300);")
 # the Answer tab's buttons, as the page puts them where an answer is drawn: PDF, and before it the plain version's (simplify.js, 2026-11-28)
 BUTTONS = "activateTab('answer'); const a=document.getElementById('content-answer'); a.insertAdjacentHTML('afterbegin','<h3 class=\"answer-tab-anchor\"></h3>'); addPDFExportButton(a); SimplifyUI.dress(a); "
+# the code trace of the finished analysis, as its route answers (2026-11-28): the trace is the code map suite's own view of a field trial - its cells, a
+# failed attempt, the figures cell - and beside it the steps in plain words (tools/fixtures/trace.json), as a model wrote them when the chain ended
+def trace_answer(root):
+    view = json.load(open(os.path.join(root, 'tests', 'analyst', 'fixtures', 'codemap', 'expected', 'viewmodel.json')))['trial']
+    view.update(chain_id='7', id='7', path=['7'], pathTitles={'7': view['title']}, titles={'7': view['title']})
+    return {'/code_map/': {'thread_id': '3', 'chain_id': '7', 'built': 'end', 'map': view, 'plain': json.load(open(os.path.join(HERE, 'fixtures', 'trace.json')))}}
 STATES = {
     'page_answer': BUTTONS,                              # a finished analysis: Simplify beside PDF - its plain version is written when asked for
     # Simplify pressed (tools/fixtures/simplify.json answers): the plain version shown, the button now Technical, the call's card in the left pane and the run's cost raised
     'simplified': MARKED + FINISHED + "Object.assign(currentData, { chain_id: 7, thread_id: 3 }); " + BUTTONS
                   + "currentData.technicalAnswer = a.querySelector('.content-body').outerHTML; document.querySelector('.simplified-summary-btn').click();",
+    'trace_steps': FINISHED + "CodeMapUI.open(7);",      # the code trace, its steps in plain words: what each did, what it showed, above what it recorded
     'page_data': "activateTab('dataframe');",
     'gear': "document.querySelector('.rail .settings-button').focus();",
     'composer_adaptive': "setMode('adaptive'); document.getElementById('queryInput').value='How does the warming trend compare?';",
@@ -85,6 +92,7 @@ def render_all(out, light=False):
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'drafts.json'))))       # the plots of the drafts the Pathfinder's state shows (2026-11-18), by the address the page asks
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'explain.json'))))      # what was asked about the analysis on the page (2026-11-27), by the address the page asks
     fixtures.update(json.load(open(os.path.join(HERE, 'fixtures', 'simplify.json'))))     # its report in plain language, as the server gives it when asked (2026-11-28)
+    fixtures.update(trace_answer(ROOT))                                                   # its code trace, with its steps in plain words (2026-11-28)
     usage_fx = os.path.join(HERE, 'fixtures', 'usage.json')                               # the usage dialog's answers (2026-10-31): a synthetic month, made on demand
     if not os.path.exists(usage_fx):
         import subprocess; subprocess.run([sys.executable, os.path.join(HERE, 'usage_fixture.py'), usage_fx], check=True, env=dict(os.environ, PYTHONPATH=os.path.join(ROOT, 'tools', 'stack', 'fakepkgs')))

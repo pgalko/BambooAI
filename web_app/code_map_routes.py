@@ -3,7 +3,8 @@
     GET /code_map/<thread_id>/<chain_id>
       400  ids not of the thread's and chain's shapes
       404  no such chain in the thread
-      200  {"thread_id", "chain_id", "built": "end" | "now", "map": <view>}   stored at the chain's end, or built now
+      200  {"thread_id", "chain_id", "built": "end" | "now", "map": <view>,   stored at the chain's end, or built now;
+            "plain": {<step>: {"did", "showed"}}}                              its steps in plain words (analyst/plain.py)
       200  {"thread_id", "chain_id", "error": "<one line>"}                   the build failed: the modal says so
       200  {"thread_id", "chain_id", "state": "running" | "unfinished"}       no map: the chain is running, or ended
                                                                              without an answer (asked, stopped, failed)
@@ -93,6 +94,7 @@ def code_map(thread_id, chain_id):
     run = nb.runs.get(str(chain_id))
     if run is None:
         return jsonify({'message': 'No such chain.'}), 404
+    # the chain's steps in plain words ride with its map, whenever that was built: {} for a run made before 2026-11-28
     head = {'thread_id': str(thread_id), 'chain_id': str(chain_id)}
     if run.status == 'running':
         return jsonify(dict(head, state='running'))
@@ -100,8 +102,8 @@ def code_map(thread_id, chain_id):
         return jsonify(dict(head, state='unfinished'))
     cm = _stored(run)
     if _current(cm):
-        return jsonify(dict(head, built='end', map=cm['view']))
+        return jsonify(dict(head, built='end', map=cm['view'], plain=run.plain))
     built = _build_now(nb, run, storage)
     if built.get('error') or not built.get('view'):
         return jsonify(dict(head, error=str(built.get('error') or 'the trace could not be built')))
-    return jsonify(dict(head, built='now', map=built['view']))
+    return jsonify(dict(head, built='now', map=built['view'], plain=run.plain))

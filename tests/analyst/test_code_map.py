@@ -660,11 +660,14 @@ done_run.turns = [Turn(kind="cell", thinking="Median next.", code="md = df['yiel
 done_run.report = "## Median\n4.80 [cell 2].\n"; done_run.status = "answered"; done_run.mode = "Quick"; done_run.data = dict(DATA)
 done_run.code_map = codemap.build(nb_r, done_run, inputs=R.inputs_from_data(done_run),        # stored at the chain's end, as _finish does,
                                   ancestors={"5001": codemap.build(nb_r, old_run)["exports"]})   # when the parent still had its exports
-running = nb_r.new_run("Still going", run_id="5003"); running.status = "running"
+# the steps in plain words (0367): written when a chain ended, kept with the run beside its map and never in it - the route sends them with the map
+done_run.plain = {"cell 2": {"did": "Took the middle value of the yields.", "showed": "It is 4.80 t/ha, a little under the mean."}}
+running = nb_r.new_run("Still going", run_id="5003"); running.status = "running"; running.plain = {"cell 9": {"did": "x", "showed": "y"}}
 stopped = nb_r.new_run("Stopped", run_id="5004"); stopped.status = "stopped"
 broken = nb_r.new_run("Broken map", run_id="5005"); broken.status = "answered"; broken.code_map = {"error": "the extractor fell over"}
 stale = nb_r.new_run("Stale map", run_id="5006"); stale.turns = list(old_run.turns); stale.report = old_run.report; stale.status = "answered"; stale.data = dict(DATA)
 stale.code_map = dict(codemap.build(nb_r, stale, inputs=R.inputs_from_data(stale)), version=codemap.VERSION - 1)
+stale.plain = {"cell 1": {"did": "Averaged the yields.", "showed": "The mean is 4.87 t/ha."}}
 ideas = nb_r.new_run("What next?", run_id="5007"); ideas.turns = [Turn(kind="ideas", text="1. Q one?\n2. Q two?")]; ideas.status = "answered"; ideas.mode = "Ideas"
 rstore.save(nb_r)
 before_file = open(os.path.join(work, "storage", "u1", "threads", "4001.json"), encoding="utf-8").read()
@@ -681,6 +684,12 @@ check("route: the map built now is cached in the process, keyed by storage, thre
       (os.path.join(work, "storage", "u1"), "4001", "5001", codemap.VERSION) in CMR._CACHE and wc.get("/code_map/4001/5001").get_json()["built"] == "now")
 r = wc.get("/code_map/4001/5006"); j = r.get_json()
 check("route: a stored map of an older version is rebuilt now", r.status_code == 200 and j["built"] == "now" and j["map"]["version"] == codemap.VERSION, j if not j or "map" not in j else j["built"])
+_with = {c: wc.get(f"/code_map/4001/{c}").get_json() for c in ("5001", "5002", "5003", "5006")}
+check("route: a chain's steps in plain words ride beside its map, whenever the map was built - stored at the chain's end, or built now - and are no part of it; a run made before there "
+      "were any has none; a chain without a map sends none",
+      _with["5002"]["plain"] == done_run.plain and _with["5006"]["plain"] == stale.plain and _with["5006"]["built"] == "now" and _with["5001"]["plain"] == {}
+      and "plain" not in _with["5003"] and all("plain" not in _with[c]["map"] and "Averaged the yields" not in json.dumps(_with[c]["map"]) for c in ("5001", "5002", "5006")),
+      {c: {k_: v for k_, v in j_.items() if k_ != "map"} for c, j_ in _with.items()})
 check("route: a running chain and an unfinished one have no map, only their state",
       (wc.get("/code_map/4001/5003").get_json().get("state"), wc.get("/code_map/4001/5004").get_json().get("state")) == ("running", "unfinished"))
 _cb = CMR.codemap.build
